@@ -210,7 +210,7 @@ def test_failures_retry_with_backoff_then_give_up(db):
 def test_schedules_queue_each_slot_once_even_if_ticked_twice(db):
     app, profiles = config.AppConfig(), {"test": profile()}
     tasks.ensure_schedules(db, app, profiles, at=NOW)
-    assert tasks.tick_schedules(db, at=NOW) == 2  # the post job and the numbers job
+    assert tasks.tick_schedules(db, at=NOW) == 3  # the post job, the numbers job and the campaigns job
     assert tasks.tick_schedules(db, at=NOW) == 0
     assert tasks.tick_schedules(db, at=NOW + timedelta(minutes=16)) == 1  # only the 15-minute post job is due again
 
@@ -224,7 +224,7 @@ def test_a_removed_channel_profile_leaves_no_schedules_or_waiting_tasks_behind(d
     tasks.enqueue(db, "post", {"profile": "test"})
     tasks.ensure_schedules(db, app, {"test": kept}, at=NOW)  # the "gone" profile was deleted from the settings
     with db.conn() as c:
-        assert {r["profile_id"] for r in c.execute("SELECT profile_id FROM schedules")} == {"test"}
+        assert {r["profile_id"] for r in c.execute("SELECT profile_id FROM schedules WHERE profile_id IS NOT NULL")} == {"test"}
         assert [json.loads(r["payload_json"])["profile"] for r in c.execute("SELECT payload_json FROM tasks WHERE status='queued'")] == ["test"]
 
 

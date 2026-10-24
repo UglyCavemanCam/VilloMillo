@@ -16,7 +16,20 @@ from urllib.parse import quote
 import httpx
 import keyring
 
-from .. import accounts, clipper, posting, routing, runs, safety, secrets, spend, studio, timefmt
+from .. import (
+    accounts,
+    campaigns,
+    channels,
+    clipper,
+    posting,
+    routing,
+    runs,
+    safety,
+    secrets,
+    spend,
+    studio,
+    timefmt,
+)
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
@@ -118,6 +131,21 @@ def needs(sv: Services, p: Profile) -> list[dict]:
         elif r["state"] == "failed":
             out.append({"title": f"A pasted video failed: {(r['title'] or r['url'])[:60]}", "sub": (r["error"] or "")[:120],
                         "btn": "Open", "kind": "bad", "primary": False, "href": f"/runs/{r['id']}?profile={p.id}"})
+    ready = campaigns.ready_to_submit(db)
+    for cid in dict.fromkeys(r["campaign_id"] for r in ready):
+        mine = [r for r in ready if r["campaign_id"] == cid]
+        out.append({"title": f"Submit {len(mine)} link{'s' if len(mine) != 1 else ''} to \"{mine[0]['campaign_title'][:50]}\"",
+                    "sub": "Posted clips whose links this campaign is waiting for", "btn": "Open", "kind": "accent", "primary": True,
+                    "href": f"/campaigns/{cid}?profile={p.id}"})
+    every = campaigns.all_campaigns(db)
+    for c in every:
+        if c["state"] == "joined" and not c["sources"].strip():
+            out.append({"title": f"Tell VilloMillo where \"{c['title'][:50]}\" videos are", "sub": "Add the show's channel or video links so it can start clipping",
+                        "btn": "Open", "kind": "accent", "primary": False, "href": f"/campaigns/{c['id']}?profile={p.id}"})
+    worth = [c for c in every if c["state"] == "recommended"]
+    if worth:
+        out.append({"title": f"{len(worth)} campaign{'s' if len(worth) != 1 else ''} worth joining", "sub": f"Best pays ${max(c['rate_cents'] for c in worth) / 100:.2f} per 1,000 views on YouTube. Joining is done by hand on Content Rewards",
+                    "btn": "See campaigns", "kind": "neutral", "primary": False, "href": f"/campaigns?profile={p.id}"})
     for held in routing.held_categories(db):
         n, lo, hi = held["clips"], held["low"], held["high"]
         out.append({"title": f"Create a channel for \"{held['category']}\"",
@@ -176,7 +204,8 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
         "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.category if p.category and p.category != channel_name(p) else "",
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
-            {"label": "Find", "links": [{"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"}]},
+            {"label": "Find", "links": [{"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"},
+                                         {"key": "campaigns", "label": "Campaigns", "href": f"/campaigns{q}", "icon": "search"}]},
             {"label": "Make", "links": [
                 {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
             {"label": "Post", "links": [
@@ -486,6 +515,45 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
 
 
+# --- campaigns -------------------------------------------------------------------------------------------------
+
+PLATFORM_LABEL = {"youtube": "YouTube", "tiktok": "TikTok"}
+CAMPAIGN_BADGE = {"recommended": badge("Worth joining", "good"), "skipped": badge("Skipped", ""), "joined": badge("Joined", "accent"),
+                  "dropped": badge("Stopped", "")}
+
+
+def _campaign_view(sv: Services, c: dict) -> dict:
+    rate = f"${c['rate_cents'] / 100:.2f}" if c["rate_cents"] is not None else "-"
+    left = f"${c['budget_left_cents'] / 100:,.0f}" if c["budget_left_cents"] is not None else "-"
+    category = c["category"] or "-"
+    waiting = bool(c["category"]) and channels.for_category(sv.profiles, c["category"]) is None
+    return {**c, "rate": rate, "left": left, "category_text": category, "no_channel": waiting, "badge": CAMPAIGN_BADGE[c["state"]],
+            "platform_text": ", ".join(PLATFORM_LABEL.get(p, p.title()) for p in c["platforms"]) or "-",
+            "paused": c["state"] == "joined" and bool(c["reason"])}
+
+
+def campaigns_page(sv: Services, p: Profile) -> dict:
+    return {"campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)],
+            "ready": campaigns.ready_to_submit(sv.db), "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd}
+
+
+def campaign_page(sv: Services, cid: str) -> dict | None:
+    c = campaigns.get(sv.db, cid)
+    if c is None:
+        return None
+    rules = c["rules"] or {}
+    queue = []
+    for q in campaigns.queue_of(sv.db, c["id"]):
+        state = RUN_STATE.get(q["run_state"]) if q["run_state"] else badge("Waiting", "")
+        queue.append({**q, "state": state, "title": q["title"] or q["video_id"]})
+    return {"c": _campaign_view(sv, c), "form": {"sources": c["sources"], "tags": c["tags"], "use_rules": bool(rules),
+                                                 "min_s": rules.get("min_s", 20), "max_s": rules.get("max_s", 60),
+                                                 "face_window_s": rules.get("face_window_s", 5),
+                                                 "require_captions": rules.get("require_captions", True), "no_ad_reads": rules.get("no_ad_reads", True)},
+            "queue": queue, "ready": [r for r in campaigns.ready_to_submit(sv.db) if r["campaign_id"] == c["id"]],
+            "keys": has_secret(secrets.YOUTUBE), "sends": any((not ch.posting.dry_run) for ch in sv.profiles.values() if ch.posting)}
+
+
 # --- insights --------------------------------------------------------------------------------------------------
 
 def insights_page(sv: Services, p: Profile) -> dict:
@@ -517,7 +585,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
     channels = []
     for c in sv.profiles.values():
         channels.append({"id": c.id, "name": channel_name(c), "display": c.display_name, "niche": c.niche.definition,
-                         "campaign": c.campaign, "posting": c.posting, "format": c.format, "handle": c.brand.handle,
+                         "posting": c.posting, "format": c.format, "handle": c.brand.handle,
                          "recipe": blueprints_summary(c.format) if c.format else None})
     keys = [{"name": "YouTube Data API key", "present": has_secret(secrets.YOUTUBE)},
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},

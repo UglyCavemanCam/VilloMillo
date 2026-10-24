@@ -16,7 +16,7 @@ import re
 from collections import Counter
 from datetime import datetime, timedelta
 
-from . import accounts, store, timefmt
+from . import accounts, campaigns, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
 
@@ -129,6 +129,8 @@ def plan(db: Database, profile: Profile, clip_id: int, *, now: datetime | None =
     episode = video["title"] if video else "the Solved podcast"
     grade = json.loads(clip["grade_json"])
     platform = platform or pick_platform(posting, f"{clip['hook'] or ''} {grade.get('caption_text', '')[:1500]}")
+    if platform is not None:
+        posting = campaigns.posting_for(db, posting, platform, clip["campaign_id"])  # a campaign's clips carry its required tags
     if platform is None:
         raise ValueError("this channel has no posting platforms set")
     copy = build_copy(posting, dict(clip), episode, platform)

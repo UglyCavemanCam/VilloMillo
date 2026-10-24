@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, empty %}
+{% block content %}
+<div class="page-head"><h1>Campaigns</h1><span class="sub">Content Rewards campaigns that pay per 1,000 views. VilloMillo reads the public list, vets each one, and clips for the ones you join.</span></div>
+
+{% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
+
+<div class="notice">{{ icon('info') }}<div>A campaign is worth joining only if it pays by views, allows YouTube, pays at least ${{ '%.2f'|format(d.floor) }} per 1,000 views and has at least ${{ '{:,.0f}'.format(d.min_budget) }} of budget left. <b>Joining a campaign and handing in each clip's link are done by hand on Content Rewards</b>: it offers no way for a program to do either. Nothing is clipped for a campaign until you press "I've joined".</div></div>
+
+{% if d.ready %}
+<section class="card stack" aria-labelledby="ready-h"><h2 id="ready-h">Links to hand in</h2>
+  {% for r in d.ready %}
+  <div class="row"><span class="grow"><b>{{ r.hook or 'A clip' }}</b><small>{{ r.campaign_title }} · {{ r.url }}</small></span>
+    <a class="btn btn-sm" href="/campaigns/{{ r.campaign_id }}?profile={{ shell.current.id }}">Open</a></div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card stack" aria-labelledby="add-h"><h2 id="add-h">Add a campaign by link</h2>
+  <form class="linkbar" method="post" action="/campaigns/add" style="max-width:none">
+    <label class="sr-only" for="clink">Campaign link</label>
+    <input class="field" id="clink" name="link" type="text" placeholder="Paste a contentrewards.com campaign link" autocomplete="off" required>
+    <button class="btn" type="submit">Add</button>
+  </form>
+  <form method="post" action="/campaigns/look-again"><button class="btn btn-sm btn-ghost" type="submit">Read the public list again now</button></form>
+</section>
+
+{% if d.campaigns %}
+<section class="card tight" style="overflow-x:auto" aria-label="Campaigns"><table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Campaign</th><th>YouTube pays</th><th>Budget left</th><th>Category</th><th>Verdict</th></tr></thead><tbody>
+  {% for c in d.campaigns %}
+  <tr class="{{ 'muted-row' if c.state in ('skipped', 'dropped') else '' }}">
+    <td><a href="/campaigns/{{ c.id }}?profile={{ shell.current.id }}"><b>{{ c.title }}</b></a><br><span class="muted">{{ c.brand }} · allows {{ c.platform_text }}</span></td>
+    <td><b>{{ c.rate }}</b><br><span class="muted">per 1,000 views</span></td><td>{{ c.left }}</td>
+    <td>{{ c.category_text }}{% if c.no_channel and c.state in ('recommended', 'joined') %}<br><span style="color:var(--warn)">No channel yet</span>{% endif %}</td>
+    <td><span class="badge {{ c.badge.kind }}">{{ 'Paused' if c.paused else c.badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.reason or '' }}</span></td></tr>
+  {% endfor %}</tbody></table></section>
+{% else %}{{ empty('search', 'No campaigns read yet', 'The worker reads the public list every hour. Press "Read the public list again now", or add a campaign by its link.') }}{% endif %}
+{% endblock %}

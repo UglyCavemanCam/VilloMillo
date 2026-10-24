@@ -24,6 +24,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .. import (
     accounts,
+    campaigns,
     channels,
     clipper,
     copywriter,
@@ -241,6 +242,74 @@ def create_app(sv: Services) -> FastAPI:
         except channels.ChannelError as e:
             raise HTTPException(422, str(e)) from None
         tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+        return JSONResponse({"ok": True})
+
+    # ---- campaigns -----------------------------------------------------------------------------------------------
+
+    @app.get("/campaigns", response_class=HTMLResponse)
+    def campaigns_list(profile: str | None = None, problem: str = ""):
+        p = profile_or_404(profile)
+        return render("campaigns.html", p, "/campaigns", "campaigns", "Campaigns", d={**pages.campaigns_page(sv, p), "problem": problem})
+
+    @app.post("/campaigns/add")
+    def campaign_add(request: Request, link: str = Form("")):
+        _only_local(request, "changes")
+        try:
+            c = campaigns.add_by_link(sv.db, link, sv.app.scoring)
+        except campaigns.CampaignError as e:
+            return RedirectResponse(f"/campaigns?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse(f"/campaigns/{c['id']}", status_code=303)
+
+    @app.post("/campaigns/look-again")
+    def campaigns_look_again(request: Request):
+        _only_local(request, "changes")
+        tasks.enqueue(sv.db, "campaigns", {"profile": None}, dedupe_key=f"campaigns:now:{int(store.now().timestamp() // 60)}", priority=10)
+        return RedirectResponse("/campaigns", status_code=303)
+
+    @app.get("/campaigns/{campaign_id}", response_class=HTMLResponse)
+    def campaign_detail(campaign_id: str, profile: str | None = None, problem: str = "", saved: int = 0):
+        d = pages.campaign_page(sv, campaign_id)
+        if d is None:
+            raise HTTPException(404, "no such campaign")
+        return render("campaign.html", profile_or_404(profile), "/campaigns", "campaigns", d["c"]["title"][:60], d={**d, "problem": problem, "saved": bool(saved)})
+
+    def campaign_action(campaign_id: str, request: Request, action):
+        _only_local(request, "changes")
+        try:
+            action(sv.db, campaign_id)
+        except LookupError:
+            raise HTTPException(404, "no such campaign") from None
+        return RedirectResponse(f"/campaigns/{campaign_id}", status_code=303)
+
+    @app.post("/campaigns/{campaign_id}/join")
+    def campaign_join(campaign_id: str, request: Request):
+        return campaign_action(campaign_id, request, campaigns.mark_joined)
+
+    @app.post("/campaigns/{campaign_id}/drop")
+    def campaign_drop(campaign_id: str, request: Request):
+        return campaign_action(campaign_id, request, campaigns.drop)
+
+    @app.post("/campaigns/{campaign_id}/setup")
+    async def campaign_setup(campaign_id: str, request: Request):
+        _only_local(request, "changes")
+        form = {k: str(v) for k, v in (await request.form()).items()}
+        try:
+            campaigns.save_setup(sv.db, campaign_id, sources=form.get("sources", ""), tags=form.get("tags", ""), min_s=form.get("min_s"),
+                                 max_s=form.get("max_s"), face_window_s=form.get("face_window_s"), use_rules=form.get("use_rules") == "1",
+                                 require_captions=form.get("require_captions") == "1", no_ad_reads=form.get("no_ad_reads") == "1")
+        except LookupError:
+            raise HTTPException(404, "no such campaign") from None
+        except campaigns.CampaignError as e:
+            return RedirectResponse(f"/campaigns/{campaign_id}?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse(f"/campaigns/{campaign_id}?saved=1", status_code=303)
+
+    @app.post("/api/campaign-submitted")
+    def campaign_submitted(request: Request, post_id: int = Form(...)):
+        _only_local(request, "changes")
+        try:
+            campaigns.mark_submitted(sv.db, post_id)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from None
         return JSONResponse({"ok": True})
 
     # ---- pasted links --------------------------------------------------------------------------------------------

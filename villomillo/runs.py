@@ -15,7 +15,7 @@ import json
 from dataclasses import asdict
 from datetime import timedelta
 
-from . import channels, clipper, links, routing, scoring, store, tasks
+from . import campaigns, channels, clipper, links, routing, scoring, store, tasks
 from .services import Services
 
 POLL_S = 20  # how often a waiting engine job is looked at
@@ -53,7 +53,7 @@ def _later(sv: Services, kind: str, run_id: int, seconds: float = POLL_S) -> Non
                   run_after=now + timedelta(seconds=seconds))
 
 
-def create(sv: Services, owner_id: str, text: str, *, source: str = "paste") -> int:
+def create(sv: Services, owner_id: str, text: str, *, source: str = "paste", campaign_id: str | None = None) -> int:
     """Start a run for a pasted link. Raises links.LinkError for a link that is not a video we can clip. A video
     that is already being worked on returns its existing run."""
     link = links.parse(text)
@@ -62,8 +62,8 @@ def create(sv: Services, owner_id: str, text: str, *, source: str = "paste") -> 
                          (link.video_id, *ACTIVE)).fetchone()
         if live:
             return live["id"]
-        c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-                  (source, link.url, link.platform, link.video_id, owner_id, "analysing", store.iso(), store.iso()))
+        c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at, campaign_id) VALUES (?,?,?,?,?,?,?,?,?)",
+                  (source, link.url, link.platform, link.video_id, owner_id, "analysing", store.iso(), store.iso(), campaign_id))
         run_id = c.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
     tasks.enqueue(sv.db, "paste_analyse", {"run": run_id}, dedupe_key=f"paste_analyse:{run_id}:first")
     return run_id
@@ -102,13 +102,27 @@ def analyse(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
     state = "planned" if plan["make_ids"] else "nothing"
     note = None if plan["make_ids"] else "No clip here is likely to earn enough."
     _set(sv.db, run_id, state=state, note=note, plan_json=json.dumps(plan), profile_id=plan["owner"])
+    if state == "planned" and run["source"] != "paste":
+        _go_on_its_own(sv, run_id, run, engine)
+
+
+def _go_on_its_own(sv: Services, run_id: int, run: dict, engine: clipper.Engine) -> None:
+    """A video that came from a campaign (or research) needs no Start: it goes ahead if the campaign can still be clipped for."""
+    if run["campaign_id"]:
+        c = campaigns.get(sv.db, run["campaign_id"])
+        ok, why = campaigns.clippable(c, sv.app.scoring) if c and c["state"] == "joined" else (False, "the campaign is no longer being clipped for")
+        if not ok:
+            return _set(sv.db, run_id, state="nothing", note=why)
+    start(sv, run_id, engine)
 
 
 def make_plan(sv: Services, run_id: int, preview: dict) -> dict:
     """Score the preview and decide where its clips would go. Everything the plan screen shows is in the result."""
     run = _run(sv.db, run_id)
     rules, breaker = sv.app.scoring, sv.app.spend_breaker
-    result = scoring.score_video(sv.db, sv.jev, rules, preview, source=run["source"], breaker=breaker)
+    campaign = campaigns.get(sv.db, run["campaign_id"]) if run["campaign_id"] else None
+    pays = campaign["rate_cents"] / 100 if campaign and campaign["rate_cents"] else None
+    result = scoring.score_video(sv.db, sv.jev, rules, preview, source=run["source"], campaign_cpm=pays, breaker=breaker)
     kind = result.kind
     channel = channels.for_category(sv.profiles, kind.category)
     fit = fit_why = None
@@ -178,13 +192,15 @@ def collect(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
     if run["state"] != "making":
         return
     plan, engine = run["plan"], engine or clipper.Engine()
-    owner = sv.profiles[run["profile_id"]].model_copy(update={"campaign": None})  # campaign rules belong to campaigns, not pasted links
+    campaign = campaigns.get(sv.db, run["campaign_id"]) if run["campaign_id"] else None
+    owner = sv.profiles[run["profile_id"]]  # the campaign's own rules apply to its clips; a pasted link has none
     with sv.db.conn() as c:
         job = c.execute("SELECT * FROM clip_jobs WHERE profile_id=? AND video_id=?", (owner.id, run["video_id"])).fetchone()
     if job is None:
         return fail(sv, run_id, "the clip job went missing")
     formatter = formats.formatter_for(sv.db, owner, jev=sv.jev, breaker=sv.app.spend_breaker, recipe=plan["look"])
-    outcome = clipper.collect(sv.db, engine, sv.jev, owner, dict(job), formatter, category=plan["category"])
+    outcome = clipper.collect(sv.db, engine, sv.jev, owner, dict(job), formatter, category=plan["category"],
+                              campaign_id=run["campaign_id"], campaign_rules=campaigns.rules_for(campaign))
     if outcome == "waiting":
         return _later(sv, "paste_collect", run_id)
     if outcome.startswith("failed"):

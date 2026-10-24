@@ -8,7 +8,7 @@ import pathlib
 import pytest
 from pydantic import ValidationError
 
-from villomillo import campaign, config
+from villomillo import campaign
 from villomillo.config import Campaign
 from villomillo.db import Database
 
@@ -56,8 +56,10 @@ def test_the_campaign_block_must_have_a_sensible_length_range():
         Campaign(name="bad", min_s=60, max_s=20)
 
 
-def test_the_solved_profile_carries_the_brief_rules():
-    rules = config.load_profiles()["solved"].campaign
+def test_the_solved_campaign_carries_the_brief_rules():
+    from villomillo import campaigns
+
+    rules = Campaign(name="Solved", **campaigns.SOLVED_RULES)
     assert (rules.min_s, rules.max_s, rules.face_window_s) == (20, 60, 5)
     assert rules.require_captions and rules.no_ad_reads
 

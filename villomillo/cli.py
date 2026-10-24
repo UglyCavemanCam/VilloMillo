@@ -300,15 +300,29 @@ def cmd_route(args) -> None:
 
 
 def cmd_recheck(args) -> None:
-    """Run the campaign rules again on clips waiting for you or already approved."""
-    from . import clipper
+    """Run a campaign's rules again on its clips waiting for you or already approved."""
+    from . import campaigns, clipper
 
     sv = _services()
     p = _pick(sv, args.profile)
-    if p.campaign is None:
-        sys.exit(f"{p.id} has no campaign rules in its settings")
-    for line in clipper.recheck(sv.db, clipper.Engine(), sv.jev, p):
+    c = campaigns.get(sv.db, args.campaign)
+    rules = campaigns.rules_for(c)
+    if rules is None:
+        sys.exit("that campaign has no rules set (add them on its page)")
+    for line in clipper.recheck(sv.db, clipper.Engine(), sv.jev, p, c["id"], rules):
         print(line)
+
+
+def cmd_campaigns(args) -> None:
+    """Read Content Rewards now and list every campaign with its verdict."""
+    from . import campaigns
+
+    sv = _services()
+    for line in campaigns.work(sv):
+        print(line)
+    for c in campaigns.all_campaigns(sv.db):
+        pays = f"${c['rate_cents'] / 100:.2f}" if c["rate_cents"] is not None else "-"
+        print(f"[{c['state']:11}] {pays:>6}  {c['title'][:50]}  {c['reason'] or ''}")
 
 
 def cmd_key(args) -> None:
@@ -459,7 +473,9 @@ def main(argv: list[str] | None = None) -> None:
     copy.set_defaults(fn=cmd_copy)
     recheck = sub.add_parser("recheck", help="run the campaign rules again on clips waiting or approved")
     recheck.add_argument("--profile")
+    recheck.add_argument("--campaign", required=True, help="the campaign's id")
     recheck.set_defaults(fn=cmd_recheck)
+    sub.add_parser("campaigns", help="read Content Rewards now and list every campaign with its verdict").set_defaults(fn=cmd_campaigns)
     sub.add_parser("serve", help="open the dashboard only").set_defaults(fn=cmd_serve)
     sub.add_parser("run", help="work in the background and serve the dashboard").set_defaults(fn=cmd_run)
     args = parser.parse_args(argv)

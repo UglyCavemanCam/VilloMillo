@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+{% set c = d.c %}
+<div class="page-head"><h1>{{ c.title }}</h1><span class="sub">{{ c.brand }} · {{ c.category_text }}</span>
+  <span class="right"><span class="badge {{ c.badge.kind }}">{{ 'Paused' if c.paused else c.badge.text }}</span><a class="btn btn-sm" href="/campaigns?profile={{ shell.current.id }}">All campaigns</a></span></div>
+
+{% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
+{% if d.saved %}<div class="notice">{{ icon('check') }}<div>Saved.</div></div>{% endif %}
+{% if c.reason %}<div class="notice {{ 'warn' if c.state == 'joined' else '' }}">{{ icon('info') }}<div>{{ c.reason }}</div></div>{% endif %}
+
+<section class="card stack">
+  <dl class="kv">
+    <dt>Pays on YouTube</dt><dd><b>{{ c.rate }}</b> per 1,000 views{% if c.min_payout_cents %} · from ${{ '%.2f'|format(c.min_payout_cents / 100) }} to ${{ '%.2f'|format((c.max_payout_cents or 0) / 100) }} a clip{% endif %}</dd>
+    <dt>Budget left</dt><dd>{{ c.left }}{% if c.budget_total_cents %} of ${{ '{:,.0f}'.format(c.budget_total_cents / 100) }}{% endif %}</dd>
+    <dt>Allows</dt><dd>{{ c.platform_text }}</dd>
+    <dt>Needs an application</dt><dd>{{ 'Yes: apply on Content Rewards first' if c.requires_application else 'No' }}</dd>
+  </dl>
+  {% if c.description %}<p class="muted" style="margin:0;line-height:1.5">{{ c.description[:500] }}</p>{% endif %}
+  <div class="cluster">
+    <a class="btn" href="{{ c.url }}" target="_blank" rel="noopener">{{ icon('external', 'icon-sm') }} Open on Content Rewards</a>
+    {% if c.state != 'joined' %}<form method="post" action="/campaigns/{{ c.id }}/join"><button class="btn btn-primary" type="submit">I've joined</button></form>{% endif %}
+    {% if c.state != 'dropped' %}<form method="post" action="/campaigns/{{ c.id }}/drop"><button class="btn btn-ghost" type="submit">Stop clipping for this campaign</button></form>{% endif %}
+  </div>
+  {% if c.state != 'joined' %}<p class="muted" style="font-size:13px;margin:0">Join on Content Rewards yourself, then press "I've joined". Only then does VilloMillo clip for it.</p>{% endif %}
+</section>
+
+{% if c.state == 'joined' %}
+{% if d.ready %}
+<section class="card stack" aria-labelledby="sub-h"><h2 id="sub-h">Links to hand in</h2>
+  <p class="muted" style="margin:0">Open each link's campaign page on Content Rewards, submit the link, then press "Handed in".</p>
+  {% for r in d.ready %}
+  <div class="row"><span class="grow"><b>{{ r.hook or 'A clip' }}</b><small id="link{{ r.post_id }}">{{ r.url }}</small></span>
+    <button type="button" class="btn btn-sm" data-copy="link{{ r.post_id }}">Copy link</button>
+    <button type="button" class="btn btn-sm btn-primary" data-act="/api/campaign-submitted" data-fields='{{ {"post_id": r.post_id}|tojson }}' data-ok="Marked as handed in">Handed in</button></div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<form class="stack" method="post" action="/campaigns/{{ c.id }}/setup">
+  <section class="card" aria-labelledby="src-h"><h2 id="src-h" style="margin-bottom:12px">Where its videos are</h2>
+    <div class="form">
+      <label>Source videos<small>One per line: a YouTube channel (such as @solvedpodcast, or its channel link) to clip its newest full episodes, or links to particular videos (YouTube, Twitch, Kick). A campaign's own source links are shown to members only, so copy them from its page.</small>
+        <textarea class="field" name="sources" rows="4" placeholder="@channelname">{{ d.form.sources }}</textarea></label>
+      {% if not d.keys %}<div class="notice warn">{{ icon('alert') }}<div>A channel is read through your YouTube key. Store it with <code>python -m villomillo key youtube</code>. Video links work without it.</div></div>{% endif %}
+    </div>
+  </section>
+  <section class="card" aria-labelledby="rules-h"><h2 id="rules-h" style="margin-bottom:12px">Its rules and tags</h2>
+    <div class="form">
+      <label>Required caption tags<small>@mentions or tags the campaign wants in every caption, written as it says. They replace the channel's own tags for this campaign's clips.</small>
+        <input class="field" name="tags" value="{{ d.form.tags }}" maxlength="200"></label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="use_rules" value="1" {{ 'checked' if d.form.use_rules }}> Check the rules a program can check on each clip</label>
+      <label>Shortest clip (seconds)<input class="field" name="min_s" type="number" min="5" value="{{ d.form.min_s }}"></label>
+      <label>Longest clip (seconds)<input class="field" name="max_s" type="number" min="10" value="{{ d.form.max_s }}"></label>
+      <label>A face must be on screen in the first (seconds)<input class="field" name="face_window_s" type="number" min="1" value="{{ d.form.face_window_s }}"></label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="require_captions" value="1" {{ 'checked' if d.form.require_captions }}> Captions on the whole clip</label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="no_ad_reads" value="1" {{ 'checked' if d.form.no_ad_reads }}> No ad reads</label>
+    </div>
+  </section>
+  <div class="cluster"><button class="btn btn-primary" type="submit">Save</button></div>
+</form>
+
+<section class="card stack" aria-labelledby="q-h"><h2 id="q-h">Videos for this campaign</h2>
+  {% if not d.sends %}<div class="notice">{{ icon('info') }}<div>Posts are only written to a folder until you turn on "Send posts for real" on a channel's page, so no link is ready to hand in yet.</div></div>{% endif %}
+  {% for q in d.queue %}
+  <div class="row"><span class="grow"><b>{{ q.title }}</b><small>{{ q.run_note or q.url }}</small></span>
+    {% if q.run_id %}<a class="btn btn-sm" href="/runs/{{ q.run_id }}?profile={{ shell.current.id }}">Open</a>{% endif %}<span class="badge {{ q.state.kind }}">{{ q.state.text }}</span></div>
+  {% else %}<p class="muted" style="margin:0">Nothing queued yet. Once sources are saved, the worker finds the newest full episodes within the hour.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}

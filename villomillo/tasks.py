@@ -102,6 +102,9 @@ def ensure_schedules(db: Database, app: AppConfig, profiles: dict[str, Profile],
                     "ON CONFLICT(name) DO UPDATE SET interval_s=excluded.interval_s",
                     (f"{kind}:{profile_id}", kind, profile_id, minutes * 60, store.iso(at)),
                 )
+        c.execute(  # not tied to a channel: one pass reads Content Rewards for all of them
+            "INSERT INTO schedules (name, kind, profile_id, interval_s, next_run_at) VALUES ('campaigns', 'campaigns', NULL, ?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET interval_s=excluded.interval_s", (s.campaigns_every_minutes * 60, store.iso(at)))
 
 
 def tick_schedules(db: Database, *, at: datetime | None = None) -> int:

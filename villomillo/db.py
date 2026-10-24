@@ -65,9 +65,34 @@ CREATE TABLE IF NOT EXISTS runs (
     video_id TEXT NOT NULL, profile_id TEXT NOT NULL, title TEXT, channel TEXT, duration REAL,
     state TEXT NOT NULL,   -- analysing | planned | nothing | making | finished | removed | failed
     note TEXT, preview_job_id INTEGER, render_job_id INTEGER, plan_json TEXT, error TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    campaign_id TEXT           -- the Content Rewards campaign this video is being clipped for, if any
 );
 CREATE INDEX IF NOT EXISTS runs_state ON runs (state, id);
+
+-- Content Rewards campaigns: seen on the public list or pasted by link, vetted, and (once you join by hand) clipped for.
+CREATE TABLE IF NOT EXISTS campaigns (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, brand TEXT, category TEXT, platforms_json TEXT NOT NULL DEFAULT '[]', type TEXT,
+    status TEXT, requires_application INTEGER NOT NULL DEFAULT 0, description TEXT,
+    rate_cents INTEGER,                -- what it pays per 1,000 views on YouTube (null when YouTube is not allowed)
+    min_payout_cents INTEGER, max_payout_cents INTEGER, budget_total_cents INTEGER, budget_spent_cents INTEGER, budget_left_cents INTEGER,
+    creators INTEGER, url TEXT NOT NULL,
+    state TEXT NOT NULL,               -- recommended | skipped | joined | dropped
+    reason TEXT,                       -- why it is recommended, skipped or paused
+    rules_json TEXT, tags TEXT NOT NULL DEFAULT '', sources TEXT NOT NULL DEFAULT '',
+    first_seen_at TEXT NOT NULL, fetched_at TEXT NOT NULL, detail_at TEXT, joined_at TEXT
+);
+
+-- The videos queued for a campaign. The run that handles each one carries the rest of the story.
+CREATE TABLE IF NOT EXISTS campaign_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, campaign_id TEXT NOT NULL, video_id TEXT NOT NULL, url TEXT NOT NULL, title TEXT,
+    run_id INTEGER, created_at TEXT NOT NULL, UNIQUE (campaign_id, video_id)
+);
+
+-- A posted clip's link, handed in to the campaign by you (Content Rewards has no way for us to do it).
+CREATE TABLE IF NOT EXISTS campaign_submissions (
+    post_id INTEGER PRIMARY KEY, campaign_id TEXT NOT NULL, submitted_at TEXT NOT NULL
+);
 
 -- What Jev said about a piece of text, kept so the same text always gets the same scores and is never paid for twice.
 CREATE TABLE IF NOT EXISTS readings (
@@ -96,6 +121,7 @@ CREATE TABLE IF NOT EXISTS clips_ready (
     state TEXT NOT NULL,        -- review | rejected_auto | failed_validation | approved | rejected
     reason TEXT, created_at TEXT NOT NULL, decided_at TEXT,
     category TEXT,              -- what kind of clip this is; it can only post on the channel for that category
+    campaign_id TEXT,           -- the campaign this clip was made for (its rules, tags and link submission)
     UNIQUE (profile_id, engine_clip_id)
 );
 
@@ -152,8 +178,12 @@ class Database:
             post_cols = {r[1] for r in setup.execute("PRAGMA table_info(posts)")}
             if "remote_id" not in post_cols:
                 setup.execute("ALTER TABLE posts ADD COLUMN remote_id TEXT")
-            if "category" not in {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}:
-                setup.execute("ALTER TABLE clips_ready ADD COLUMN category TEXT")  # a database made before channels
+            clip_cols = {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}
+            for column in ("category", "campaign_id"):
+                if column not in clip_cols:
+                    setup.execute(f"ALTER TABLE clips_ready ADD COLUMN {column} TEXT")  # a database made before channels or campaigns
+            if "campaign_id" not in {r[1] for r in setup.execute("PRAGMA table_info(runs)")}:
+                setup.execute("ALTER TABLE runs ADD COLUMN campaign_id TEXT")
             setup.execute(
                 "INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO NOTHING",
                 (str(SCHEMA_VERSION),),

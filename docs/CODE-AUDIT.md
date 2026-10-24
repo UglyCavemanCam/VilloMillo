@@ -29,7 +29,8 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `claude.py`, `jev.py` | Claude and Jev clients | **Keep** |
 | `scoring.py` | Viral score, estimated CPM, expected revenue, and the video's kind | **Keep** (new, Phase 4) |
 | `clipper.py`, `links.py` | Talks to the clipping engine (preview, make chosen moments), checks finished clips; recognises YouTube, Twitch and Kick links | **Keep.** Phase 3 added "preview" and "make chosen moments" |
-| `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the real campaign rules |
+| `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the rules saved on each campaign |
+| `contentrewards.py`, `campaigns.py` | Reads the public Content Rewards list and campaign pages; vets, queues and tracks campaigns and the links to hand in | **Keep** (new, Phase 7) |
 | `formats/` | The on-screen look recipes (blueprints, text, render) | **Keep** |
 | `copywriter.py` | Titles and captions for YouTube | **Keep** |
 | `channels.py` | Channels stored in the database: add, edit, delete, one per category | **Keep** (new, Phase 2) |
@@ -41,5 +42,5 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 
 ## Not yet decided
 
-- The Solved campaign rules (`campaign:` in `config/villomillo/channels/solved.yaml`) move to the Campaigns feature in Phase 7.
+- Solved's rules moved to `campaigns.SOLVED_RULES` in Phase 7; `Profile.campaign` is gone.
 - Twelve tests fail on a clean checkout for reasons unrelated to this work: eleven outro-font tests need Windows fonts, and one engine signal-peak test (`test_clip_intent`).

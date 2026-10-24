@@ -259,9 +259,8 @@ def test_a_video_whose_category_has_no_channel_is_held_and_home_offers_add_chann
     assert len(routing.release_held(db, lambda: sv.jev, sv.profiles, "Stream clips")) == 2
 
 
-def test_pasted_clips_ignore_the_old_solved_campaign_rules(env):
+def test_pasted_clips_carry_no_campaign_rules(env):
     sv, db = env
-    assert sv.profiles["solved"].campaign is not None  # the starting channel still carries them
     run_id, engine = to_plan(sv)
     runs.start(sv, run_id, engine)
     runs.collect(sv, run_id, engine)

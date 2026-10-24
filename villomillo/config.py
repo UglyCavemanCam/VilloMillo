@@ -51,6 +51,7 @@ class Scoring(_Strict):
     cpm_base: float = Field(1.0, gt=0)  # estimated CPM of a clip that scores exactly viral_min in a factor-1 category
     cpm_floor: float = Field(1.0, ge=0)  # a pasted clip needs at least this estimated CPM
     predicted_views: int = Field(8000, ge=0)  # a rough guess per clip, replaced by real results later
+    campaign_min_budget_usd: float = Field(250.0, ge=0)  # a campaign with less than this left is skipped
     type_certainty_min: float = Field(0.75, ge=0, le=1)  # below this, the video's kind is unsure and the plain look is used
     category_factors: dict[str, float] = {"Podcasts": 1.0, "Stream clips": 1.0}  # all 1.0 until real results say otherwise
     default_factor: float = Field(1.0, gt=0)
@@ -59,6 +60,7 @@ class Scoring(_Strict):
 class Schedule(_Strict):
     post_every_minutes: int = Field(15, ge=1)  # send posts that are due
     stats_every_minutes: int = Field(360, ge=30)  # read the real views of recent posts
+    campaigns_every_minutes: int = Field(60, ge=15)  # read Content Rewards and keep campaign queues full
 
 
 class AppConfig(_Strict):
@@ -118,7 +120,6 @@ class Profile(_Strict):
     category: str = ""  # what this channel posts, such as "Podcasts". One channel per category.
     autopilot: str = Field("review", pattern=r"^(off|review|auto)$")
     niche: Niche
-    campaign: Campaign | None = None
     posting: Posting | None = None
     brand: Brand = Brand()
     format: str | None = None  # the recipe in config/villomillo/blueprints.yaml; None keeps the engine's own look

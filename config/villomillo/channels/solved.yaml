@@ -1,6 +1,6 @@
 # The starting channel: Podcasts. It is read once into an empty database; after that channels are added and
 # edited in the dashboard. The id stays "solved" so the YouTube sign-in already saved for it keeps working.
-# The Solved campaign rules below move to the Campaigns feature in Phase 7.
+# The Solved campaign's rules live with the campaign now (Campaigns page).
 
 id: solved
 display_name: "Podcasts"
@@ -19,16 +19,6 @@ niche:
   exclude:
     - ad reads and sponsor segments
     - small talk and housekeeping
-
-# The Clipfarm x Solved brief (Google Doc "Mark Manson Clipping Brief"). Only the rules a program can check
-# are here; the rest is judged by you when you review a clip.
-campaign:
-  name: "Clipfarm x Solved with Mark Manson"
-  min_s: 20
-  max_s: 60
-  face_window_s: 5          # Mark's face must be on screen in the first 5 seconds
-  require_captions: true    # subtitles on the whole clip
-  no_ad_reads: true
 
 posting:
   dry_run: true             # nothing is sent until you turn this off on the channel's page

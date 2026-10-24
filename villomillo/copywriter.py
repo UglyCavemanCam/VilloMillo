@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import claude, secrets, spend, store
+from . import campaigns, claude, secrets, spend, store
 from .config import Posting, Profile, SpendBreaker
 from .db import Database
 
@@ -138,11 +138,12 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
         return f"skipped: {pause.title.lower()}"
 
     platform = post["platform"]
+    posting_cfg = campaigns.posting_for(db, profile.posting, platform, clip["campaign_id"])  # a campaign's clips carry its tags
     grade = json.loads(clip["grade_json"])
     facts = {
         "platform": PLATFORM_NAMES.get(platform, platform.replace("_", " ").title()),
         "channel": profile.display_name, "niche": profile.niche.definition, "episode_title": episode,
-        "required_tags": profile.posting.tags.get(platform, ""),
+        "required_tags": posting_cfg.tags.get(platform, ""),
         "clip_text": (grade.get("caption_text") or clip["hook"] or "")[:4000],
     }
     survivors, rejected = [], []
@@ -174,7 +175,7 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
         return "kept the basic copy: " + "; ".join(rejected[:3] or ["no options came back"])
 
     survivors.sort(key=lambda o: (-o["stop"], o["misleading"]))
-    built = [{**assemble(profile.posting, platform, episode, o), "stop": o["stop"], "misleading": o["misleading"]}
+    built = [{**assemble(posting_cfg, platform, episode, o), "stop": o["stop"], "misleading": o["misleading"]}
              for o in survivors]
     with db.conn() as c:
         if force:

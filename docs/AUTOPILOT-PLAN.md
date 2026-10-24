@@ -126,7 +126,7 @@ Add the "held, then create a channel" behaviour. YouTube connects on each channe
 what it posts) and then walks you through YouTube, tags and look on the channel's page. A clip with a category posts only on that
 category's channel; with none it is held and Home says "Create a channel for ...". Adding the channel plans the held clips, best score first.
 Podcasts is the starting channel (its YouTube sign-in is the one you already made). Clips get their category from their channel until the
-type detector (Phase 4) assigns it. The Solved campaign rules still sit on the Podcasts channel until Phase 7 moves them to Campaigns.
+type detector (Phase 4) assigns it. The Solved campaign rules now live in `campaigns.py` (Phase 7).
 
 ### Phase 3: Teach the engine to preview (large)
 **In plain words:** Today the engine does everything in one go: download, read, find moments, then make the clips. Your plan
@@ -192,6 +192,12 @@ contentrewards.com first, checks the pay and the money left, reads each campaign
 read, you paste a campaign link and the system reads that one page. It then shows you exactly what to join and which links to submit (a few taps).
 **After this:** a Campaigns page listing every campaign it looked at, why it recommends or skips each one, and a queue of videos.
 **Done when:** one real campaign is checked and queued, and any manual steps are clearly shown.
+**Status: built.** The worker reads the public list hourly. A campaign is "worth joining" only if it pays by views (not a pool), allows YouTube, pays at least
+the CPM floor ($1.00 per 1,000 views) and has at least $250 of budget left; every other campaign is listed as skipped with the reason. Joining and handing in
+each clip's link stay manual: press "I've joined" on the campaign's page, then enter its source videos, required caption tags and rules (Content Rewards shows
+those only to members). Solved is seeded as already joined with its rules and tags. The system clips one video at a time, five ahead, uses the campaign's pay as
+the clip's CPM, and skips the Start step. Finished campaign clips carry the campaign's tags instead of the channel's, and the Campaigns page lists the links
+to hand in. Tested against real pages parsed offline and stand-in sites; no full live run yet.
 
 ### Phase 8: Research (large)
 **In plain words:** The "Run Research" switch. It looks for videos with the best expected CPM on YouTube (Creative Commons

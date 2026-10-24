@@ -189,7 +189,7 @@ def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str
 
 
 def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict, formatter=None, *,
-            category: str | None = None) -> str:
+            category: str | None = None, campaign_id: str | None = None, campaign_rules=None) -> str:
     """Look at a submitted job. Returns 'waiting', 'done' or 'failed', with a short status.
 
     `formatter(clip, job, out_path)` gives each clip the channel's look from the source video. If it fails, the clip
@@ -236,8 +236,8 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
                 f" ({look})" if look.startswith("look not applied") else "")
             if self_contained < SELF_CONTAINED_MIN:
                 state, reason = "rejected_auto", f"does not stand alone (self-contained {self_contained:.0%})"
-            elif profile.campaign:
-                rules = campaign.check(profile.campaign, path=path, duration_s=verdict["facts"]["duration_s"],
+            elif campaign_rules:
+                rules = campaign.check(campaign_rules, path=path, duration_s=verdict["facts"]["duration_s"],
                                        caption_text=text, ad_read=grade["ad_read"])
                 grade["campaign"] = {**rules, "checked_at": store.iso()}
                 if not rules["ok"]:
@@ -248,11 +248,11 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
         with db.conn() as c:
             c.execute(
                 "INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                "file_path, validation_json, grade_json, state, reason, created_at, category) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "file_path, validation_json, grade_json, state, reason, created_at, category, campaign_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (profile.id, clip["id"], job["video_id"], clip["start_s"], clip["end_s"], clip["score"],
                  clip.get("hook"), str(path), json.dumps(verdict), json.dumps(grade), state, reason, store.iso(),
-                 category or profile.category or None),
+                 category or profile.category or None, campaign_id),
             )
         saved += 1
         checked += verdict["ok"]
@@ -293,17 +293,15 @@ def refresh_files(db: Database, engine: Engine, profile: Profile, video_id: str)
     return lines
 
 
-def recheck(db: Database, engine: Engine, jev: Jev, profile: Profile) -> list[str]:
+def recheck(db: Database, engine: Engine, jev: Jev, profile: Profile, campaign_id: str, campaign_rules) -> list[str]:
     """Run the campaign rules again on clips waiting for you or already approved.
 
     A clip waiting for you that now fails is held back. An approved clip is never changed here: the
     failure is shown on its card so you can decide. Returns one line per clip.
     """
-    if profile.campaign is None:
-        raise ValueError("this channel has no campaign rules")
     with db.conn() as c:
-        rows = c.execute("SELECT * FROM clips_ready WHERE profile_id=? AND state IN ('review','approved') ORDER BY id",
-                         (profile.id,)).fetchall()
+        rows = c.execute("SELECT * FROM clips_ready WHERE profile_id=? AND campaign_id=? AND state IN ('review','approved') ORDER BY id",
+                         (profile.id, campaign_id)).fetchall()
     lines = []
     for r in rows:
         grade = json.loads(r["grade_json"])
@@ -314,7 +312,7 @@ def recheck(db: Database, engine: Engine, jev: Jev, profile: Profile) -> list[st
         if "ad_read" not in grade:  # clips graded before the ad-read question existed
             grade["ad_read"] = campaign.ad_read_from(grade_clip(db, jev, profile, r["engine_clip_id"], text))
         duration = json.loads(r["validation_json"]).get("facts", {}).get("duration_s", r["end_s"] - r["start_s"])
-        rules = campaign.check(profile.campaign, path=pathlib.Path(r["file_path"]), duration_s=duration,
+        rules = campaign.check(campaign_rules, path=pathlib.Path(r["file_path"]), duration_s=duration,
                                caption_text=text, ad_read=grade["ad_read"])
         grade["campaign"] = {**rules, "checked_at": store.iso()}
         state, reason = r["state"], r["reason"]
