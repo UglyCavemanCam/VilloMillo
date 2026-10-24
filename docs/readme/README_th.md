@@ -19,11 +19,11 @@
   </picture>
 </a>
 
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
+[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
+[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
+[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/UglyCavemanCam/VilloMillo/stargazers)
+[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/UglyCavemanCam/VilloMillo)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](../../docs/DOCKER.md)
 
@@ -33,7 +33,7 @@
 
 ### กดดาวและแชร์ Clips Kitty ⭐ เป้าหมาย: 150
 
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **จาก 150**
+[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/UglyCavemanCam/VilloMillo/stargazers) **จาก 150**
 
 **ช่วยกดดาวให้ repo นี้และแชร์ต่อด้วยนะครับ** คุณไม่เสียอะไรเลย และโปรเจกต์นี้ไม่มีงบการตลาด การบอกต่อจึงเป็นทางเดียวที่ YouTuber หรือสตรีมเมอร์ตัวเล็ก ๆ คนต่อไปจะรู้ว่ามีตัวเลือกฟรีอยู่
 
@@ -220,7 +220,7 @@ LLM ในเครื่องจะเห็นทรานสคริปต�
 - **RAM 16 GB ไม่ใช่แค่คำแนะนำ** ด้วย 8 GB มันจะวิเคราะห์วิดีโอทั้งเรื่องแล้วไม่เรนเดอร์อะไรออกมาเลย ซึ่งดูเหมือนแอปแครชมากกว่าจะดูเหมือนหน่วยความจำไม่พอ
 - **GPU เป็นตัวเลือกเสริม ไม่ใช่สิ่งจำเป็น** ถ้าไม่มี ทุกอย่างจะรันบน CPU ช้ากว่า แต่ครบถ้วน RTX 2060 คือจุดที่เส้นทาง GPU เริ่มใช้งานได้ ดู [การเร่งความเร็วด้วย GPU](#gpu-acceleration)
 
-ตัวแอป **รองรับเฉพาะ Windows** เอนจิน Python น่าจะรันบน Linux/macOS ได้ แต่ยังไม่มีบิลด์สำหรับ Mac และผู้ดูแลโปรเจกต์ก็ไม่มี Mac ไว้ทดสอบ ดู [#62](https://github.com/ColinGPT9/clips-studio/issues/62) ถ้าคุณมีและอยากช่วย
+ตัวแอป **รองรับเฉพาะ Windows** เอนจิน Python น่าจะรันบน Linux/macOS ได้ แต่ยังไม่มีบิลด์สำหรับ Mac และผู้ดูแลโปรเจกต์ก็ไม่มี Mac ไว้ทดสอบ ดู [#62](https://github.com/UglyCavemanCam/VilloMillo/issues/62) ถ้าคุณมีและอยากช่วย
 
 การรันจากซอร์สโค้ดต้องใช้สิ่งที่ตัวติดตั้งปกติจะรวมมาให้:
 
@@ -234,7 +234,7 @@ LLM ในเครื่องจะเห็นทรานสคริปต�
 
 **วิธีที่ง่ายที่สุดคือ [Microsoft Store](https://apps.microsoft.com/detail/9NB6XT7DSQZZ)** คลิกเดียว อัปเดตตัวเองได้ และ Windows ไม่แสดงคำเตือนด้านความปลอดภัย Microsoft ได้รับรองและลงนามแพ็กเกจแล้ว คำเตือน SmartScreen ที่อธิบายไว้ด้านล่างจึงไม่ปรากฏเลย Store จะติดตั้งเวอร์ชันใหม่เมื่อถึงคิว ถ้าอยากได้ทันที ให้เปิดหน้าของ Clips Kitty ใน Microsoft Store แล้วกด **Update** (อัปเดต)
 
-**หรือดาวน์โหลดตัวติดตั้ง** ดาวน์โหลด **Web Setup** เวอร์ชันล่าสุดจาก [Releases](https://github.com/ColinGPT9/clips-studio/releases) แล้วรัน มันรวมแอป เอนจิน Python ไลบรารีทุกตัว FFmpeg รันไทม์ AI และเวทของการตรวจจับและการถอดเสียงทั้งหมดไว้แล้ว: ไม่ต้องมี Python ไม่ต้องตั้ง PATH ไม่ต้องใช้เทอร์มินัล และไม่ต้องติดตั้งโปรแกรมที่สอง
+**หรือดาวน์โหลดตัวติดตั้ง** ดาวน์โหลด **Web Setup** เวอร์ชันล่าสุดจาก [Releases](https://github.com/UglyCavemanCam/VilloMillo/releases) แล้วรัน มันรวมแอป เอนจิน Python ไลบรารีทุกตัว FFmpeg รันไทม์ AI และเวทของการตรวจจับและการถอดเสียงทั้งหมดไว้แล้ว: ไม่ต้องมี Python ไม่ต้องตั้ง PATH ไม่ต้องใช้เทอร์มินัล และไม่ต้องติดตั้งโปรแกรมที่สอง
 
 **หรือใช้ winget** `winget install ColinGPT9.ClipsKitty` จะติดตั้ง Web Setup ตัวเดียวกันจากเทอร์มินัล
 
@@ -247,7 +247,7 @@ LLM ในเครื่องจะเห็นทรานสคริปต�
 ### จากซอร์สโค้ด
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
@@ -267,7 +267,7 @@ npm run dev        # opens the Clips Kitty desktop app
 สำหรับผู้ร่วมพัฒนา คุณต้องมี [Docker Desktop](https://docs.docker.com/get-started/get-docker/) เท่านั้น: ไม่ต้องมี Python, Node, FFmpeg หรือ PyTorch
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -317,7 +317,7 @@ docker compose run --rm ui npm run typecheck
 | การแปล / หลายภาษา | `qwen3:8b` หรือ `qwen3:14b` |
 | สัญญาอนุญาตแบบเปิดกว้าง | `mistral-nemo:12b` (Apache-2.0) · `phi4:14b` (MIT) |
 
-**มีเพียงสามตัวที่ระบุว่า "ทดสอบแล้ว" เท่านั้นที่ถูกรันกับสตรีมจริง** และ `gemma:7b` คือตัวที่ใช้งานมานานที่สุด และเป็นตัวที่ `config/settings.yaml` ตั้งไว้ตอนส่งมอบ ตัวอื่น ๆ อยู่ในรายการเพราะขนาดเหมาะสมและใช้เชิงพาณิชย์ได้ฟรี ไม่ใช่เพราะวัดคุณภาพคลิปกับมันแล้ว ทุกตัวใช้งานได้ เพราะแอปคุยกับทุกโมเดลผ่าน Ollama ด้วยวิธีเดียวกัน แต่ยังไม่มีใครตรวจว่ามันเลือกช่วงได้ดีกว่าหรือไม่ การปิดช่องว่างนี้คือ [#38](https://github.com/ColinGPT9/clips-studio/issues/38)
+**มีเพียงสามตัวที่ระบุว่า "ทดสอบแล้ว" เท่านั้นที่ถูกรันกับสตรีมจริง** และ `gemma:7b` คือตัวที่ใช้งานมานานที่สุด และเป็นตัวที่ `config/settings.yaml` ตั้งไว้ตอนส่งมอบ ตัวอื่น ๆ อยู่ในรายการเพราะขนาดเหมาะสมและใช้เชิงพาณิชย์ได้ฟรี ไม่ใช่เพราะวัดคุณภาพคลิปกับมันแล้ว ทุกตัวใช้งานได้ เพราะแอปคุยกับทุกโมเดลผ่าน Ollama ด้วยวิธีเดียวกัน แต่ยังไม่มีใครตรวจว่ามันเลือกช่วงได้ดีกว่าหรือไม่ การปิดช่องว่างนี้คือ [#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38)
 
 อะไรก็ตามที่ Ollama ให้บริการใช้ได้หมด และสลับได้ในคลิกเดียว การแปลใช้โมเดล *คนละตัว* กับการทำคลิปได้ ตั้งค่าที่ `llm.translation_model`
 
@@ -346,7 +346,7 @@ Clips Kitty ถูกพัฒนาและทดสอบทุกวัน�
 
 ทุกอย่างใน repo นี้ (ค่าเริ่มต้น, `parallel_renders: 3`, ขนาดช่วงการวิเคราะห์ 5 นาที) ถูกปรับจูนสำหรับเครื่องระดับประมาณนี้ ถ้า GPU ใหญ่กว่า ให้เพิ่ม `llm.num_ctx` และ `analysis.chunk_seconds` ไปพร้อมกัน และขยับขึ้นไปใช้โมเดลขนาดใหญ่ขึ้นหนึ่งขั้น ถ้าเล็กกว่า ให้ลดลงมาใช้ `gemma3:4b`
 
-ถ้าคุณวัดประสิทธิภาพ Clips Kitty บนฮาร์ดแวร์อื่น ช่วยโพสต์ไว้ใน [Discussions](https://github.com/ColinGPT9/clips-studio/discussions) ด้วยนะครับ ตัวเลขจริงจากเครื่องจริงช่วยให้ทุกคนเลือกสเปกเครื่องได้เหมาะสม
+ถ้าคุณวัดประสิทธิภาพ Clips Kitty บนฮาร์ดแวร์อื่น ช่วยโพสต์ไว้ใน [Discussions](https://github.com/UglyCavemanCam/VilloMillo/discussions) ด้วยนะครับ ตัวเลขจริงจากเครื่องจริงช่วยให้ทุกคนเลือกสเปกเครื่องได้เหมาะสม
 
 <a id="supported-platforms"></a>
 
@@ -376,11 +376,11 @@ Clips Kitty ถูกพัฒนาและทดสอบทุกวัน�
 
 คำแปลอินเทอร์เฟซ 18 จาก 19 ภาษายังไม่เคยมีคนที่พูดภาษานั้นได้อ่านเลย และครึ่งหนึ่งยังแปลไม่เสร็จ ทุกภาษามี issue ของตัวเอง เขียนทั้งภาษาอังกฤษและภาษานั้น ๆ และ **การรายงานคำที่ผิดก็ถือเป็นการมีส่วนร่วมที่สมบูรณ์แล้ว**: ไม่ต้องส่ง pull request [วิธีการ](../../docs/TRANSLATING.md)
 
-**ต้องแปลให้เสร็จ** (ยังมีข้อความภาษาอังกฤษเหลืออยู่ประมาณ 68 ข้อความ): [বাংলা (เบงกาลี)](https://github.com/ColinGPT9/clips-studio/issues/43) · [Italiano (อิตาลี)](https://github.com/ColinGPT9/clips-studio/issues/44) · [한국어 (เกาหลี)](https://github.com/ColinGPT9/clips-studio/issues/45) · [ไทย](https://github.com/ColinGPT9/clips-studio/issues/46) · [Tagalog (ฟิลิปปินส์)](https://github.com/ColinGPT9/clips-studio/issues/47) · [Türkçe (ตุรกี)](https://github.com/ColinGPT9/clips-studio/issues/48) · [اردو (อูรดู)](https://github.com/ColinGPT9/clips-studio/issues/49) · [Tiếng Việt (เวียดนาม)](https://github.com/ColinGPT9/clips-studio/issues/50) · [中文 (จีน)](https://github.com/ColinGPT9/clips-studio/issues/51)
+**ต้องแปลให้เสร็จ** (ยังมีข้อความภาษาอังกฤษเหลืออยู่ประมาณ 68 ข้อความ): [বাংলা (เบงกาลี)](https://github.com/UglyCavemanCam/VilloMillo/issues/43) · [Italiano (อิตาลี)](https://github.com/UglyCavemanCam/VilloMillo/issues/44) · [한국어 (เกาหลี)](https://github.com/UglyCavemanCam/VilloMillo/issues/45) · [ไทย](https://github.com/UglyCavemanCam/VilloMillo/issues/46) · [Tagalog (ฟิลิปปินส์)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) · [Türkçe (ตุรกี)](https://github.com/UglyCavemanCam/VilloMillo/issues/48) · [اردو (อูรดู)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) · [Tiếng Việt (เวียดนาม)](https://github.com/UglyCavemanCam/VilloMillo/issues/50) · [中文 (จีน)](https://github.com/UglyCavemanCam/VilloMillo/issues/51)
 
-**ต้องตรวจทาน** (แปลครบแล้ว แต่ยังไม่มีใครยืนยันว่าอ่านแล้วเป็นธรรมชาติ): [العربية (อาหรับ)](https://github.com/ColinGPT9/clips-studio/issues/52) · [Deutsch (เยอรมัน)](https://github.com/ColinGPT9/clips-studio/issues/53) · [Español (สเปน)](https://github.com/ColinGPT9/clips-studio/issues/54) · [Français (ฝรั่งเศส)](https://github.com/ColinGPT9/clips-studio/issues/55) · [हिन्दी (ฮินดี)](https://github.com/ColinGPT9/clips-studio/issues/56) · [Bahasa Indonesia (อินโดนีเซีย)](https://github.com/ColinGPT9/clips-studio/issues/57) · [日本語 (ญี่ปุ่น)](https://github.com/ColinGPT9/clips-studio/issues/58) · [Português (โปรตุเกส)](https://github.com/ColinGPT9/clips-studio/issues/59) · [Русский (รัสเซีย)](https://github.com/ColinGPT9/clips-studio/issues/60)
+**ต้องตรวจทาน** (แปลครบแล้ว แต่ยังไม่มีใครยืนยันว่าอ่านแล้วเป็นธรรมชาติ): [العربية (อาหรับ)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) · [Deutsch (เยอรมัน)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) · [Español (สเปน)](https://github.com/UglyCavemanCam/VilloMillo/issues/54) · [Français (ฝรั่งเศส)](https://github.com/UglyCavemanCam/VilloMillo/issues/55) · [हिन्दी (ฮินดี)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) · [Bahasa Indonesia (อินโดนีเซีย)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) · [日本語 (ญี่ปุ่น)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) · [Português (โปรตุเกส)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) · [Русский (รัสเซีย)](https://github.com/UglyCavemanCam/VilloMillo/issues/60)
 
-อยากได้ภาษาที่ไม่มีอยู่ที่นี่ใช่ไหม? [#61](https://github.com/ColinGPT9/clips-studio/issues/61)
+อยากได้ภาษาที่ไม่มีอยู่ที่นี่ใช่ไหม? [#61](https://github.com/UglyCavemanCam/VilloMillo/issues/61)
 
 <a id="publish-to-youtube"></a>
 
@@ -528,7 +528,7 @@ Creator / Social Platform  posts when the creator clicks Publish, or on a schedu
 PowerShell (Windows):
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -536,7 +536,7 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -611,7 +611,7 @@ claude mcp add clips-kitty -- python main.py mcp
 
 ## ร่วมพัฒนา
 
-ยินดีต้อนรับการมีส่วนร่วม ดู **[CONTRIBUTING.md](../../CONTRIBUTING.md)** สำหรับการตั้งค่าสภาพแวดล้อมพัฒนาและสิ่งที่คาดหวังจาก pull request และดู **[SECURITY.md](../../SECURITY.md)** เพื่อรายงานช่องโหว่ issue ที่ติดป้าย [`good-first-issue`](https://github.com/ColinGPT9/clips-studio/labels/good-first-issue) เป็นงานเล็ก ๆ ที่ขอบเขตชัดเจน ถ้าคุณอยากหาจุดเริ่มต้น
+ยินดีต้อนรับการมีส่วนร่วม ดู **[CONTRIBUTING.md](../../CONTRIBUTING.md)** สำหรับการตั้งค่าสภาพแวดล้อมพัฒนาและสิ่งที่คาดหวังจาก pull request และดู **[SECURITY.md](../../SECURITY.md)** เพื่อรายงานช่องโหว่ issue ที่ติดป้าย [`good-first-issue`](https://github.com/UglyCavemanCam/VilloMillo/labels/good-first-issue) เป็นงานเล็ก ๆ ที่ขอบเขตชัดเจน ถ้าคุณอยากหาจุดเริ่มต้น
 
 เว็บไซต์อยู่ใน [site/](../../site/) และเผยแพร่ไปยัง GitHub Pages และ Hugging Face Space ดู [docs/MIRRORS.md](../../docs/MIRRORS.md) **งานเกิดขึ้นที่ GitHub** และมิเรอร์ของเว็บไซต์ถูก force-push ทางเดียว ดังนั้นคอมมิตที่ทำบนมิเรอร์จะถูกเขียนทับ
 

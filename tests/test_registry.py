@@ -157,7 +157,7 @@ def test_a_commit_must_be_on_a_branch_of_the_listed_repository(reg):
 
 
 def test_only_the_bundled_index_installs_as_official():
-    official = {"repository": "https://github.com/ColinGPT9/clips-studio"}
+    official = {"repository": "https://github.com/UglyCavemanCam/VilloMillo"}
     assert registry.listing_tier({**official, "index": "bundled"}) == "listed-official"
     assert registry.listing_tier({**official, "index": "https://example.org/index.json"}) == "listed"
     assert registry.listing_tier({"repository": "https://github.com/example-dev/x", "index": "bundled"}) == "listed"
@@ -606,7 +606,7 @@ def test_a_version_the_bundled_list_has_stays_the_bundled_one(tmp_path):
 def test_the_online_list_never_changes_the_projects_own_listing_or_one_whose_code_moved(tmp_path):
     data, bundled = tmp_path / "data", tmp_path / "index.json"
     own = _listing("scene-cut-highlights", ("1.0.0", 1), owner="clips-kitty-examples",
-                   repository="https://github.com/ColinGPT9/clips-studio", path="examples/scene-cut")
+                   repository="https://github.com/UglyCavemanCam/VilloMillo", path="examples/scene-cut")
     other = _listing("tool", ("1.0.0", 2))
     bundled.write_text(json.dumps(_index([own, other])))
     _online(data, _index([

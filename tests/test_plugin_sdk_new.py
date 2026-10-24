@@ -35,7 +35,7 @@ from clipskitty_sdk.host import APP_PYTHON  # noqa: E402
 from clipskitty_sdk.lint import NOT_BUNDLED, lint_folder  # noqa: E402
 from clipskitty_sdk.manifest import offers, validate_folder, version_satisfies  # noqa: E402
 
-REPO = "https://github.com/ColinGPT9/clips-studio"
+REPO = "https://github.com/UglyCavemanCam/VilloMillo"
 SCHEMA_URL = ("https://raw.githubusercontent.com/ColinGPT9/clips-studio/main/sdk/python/clipskitty_sdk/schema/"
               "clipskitty.schema.json")
 FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))

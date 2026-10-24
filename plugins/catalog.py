@@ -1,5 +1,5 @@
-"""Awesome Clips Kitty: the catalog of apps, pipelines, plugins, models,
-workflows, integrations and tools around Clips Kitty.
+"""Awesome VilloMillo: the catalog of apps, pipelines, plugins, models,
+workflows, integrations and tools around VilloMillo.
 
 The catalog is its own repository (github.com/ColinGPT9/awesome-clips-kitty),
 with three kinds of files:
@@ -17,14 +17,14 @@ and two built ones: index.json, which the app reads, and README.md, which
 people read. Both come from scripts/build_registry_index.py.
 
 Three things are kept apart on purpose:
-- the relationship to Clips Kitty: "built-for" (runs inside it; only an
+- the relationship to VilloMillo: "built-for" (runs inside it; only an
   installable listing) or "built-with" (a separate app or tool using its API
   or SDK). There is no third kind: the catalog is for what people build with
-  Clips Kitty, and a link to another project is not an entry;
-- the badges: "official" (made by the Clips Kitty project) or "community" (the
+  VilloMillo, and a link to another project is not an entry;
+- the badges: "official" (made by the VilloMillo project) or "community" (the
   default), "compatible" (an installable version passed the automated checks:
   a technical label, not a review), "featured" (picked by a maintainer);
-- the numbers: Clips Kitty installs, GitHub stars, and a model's Hugging Face
+- the numbers: VilloMillo installs, GitHub stars, and a model's Hugging Face
   downloads and likes, each its own figure.
 """
 
@@ -49,8 +49,8 @@ KIND_TITLES = {"app": "Apps", "pipeline": "Pipelines", "plugin": "Plugins", "mod
 FOLDER_OF_KIND = {v: k for k, v in {**DIRECTORY_KINDS, **INSTALLABLE_KINDS}.items()}
 
 RELATIONSHIPS = {
-    "built-for": "Built for Clips Kitty",
-    "built-with": "Built with Clips Kitty",
+    "built-for": "Built for VilloMillo",
+    "built-with": "Built with VilloMillo",
 }
 BADGES = {
     "official": "✓ Official",
@@ -59,15 +59,15 @@ BADGES = {
     "community": "Community",
 }
 BADGE_MEANING = {
-    "official": "Made and maintained by the Clips Kitty project.",
-    "compatible": "This version passed Clips Kitty's automated compatibility checks: the manifest is valid, "
+    "official": "Made and maintained by the VilloMillo project.",
+    "compatible": "This version passed VilloMillo's automated compatibility checks: the manifest is valid, "
                   "it installs, its requirements are met, and it runs on a sample video and gives an answer "
-                  "Clips Kitty accepts. A technical label, not a security review.",
-    "featured": "Picked by hand by a Clips Kitty maintainer as a notable project.",
-    "community": "Made by someone outside the Clips Kitty project. Nobody at Clips Kitty has read its code.",
+                  "VilloMillo accepts. A technical label, not a security review.",
+    "featured": "Picked by hand by a VilloMillo maintainer as a notable project.",
+    "community": "Made by someone outside the VilloMillo project. Nobody at VilloMillo has read its code.",
 }
 
-# GitHub owners whose projects are the Clips Kitty project's own.
+# GitHub owners whose projects are the VilloMillo project's own.
 OFFICIAL_OWNERS = ("colingpt9",)
 
 PLATFORMS = ("windows", "macos", "linux", "web", "android", "ios")
@@ -380,7 +380,7 @@ def check_entry(data, kind: str, slug: str, sections: dict) -> list[str]:
         problems.append(f"section: one of {', '.join(known) or '(none defined for this kind)'}")
     relationship = data.get("relationship")
     if relationship != "built-with":
-        problems.append("relationship: built-with (it uses Clips Kitty's API or SDK). A project that doesn't "
+        problems.append("relationship: built-with (it uses VilloMillo's API or SDK). A project that doesn't "
                         "is not an entry; built-for is for installable plugins, which are listings")
     else:
         wanted = next((s.get("relationship") for s in (sections.get(kind) or {}).get("sections", [])
@@ -388,9 +388,9 @@ def check_entry(data, kind: str, slug: str, sections: dict) -> list[str]:
         if wanted and wanted != relationship:
             problems.append(f"relationship: the section {section} is for {wanted} projects")
     if kind == "app" and section == "works-with" and not data.get("adapter"):
-        problems.append("adapter: an app in works-with names the listed pipeline or plugin that runs it in Clips Kitty")
+        problems.append("adapter: an app in works-with names the listed pipeline or plugin that runs it in VilloMillo")
     if relationship == "built-with" and data.get("uses") not in USES:
-        problems.append("uses: what it uses of Clips Kitty: api, sdk or both")
+        problems.append("uses: what it uses of VilloMillo: api, sdk or both")
     if "uses" in data and relationship != "built-with":
         problems.append("uses: only for built-with projects")
     if not isinstance(data.get("license"), str) or not re.match(manifest.LICENSE_PATTERN, data["license"]) \
@@ -438,7 +438,7 @@ def check_entry(data, kind: str, slug: str, sections: dict) -> list[str]:
     _short_list(problems, "games", data.get("games"))
     _short_list(problems, "sports", data.get("sports"))
     if "adapter" in data and not (isinstance(data["adapter"], str) and manifest.ID_RE.match(data["adapter"])):
-        problems.append("adapter: the id (publisher/name) of the listed pipeline or plugin that runs it in Clips Kitty")
+        problems.append("adapter: the id (publisher/name) of the listed pipeline or plugin that runs it in VilloMillo")
     check_featured(problems, "featured", data.get("featured"))
     _text(problems, "warning", data.get("warning"), limit=200, required=False)
     for key in ("added", "checked"):
@@ -556,7 +556,7 @@ def _days_between(a: str, b: str) -> int | None:
 
 def entry_metrics(github_url, model_ids: list[str], metrics: dict, *, listing_id: str | None = None) -> dict:
     """The numbers for one entry, each kept apart: its repository's GitHub
-    figures, its Clips Kitty installs (listings only), and each model's
+    figures, its VilloMillo installs (listings only), and each model's
     Hugging Face figures."""
     out: dict = {}
     repo = github_repo(github_url)
@@ -676,7 +676,7 @@ def _line(entry: dict) -> str:
         bits.append("needs technical setup (command line or Python)")
     nums = entry.get("metrics") or {}
     if nums.get("installs") is not None:
-        bits.append(f"{nums['installs']:,} Clips Kitty installs")
+        bits.append(f"{nums['installs']:,} VilloMillo installs")
     stars = _stars((nums.get("github") or {}).get("stars"))
     if stars:
         bits.append(f"★ {stars} on GitHub")
@@ -685,7 +685,7 @@ def _line(entry: dict) -> str:
         if hf and isinstance(hf.get("downloads"), int):
             bits.append(f"{_stars(hf['downloads'])} Hugging Face downloads a month")
     if entry.get("adapter"):
-        bits.append(f"Clips Kitty adapter: `{entry['adapter']}`")
+        bits.append(f"VilloMillo adapter: `{entry['adapter']}`")
     if nums.get("stale"):
         bits.append(f"⚠ {nums['stale']}")
     line = f"- [{entry['name']}]({_link(entry)}) - {desc} " + " · ".join(bits)

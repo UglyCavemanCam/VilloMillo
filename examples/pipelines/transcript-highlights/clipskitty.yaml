@@ -1,8 +1,8 @@
-# Clips Kitty's own transcript scorer behind the plugin contract.
+# VilloMillo's own transcript scorer behind the plugin contract.
 #
 # A first-party adapter, not an example of what an outside developer may do:
-# src/main.py imports Clips Kitty's internals (analysis/highlights.py), so it
-# only runs next to a Clips Kitty source checkout. It exists to show that a
+# src/main.py imports VilloMillo's internals (analysis/highlights.py), so it
+# only runs next to a VilloMillo source checkout. It exists to show that a
 # pipeline already in the app fits the contract unchanged. The community-style
 # example, which imports nothing but the SDK, is examples/pipelines/scene-cut-highlights.
 manifest_version: 1
@@ -12,10 +12,10 @@ version: 1.0.0
 kind: pipeline
 capability: highlight_detection
 description: >
-  Picks moments from the transcript with the same scorer Clips Kitty's
+  Picks moments from the transcript with the same scorer VilloMillo's
   Shorts mode starts from (analysis/highlights.find_highlights).
-author: {name: Clips Kitty}
-repository: https://github.com/ColinGPT9/clips-studio
+author: {name: VilloMillo}
+repository: https://github.com/UglyCavemanCam/VilloMillo
 license: AGPL-3.0-or-later
 requires: {clips_kitty: ">=2.0", plugin_api: 1}
 run:

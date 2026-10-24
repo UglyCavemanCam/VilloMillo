@@ -40,11 +40,11 @@ contextBridge.exposeInMainWorld('studio', {
   // A plugin's own links (its repository, docs, developer). The main process
   // shows the full address and opens it only if the user agrees.
   openPluginLink: (url: string): Promise<boolean> => ipcRenderer.invoke('open-plugin-link', url),
-  // A link from an Awesome Clips Kitty entry (its download page or home), the same way.
+  // A link from an Awesome VilloMillo entry (its download page or home), the same way.
   openCatalogLink: (url: string, ours: boolean): Promise<boolean> =>
     ipcRenderer.invoke('open-catalog-link', url, ours),
   pickPluginFolder: (): Promise<string | null> => ipcRenderer.invoke('pick-plugin-folder'),
-  // Whether closing the window keeps Clips Kitty running in the tray, for
+  // Whether closing the window keeps VilloMillo running in the tray, for
   // watched channels. Off unless turned on; the main process remembers it.
   tray: {
     get: (): Promise<{ keepInTray: boolean }> => ipcRenderer.invoke('tray:get'),
@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('studio', {
       ipcRenderer.invoke('update:skip', version),
     prefs: (patch?: { channel?: string }): Promise<{ channel: string; skipped?: string }> =>
       ipcRenderer.invoke('update:prefs', patch),
-    /** Clips Kitty's page in the Microsoft Store app (a Store copy's update button). */
+    /** VilloMillo's page in the Microsoft Store app (a Store copy's update button). */
     openStore: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('update:openStore'),
     /** Subscribe to update state. Returns an unsubscribe function. */
     onState: (fn: (s: Record<string, unknown>) => void): (() => void) => {

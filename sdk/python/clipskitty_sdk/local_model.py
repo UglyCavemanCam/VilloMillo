@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
-"""Asking the creator's local model, the one they chose in Clips Kitty, on
+"""Asking the creator's local model, the one they chose in VilloMillo, on
 this PC.
 
     from clipskitty_sdk import local_model, media
@@ -13,7 +13,7 @@ this PC.
                 job.understand(m, said)
 
 The plugin needs `ollama` in its permissions, and the creator needs a local
-model in Clips Kitty: when Clips Kitty's AI runs at a cloud provider there is
+model in VilloMillo: when VilloMillo's AI runs at a cloud provider there is
 no model to ask, and this refuses. It only talks to a model on this PC
 (127.0.0.1, localhost or ::1): it refuses any other address, never falls
 back to another one, and never calls a cloud service. Its requests ignore
@@ -38,12 +38,12 @@ from pathlib import Path
 from . import _loopback
 
 NO_PERMISSION = "This pipeline doesn't ask for the local model: add ollama to permissions in clipskitty.yaml"
-NO_MODEL = ("No local model is set in Clips Kitty (its AI may run at a cloud provider), and this helper only "
+NO_MODEL = ("No local model is set in VilloMillo (its AI may run at a cloud provider), and this helper only "
             "uses a model on this PC")
-OFF_THIS_PC = ("Clips Kitty's model address {host} isn't on this PC, and this helper only talks to a model on "
+OFF_THIS_PC = ("VilloMillo's model address {host} isn't on this PC, and this helper only talks to a model on "
                "this PC")
 UNREADABLE = "The local model gave an answer this helper can't read"
-BAD_PORT = "Clips Kitty's model address {host} has a port this helper can't use"
+BAD_PORT = "VilloMillo's model address {host} has a port this helper can't use"
 
 # What Ollama said each model can do ("vision", "thinking", ...), by address
 # and model, once it has answered.
@@ -57,13 +57,13 @@ class LocalModelError(RuntimeError):
 
 def _ollama(job) -> dict:
     ollama = job.tools.ollama
-    if not isinstance(ollama, dict):  # Clips Kitty hands it over only with the permission
+    if not isinstance(ollama, dict):  # VilloMillo hands it over only with the permission
         raise LocalModelError(NO_PERMISSION)
     return ollama
 
 
 def model(job) -> str:
-    """The name of the creator's local model, as Clips Kitty hands it over."""
+    """The name of the creator's local model, as VilloMillo hands it over."""
     name = str(_ollama(job).get("model") or "").strip()
     if not name:
         raise LocalModelError(NO_MODEL)

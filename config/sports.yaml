@@ -501,7 +501,7 @@ basketball:
   # Basketball always clips the whole game. A job, watch or assistant call
   # saved with a quarter from before is read as the whole game.
   legacy_periods: [q1, q2, q3, q4, ot]
-  listed_hint: Add the baskets' times in Ask Clips Kitty to clip each one
+  listed_hint: Add the baskets' times in Ask VilloMillo to clip each one
 
   footage_choices:
     auto:      Automatic

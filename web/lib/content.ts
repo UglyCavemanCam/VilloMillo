@@ -38,9 +38,9 @@ export const VERSION = "2.1.0";
 export const SITE_URL: string = "https://clips-kitty-web.vercel.app";
 
 export const LINKS = {
-	download: `https://github.com/ColinGPT9/clips-studio/releases/download/v${VERSION}/ClipsKitty-Web-Setup-${VERSION}.exe`,
+	download: `https://github.com/UglyCavemanCam/VilloMillo/releases/download/v${VERSION}/ClipsKitty-Web-Setup-${VERSION}.exe`,
 	site: "https://colingpt9.github.io/clips-studio/",
-	github: "https://github.com/ColinGPT9/clips-studio",
+	github: "https://github.com/UglyCavemanCam/VilloMillo",
 	/** The Microsoft Store listing. Canonical URL with no query string on
 	 *  purpose: the share link Microsoft hands you carries hl=en-us&gl=US,
 	 *  which forces a US English page on every visitor — wrong for an app that

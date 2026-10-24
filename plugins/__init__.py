@@ -1,4 +1,4 @@
-"""Plugins: pipelines from outside Clips Kitty, run as separate processes.
+"""Plugins: pipelines from outside VilloMillo, run as separate processes.
 
 A plugin is a folder with a manifest (`clipskitty.yaml`) and a command. When
 a job names one (`pipeline: {id, version, settings}`), process_video asks it

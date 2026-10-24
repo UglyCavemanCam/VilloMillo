@@ -55,7 +55,7 @@ FETCH_FAILED = {sources.OFFLINE: DOWNLOAD_FAILED, sources.GONE: DOWNLOAD_GONE, s
 # Said on the install screen when the download of a model it lists will ask
 # first because the file is pickle-format (the validator's warning, in
 # Technical details, names the file).
-PICKLE_MODEL = ("One of its AI model files is a kind that can run programs when it's opened. Clips Kitty will ask "
+PICKLE_MODEL = ("One of its AI model files is a kind that can run programs when it's opened. VilloMillo will ask "
                 "you before it downloads that file.")
 
 _lock = threading.RLock()
@@ -165,11 +165,11 @@ def _block_problems(blocked, plugin_id: str, version: str) -> tuple[list, list]:
     hit = blocked(plugin_id, version) if blocked and plugin_id and version else None
     if not hit:
         return [], []
-    # Any list Clips Kitty reads can block (plugins/registry.py blocklist), not only its own;
+    # Any list VilloMillo reads can block (plugins/registry.py blocklist), not only its own;
     # the Marketplace's Installed tab uses the same words.
     if hit.get("severity") == "blocked":
-        return [f"Blocked: {hit.get('reason') or 'a list Clips Kitty uses has blocked this version'}"], []
-    return [], ["No longer listed: " + (hit.get("reason") or "a list Clips Kitty uses has taken it off")]
+        return [f"Blocked: {hit.get('reason') or 'a list VilloMillo uses has blocked this version'}"], []
+    return [], ["No longer listed: " + (hit.get("reason") or "a list VilloMillo uses has taken it off")]
 
 
 def _no_manifest(source: dict) -> str:
@@ -394,7 +394,7 @@ def rollback(data_dir, plugin_id: str, *, app_version: str | None = None, blocke
 
 
 def remove(data_dir, plugin_id: str) -> dict:
-    """Remove a plugin: every version Clips Kitty installed, and its stored
+    """Remove a plugin: every version VilloMillo installed, and its stored
     keys. A folder installed in place (a developer's own) is forgotten, never
     deleted."""
     from core import secrets as secret_store
@@ -490,7 +490,7 @@ def view(data_dir, plugin_id: str, *, app_version: str | None = None, blocked=No
 
 
 def builtin_plugins() -> list[dict]:
-    """The modes that ship with Clips Kitty, described by their manifests (Official)."""
+    """The modes that ship with VilloMillo, described by their manifests (Official)."""
     import yaml
 
     out = []

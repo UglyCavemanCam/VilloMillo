@@ -36,11 +36,11 @@ export default function MarketplaceDevelopers({
       <div>
         <h3 className="text-xl font-bold">{t('For developers')}</h3>
         <p className="text-sm text-muted mt-1">
-          {t('Clips Kitty hasn’t checked pipelines installed here. To find pipelines, use Browse.')}
+          {t('VilloMillo hasn’t checked pipelines installed here. To find pipelines, use Browse.')}
         </p>
       </div>
       {!manage && (
-        <div className="card text-sm text-warn">{t('Installing pipelines needs the Clips Kitty desktop app.')}</div>
+        <div className="card text-sm text-warn">{t('Installing pipelines needs the VilloMillo desktop app.')}</div>
       )}
       <p className="text-sm text-warn">
         ⚠{' '}
@@ -78,7 +78,7 @@ export default function MarketplaceDevelopers({
         </button>
         <p className="text-xs text-muted">
           {t(
-            'A commit, not a branch: what you look at is exactly what gets installed. Clips Kitty reads the files without running anything from them.'
+            'A commit, not a branch: what you look at is exactly what gets installed. VilloMillo reads the files without running anything from them.'
           )}
         </p>
       </section>

@@ -23,7 +23,7 @@ DEFAULTS: dict = {
     "mode": "local",
     # The port the gateway listens on for workers.
     "port": 8766,
-    # This PC as a render worker for another Clips Kitty.
+    # This PC as a render worker for another VilloMillo.
     "this_pc": {
         "enabled": False,
         "main": "",          # the main PC's address, host:port

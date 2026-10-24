@@ -2,7 +2,7 @@
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """Running a plugin: the job folder, the process and the result.
 
-Clips Kitty's engine and `python -m clipskitty_sdk run` both run plugins
+VilloMillo's engine and `python -m clipskitty_sdk run` both run plugins
 through these functions, so a plugin that works under the SDK's runner works
 in the app. Standard library only.
 """
@@ -46,7 +46,7 @@ from .manifest import MAX_TIMEOUT_MINUTES, setting_value_problem
 
 SDK_DIR = Path(__file__).resolve().parent.parent  # the folder holding clipskitty_sdk/
 
-# The Python that installed Clips Kitty runs plugins on: its engine's own,
+# The Python that installed VilloMillo runs plugins on: its engine's own,
 # frozen into the app (_clipskitty_script_host.py). This is the one place the
 # version is written. plugins/sources.py and tests/test_plugin_manager.py
 # already say "the app builds with 3.11"; scripts/build_installer.py refuses
@@ -57,14 +57,14 @@ APP_PYTHON = (3, 11)
 # How long a run may take when the manifest's run.timeout_minutes says
 # nothing: a run that finds moments, and one that understands or rates the
 # moments others found (several can follow one find run). Never longer than
-# MAX_TIMEOUT_MINUTES. Clips Kitty's runner uses the same numbers
+# MAX_TIMEOUT_MINUTES. VilloMillo's runner uses the same numbers
 # (plugins/runner.py; tests/test_plugin_runner.py checks they agree).
 FIND_TIMEOUT_MINUTES = 60
 MOMENT_TIMEOUT_MINUTES = 10
 
-# Variables a plugin never inherits from Clips Kitty: its own configuration,
+# Variables a plugin never inherits from VilloMillo: its own configuration,
 # and anything that looks like a credential. The plugin still runs as the
-# user, so this keeps Clips Kitty from handing secrets over; it is not a wall.
+# user, so this keeps VilloMillo from handing secrets over; it is not a wall.
 _CREDENTIAL_WORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "COOKIE", "AUTH")
 # Python start-up settings from the developer's own machine that would make a
 # plugin behave differently here than on the Python inside the installed app,
@@ -109,7 +109,7 @@ def timeout_seconds(manifest: dict, default: float = FIND_TIMEOUT_MINUTES,
     """How long a run may take, in seconds: the manifest's
     run.timeout_minutes, else `default` minutes (MOMENT_TIMEOUT_MINUTES for a
     run that rates or understands moments), at least a minute and never over
-    `maximum` minutes. Clips Kitty's runner and `python -m clipskitty_sdk run`
+    `maximum` minutes. VilloMillo's runner and `python -m clipskitty_sdk run`
     both use this rule."""
     run = (manifest or {}).get("run")
     minutes = (run.get("timeout_minutes") if isinstance(run, dict) else None) or default
@@ -381,7 +381,7 @@ def _cleaned(text, limit: int) -> str:
 
 
 def clean_note(text) -> str:
-    """A note of what happens in a moment, as Clips Kitty keeps it and gives
+    """A note of what happens in a moment, as VilloMillo keeps it and gives
     it to the AI that writes titles: control characters and invisible format
     characters removed, links (http://, https://, www.) taken out, whitespace
     and newlines collapsed to single spaces, and cut to MAX_CONTEXT
@@ -455,7 +455,7 @@ def read_result(job_folder: Path, *, duration: float | None = None, max_clips: i
 
 
 def read_answers(job_folder: Path, *, steps, ids) -> tuple[dict, list[str]]:
-    """What a run asked to rate or understand moments answered, as Clips Kitty uses it.
+    """What a run asked to rate or understand moments answered, as VilloMillo uses it.
 
     Returns the answers by moment id, and a line for the log for each thing
     ignored. An answer holds `score` (0-100) and `reason` when the run was
@@ -509,7 +509,7 @@ def read_answers(job_folder: Path, *, steps, ids) -> tuple[dict, list[str]]:
     return answers, ignored
 
 
-# Fields of an edit Clips Kitty never takes from a plugin that have a word of
+# Fields of an edit VilloMillo never takes from a plugin that have a word of
 # their own, with what to write instead. Every other field outside
 # contract.EDIT_FIELDS is ignored with one line for the answer.
 _EDIT_INSTEAD = {"keep": "write the spans to take out as cuts",
@@ -543,7 +543,7 @@ def _moved(given: float, fitted: float) -> bool:
 
 def _fit_edit(mid: str, edit: dict, window: tuple[float, float], crops: tuple, floor: float,
               max_length: float | None, lines: list[str]) -> tuple[dict, str]:
-    """One answer's edit as Clips Kitty keeps it, and its cleaned reason."""
+    """One answer's edit as VilloMillo keeps it, and its cleaned reason."""
     instead = [key for key in edit if key in _EDIT_INSTEAD]
     for key in instead:
         lines.append(f"ignored: {mid}'s {key}: {_EDIT_INSTEAD[key]}")
@@ -551,7 +551,7 @@ def _fit_edit(mid: str, edit: dict, window: tuple[float, float], crops: tuple, f
     if others:
         named = ", ".join(one_line(key)[:MAX_MOMENT_ID] or '""' for key in others[:_NAMED_FIELDS])
         more = f" and {len(others) - _NAMED_FIELDS} more" if len(others) > _NAMED_FIELDS else ""
-        lines.append(f"ignored: {named}{more} in {mid}'s edit: Clips Kitty doesn't take them from a plugin")
+        lines.append(f"ignored: {named}{more} in {mid}'s edit: VilloMillo doesn't take them from a plugin")
     out: dict = {}
     start, end = window
     length = end - start
@@ -622,7 +622,7 @@ def _fit_edit(mid: str, edit: dict, window: tuple[float, float], crops: tuple, f
 
 def read_edits(job_folder: Path, *, windows: dict, crops, min_length: float,
                max_length: float | None = None) -> tuple[dict, list[str]]:
-    """What a run asked to suggest edits answered, as Clips Kitty keeps it.
+    """What a run asked to suggest edits answered, as VilloMillo keeps it.
 
     `windows` maps each clip's moment id to its (start, end) in seconds of
     the video; `crops` are the layouts this job's clips can use (the job's

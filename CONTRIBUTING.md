@@ -105,7 +105,7 @@ sport or kind of show, without changing Clips Kitty. Three commands start one
 and run it on a test video (in PowerShell, write `py -m` for `python -m`):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new my-plugin --template game-events --publisher your-github-name
 python -m clipskitty_sdk run my-plugin --sample
 ```

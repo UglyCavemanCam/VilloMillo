@@ -37,7 +37,7 @@ from plugins import registry  # noqa: E402
 SITE = ROOT / "site"
 PAGE = SITE / "developers.html"
 URL = "https://colingpt9.github.io/clips-studio/developers.html"
-REPO = "https://github.com/ColinGPT9/clips-studio"
+REPO = "https://github.com/UglyCavemanCam/VilloMillo"
 TUTORIAL = ROOT / "docs" / "developers" / "first-game-pipeline.md"
 CAPTION = ("posts when the creator clicks Publish, or on a schedule or automatic posting the creator "
            "switched on")

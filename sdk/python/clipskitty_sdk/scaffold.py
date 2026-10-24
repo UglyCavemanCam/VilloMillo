@@ -15,7 +15,7 @@ Placeholders in the files are @@TOKEN@@ words, replaced in one pass by plain
 text, so `$schema=`, `${{ matrix.os }}` and PowerShell's `$env:` are left as
 they are. Before anything is written, the plugin is made in a temporary
 folder and its clipskitty.yaml is checked with manifest.validate_folder, so
-`new` never writes a plugin Clips Kitty would refuse. Standard library only.
+`new` never writes a plugin VilloMillo would refuse. Standard library only.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ TEMPLATES = {
     "editor": "suggests cuts, mutes and a hook title for clips others found",
 }
 
-# The Clips Kitty versions a new plugin asks for (requires.clips_kitty). The
+# The VilloMillo versions a new plugin asks for (requires.clips_kitty). The
 # templates import media, signals and text, which arrive with SDK 1.2.0, and
 # the editor calls job.suggest_edit, which arrives with SDK 1.3.0, so this is
 # right only while the first release that runs plugins includes SDK 1.3.0:
@@ -59,7 +59,7 @@ DEFAULT_PUBLISHER = "your-github-name"
 DEFAULT_GAME = "quarkbloom-arena"  # Quarkbloom Arena is a made-up game
 DEFAULT_LICENSE = "MIT"
 # The page `new` points to after making a plugin.
-GUIDE = "https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/first-game-pipeline.md"
+GUIDE = "https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/first-game-pipeline.md"
 
 # The questions `new` asks on a terminal, for what the command line left out.
 ASK_PUBLISHER = "Your GitHub name, in lower case (it becomes the publisher): "
@@ -90,7 +90,7 @@ class NewRefused(Exception):
 def check_publisher(publisher: str) -> str:
     """`publisher` when it can start a plugin's id, else NewRefused."""
     if publisher in RESERVED_PUBLISHERS:
-        raise NewRefused(f"the publisher {publisher} is reserved for plugins that ship with Clips Kitty")
+        raise NewRefused(f"the publisher {publisher} is reserved for plugins that ship with VilloMillo")
     if not re.match(PUBLISHER_PATTERN, publisher or ""):
         raise NewRefused("--publisher must be your GitHub name in lower case: letters, digits and hyphens")
     return publisher
@@ -218,7 +218,7 @@ def make(folder, template: str, *, publisher: str = DEFAULT_PUBLISHER, name: str
     The id is `publisher`/the folder's name in lower case; `name` (the name
     people see) defaults to the folder's name, `author` to the publisher.
     Raises NewRefused, with nothing written, for a full folder, a publisher
-    that can't start an id, or a plugin whose clipskitty.yaml Clips Kitty
+    that can't start an id, or a plugin whose clipskitty.yaml VilloMillo
     would refuse (its errors joined)."""
     folder = Path(folder)
     if template not in TEMPLATES:
@@ -240,7 +240,7 @@ def make(folder, template: str, *, publisher: str = DEFAULT_PUBLISHER, name: str
         _write(staged, files)
         _, report = validate_folder(staged)
     if not report.ok:
-        raise NewRefused(f"Clips Kitty would refuse this plugin, so new wrote nothing: {'; '.join(report.errors)}")
+        raise NewRefused(f"VilloMillo would refuse this plugin, so new wrote nothing: {'; '.join(report.errors)}")
     folder.mkdir(parents=True, exist_ok=True)
     return _write(folder, files)
 

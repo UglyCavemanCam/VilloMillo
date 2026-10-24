@@ -3,7 +3,7 @@
 OpenAI documents its Codex SDK and app-server for building Codex into other
 apps, with "Sign in with ChatGPT" run by Codex itself: the sign-in page opens
 in the user's browser, and Codex stores and refreshes the result (encrypted,
-its key in Windows Credential Manager). Clips Kitty never sees a password or a
+its key in Windows Credential Manager). VilloMillo never sees a password or a
 token; it only asks Codex who is signed in, what the plan's limits are, and to
 run a task.
 
@@ -11,7 +11,7 @@ How it is kept to what OpenAI documents, and safe on a PC nobody is watching:
 - Its own Codex folder (<data>/codex), so the user's own Codex CLI login is
   never read or reused, and its API-key variables are blanked so a key in the
   environment can't stand in for the plan.
-- It says it is Clips Kitty (client_name), never Codex.
+- It says it is VilloMillo (client_name), never Codex.
 - Codex can't run commands, search the web, load plugins or update itself
   here (CONFIG); each job is an ephemeral, read-only thread in an empty folder,
   and the answer is held to the job's JSON schema.
@@ -36,7 +36,7 @@ from llm.signin.base import SignInProvider
 # Written to <data>/codex/config.toml before Codex starts. Every key is from
 # OpenAI's Codex configuration reference.
 CONFIG = """\
-# Written by Clips Kitty on every start; edits here are replaced.
+# Written by VilloMillo on every start; edits here are replaced.
 cli_auth_credentials_store = "keyring"
 check_for_update_on_startup = false
 approval_policy = "never"
@@ -66,7 +66,7 @@ goals = false
 BLANKED_ENV = ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_BASE_URL")
 
 INSTRUCTIONS = (
-    "You are working inside Clips Kitty, a desktop app that turns long videos into short "
+    "You are working inside VilloMillo, a desktop app that turns long videos into short "
     "clips. Each request is a self-contained text task: everything you need is in the "
     "message. Don't look for files or run anything; answer the request directly, in the "
     "format it asks for."
@@ -87,7 +87,7 @@ def _default_client(home: Path):
 
     env = dict.fromkeys(BLANKED_ENV, "")
     env["CODEX_HOME"] = str(home)
-    return Codex(CodexConfig(env=env, client_name="clips_kitty", client_title="Clips Kitty"))
+    return Codex(CodexConfig(env=env, client_name="clips_kitty", client_title="VilloMillo"))
 
 
 def _dump(obj) -> dict:
@@ -155,7 +155,7 @@ class ChatGPTPlan(SignInProvider):
     tagline = ("Use a paid ChatGPT plan's Codex limits instead of API credit. Free accounts can't "
                "use it outside OpenAI's own app yet.")
     privacy = ("Transcripts and prompts go to OpenAI through Codex, OpenAI's own software running on "
-               "this PC, signed in to your ChatGPT account. Clips Kitty never sees your password or "
+               "this PC, signed in to your ChatGPT account. VilloMillo never sees your password or "
                "sign-in.")
     usage_url = USAGE_URL
     terms_url = TERMS_URL
@@ -163,11 +163,11 @@ class ChatGPTPlan(SignInProvider):
                        "are shared with your own ChatGPT and Codex use.")
     experimental = True
     signin_label = "Sign in with ChatGPT"
-    limit_note = ("When your plan's limit is reached, jobs stop until it resets. Clips Kitty never "
+    limit_note = ("When your plan's limit is reached, jobs stop until it resets. VilloMillo never "
                   "uses ChatGPT credits.")
-    sign_out_note = ("Signs Clips Kitty out on this PC and asks OpenAI to cancel the sign-in; if that "
+    sign_out_note = ("Signs VilloMillo out on this PC and asks OpenAI to cancel the sign-in; if that "
                      "request fails, the sign-in is still removed here.")
-    disclaimer = "Clips Kitty isn't made by or affiliated with OpenAI."
+    disclaimer = "VilloMillo isn't made by or affiliated with OpenAI."
 
     def __init__(self, data_dir, client_factory=None):
         self.home = Path(data_dir) / "codex"
@@ -202,7 +202,7 @@ class ChatGPTPlan(SignInProvider):
     def _new_client(self):
         if not self.available():
             raise LLMError("not_configured", "The ChatGPT plan option isn't installed in this "
-                                             "version of Clips Kitty.")
+                                             "version of VilloMillo.")
         self._prepare()
         try:
             return self._factory(self.home)
@@ -412,7 +412,7 @@ class ChatGPTPlan(SignInProvider):
     def check_job(self, llm_config: dict) -> None:
         if not self.available():
             raise LLMError("not_configured", "The ChatGPT plan option isn't installed in this "
-                                             "version of Clips Kitty. Choose another AI in Settings → AI.")
+                                             "version of VilloMillo. Choose another AI in Settings → AI.")
         if llm_config.get("unattended") and not llm_config.get("plan_automation"):
             raise LLMError("not_configured",
                            "Watched channels don't use your ChatGPT plan unless you allow it in "
@@ -425,7 +425,7 @@ class ChatGPTPlan(SignInProvider):
         if limits.get("reached"):
             raise LLMError("rate_limited",
                            f"Your ChatGPT plan's limit is used up until {_when(limits.get('resets_at'))}. "
-                           "Clips Kitty stops here rather than use ChatGPT credits.")
+                           "VilloMillo stops here rather than use ChatGPT credits.")
 
     def backend(self, model: str, llm_config: dict) -> LLMBackend:
         return ChatGPTPlanBackend(self, model, llm_config)
@@ -470,7 +470,7 @@ class ChatGPTPlan(SignInProvider):
         if "usage limit" in text or "rate limit" in text or "429" in text:
             self._limits_at = 0.0
             return LLMError("rate_limited", "Your ChatGPT plan's limit is used up for now. "
-                                            "Clips Kitty stops here rather than use ChatGPT credits.")
+                                            "VilloMillo stops here rather than use ChatGPT credits.")
         if "model" in text and ("not found" in text or "not supported" in text or "unavailable" in text):
             return LLMError("model_unavailable", "Your ChatGPT plan doesn't offer that model. "
                                                  "Pick another in Settings → AI.")

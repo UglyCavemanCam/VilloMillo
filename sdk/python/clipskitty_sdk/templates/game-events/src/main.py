@@ -1,7 +1,7 @@
-"""A Clips Kitty pipeline that finds the moments when a coloured banner shows
+"""A VilloMillo pipeline that finds the moments when a coloured banner shows
 on screen and the sound gets louder.
 
-Made from the game-events template of the Clips Kitty SDK, set up for
+Made from the game-events template of the VilloMillo SDK, set up for
 Quarkbloom Arena (a made-up game), whose red "quark burst" banner shows at
 the top of the screen. Change the settings in clipskitty.yaml and the marked
 block below for your game.
@@ -20,7 +20,7 @@ It sees only that part of the screen and how loud the video is: it can't
 read the banner's words, anything else of that colour there fools it, and a
 moment without the banner is missed.
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. To try it, run `python -m clipskitty_sdk run . --sample` in the
 plugin's folder (`py -m clipskitty_sdk` in PowerShell); it needs FFmpeg.

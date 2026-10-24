@@ -1,8 +1,8 @@
-"""Integrations: a streamer tool hands a finished livestream to Clips Kitty.
+"""Integrations: a streamer tool hands a finished livestream to VilloMillo.
 
 The OBS plugin is the first client. It decides that a stream has really ended
-(Clips Kitty is not even running while someone is live), then posts the stream
-here. From that point the work is Clips Kitty's: find the VOD that Twitch or
+(VilloMillo is not even running while someone is live), then posts the stream
+here. From that point the work is VilloMillo's: find the VOD that Twitch or
 YouTube publishes after the stream, queue it once, and report progress in terms
 any dock can show. It lives here, once, so every integration behaves the same
 and nobody building on the API has to rebuild it.
@@ -57,7 +57,7 @@ PRESETS = {
     },
 }
 
-_NEEDS_LINK_KICK = "Kick doesn't let Clips Kitty find past broadcasts yet. Paste the VOD link."
+_NEEDS_LINK_KICK = "Kick doesn't let VilloMillo find past broadcasts yet. Paste the VOD link."
 _NEEDS_LINK_CHANNEL = "Add your channel name to find the VOD automatically, or paste the VOD link."
 _NOT_FOUND = (
     "Couldn't find this stream's VOD. Check that past broadcasts are turned on and "
@@ -109,11 +109,11 @@ def view(d: StateDB, row, worker) -> dict:
         job = d.get_job(row["job_id"])
         if job is None:
             out["state"] = "cancelled"
-            out["error"] = "Removed from the Clips Kitty queue."
+            out["error"] = "Removed from the VilloMillo queue."
         elif row["state"] != "cancelled" or job["status"] in ("running", "done"):
             out["state"] = _JOB_STATES.get(job["status"], row["state"])
             if job["status"] == "failed":
-                out["error"] = "Clips Kitty couldn't finish this stream."
+                out["error"] = "VilloMillo couldn't finish this stream."
                 out["details"] = (job["error"] or "")[:500]
     if out["state"] == "queued":
         out["waiting_behind"] = queue.waiting_ahead(d, row["job_id"])
@@ -132,7 +132,7 @@ def queue_vod(d: StateDB, row, url: str, worker, broadcaster) -> None:
     source, vid = identify(url)
     if source == "local" or not vid:
         d.set_stream(row["session_id"], state="needs_link",
-                     error="That link isn't a video Clips Kitty can open.")
+                     error="That link isn't a video VilloMillo can open.")
         return
     preset = PRESETS.get(row["preset"]) or PRESETS["standard"]
     outcome, job_id = queue.enqueue_once(
@@ -145,7 +145,7 @@ def queue_vod(d: StateDB, row, url: str, worker, broadcaster) -> None:
         return
     if outcome == "full":
         d.set_stream(row["session_id"], state="error", vod_url=url, video_id=vid,
-                     error=f"The Clips Kitty queue is full ({queue.MAX_ACTIVE} videos).")
+                     error=f"The VilloMillo queue is full ({queue.MAX_ACTIVE} videos).")
         return
     queue.start_if_alone(d, job_id)
     d.set_stream(row["session_id"], state="queued", vod_url=url, video_id=vid, job_id=job_id,

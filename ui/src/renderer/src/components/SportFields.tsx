@@ -15,7 +15,7 @@ import ExplainedSelect from './ExplainedSelect'
 /** The Sports toggle's choices, under a video or a watched channel: which
  *  sport, which moments to keep, who to favour and the story reels to make.
  *  Each explains itself in a tooltip. The match's own events are typed in Ask
- *  Clips Kitty. The whole match is always clipped, and a club recording is
+ *  VilloMillo. The whole match is always clipped, and a club recording is
  *  told apart from a TV broadcast by itself. Rendered into the caller's row,
  *  the way Longform's output choice is. */
 export default function SportFields({

@@ -139,7 +139,7 @@ def resolve(
             raise ValueError("Couldn't find that Kick channel.")
         name = ((data.get("user") or {}).get("username")) or data["slug"]
         return Channel("kick", str(data["slug"]).lower(), name)
-    raise ValueError(f"Clips Kitty can't watch {platform!r} channels.")
+    raise ValueError(f"VilloMillo can't watch {platform!r} channels.")
 
 
 def _handle_from(raw: str, host: str) -> str | None:

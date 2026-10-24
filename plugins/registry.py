@@ -1,6 +1,6 @@
 """The registry: the index format, the index build, and the app's client.
 
-The index is one JSON file built from the Awesome Clips Kitty catalog, which
+The index is one JSON file built from the Awesome VilloMillo catalog, which
 is its own repository (github.com/ColinGPT9/awesome-clips-kitty; see
 plugins/catalog.py and that repository's CONTRIBUTING.md):
 
@@ -29,7 +29,7 @@ locally:
 
 - the copy bundled with the app (plugins/catalog_index.json: the catalog's
   index.json as scripts/sync_catalog_index.py last fetched it, before a release);
-- Clips Kitty's online list (ONLINE_URL): index.json on the main branch of
+- VilloMillo's online list (ONLINE_URL): index.json on the main branch of
   the catalog's repository, which changes when a change to the catalog is
   merged there (and with the weekly numbers). The app fetches it when the
   Marketplace opens, or the app starts with a pipeline installed, and its copy
@@ -83,8 +83,8 @@ log = logging.getLogger(__name__)
 WHY_OFFLINE = "Couldn't connect. Check this PC's internet connection."
 WHY_NOT_FOUND = "Nothing is at that address yet."
 WHY_SERVER = "The website that holds the list didn't answer properly."
-WHY_TOO_LARGE = "The list is larger than Clips Kitty accepts."
-WHY_UNREADABLE = "That address doesn't hold a list Clips Kitty can read."
+WHY_TOO_LARGE = "The list is larger than VilloMillo accepts."
+WHY_UNREADABLE = "That address doesn't hold a list VilloMillo can read."
 WHY_NOT_HTTPS = "Only https:// addresses can be checked."
 WHY_NOT_SAVED = "The list couldn't be saved on this PC."
 WHYS = (WHY_OFFLINE, WHY_NOT_FOUND, WHY_SERVER, WHY_TOO_LARGE, WHY_UNREADABLE, WHY_NOT_HTTPS, WHY_NOT_SAVED)
@@ -93,9 +93,9 @@ WHYS = (WHY_OFFLINE, WHY_NOT_FOUND, WHY_SERVER, WHY_TOO_LARGE, WHY_UNREADABLE, W
 # button can ask together; FastAPI runs the routes on several threads).
 _ONLINE_LOCK = threading.RLock()
 
-# Clips Kitty's online list: the catalog's index on the project's main branch
+# VilloMillo's online list: the catalog's index on the project's main branch
 # (D29). It answers once the catalog is merged there.
-ONLINE_URL = "https://raw.githubusercontent.com/ColinGPT9/awesome-clips-kitty/main/index.json"
+ONLINE_URL = "https://raw.githubusercontent.com/UglyCavemanCam/VilloMillo/main/plugins/catalog_index.json"
 CHECKS_FILE = "listing-checks.json"  # the person's switch and the last check, in <data_dir>/plugins/
 CHECK_EVERY = 24 * 3600              # an automatic check when the copy is older than this
 RETRY_AFTER = 3600                   # and no check was tried for this long (offline: not on every open)
@@ -173,12 +173,12 @@ def check_listing(data, rel_path: str, *, folder: str = "pipelines", sections: d
         problems.append(f"the file must be {folder}/{pid}.yaml")
     publisher = pid.split("/", 1)[0]
     if publisher in manifest.RESERVED_PUBLISHERS:
-        problems.append(f"id: the publisher {publisher!r} is reserved for plugins that ship with Clips Kitty")
+        problems.append(f"id: the publisher {publisher!r} is reserved for plugins that ship with VilloMillo")
     where = _owner_repo(data.get("repository"))
     if not where:
         problems.append("repository: must be https://github.com/<owner>/<repo>")
     elif where[0].lower() != publisher and where[0].lower() not in catalog.OFFICIAL_OWNERS:
-        # The Clips Kitty project's own repositories may hold listings under
+        # The VilloMillo project's own repositories may hold listings under
         # other publisher names (its examples); nobody else's may.
         problems.append(f"repository: the publisher {publisher!r} must be the repository's GitHub owner, "
                         f"{where[0]!r}")
@@ -482,7 +482,7 @@ def _clean_entry(e, *, ours: bool) -> dict | None:
     right shape, and links only when they are what they claim to be."""
     if not isinstance(e, dict) or e.get("kind") not in catalog.DIRECTORY_KINDS.values():
         return None
-    # Only what is built with Clips Kitty is shown, whatever a list says: a
+    # Only what is built with VilloMillo is shown, whatever a list says: a
     # link to another project is not an entry.
     if e.get("relationship") != "built-with":
         return None
@@ -607,7 +607,7 @@ def check_index(data, *, ours: bool = False) -> dict:
     """An index read from anywhere, checked enough to use. Raises RegistryError.
     `ours` is for the bundled index only, the one this project built (see the module docstring)."""
     if not isinstance(data, dict) or data.get("format") != FORMAT:
-        raise RegistryError(f"not a Clips Kitty registry index (format {FORMAT})")
+        raise RegistryError(f"not a VilloMillo registry index (format {FORMAT})")
     plugins = data.get("plugins")
     if not isinstance(plugins, list):
         raise RegistryError("the index has no plugin list")
@@ -649,7 +649,7 @@ def check_index(data, *, ours: bool = False) -> dict:
 
 def index_urls(config: dict) -> list[str]:
     """The index addresses in settings: `plugins.registry_urls`, https only
-    (Clips Kitty's online list is always read, so it isn't one of these)."""
+    (VilloMillo's online list is always read, so it isn't one of these)."""
     urls = ((config or {}).get("plugins") or {}).get("registry_urls") or []
     return [u for u in urls if isinstance(u, str) and u.startswith("https://") and u != ONLINE_URL] \
         if isinstance(urls, list) else []
@@ -715,7 +715,7 @@ def _why(error: Exception) -> str:
         return WHY_OFFLINE
     if isinstance(error, sources.TooLarge):
         return WHY_TOO_LARGE
-    return WHY_UNREADABLE  # not JSON, or not a Clips Kitty index (check_index says why, in the log)
+    return WHY_UNREADABLE  # not JSON, or not a VilloMillo index (check_index says why, in the log)
 
 
 def _replace(path: Path, text: str) -> None:
@@ -763,7 +763,7 @@ def _write_checks(data_dir, data: dict) -> None:
 
 
 def online_checks_on(data_dir) -> bool:
-    """Whether the Marketplace checks Clips Kitty's online list by itself
+    """Whether the Marketplace checks VilloMillo's online list by itself
     when it opens: on unless the person switched it off."""
     value = _checks(data_dir).get("automatic")
     return value if isinstance(value, bool) else True
@@ -775,7 +775,7 @@ def set_online_checks(data_dir, on: bool) -> None:
 
 
 def online_status(data_dir, *, bundled: Path | None = None) -> dict:
-    """What the Marketplace says about Clips Kitty's online list: whether it
+    """What the Marketplace says about VilloMillo's online list: whether it
     is checked automatically, when a copy was last fetched, whether that copy
     is in use (one older than the list that came with the app is set aside),
     and when the last try was and how it went (`error` is None when it worked)."""
@@ -812,7 +812,7 @@ def online_due(data_dir, *, now: float | None = None) -> bool:
 
 
 def refresh_online(data_dir, *, fetcher=None, now: float | None = None) -> dict:
-    """Fetch Clips Kitty's online list into the cache now, and note when and
+    """Fetch VilloMillo's online list into the cache now, and note when and
     how it went. Like refresh(), a failure keeps the last good copy."""
     with _ONLINE_LOCK:
         return _refresh_online(data_dir, fetcher=fetcher, now=now)
@@ -851,7 +851,7 @@ def _older(index: dict, than: dict) -> bool:
 
 def indexes(data_dir, urls: list[str], *, bundled: Path | None = None) -> list[dict]:
     """Every index the app knows, in the order they count: the bundled copy,
-    Clips Kitty's online list, then each settings address's cached copy.
+    VilloMillo's online list, then each settings address's cached copy.
     `kind` is "bundled", "online" or "other"; `index` is None for one never fetched."""
     out = []
     path = bundled or bundled_path()
@@ -897,7 +897,7 @@ def _project_own(repository) -> bool:
 
 def listings(data_dir, urls: list[str], *, bundled: Path | None = None) -> list[dict]:
     """Every listed plugin, once. An id in several indexes comes from the
-    first (bundled, online, then settings order); Clips Kitty's online list
+    first (bundled, online, then settings order); VilloMillo's online list
     only adds versions to a bundled listing (_add_online). The online list
     never brings the project's own listings: they come with the app, and from
     that list they would show as Community. Each version says which index it
@@ -928,7 +928,7 @@ def _same_place(a: dict, b: dict) -> bool:
 
 
 def _add_online(have: dict, online: dict, versions: list[dict]) -> dict:
-    """A bundled listing with the versions Clips Kitty's online list adds
+    """A bundled listing with the versions VilloMillo's online list adds
     (D29): only versions the bundled list doesn't have, so a version it has
     keeps its commit, its compatibility record and its counting. Nothing is
     added to one of the project's own listings, or from a listing whose code
@@ -958,7 +958,7 @@ def _list(value) -> list:
 
 def sections_of(known: list[dict]) -> dict:
     """The sections to show: the first index's that has any, plus the ones
-    Clips Kitty's online list adds (a new game's section, say), by id."""
+    VilloMillo's online list adds (a new game's section, say), by id."""
     out: dict = {}
     for item in known:
         index = item["index"] or {}
@@ -1015,7 +1015,7 @@ def find(data_dir, urls: list[str], plugin_id: str, version: str | None = None, 
 
 def listing_tier(listing: dict, version: dict | None = None) -> str:
     """The install tier of a listing, or of one of its versions: official when
-    the bundled index lists it in one of the Clips Kitty project's own
+    the bundled index lists it in one of the VilloMillo project's own
     repositories (the build checked each commit is on that repository's
     branches, so the code is the project's)."""
     index = (version or {}).get("index", listing.get("index"))

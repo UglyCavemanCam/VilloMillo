@@ -5,7 +5,7 @@ step StreamLadder shows before processing).
 Nothing is downloaded. A link is asked once for its media URL (yt-dlp, no
 download, a 720p-or-smaller video stream) and FFmpeg seeks straight to the
 moment wanted, reading only what that frame needs; a file on this computer is
-read in place. Only links to the platforms Clips Kitty clips from are
+read in place. Only links to the platforms VilloMillo clips from are
 accepted, so this can't be pointed at anything else on the network.
 
 YouTube's media URLs are tied to the IPv4 address that asked for them, and

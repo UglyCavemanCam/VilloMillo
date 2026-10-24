@@ -85,7 +85,7 @@ class ConnectFlow(threading.Thread):
                 # turning playlists on would quietly drop the upload permission.
                 include_granted_scopes="true",
                 success_message=(
-                    "Clips Kitty is connected. You can close this tab and go back to the app."
+                    "VilloMillo is connected. You can close this tab and go back to the app."
                 ),
             )
             self.state = "done"
@@ -103,7 +103,7 @@ def _explain(exc: Exception) -> str:
         # not completed the Google verification process"). The second is the one
         # people get stuck on, so the message has to cover both.
         return (
-            "Google did not give Clips Kitty access. If you pressed Cancel, press "
+            "Google did not give VilloMillo access. If you pressed Cancel, press "
             "Connect and try again. If Google said the app has not completed "
             "verification, your Google Cloud project is still in Testing: open "
             "Google Auth Platform, then Audience, press Publish app, and connect again."

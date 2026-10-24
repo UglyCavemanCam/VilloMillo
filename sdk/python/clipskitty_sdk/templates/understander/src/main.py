@@ -1,7 +1,7 @@
-"""A Clips Kitty plugin that notes what happens in the moments others found,
+"""A VilloMillo plugin that notes what happens in the moments others found,
 from the screen and the words said.
 
-Made from the understander template of the Clips Kitty SDK, set up for
+Made from the understander template of the VilloMillo SDK, set up for
 Quarkbloom Arena (a made-up game), whose red "quark burst" banner shows at
 the top of the screen. It runs after the moments are found, when it is
 chosen under Rate & understand, and is handed those moments. For each one it
@@ -10,11 +10,11 @@ adds a note when:
 - the banner (banner_region, banner_colour) starts showing during it;
 - the commentary says one of the `cue_words` during it.
 
-Clips Kitty gives the notes to the AI that writes each clip's title,
+VilloMillo gives the notes to the AI that writes each clip's title,
 description and hashtags. It doesn't change any moment's score. It sees only
 that part of the screen and what is said.
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. To try it, run `python -m clipskitty_sdk run . --sample` in the
 plugin's folder (`py -m clipskitty_sdk` in PowerShell); it needs FFmpeg.

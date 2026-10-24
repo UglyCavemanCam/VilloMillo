@@ -1,4 +1,4 @@
-"""Watched channels: a creator posts, Clips Kitty clips it, nobody pastes a link.
+"""Watched channels: a creator posts, VilloMillo clips it, nobody pastes a link.
 
 This is orchestration only. Detection is sources/channel_feed.py, processing is
 the ordinary queue and worker, and publishing is woopsocial_service. What lives
@@ -71,7 +71,7 @@ PUBLISH_START_ATTEMPTS = 6
 #     already used. Only the rejected ones are sent again, 6 and 24 hours on.
 DELIVERY_RETRY_DELAYS = (6 * 60 * 60, 24 * 60 * 60)
 
-_MISSED = "Posted while Clips Kitty wasn't watching."
+_MISSED = "Posted while VilloMillo wasn't watching."
 _BASELINE = "Posted before you started watching this channel."
 
 _JOB_STATES = {
@@ -694,7 +694,7 @@ class ChannelWatcher(threading.Thread):
             )
             if outcome == "done":
                 d.set_watch_item(item["id"], state="skipped",
-                                 reason="Already clipped in Clips Kitty.")
+                                 reason="Already clipped in VilloMillo.")
                 continue
             if outcome == "full":
                 full = f"Waiting for room in the queue ({queue.MAX_ACTIVE} videos at most)."
@@ -767,10 +767,10 @@ class ChannelWatcher(threading.Thread):
             if failed and mode == "auto":
                 d.set_watch_item(
                     item["id"], publish_state="ask",
-                    publish_error=f"Clips Kitty made these clips without {names}, so they weren't posted "
+                    publish_error=f"VilloMillo made these clips without {names}, so they weren't posted "
                                   "automatically. Check them and publish, or turn off Rate & understand in "
                                   "this channel's settings.")
-                self._say(f"Clips of {_quoted(item['title'])} are ready, but Clips Kitty made them without "
+                self._say(f"Clips of {_quoted(item['title'])} are ready, but VilloMillo made them without "
                           f"{names}, so they weren't posted automatically.", "done")
                 self._broadcaster.publish({"type": "automation"})
                 continue
@@ -779,7 +779,7 @@ class ChannelWatcher(threading.Thread):
             else:
                 fields = {"publish_state": "off" if mode == "off" else "ask"}
                 if failed:
-                    fields["publish_error"] = (f"Clips Kitty made these clips without {names}. "
+                    fields["publish_error"] = (f"VilloMillo made these clips without {names}. "
                                                "Check them before you publish.")
                 d.set_watch_item(item["id"], **fields)
                 self._say(

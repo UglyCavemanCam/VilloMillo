@@ -9,7 +9,7 @@
 export interface PermissionLine {
   id: string
   label: string
-  /** "Clips Kitty hands this over" or "the developer says so". */
+  /** "VilloMillo hands this over" or "the developer says so". */
   enforcement: string
 }
 
@@ -109,7 +109,7 @@ export interface ListedVersion {
   date?: string
   requires?: { clips_kitty?: string; plugin_api?: number | string }
   permissions?: string[]
-  /** Why this version can't run on this Clips Kitty, or null. */
+  /** Why this version can't run on this VilloMillo, or null. */
   problem_here?: string | null
   /** The automated compatibility check of this version at this commit, when one ran. */
   compatibility?: CompatibilityRecord
@@ -120,7 +120,7 @@ export interface Listing extends PluginInfo {
   publisher: string
   latest: string
   versions: ListedVersion[]
-  /** The index it came from: "bundled", Clips Kitty's online list (ONLINE_LIST) or an address from settings. */
+  /** The index it came from: "bundled", VilloMillo's online list (ONLINE_LIST) or an address from settings. */
   index: string
   path?: string
   aliases?: string[]
@@ -141,7 +141,7 @@ export interface Listing extends PluginInfo {
   /** "official" or "community", then "compatible" and "featured" when they apply. */
   badges?: string[]
   featured?: { reason: string; date: string }
-  /** Its section in Awesome Clips Kitty, such as "gaming/valorant". */
+  /** Its section in Awesome VilloMillo, such as "gaming/valorant". */
   section?: string
   metrics?: Metrics
   discussions_url?: string
@@ -159,7 +159,7 @@ export interface BasedOn {
 /** The numbers the catalog carries, each from its own source (plugins/catalog.entry_metrics). */
 export interface Metrics {
   github?: { stars?: number; pushed_at?: string; archived?: boolean; has_discussions?: boolean; discussions?: number }
-  /** Clips Kitty installs, from the install counter (listings only). */
+  /** VilloMillo installs, from the install counter (listings only). */
   installs?: number
   /** Per Hugging Face model: downloads in the last 30 days, and likes. */
   models?: Record<string, { downloads?: number; likes?: number; last_modified?: string }>
@@ -186,7 +186,7 @@ export interface CatalogSection {
   description?: string
 }
 
-/** An app, model, workflow, integration or tool in Awesome Clips Kitty (GET /marketplace/catalog). */
+/** An app, model, workflow, integration or tool in Awesome VilloMillo (GET /marketplace/catalog). */
 export interface CatalogEntry {
   id: string
   kind: 'app' | 'model' | 'workflow' | 'integration' | 'tool' | string
@@ -207,7 +207,7 @@ export interface CatalogEntry {
   games?: string[]
   sports?: string[]
   uses?: 'api' | 'sdk' | 'both' | string
-  /** The listed pipeline or plugin that runs it inside Clips Kitty. */
+  /** The listed pipeline or plugin that runs it inside VilloMillo. */
   adapter?: string
   adapter_listed?: boolean
   warning?: string
@@ -243,7 +243,7 @@ export interface Counting {
 
 export interface MarketplaceIndex {
   url: string
-  /** The copy bundled with the app, Clips Kitty's online list, or one from settings. */
+  /** The copy bundled with the app, VilloMillo's online list, or one from settings. */
   kind?: 'bundled' | 'online' | 'other'
   /** When the engine last fetched it, as an ISO 8601 UTC time; null when never. */
   fetched_at: string | null
@@ -251,7 +251,7 @@ export interface MarketplaceIndex {
   plugins?: number
 }
 
-/** GET /marketplace/online: Clips Kitty's online list (plugins/registry.py online_status). */
+/** GET /marketplace/online: VilloMillo's online list (plugins/registry.py online_status). */
 export interface OnlineList {
   url: string
   /** Whether the Marketplace checks it by itself, once a day, when it opens. */
@@ -259,7 +259,7 @@ export interface OnlineList {
   /** When the cached copy was fetched; null when never. */
   fetched_at: string | null
   /** Whether that copy is in use: one older than the list that came with this
-   *  version of Clips Kitty is set aside (it would add nothing). */
+   *  version of VilloMillo is set aside (it would add nothing). */
   in_use?: boolean
   /** When a check was last tried, and why it failed (null when it worked). */
   tried_at: string | null
@@ -309,7 +309,7 @@ export interface ModelStatus {
   license: string | null
   size_bytes?: number | null
   gated: boolean
-  /** True or false; null when Clips Kitty can't tell (Ollama not answering). */
+  /** True or false; null when VilloMillo can't tell (Ollama not answering). */
   installed: boolean | null
   path: string | null
   files_status: { file: string; installed: boolean; path: string | null; size: number | null; link?: string | null }[]
@@ -344,11 +344,11 @@ export interface ModelPlan {
   download_bytes: number
   size_known: boolean
   pickle_files: string[]
-  /** Why it can't be downloaded here (gated, or not a kind Clips Kitty fetches). */
+  /** Why it can't be downloaded here (gated, or not a kind VilloMillo fetches). */
   problem: string | null
 }
 
-/** A mode that ships with Clips Kitty (Shorts, Gaming, Sports): Official. */
+/** A mode that ships with VilloMillo (Shorts, Gaming, Sports): Official. */
 export interface BuiltinPlugin extends PluginInfo {
   builtin: true
   enabled: true
@@ -442,16 +442,16 @@ export function tierBadge(details: Pick<PluginDetails, 'tier' | 'tier_text'>): B
   const tone: Tone = official ? 'ok' : details.tier === 'listed' ? 'info' : 'warn'
   const title =
     details.tier === 'official'
-      ? 'Ships with Clips Kitty.'
+      ? 'Ships with VilloMillo.'
       : details.tier === 'listed-official'
-        ? 'Made by the Clips Kitty project and listed in Awesome Clips Kitty.'
+        ? 'Made by the VilloMillo project and listed in Awesome VilloMillo.'
         : details.tier === 'listed'
-          ? 'Made by someone outside the Clips Kitty project and installed from a list. Nobody at Clips Kitty has read its code.'
-          : 'Installed from a folder or a link. Clips Kitty has not checked it.'
+          ? 'Made by someone outside the VilloMillo project and installed from a list. Nobody at VilloMillo has read its code.'
+          : 'Installed from a folder or a link. VilloMillo has not checked it.'
   return { label: details.tier_text || details.tier, tone, title }
 }
 
-/** What Clips Kitty can see of this PC, for the hardware-fit lines. The
+/** What VilloMillo can see of this PC, for the hardware-fit lines. The
  *  engine reads NVIDIA cards only (server/api.py _gpu_stats). */
 export interface Hardware {
   gpu: { name: string; vram_total: number } | null
@@ -462,7 +462,7 @@ export interface Hardware {
 
 export interface FitLine {
   text: string
-  /** yes: this PC has it. no: this PC doesn't. unknown: Clips Kitty can't tell. */
+  /** yes: this PC has it. no: this PC doesn't. unknown: VilloMillo can't tell. */
   fit: 'yes' | 'no' | 'unknown'
 }
 
@@ -485,7 +485,7 @@ export function hardwareFit(req: Requirements | undefined, hw: Hardware | null):
     if (gpu) out.push({ text: `${need}: this PC has ${gpu.name}`, fit: 'yes' })
     else if (!hw) out.push({ text: need, fit: 'unknown' })
     else
-      out.push({ text: `${need}. Clips Kitty found no NVIDIA card here and can’t see other makes`, fit: 'unknown' })
+      out.push({ text: `${need}. VilloMillo found no NVIDIA card here and can’t see other makes`, fit: 'unknown' })
   } else if (req.gpu === 'optional') {
     out.push({ text: 'A graphics card helps but isn’t needed', fit: 'yes' })
   } else if (req.gpu === 'none') {
@@ -501,7 +501,7 @@ export function hardwareFit(req: Requirements | undefined, hw: Hardware | null):
     } else out.push({ text: `${gb(req.vram_gb)} of video memory`, fit: 'unknown' })
   }
   if (typeof req.ram_gb === 'number' && req.ram_gb > 0) {
-    out.push({ text: `${gb(req.ram_gb)} of memory (Clips Kitty doesn’t measure this)`, fit: 'unknown' })
+    out.push({ text: `${gb(req.ram_gb)} of memory (VilloMillo doesn’t measure this)`, fit: 'unknown' })
   }
   if (typeof req.disk_gb === 'number' && req.disk_gb > 0) {
     const free = hw?.disk_free_bytes
@@ -610,12 +610,12 @@ export function confirmations(plan: Pick<PluginPlan, 'details'>): string[] {
   const out: string[] = []
   const d = plan.details
   if (d.tier === 'link')
-    out.push('I trust where this pipeline comes from. Clips Kitty has not checked it, and it can do anything I can do on this PC.')
+    out.push('I trust where this pipeline comes from. VilloMillo has not checked it, and it can do anything I can do on this PC.')
   else if (d.tier === 'listed')
-    out.push('I understand nobody at Clips Kitty has read this pipeline’s code, and it can do anything I can do on this PC.')
+    out.push('I understand nobody at VilloMillo has read this pipeline’s code, and it can do anything I can do on this PC.')
   if (d.data_warnings.length > 0 || d.execution === 'remote' || d.execution === 'hybrid')
     out.push('I understand this pipeline sends data off this PC, as the warnings above say.')
-  if (d.service?.required) out.push('I understand it needs an account with a service outside Clips Kitty.')
+  if (d.service?.required) out.push('I understand it needs an account with a service outside VilloMillo.')
   return out
 }
 
@@ -666,12 +666,12 @@ export function usablePipelines(plugins: InstalledPlugin[]): InstalledPlugin[] {
 /** What each step pill means (plugins/permissions.py STEP_WORDS), as its title. */
 const STEP_TITLES: Record<string, string> = {
   'Finds moments':
-    'It picks a video’s moments itself, in place of Clips Kitty’s own scoring. Turn on Pipeline when you add a video to use it.',
+    'It picks a video’s moments itself, in place of VilloMillo’s own scoring. Turn on Pipeline when you add a video to use it.',
   'Understands moments':
-    'It says what happens in each moment found by Clips Kitty or a pipeline, and Clips Kitty uses that when writing titles. Turn on Rate & understand when you add a video.',
+    'It says what happens in each moment found by VilloMillo or a pipeline, and VilloMillo uses that when writing titles. Turn on Rate & understand when you add a video.',
   'Understands what it finds': 'It says what happens in the moments it finds, for the titles.',
   'Rates moments':
-    'It scores each moment found by Clips Kitty or a pipeline. Turn on Rate & understand when you add a video.',
+    'It scores each moment found by VilloMillo or a pipeline. Turn on Rate & understand when you add a video.',
   'Suggests edits':
     'It suggests cuts, fades, a hook title or a layout for each clip. Turn on Suggest edits when you add a video.'
 }
@@ -684,7 +684,7 @@ export function stepBadge(words: string): Badge {
 /** The one sentence that says when a suggested edit reaches a clip: the
  *  same on the Suggest edits switch, here and in the docs. */
 export const SUGGESTION_PROMISE =
-  'Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload).'
+  'VilloMillo doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload).'
 
 /** The details panel's lines about a plugin that rates or understands
  *  moments, or suggests edits for clips: what its answers change, and its
@@ -858,21 +858,21 @@ export function fetchedText(fetchedAt: string | null, nowMs: number): string {
   return ago ? `updated ${ago}` : 'not fetched yet'
 }
 
-/** What the Marketplace says about Clips Kitty's online list, in one or two
+/** What the Marketplace says about VilloMillo's online list, in one or two
  *  sentences. `manage` is whether this window can check it (the desktop app
  *  can; the interface in a plain browser can't, so it isn't sent to a button). */
 export function onlineText(online: OnlineList | undefined, nowMs: number, manage = true): string {
   const fetched = agoText(online?.fetched_at ?? null, nowMs)
   const tried = agoText(online?.tried_at ?? null, nowMs)
   const used = fetched !== null && online?.in_use !== false
-  const shows = used ? `This shows its copy from ${fetched}.` : 'This shows the list that came with Clips Kitty.'
+  const shows = used ? `This shows its copy from ${fetched}.` : 'This shows the list that came with VilloMillo.'
   if (online?.error) {
     const when = tried ? `The check for new pipelines ${tried} didn’t work.` : 'The last check for new pipelines didn’t work.'
     return `${when} ${online.error} ${shows}`
   }
-  if (used) return `Clips Kitty’s online list, updated ${fetched}.`
-  if (fetched) return 'This shows the list that came with Clips Kitty, which is newer than its online copy.'
-  return `${shows} ${manage ? 'Check for new pipelines to get the online list.' : 'The Clips Kitty desktop app gets the online list.'}`
+  if (used) return `VilloMillo’s online list, updated ${fetched}.`
+  if (fetched) return 'This shows the list that came with VilloMillo, which is newer than its online copy.'
+  return `${shows} ${manage ? 'Check for new pipelines to get the online list.' : 'The VilloMillo desktop app gets the online list.'}`
 }
 
 export function formatBytes(n: number | undefined): string {
@@ -882,39 +882,39 @@ export function formatBytes(n: number | undefined): string {
   return `${Math.max(1, Math.round(n / 1e3))} KB`
 }
 
-/** Clips Kitty's own list online: index.json on the main branch of the
+/** VilloMillo's own list online: index.json on the main branch of the
  *  catalog's repository (plugins/registry.py ONLINE_URL; a test keeps the two
  *  the same). */
 export const ONLINE_LIST =
-  'https://raw.githubusercontent.com/ColinGPT9/awesome-clips-kitty/main/index.json'
+  'https://raw.githubusercontent.com/UglyCavemanCam/VilloMillo/main/plugins/catalog_index.json'
 
-/** Whether a listing came from one of Clips Kitty's own lists (bundled or online). */
+/** Whether a listing came from one of VilloMillo's own lists (bundled or online). */
 export function isOurList(url: string | undefined): boolean {
   return url === 'bundled' || url === ONLINE_LIST
 }
 
-/** How the screen names an index: one of Clips Kitty's own, or someone else's by its address. */
+/** How the screen names an index: one of VilloMillo's own, or someone else's by its address. */
 export function indexName(url: string): string {
-  if (url === 'bundled') return 'The list that came with Clips Kitty'
-  if (url === ONLINE_LIST) return 'Clips Kitty’s online list'
+  if (url === 'bundled') return 'The list that came with VilloMillo'
+  if (url === ONLINE_LIST) return 'VilloMillo’s online list'
   try {
-    return `A list from ${new URL(url).host} (not Clips Kitty’s)`
+    return `A list from ${new URL(url).host} (not VilloMillo’s)`
   } catch {
     return url
   }
 }
 
-/** Which list a listing is in, and how fresh Clips Kitty's online copy is. */
+/** Which list a listing is in, and how fresh VilloMillo's online copy is. */
 export function listedInText(url: string, online: OnlineList | undefined, nowMs: number): string {
-  if (url === 'bundled') return 'In the list that came with Clips Kitty.'
+  if (url === 'bundled') return 'In the list that came with VilloMillo.'
   if (url === ONLINE_LIST) {
     const ago = agoText(online?.fetched_at ?? null, nowMs)
-    return ago ? `In Clips Kitty’s online list (updated ${ago}).` : 'In Clips Kitty’s online list.'
+    return ago ? `In VilloMillo’s online list (updated ${ago}).` : 'In VilloMillo’s online list.'
   }
   try {
-    return `In a list from ${new URL(url).host} (not Clips Kitty’s).`
+    return `In a list from ${new URL(url).host} (not VilloMillo’s).`
   } catch {
-    return `In a list from ${url} (not Clips Kitty’s).`
+    return `In a list from ${url} (not VilloMillo’s).`
   }
 }
 
@@ -923,11 +923,11 @@ export function listedInText(url: string, online: OnlineList | undefined, nowMs:
 export function sourceLine(source: Record<string, string> | undefined): string {
   const listed = source?.listed_in
   if (listed) {
-    if (isOurList(listed)) return 'From Clips Kitty’s list'
+    if (isOurList(listed)) return 'From VilloMillo’s list'
     try {
-      return `From a list on ${new URL(listed).host} (not Clips Kitty’s)`
+      return `From a list on ${new URL(listed).host} (not VilloMillo’s)`
     } catch {
-      return 'From a list that isn’t Clips Kitty’s'
+      return 'From a list that isn’t VilloMillo’s'
     }
   }
   if (source?.kind === 'folder') return 'From a folder on this PC'
@@ -943,16 +943,16 @@ export function slugLabel(slug: string): string {
 
 /** The automated checks an index build ran on a listing (plugins/registry.py). */
 export const CHECK_LABELS: Record<string, string> = {
-  manifest_valid: 'Its setup file passed Clips Kitty’s checks',
+  manifest_valid: 'Its setup file passed VilloMillo’s checks',
   publisher_is_repository_owner: 'The developer in its id owns the code’s page on GitHub',
-  official_repository: 'The code’s page on GitHub is the Clips Kitty project’s own',
+  official_repository: 'The code’s page on GitHub is the VilloMillo project’s own',
   commit_pinned: 'Each version is fixed and can’t change after it was listed',
   commit_on_branch: 'Each version comes from the developer’s own code, not from someone else’s copy',
   public_at_commit: 'Anyone could read each version’s code'
 }
 
 /** The checks an index reports for a listing, as lines to show: only the
- *  ones Clips Kitty's index build runs (an index can carry any key, so an
+ *  ones VilloMillo's index build runs (an index can carry any key, so an
  *  unknown one, such as a claimed audit, is not shown as a tick), and a
  *  failed one kept, as failed, rather than dropped. */
 export function checkLines(checks: Record<string, unknown> | undefined): { text: string; ok: boolean }[] {
@@ -962,7 +962,7 @@ export function checkLines(checks: Record<string, unknown> | undefined): { text:
 }
 
 
-// ---- Awesome Clips Kitty: labels, numbers and credits ------------------------------------------
+// ---- Awesome VilloMillo: labels, numbers and credits ------------------------------------------
 
 /** The directory's kinds the Marketplace browses besides pipelines
  *  (plugins/catalog.py DIRECTORY_KINDS). Models are "AI model links" here,
@@ -975,10 +975,10 @@ export const DIRECTORY_KINDS: Record<string, string> = {
   tool: 'Tools'
 }
 
-/** How a project relates to Clips Kitty, in words (plugins/catalog.py RELATIONSHIPS). */
+/** How a project relates to VilloMillo, in words (plugins/catalog.py RELATIONSHIPS). */
 export const RELATIONSHIP_LABELS: Record<string, string> = {
-  'built-for': 'Built for Clips Kitty',
-  'built-with': 'Built with Clips Kitty'
+  'built-for': 'Built for VilloMillo',
+  'built-with': 'Built with VilloMillo'
 }
 
 /** The catalog's labels as badges. "official" and "community" are the
@@ -987,17 +987,17 @@ export function catalogBadges(badges: string[] | undefined, extraOnly = false): 
   const out: Badge[] = []
   for (const b of badges ?? []) {
     if (b === 'official' && !extraOnly)
-      out.push({ label: '✓ Official', tone: 'ok', title: 'Made and maintained by the Clips Kitty project.' })
+      out.push({ label: '✓ Official', tone: 'ok', title: 'Made and maintained by the VilloMillo project.' })
     else if (b === 'community' && !extraOnly)
-      out.push({ label: 'Community', tone: 'info', title: 'Made by someone outside the Clips Kitty project. Nobody at Clips Kitty has read its code.' })
+      out.push({ label: 'Community', tone: 'info', title: 'Made by someone outside the VilloMillo project. Nobody at VilloMillo has read its code.' })
     else if (b === 'compatible')
       out.push({
         label: '✓ Compatible',
         tone: 'ok',
         title:
-          'This version passed Clips Kitty’s automated compatibility checks. A technical label, not a security review.'
+          'This version passed VilloMillo’s automated compatibility checks. A technical label, not a security review.'
       })
-    else if (b === 'featured') out.push({ label: '★ Featured', tone: 'info', title: 'Picked by a Clips Kitty maintainer.' })
+    else if (b === 'featured') out.push({ label: '★ Featured', tone: 'info', title: 'Picked by a VilloMillo maintainer.' })
   }
   return out
 }
@@ -1017,7 +1017,7 @@ export function metricLines(metrics: Metrics | undefined): { text: string; tone:
   if (!metrics) return out
   if (typeof metrics.installs === 'number')
     out.push({
-      text: `${metrics.installs.toLocaleString('en-US')} Clips Kitty ${metrics.installs === 1 ? 'install' : 'installs'}`,
+      text: `${metrics.installs.toLocaleString('en-US')} VilloMillo ${metrics.installs === 1 ? 'install' : 'installs'}`,
       tone: 'info'
     })
   const gh = metrics.github
@@ -1118,11 +1118,11 @@ export function compatibilityText(record: CompatibilityRecord | undefined | null
   const when = String(record.checked_at || '').slice(0, 10)
   if (record.passed)
     return {
-      text: `✓ Compatible: version ${record.version} passed the automated checks on Clips Kitty ${record.app_version}${when ? ` (${when})` : ''}. A technical check, not a security review.`,
+      text: `✓ Compatible: version ${record.version} passed the automated checks on VilloMillo ${record.app_version}${when ? ` (${when})` : ''}. A technical check, not a security review.`,
       tone: 'ok'
     }
   return {
-    text: `Version ${record.version} didn’t pass the automated checks on Clips Kitty ${record.app_version}${record.note ? `: ${record.note}` : ''}.`,
+    text: `Version ${record.version} didn’t pass the automated checks on VilloMillo ${record.app_version}${record.note ? `: ${record.note}` : ''}.`,
     tone: 'warn'
   }
 }

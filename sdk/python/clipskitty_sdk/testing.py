@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
-"""Testing a plugin: run it the way Clips Kitty would, from a test, and look
+"""Testing a plugin: run it the way VilloMillo would, from a test, and look
 at what it answered.
 
     from pathlib import Path
@@ -22,11 +22,11 @@ at what it answered.
         run = testing.run_plugin(PLUGIN, video=video, tmp_path=tmp_path)
         assert run.ok, run.error
 
-`run_plugin` checks the manifest as Clips Kitty does, builds the job folder
-with the function Clips Kitty builds it with (clipskitty_sdk.host.build_job),
+`run_plugin` checks the manifest as VilloMillo does, builds the job folder
+with the function VilloMillo builds it with (clipskitty_sdk.host.build_job),
 starts the plugin's run.command (`{python}` is the Python running the
 tests), and reads its answer with host.read_result or host.read_answers, the
-functions Clips Kitty reads it with (host.read_edits in a run that suggests
+functions VilloMillo reads it with (host.read_edits in a run that suggests
 edits). It asks for the run the app would make, as
 `python -m clipskitty_sdk run` does (clipskitty_sdk.devrun): a find run for
 a plugin that finds moments, else a run that understands and rates, else an
@@ -39,7 +39,7 @@ plugin that reads only the transcript runs on any PC, FFmpeg or not. The
 sample video needs FFmpeg.
 
 This module is for tests on a developer's PC, never for a plugin's own code
-inside Clips Kitty. Standard library only; pytest is imported only when
+inside VilloMillo. Standard library only; pytest is imported only when
 sample_video() skips a test.
 """
 
@@ -64,7 +64,7 @@ SAMPLE_VIDEO_SECONDS = samples.SAMPLE_VIDEO_SECONDS
 sample_transcript = samples.sample_transcript
 # What sample_video() says when there is no FFmpeg on PATH, outside pytest.
 NO_FFMPEG = ("the sample video needs FFmpeg, and there is none on PATH. Install FFmpeg, or add the folder "
-             f"holding it to PATH. An installed Clips Kitty has it, in {samples.INSTALLED_FFMPEG}.")
+             f"holding it to PATH. An installed VilloMillo has it, in {samples.INSTALLED_FFMPEG}.")
 # What run_plugin() and make_job() say for a plugin that reads the video when none is given.
 VIDEO_NEEDED = ("this plugin reads the video (video.read), so it needs one: pass video=, such as "
                 "video=testing.sample_video(tmp_path)")
@@ -76,14 +76,14 @@ class SampleUnavailable(samples.SampleError):
 
 @dataclass
 class PluginRun:
-    """What one run of a plugin did, as Clips Kitty would take it.
+    """What one run of a plugin did, as VilloMillo would take it.
 
-    `ok` is True when the plugin finished and Clips Kitty would use its
+    `ok` is True when the plugin finished and VilloMillo would use its
     answer. Otherwise `error` says why, in words: the plugin's own last error
     line (the words creators see when it fails), else why the run stopped
-    (its time limit, its exit code) or why Clips Kitty can't use its answer.
+    (its time limit, its exit code) or why VilloMillo can't use its answer.
 
-    In a find run, `moments` are its ranges as Clips Kitty takes them from
+    In a find run, `moments` are its ranges as VilloMillo takes them from
     result.json (host.read_result: fitted to the video's length, scored ones
     best first, cut to the clip limit), numbered m1, m2... in that order.
     Each `score` is the plugin's own, or None when it gave none; `notes` are
@@ -94,11 +94,11 @@ class PluginRun:
     `answers` maps each answered moment's id to {score, reason, context}
     (host.read_answers). In a run that suggests edits, `moments` are the
     clips it was handed, and `edits` maps each clip's id to its suggestion
-    as Clips Kitty keeps it, {edit, reason} (host.read_edits: fitted to the
+    as VilloMillo keeps it, {edit, reason} (host.read_edits: fitted to the
     clip and to the editor's choices).
 
     `notes` is the text it left for the job log (result.json's `notes`).
-    `events` are its progress, log and error lines, parsed as Clips Kitty
+    `events` are its progress, log and error lines, parsed as VilloMillo
     parses them, and `log` the messages of its log lines (standard error
     included) and any `ignored:` or `changed:` line from reading its
     answers. `steps` is
@@ -135,7 +135,7 @@ def sample_video(folder) -> Path:
     Kitty copies everything there on install: use pytest's tmp_path."""
     out = Path(folder) / "sample.mp4"
     if samples.plugin_folder_holding(out) is not None:
-        raise ValueError("that is inside a plugin's folder, and Clips Kitty copies everything there on install. "
+        raise ValueError("that is inside a plugin's folder, and VilloMillo copies everything there on install. "
                          "Make the sample somewhere else, such as pytest's tmp_path")
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -295,7 +295,7 @@ def _prepare(plugin, *, video, transcript, duration, settings, steps, moments, g
             if not span:
                 raise _refuse("moments", "no video length for sample moments: pass duration, or moments")
             handed = devrun.sample_moments(span)
-        handed = handed[:MAX_RANGES]  # as many as Clips Kitty hands over
+        handed = handed[:MAX_RANGES]  # as many as VilloMillo hands over
 
     build = {
         "settings": settings,
@@ -307,7 +307,7 @@ def _prepare(plugin, *, video, transcript, duration, settings, steps, moments, g
         "ffmpeg": shutil.which("ffmpeg"),
         "ffprobe": shutil.which("ffprobe"),
         # As `run` hands them over: no model unless one is named, as when
-        # Clips Kitty's AI runs at a cloud provider.
+        # VilloMillo's AI runs at a cloud provider.
         "ollama": {"host": ollama_host or devrun.DEFAULT_OLLAMA_HOST, "model": ollama_model or ""},
         "models": where,
         "steps": list(asked) if not find_run or uses_steps(manifest) else None,
@@ -318,7 +318,7 @@ def _prepare(plugin, *, video, transcript, duration, settings, steps, moments, g
 
 def make_job(folder, plugin, *, video=None, transcript=None, duration=None, settings=None, steps=None,
              moments=None, games=(), ollama_host=None, ollama_model=None, models=None, layout=None) -> Path:
-    """Write the job folder Clips Kitty would make for the plugin in folder
+    """Write the job folder VilloMillo would make for the plugin in folder
     `plugin`, at `folder`, and return `folder`: `read_job(folder)` then
     gives the plugin's Job.
 
@@ -339,7 +339,7 @@ def make_job(folder, plugin, *, video=None, transcript=None, duration=None, sett
     the video shows, for video.games.
     `ollama_model` is the creator's local model, for a plugin with the
     `ollama` permission (`run`'s --ollama-model): without it the job names
-    none, as when Clips Kitty's AI runs at a cloud provider, and
+    none, as when VilloMillo's AI runs at a cloud provider, and
     local_model refuses. `ollama_host` is its address (default
     http://localhost:11434). `models` maps a model the manifest lists to
     where it is on this PC (`run`'s --model NAME=PATH). Secret settings are
@@ -347,7 +347,7 @@ def make_job(folder, plugin, *, video=None, transcript=None, duration=None, sett
     make_job, set CLIPSKITTY_SECRET_<NAME> in the test's environment (pytest's
     monkeypatch.setenv) before calling job.secret().
 
-    Raises ContractError when Clips Kitty would refuse the plugin's manifest,
+    Raises ContractError when VilloMillo would refuse the plugin's manifest,
     and for anything `python -m clipskitty_sdk run` refuses (a step the
     plugin doesn't offer, a setting it doesn't declare, no video for a plugin
     with video.read), before anything is written."""
@@ -385,19 +385,19 @@ def _found(i: int, r: dict, *, plugin_id: str, notes: bool) -> Moment:
 def run_plugin(plugin, *, video=None, transcript=None, duration=None, settings=None, steps=None, moments=None,
                tmp_path=None, timeout=None, games=(), ollama_host=None, ollama_model=None, models=None,
                secrets=None, layout=None) -> PluginRun:
-    """Run the plugin in folder `plugin` as Clips Kitty would, and return
+    """Run the plugin in folder `plugin` as VilloMillo would, and return
     what it did as a PluginRun.
 
     The inputs are make_job's. `secrets` are the plugin's secret settings by
     name (`run`'s --secret NAME=VALUE), handed over in the environment as
-    Clips Kitty hands them over, for job.secret(). The job folder is a new
+    VilloMillo hands them over, for job.secret(). The job folder is a new
     folder inside `tmp_path` (pass pytest's, which pytest cleans up), else
     in the system's temporary folder; either way it is kept, in
     `PluginRun.folder`. `timeout` is in seconds; without it the plugin may
-    take as long as Clips Kitty would allow (run.timeout_minutes, else 60
+    take as long as VilloMillo would allow (run.timeout_minutes, else 60
     minutes to find and 10 to understand, rate or suggest edits).
 
-    A plugin that fails, or gives an answer Clips Kitty can't use, gives a
+    A plugin that fails, or gives an answer VilloMillo can't use, gives a
     PluginRun with `ok` False and `error` saying why. A run that can't start
     raises ContractError, as make_job does, before any folder is made."""
     prepared = _prepare(plugin, video=video, transcript=transcript, duration=duration, settings=settings,
@@ -423,7 +423,7 @@ def run_plugin(plugin, *, video=None, transcript=None, duration=None, settings=N
                          if line.strip()), "")
         if outcome.timed_out:
             run.error = (f"it ran past the {limit:g} second timeout" if timeout is not None
-                         else f"it ran past its {limit / 60:g} minute limit, as Clips Kitty would stop it")
+                         else f"it ran past its {limit / 60:g} minute limit, as VilloMillo would stop it")
         else:
             run.error = reported or outcome.error
         return run
@@ -456,7 +456,7 @@ def run_plugin(plugin, *, video=None, transcript=None, duration=None, settings=N
                 m._notes.extend(answer.get("context", []))
                 run.moments.append(m)
     except ContractError as e:
-        run.error = f"it gave an answer Clips Kitty can't use: {e}"
+        run.error = f"it gave an answer VilloMillo can't use: {e}"
         return run
     run.ok = True
     run.notes = _result_notes(job_folder)

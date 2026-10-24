@@ -1,15 +1,15 @@
-"""A Clips Kitty pipeline that finds the moments where your words are said.
+"""A VilloMillo pipeline that finds the moments where your words are said.
 
-Made from the transcript template of the Clips Kitty SDK. Each time the
+Made from the transcript template of the VilloMillo SDK. Each time the
 commentary says one of the `words` (a setting, separated by commas), it adds
 a moment from `lead_in_seconds` before the words to a few seconds after.
 Words said close together share one moment. A word matches as a whole word,
 in any case, so "win" doesn't match "window".
 
-It reads only what Clips Kitty wrote down of what is said: it doesn't see the
+It reads only what VilloMillo wrote down of what is said: it doesn't see the
 screen, and it can't tell whether the words are about what is happening.
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. To try it, run `python -m clipskitty_sdk run . --sample` in the
 plugin's folder (`py -m clipskitty_sdk` in PowerShell); it needs no FFmpeg.

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/ColinGPT9/clips-studio/main/sdk/python/clipskitty_sdk/schema/clipskitty.schema.json
-# What Clips Kitty reads about this plugin. Every field is described in
-# https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/plugin-manifest.md
+# What VilloMillo reads about this plugin. Every field is described in
+# https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/plugin-manifest.md
 manifest_version: 1
 id: @@ID@@
 name: "@@NAME@@"

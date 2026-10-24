@@ -5,7 +5,7 @@ import { PLATFORMS, type UploadPostStatus } from '../lib/uploadpost'
 
 /** Settings for publishing to several platforms through Upload-Post.
  *
- *  Bring your own key. Clips Kitty never pays for anyone's Upload-Post usage,
+ *  Bring your own key. VilloMillo never pays for anyone's Upload-Post usage,
  *  holds no shared key and proxies nothing: the user's own account, their own
  *  connected socials, their own allowance. With no key entered this card is
  *  the only Upload-Post surface in the app — the editor shows nothing, the
@@ -280,7 +280,7 @@ export default function UploadPostCard(): JSX.Element {
               is better than someone discovering it afterwards. */}
           <p className="text-[11px] text-muted border-l-2 border-raised pl-2">
             {t(
-              'Publishing this way sends the clip and its details to Upload-Post, which delivers them to the platforms you pick. Everything else in Clips Kitty still runs on your PC.'
+              'Publishing this way sends the clip and its details to Upload-Post, which delivers them to the platforms you pick. Everything else in VilloMillo still runs on your PC.'
             )}
           </p>
 
@@ -483,7 +483,7 @@ export default function UploadPostCard(): JSX.Element {
               {affiliate && (
                 <p className="text-[11px] text-muted">
                   {t(
-                    'Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.'
+                    'Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you.'
                   )}
                 </p>
               )}

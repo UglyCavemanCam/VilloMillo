@@ -1,7 +1,7 @@
-"""Clips Kitty's transcript scorer as a contract pipeline (first-party adapter).
+"""VilloMillo's transcript scorer as a contract pipeline (first-party adapter).
 
 It reads the job with the SDK like any plugin, then calls the scorer the app
-already has. Because it imports Clips Kitty's own modules, it needs a source
+already has. Because it imports VilloMillo's own modules, it needs a source
 checkout: CLIPSKITTY_SOURCE, or the checkout this file sits in.
 """
 
@@ -16,7 +16,7 @@ SOURCE = Path(os.environ.get("CLIPSKITTY_SOURCE") or Path(__file__).resolve().pa
 
 def main(job):
     if not (SOURCE / "analysis" / "highlights.py").exists():
-        job.fail(f"this adapter needs a Clips Kitty source checkout; none at {SOURCE}")
+        job.fail(f"this adapter needs a VilloMillo source checkout; none at {SOURCE}")
     sys.path.insert(0, str(SOURCE))
     from analysis.highlights import find_highlights
     from core.models import Segment
@@ -35,7 +35,7 @@ def main(job):
 
         ollama = job.tools.ollama or {}
         if not ollama.get("model"):
-            job.fail("no local model is chosen in Clips Kitty (Settings → AI), and this adapter only uses a local one")
+            job.fail("no local model is chosen in VilloMillo (Settings → AI), and this adapter only uses a local one")
         llm = create_backend({"backend": f"ollama/{ollama['model']}", "ollama_host": ollama["host"]})
 
     limits = job.limits

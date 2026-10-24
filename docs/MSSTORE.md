@@ -251,7 +251,7 @@ From the app overview, click **Start submission**.
   This is **required**. Store policy 10.5.1 says Win32 and Desktop Bridge
   products "must always have privacy policies".
 - **Website:** `https://colingpt9.github.io/clips-studio/`
-- **Support contact:** `https://github.com/ColinGPT9/clips-studio/issues`
+- **Support contact:** `https://github.com/UglyCavemanCam/VilloMillo/issues`
 
 System requirements, taken from the README rather than invented:
 

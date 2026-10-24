@@ -126,7 +126,7 @@ def _candidate(spec: ProviderSpec, data: dict) -> dict:
         raise LLMError("rejected", f"{spec.label} blocked the request ({blocked}).")
     candidates = data.get("candidates") or []
     if not candidates or not isinstance(candidates[0], dict):
-        raise LLMError("bad_response", f"{spec.label} sent back an answer Clips Kitty couldn't read.")
+        raise LLMError("bad_response", f"{spec.label} sent back an answer VilloMillo couldn't read.")
     return candidates[0]
 
 

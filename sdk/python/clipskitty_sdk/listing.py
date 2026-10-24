@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """The core of `python -m clipskitty_sdk listing`: the file that lists a
-plugin in Awesome Clips Kitty, the catalog Clips Kitty's Marketplace reads,
+plugin in Awesome VilloMillo, the catalog VilloMillo's Marketplace reads,
 made from the plugin's folder and its git repository.
 
     python -m clipskitty_sdk listing FOLDER --section gaming/generic [--alias WORDS ...]
@@ -53,7 +53,7 @@ CATALOG_FOLDER = "registry/pipelines"
 # The catalog's own rules (plugins/catalog.py SECTION_RE and OFFICIAL_OWNERS, and
 # plugins/registry.py check_listing); tests/test_registry.py checks they match.
 SECTION_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)?$"
-# The Clips Kitty project's own GitHub owners, whose repositories may list
+# The VilloMillo project's own GitHub owners, whose repositories may list
 # plugins under other publisher names (its examples).
 OFFICIAL_OWNERS = ("colingpt9",)
 MAX_ALIASES = 10
@@ -79,7 +79,7 @@ NEXT = f"""Next, in a copy of {CATALOG_REPOSITORY}:
   2. open a pull request with that one file.
 Its check builds the catalog with your file and says why if it is refused. Leave index.json and README.md
 alone: a job rebuilds both after the merge.
-Once that is done, Clips Kitty versions with the Marketplace see it after Check for new pipelines."""
+Once that is done, VilloMillo versions with the Marketplace see it after Check for new pipelines."""
 ADD_AS = "add this file as {where}"
 REPLACE = "put this file in place of {where}"
 IN_PLACE = "the file is already {where}"
@@ -104,7 +104,7 @@ BAD_ALIASES = (f"--alias: at most {MAX_ALIASES} words or short phrases, each up 
                "characters on one line")
 TO_ONLY_ADDS = "--to only adds a version: change the section or aliases in {file} by hand"
 OUT_EXISTS = "{out} already exists. To add this version to that listing, pass --to {out}"
-INSIDE_PLUGIN = ("that is inside a plugin's folder, and Clips Kitty copies everything there on install. Write the "
+INSIDE_PLUGIN = ("that is inside a plugin's folder, and VilloMillo copies everything there on install. Write the "
                  "listing somewhere else, for example: --out {example}")
 NOT_A_LISTING = "{file} isn't a listing: {why}"
 OTHER_PLUGIN = "{file} is the listing of {other}, not {id}"
@@ -533,7 +533,7 @@ def run(folder, *, section: str | None = None, aliases=(), to=None, out=None, st
         for line in devrun.report_lines(folder, report, manifest):
             print(line, file=stderr)
         if not report.ok:
-            raise ListingRefused("fix the manifest first; Clips Kitty would refuse to install this plugin")
+            raise ListingRefused("fix the manifest first; VilloMillo would refuse to install this plugin")
         left = placeholders(folder, manifest)
         if left:
             raise ListingRefused(*left)

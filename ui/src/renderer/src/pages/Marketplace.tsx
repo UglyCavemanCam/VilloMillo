@@ -176,9 +176,9 @@ function OutLink({ url, children }: { url: string | null; children: ReactNode })
   )
 }
 
-/** A link from an Awesome Clips Kitty entry. It opens in the browser only
+/** A link from an Awesome VilloMillo entry. It opens in the browser only
  *  after a dialog that shows the full address and says whether the link is in
- *  Clips Kitty's own list; plain text without the desktop app. */
+ *  VilloMillo's own list; plain text without the desktop app. */
 function CatalogLink({
   url,
   ours,
@@ -320,7 +320,7 @@ function DetailsBlock({
         )}
         <p className="text-xs text-muted mt-1">
           {t(
-            '“Clips Kitty hands this over”: Clips Kitty decides what the pipeline is given. “The developer says so”: a promise only. Nothing stops a pipeline doing more, because it can do anything you can do on this PC.'
+            '“VilloMillo hands this over”: VilloMillo decides what the pipeline is given. “The developer says so”: a promise only. Nothing stops a pipeline doing more, because it can do anything you can do on this PC.'
           )}
         </p>
       </div>
@@ -378,7 +378,7 @@ function DetailsBlock({
             )}
           </p>
           <p className="text-xs text-muted">
-            {t('Any payment is between you and the developer. Clips Kitty takes no part in it.')}
+            {t('Any payment is between you and the developer. VilloMillo takes no part in it.')}
           </p>
         </div>
       )}
@@ -517,7 +517,7 @@ function ListingPage({
   listing: Listing
   hardware: Hardware | null
   manage: boolean
-  /** Clips Kitty's online list, for how fresh a listing from it is. */
+  /** VilloMillo's online list, for how fresh a listing from it is. */
   online: OnlineList | undefined
   onBack: () => void
   onInstall: (source: PluginSource) => void
@@ -644,14 +644,14 @@ function ListingPage({
               {t('Its developer gives their name as')} {listing.author.name}.
             </p>
           )}
-          {/* An Official listing's code is the Clips Kitty project's own, so the "nobody at Clips Kitty
+          {/* An Official listing's code is the VilloMillo project's own, so the "nobody at VilloMillo
               has read it" line is left out there. A Community listing always says something about
               checks, even none, because the Browse footer sends people here to read them. */}
           {checks.length > 0 && (
             <ul className="text-xs text-muted mt-1">
               <li>
                 {isOurList(listing.index)
-                  ? t('Checks run when Clips Kitty’s list was built:')
+                  ? t('Checks run when VilloMillo’s list was built:')
                   : `${t('Checks this list reports')} (${indexName(listing.index)}):`}
               </li>
               {checks.map((c) => (
@@ -661,14 +661,14 @@ function ListingPage({
                 </li>
               ))}
               {!official && (
-                <li>{t('These checks are automatic. Nobody at Clips Kitty has read this pipeline’s code.')}</li>
+                <li>{t('These checks are automatic. Nobody at VilloMillo has read this pipeline’s code.')}</li>
               )}
             </ul>
           )}
           {checks.length === 0 && !official && (
             <p className="text-xs text-muted mt-1">
               {t(
-                'This list doesn’t report any automatic checks that Clips Kitty knows about. Nobody at Clips Kitty has read this pipeline’s code.'
+                'This list doesn’t report any automatic checks that VilloMillo knows about. Nobody at VilloMillo has read this pipeline’s code.'
               )}
             </p>
           )}
@@ -700,7 +700,7 @@ function ListingPage({
             <button
               className="btn-accent"
               disabled={!manage || Boolean(chosen?.problem_here)}
-              title={manage ? '' : t('Installing pipelines needs the Clips Kitty desktop app.')}
+              title={manage ? '' : t('Installing pipelines needs the VilloMillo desktop app.')}
               onClick={() => onInstall({ kind: 'index', id: listing.id, version })}
             >
               {action}
@@ -726,7 +726,7 @@ function ListingPage({
           )}
           {(works || tested) && (
             <p className="text-xs text-muted">
-              {works ? `${t('Works with Clips Kitty')} ${t(works)}.` : ''}
+              {works ? `${t('Works with VilloMillo')} ${t(works)}.` : ''}
               {works && tested ? ' ' : ''}
               {tested ? `${t('Tested with')} ${tested}.` : ''}
             </p>
@@ -742,7 +742,7 @@ function ListingPage({
 
 /** One app, model, workflow, integration or tool. They aren't installed
  *  from here: each has one button to its download page or home, and one
- *  that runs inside Clips Kitty through a listed pipeline links to that. */
+ *  that runs inside VilloMillo through a listed pipeline links to that. */
 function EntryCard({
   entry,
   onOpenListing
@@ -797,18 +797,18 @@ function EntryCard({
               {t(link.label)}
               {link.host ? ` ${link.host}` : ''}
             </CatalogLink>
-            <p className="text-xs text-muted">{t('Not installed by Clips Kitty · opens a website')}</p>
+            <p className="text-xs text-muted">{t('Not installed by VilloMillo · opens a website')}</p>
           </div>
         )}
         <div className="flex flex-wrap gap-2 items-center">
           {entry.adapter &&
             (entry.adapter_listed ? (
               <button className="btn-ghost !py-1.5" onClick={() => onOpenListing(entry.adapter ?? '')}>
-                {t('Use it in Clips Kitty')} →
+                {t('Use it in VilloMillo')} →
               </button>
             ) : (
               <span className="text-xs text-muted">
-                {t('Runs in Clips Kitty through')} {entry.adapter}
+                {t('Runs in VilloMillo through')} {entry.adapter}
               </span>
             ))}
           {discussions && (
@@ -830,8 +830,8 @@ function EntryCard({
   )
 }
 
-/** Awesome Clips Kitty's other kinds, by section: apps, models, workflows,
- *  integrations and tools around Clips Kitty. */
+/** Awesome VilloMillo's other kinds, by section: apps, models, workflows,
+ *  integrations and tools around VilloMillo. */
 function CatalogBrowse({
   kind,
   q,
@@ -876,8 +876,8 @@ function CatalogBrowse({
       {groups.length === 0 && (
         <div className="card text-sm">
           {q.trim()
-            ? t('Nothing in Awesome Clips Kitty matches that.')
-            : t('Nothing of this kind is in Awesome Clips Kitty yet.')}
+            ? t('Nothing in Awesome VilloMillo matches that.')
+            : t('Nothing of this kind is in Awesome VilloMillo yet.')}
         </div>
       )}
       {groups.map((g) => (
@@ -894,7 +894,7 @@ function CatalogBrowse({
         </section>
       ))}
       <p className="text-xs text-muted border-t border-raised/50 pt-3">
-        {t('From Awesome Clips Kitty, a curated list; an entry from another list you added says where it came from. Built with Clips Kitty: a separate app or tool that uses Clips Kitty. Each project keeps its own licence.')}
+        {t('From Awesome VilloMillo, a curated list; an entry from another list you added says where it came from. Built with VilloMillo: a separate app or tool that uses VilloMillo. Each project keeps its own licence.')}
         {data.metrics_at ? ` ${t('Numbers read on')} ${data.metrics_at}.` : ''}
       </p>
     </div>
@@ -929,8 +929,8 @@ function CountingNote({ manage }: { manage: boolean }): JSX.Element | null {
         <span>
           {t('Count my installs')}. {t(state.text)}
           {/* plugins.count_installs is in this Windows account's own settings.yaml (core/paths.py), not the whole PC's. */}
-          {state.locked_off && ` ${t('Switched off in your Clips Kitty settings file.')}`}
-          {!state.active && ` ${t('Nothing is counted yet: Clips Kitty’s list doesn’t count installs yet.')}`}
+          {state.locked_off && ` ${t('Switched off in your VilloMillo settings file.')}`}
+          {!state.active && ` ${t('Nothing is counted yet: VilloMillo’s list doesn’t count installs yet.')}`}
         </span>
       </label>
       {state.locked_off && (
@@ -941,7 +941,7 @@ function CountingNote({ manage }: { manage: boolean }): JSX.Element | null {
   )
 }
 
-/** Whether the Marketplace checks Clips Kitty's online list by itself, and the switch. */
+/** Whether the Marketplace checks VilloMillo's online list by itself, and the switch. */
 function OnlineListNote({ manage, online }: { manage: boolean; online: OnlineList | undefined }): JSX.Element | null {
   const [state, setState] = useState<OnlineList | undefined>(online)
   const [problem, setProblem] = useState<string | null>(null)
@@ -965,7 +965,7 @@ function OnlineListNote({ manage, online }: { manage: boolean; online: OnlineLis
           onChange={(e) => toggle(e.target.checked)}
         />
         <span>
-          {t('Check Clips Kitty’s online list once a day for new pipelines, and for warnings about pipelines you have.')}{' '}
+          {t('Check VilloMillo’s online list once a day for new pipelines, and for warnings about pipelines you have.')}{' '}
           {t('It is one file from GitHub; nothing about you or what you browse is sent.')}
         </span>
       </label>
@@ -1002,7 +1002,7 @@ function Browse({
   const [refreshNote, setRefreshNote] = useState<string | null>(null)
   const [stamp, setStamp] = useState(0)
   // The other kinds that have something in them. One with nothing made for
-  // Clips Kitty yet gets no tab, rather than a tab that opens on nothing.
+  // VilloMillo yet gets no tab, rather than a tab that opens on nothing.
   const [present, setPresent] = useState<Set<string>>(new Set())
   useEffect(() => {
     let live = true
@@ -1046,7 +1046,7 @@ function Browse({
     return () => window.removeEventListener(PLUGINS_CHANGED, again)
   }, [])
 
-  // Opening the Marketplace checks Clips Kitty's online list when its copy is
+  // Opening the Marketplace checks VilloMillo's online list when its copy is
   // a day old and the switch is on (the engine decides); new pipelines then
   // appear without waiting for an app update. Quiet: the footer says how it
   // went, and the button shows the check while it runs.
@@ -1076,7 +1076,7 @@ function Browse({
             ? failed
                 .map((i) =>
                   i.url === ONLINE_LIST
-                    ? `${t('Couldn’t check Clips Kitty’s online list.')} ${t(i.error ?? '')}`.trim()
+                    ? `${t('Couldn’t check VilloMillo’s online list.')} ${t(i.error ?? '')}`.trim()
                     : `${indexName(i.url)}: ${t(i.error ?? 'could not be fetched')}`
                 )
                 .join(' · ')
@@ -1119,7 +1119,7 @@ function Browse({
   /** Where new pipelines come from on this screen: the button, or (in a browser) the desktop app. */
   const getThem = manage
     ? t('Press Check for new pipelines below.')
-    : t('The Clips Kitty desktop app checks for new pipelines.')
+    : t('The VilloMillo desktop app checks for new pipelines.')
   const filtered = Boolean(q.trim() || category || tag)
   return (
     <div className="space-y-4">
@@ -1205,11 +1205,11 @@ function Browse({
               <p>{t('No pipelines are listed yet.')}</p>
               <p className="text-muted">
                 {onlineNever
-                  ? `${t('Clips Kitty hasn’t got its online list yet.')} ${getThem}`
+                  ? `${t('VilloMillo hasn’t got its online list yet.')} ${getThem}`
                   : others.some((i) => !i.cached)
                     ? `${t('Some lists added on this PC haven’t been checked yet.')} ${getThem}`
-                    : `${t('None of Clips Kitty’s lists has a pipeline yet.')} ${t(
-                        'Pipelines added to Clips Kitty’s list appear here after the next check for new pipelines.'
+                    : `${t('None of VilloMillo’s lists has a pipeline yet.')} ${t(
+                        'Pipelines added to VilloMillo’s list appear here after the next check for new pipelines.'
                       )}`}
               </p>
             </>
@@ -1248,7 +1248,7 @@ function Browse({
           {refreshNote && <p>{refreshNote}</p>}
           <p>
             {t(
-              'Community: made by someone outside the Clips Kitty project. Its page says which automatic checks its list reports. Nobody at Clips Kitty has read its code. ✓ Compatible: Clips Kitty installed this version and ran it on a test video without errors. That is not a safety check. Browsing here tells nobody what you look at.'
+              'Community: made by someone outside the VilloMillo project. Its page says which automatic checks its list reports. Nobody at VilloMillo has read its code. ✓ Compatible: VilloMillo installed this version and ran it on a test video without errors. That is not a safety check. Browsing here tells nobody what you look at.'
             )}
           </p>
           <OnlineListNote manage={manage} online={data.online} />
@@ -1268,12 +1268,12 @@ const SOURCE_LABELS: Record<string, string> = {
   huggingface: 'Hugging Face',
   url: 'A file from the web',
   ollama: 'Ollama',
-  bundled: 'Ships with Clips Kitty'
+  bundled: 'Ships with VilloMillo'
 }
 
 /** One model an installed plugin lists: whether it is on this PC, its
  *  licence and size, which other plugins share the same copy, and Download
- *  for the ones Clips Kitty fetches (Hugging Face and web files), after a
+ *  for the ones VilloMillo fetches (Hugging Face and web files), after a
  *  look at what would be fetched. */
 function ModelRow({
   plugin,
@@ -1334,7 +1334,7 @@ function ModelRow({
           {state.mark} {state.text}
         </span>
         {status?.link === 'copy' && (
-          <span className="text-muted"> · {t('stored twice, so it uses twice the space (Windows didn’t let Clips Kitty share one copy)')}</span>
+          <span className="text-muted"> · {t('stored twice, so it uses twice the space (Windows didn’t let VilloMillo share one copy)')}</span>
         )}
         {licence ? (
           <span className="text-muted">
@@ -1407,7 +1407,7 @@ function ModelRow({
                 disabled={!manage || busy !== null || (plan.pickle_files.length > 0 && !pickleOk)}
                 onClick={download}
               >
-                {busy === 'download' ? t('Downloading… keep Clips Kitty open') : t('Download')}
+                {busy === 'download' ? t('Downloading… keep VilloMillo open') : t('Download')}
               </button>
             )}
             <button className="btn-ghost !py-1 text-xs" disabled={busy === 'download'} onClick={() => setPlan(null)}>
@@ -1445,7 +1445,7 @@ function PluginModels({
       </ul>
       <p className="text-xs text-muted">
         {t(
-          'Downloaded models go in one folder shared by every pipeline, so a file two pipelines use is stored once. Clips Kitty checks each download is complete and unchanged, and never opens a pipeline’s model itself.'
+          'Downloaded models go in one folder shared by every pipeline, so a file two pipelines use is stored once. VilloMillo checks each download is complete and unchanged, and never opens a pipeline’s model itself.'
         )}
       </p>
     </div>
@@ -1572,8 +1572,8 @@ function InstalledCard({
       {plugin.flag && (
         <p className={`text-sm font-medium ${blocked ? 'text-error' : 'text-warn'}`}>
           {blocked
-            ? `${t('Blocked')}: ${plugin.flag.reason ?? t('a list Clips Kitty uses has blocked this version')}. ${t('It can’t run. Remove it.')}`
-            : `${t('No longer listed')}: ${plugin.flag.reason ?? t('a list Clips Kitty uses has taken it off')}. ${t('It still runs.')}`}
+            ? `${t('Blocked')}: ${plugin.flag.reason ?? t('a list VilloMillo uses has blocked this version')}. ${t('It can’t run. Remove it.')}`
+            : `${t('No longer listed')}: ${plugin.flag.reason ?? t('a list VilloMillo uses has taken it off')}. ${t('It still runs.')}`}
         </p>
       )}
       {plugin.problem && <p className="text-sm text-error">{plugin.problem}</p>}
@@ -1638,7 +1638,7 @@ function InstalledCard({
                   plugins.remove(plugin.id).then((r) =>
                     onRemoved(
                       r.files_left
-                        ? `${t('Removed')} ${plugin.name}. ${t('Some of its files were in use and are still in Clips Kitty’s “plugins” folder; delete them once Clips Kitty is closed.')}`
+                        ? `${t('Removed')} ${plugin.name}. ${t('Some of its files were in use and are still in VilloMillo’s “plugins” folder; delete them once VilloMillo is closed.')}`
                         : `${t('Removed')} ${plugin.name}.`
                     )
                   )
@@ -1681,7 +1681,7 @@ function InstalledCard({
 }
 
 /** Which of the user's AI settings send data off this PC ("AI: OpenAI,
- *  transcription: …"), or '' when everything runs here. Clips Kitty's own
+ *  transcription: …"), or '' when everything runs here. VilloMillo's own
  *  modes use them, so "Runs on this PC" is only true of those modes without. */
 function useCloudAI(): string {
   const [cloud, setCloud] = useState('')
@@ -1794,7 +1794,7 @@ function Installed({
         ))
       )}
       <section className="card space-y-1">
-        <h3 className="font-semibold">{t('Built into Clips Kitty')}</h3>
+        <h3 className="font-semibold">{t('Built into VilloMillo')}</h3>
         <p className="text-xs text-muted">{t('Always available from the Generate bar’s switches.')}</p>
         {data.builtin.map((b) => (
           <BuiltinCard key={b.id} plugin={b} cloudAI={cloudAI} />
@@ -1859,7 +1859,7 @@ function InstallDialog({
     const own = models?.models.filter((m) => m.used_by.some((u) => u.plugin === done.id))
     if (done.details.models.length > 0 && (!own || own.some((m) => m.installed !== true)))
       missing.push(
-        t('Some of its AI models may not be on this PC yet. Installed shows which ones, and whether Clips Kitty can download them.')
+        t('Some of its AI models may not be on this PC yet. Installed shows which ones, and whether VilloMillo can download them.')
       )
   }
   // An update or reinstall keeps the creator's Off switch (plugins/manager.py),
@@ -1932,7 +1932,7 @@ function InstallDialog({
             />
             {plan.ok && counted && (
               <p className="text-xs text-muted">
-                {t('Installing adds 1 to this pipeline’s public install count. GitHub, the website that holds Clips Kitty’s code, keeps the count. Clips Kitty sends no account, no ID and nothing about your videos. You can switch counting off at the bottom of Browse.')}
+                {t('Installing adds 1 to this pipeline’s public install count. GitHub, the website that holds VilloMillo’s code, keeps the count. VilloMillo sends no account, no ID and nothing about your videos. You can switch counting off at the bottom of Browse.')}
               </p>
             )}
             {plan.ok && needs.length > 0 && (
@@ -2050,7 +2050,7 @@ export default function Marketplace(): JSX.Element {
         <h2 className="text-2xl font-bold">{t('Marketplace')}</h2>
         <p className="text-sm text-muted mt-1">
           {t(
-            'Pipelines made by other developers: some find a video’s moments their own way, and others rate the moments found or say what happens in them. Clips Kitty cuts, frames and captions the clips as usual. Free to list and free to install; Clips Kitty handles no payments.'
+            'Pipelines made by other developers: some find a video’s moments their own way, and others rate the moments found or say what happens in them. VilloMillo cuts, frames and captions the clips as usual. Free to list and free to install; VilloMillo handles no payments.'
           )}
         </p>
       </div>

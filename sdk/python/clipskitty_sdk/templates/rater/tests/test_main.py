@@ -1,9 +1,9 @@
-"""This plugin's tests. They run on your PC, never inside Clips Kitty:
+"""This plugin's tests. They run on your PC, never inside VilloMillo:
 
     python -m pytest -q
 
 They need the SDK's test extra (pip install "clipskitty-sdk[yaml,test]").
-clipskitty_sdk.testing runs the plugin the way Clips Kitty would, here on 5
+clipskitty_sdk.testing runs the plugin the way VilloMillo would, here on 5
 moments spread through the SDK's 40-second sample, each scored 60, and on
 what is said in it, so they need no FFmpeg. Change these as you change the
 plugin.

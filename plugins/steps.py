@@ -1,7 +1,7 @@
 """Understand, Rate and Suggest edits: Marketplace plugins that look at a
 video's moments once they're found, and at the clips chosen from them.
 
-A job may name, besides how its moments are found (Clips Kitty's own scoring,
+A job may name, besides how its moments are found (VilloMillo's own scoring,
 Sports, Gaming scoring or a pipeline plugin), up to MAX_PER_STEP plugins that
 say what happens in each moment (`understand`), up to MAX_PER_STEP that
 give each moment a new score (`rate`) and up to MAX_PER_STEP that suggest an
@@ -14,7 +14,7 @@ finding the moments and writing their titles:
   rater sees the earlier notes and scores. Notes stack (at most
   MAX_NOTES_PER_MOMENT for each moment) and go to the title writer
   (analysis/metadata.py); ratings chain, and the last one counts.
-- A plugin that can't run, or gives an answer Clips Kitty can't use, is
+- A plugin that can't run, or gives an answer VilloMillo can't use, is
   skipped: the moments stay as they were, and the report says why in the
   creator's words. Nothing of a refused answer is kept.
 - Once every plugin has run, a moment a rater scored under the creator's
@@ -53,7 +53,7 @@ RATE_POOL_FACTOR = 3
 MAX_NOTES_PER_MOMENT = 8
 # Moments handed over in one run, as many as a find run may give.
 MAX_MOMENTS = contract.MAX_RANGES
-# Clips Kitty's own subscores a plugin is handed as a moment's signals.
+# VilloMillo's own subscores a plugin is handed as a moment's signals.
 SIGNALS = ("text", "audio", "visual", "engagement", "game")
 FIELDS = ("understand", "rate", "edit")
 
@@ -113,7 +113,7 @@ def moments_of(moment_id: str, c) -> dict:
     `score` is its score now, after the plugins that rated it before, and
     `found_score` the one it was found with. `found_by` is "clipskitty" (its
     own scoring, Sports and Gaming scoring) or the pipeline that found it.
-    `signals` are Clips Kitty's own numeric subscores, and `reaction` only
+    `signals` are VilloMillo's own numeric subscores, and `reaction` only
     when it was measured: the neutral placeholder is no evidence. `title`,
     `reason` and `context` (the notes earlier plugins gave) come from what
     was said; host.build_job leaves them out without transcript.read."""

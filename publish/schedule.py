@@ -1,6 +1,6 @@
 """Scheduling: converting and checking a publish time.
 
-YouTube owns the schedule. Clips Kitty uploads the video immediately, marks it
+YouTube owns the schedule. VilloMillo uploads the video immediately, marks it
 private, and hands YouTube a `status.publishAt`. After that the app has no part
 to play — the machine can be switched off and the video still goes out. There
 is deliberately no local timer anywhere in this feature.

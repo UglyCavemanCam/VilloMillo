@@ -8,7 +8,7 @@
    ],
    "checked": "2026-10-07",
    "description": "Lets Claude, Cursor or any MCP client make clips from a link or a file, follow the job and read back the clips, through Clips Kitty's local API. Its tools can also post clips through the accounts connected in Clips Kitty. Ships with Clips Kitty.",
-   "discussions_url": "https://github.com/ColinGPT9/clips-studio/discussions",
+   "discussions_url": "https://github.com/UglyCavemanCam/VilloMillo/discussions",
    "id": "integrations/clips-kitty-mcp-server",
    "kind": "integration",
    "license": "AGPL-3.0-or-later",
@@ -32,8 +32,8 @@
    "section": "ai-assistants",
    "slug": "clips-kitty-mcp-server",
    "source": {
-    "github": "https://github.com/ColinGPT9/clips-studio",
-    "url": "https://github.com/ColinGPT9/clips-studio#ask-an-ai-agent-to-do-it"
+    "github": "https://github.com/UglyCavemanCam/VilloMillo",
+    "url": "https://github.com/UglyCavemanCam/VilloMillo#ask-an-ai-agent-to-do-it"
    },
    "tags": [
     "mcp",
@@ -88,7 +88,7 @@
    ],
    "checked": "2026-10-07",
    "description": "Write, check and test Clips Kitty plugins - the manifest validator, a local test host, and a client for the local API. MIT-licensed, so using it puts no licence on your plugin.",
-   "discussions_url": "https://github.com/ColinGPT9/clips-studio/discussions",
+   "discussions_url": "https://github.com/UglyCavemanCam/VilloMillo/discussions",
    "id": "tools/clips-kitty-sdk",
    "kind": "tool",
    "license": "MIT",
@@ -112,7 +112,7 @@
    "section": "developer",
    "slug": "clips-kitty-sdk",
    "source": {
-    "github": "https://github.com/ColinGPT9/clips-studio",
+    "github": "https://github.com/UglyCavemanCam/VilloMillo",
     "path": "sdk/python"
    },
    "tags": [
@@ -148,7 +148,7 @@
     "public_at_commit": true
    },
    "description": "An example pipeline. It finds stretches that are clearly louder than the rest of the video and starts each clip on the nearest scene cut before it, using FFmpeg only. It knows nothing about what is happening on screen: loud is not always interesting, and quiet highlights are missed.\n",
-   "discussions_url": "https://github.com/ColinGPT9/clips-studio/discussions",
+   "discussions_url": "https://github.com/UglyCavemanCam/VilloMillo/discussions",
    "events": [
     "loud"
    ],
@@ -181,7 +181,7 @@
    ],
    "publisher": "clips-kitty-examples",
    "relationship": "built-for",
-   "repository": "https://github.com/ColinGPT9/clips-studio",
+   "repository": "https://github.com/UglyCavemanCam/VilloMillo",
    "requirements": {
     "gpu": "none",
     "os": [

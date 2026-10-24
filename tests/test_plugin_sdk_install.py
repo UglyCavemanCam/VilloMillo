@@ -238,12 +238,12 @@ def test_install_says_when_the_app_is_older_than_plugin_support(capsys, monkeypa
     assert code == 2 and asked == []
     assert err.splitlines()[-1] == (
         "error: This Clips Kitty (2.0.0) can't install plugins: it came out before plugin support. Use a newer "
-        "Clips Kitty, or run it from source: https://github.com/ColinGPT9/clips-studio#from-source")
+        "Clips Kitty, or run it from source: https://github.com/UglyCavemanCam/VilloMillo#from-source")
     assert old.calls() == [("GET", "/health"), ("GET", "/plugins")]
 
 
 def test_the_from_source_link_points_at_a_real_heading():
-    assert installer.FROM_SOURCE == "https://github.com/ColinGPT9/clips-studio#from-source"
+    assert installer.FROM_SOURCE == "https://github.com/UglyCavemanCam/VilloMillo#from-source"
     assert installer.FROM_SOURCE in installer.TOO_OLD
 
 

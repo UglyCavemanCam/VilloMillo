@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
-"""Reading the video with Clips Kitty's FFmpeg: its size, a part of the
+"""Reading the video with VilloMillo's FFmpeg: its size, a part of the
 screen frame by frame, one frame as a JPEG, its loudness and its scene cuts.
 
     from clipskitty_sdk import media, signals
@@ -11,7 +11,7 @@ screen frame by frame, one frame as a JPEG, its loudness and its scene cuts.
         seen = [f.t for f in media.frames(job, fps=4, region=BANNER)
                 if signals.colour_share(f, "e0303a") > 0.5]
 
-Every function takes the job and uses the FFmpeg and FFprobe Clips Kitty
+Every function takes the job and uses the FFmpeg and FFprobe VilloMillo
 hands over (`job.tools`), so the plugin needs `ffmpeg` in its permissions,
 and `video.read` for the video itself. Without them, the error says which
 one to add. FFmpeg's own problems raise MediaError with its last line.
@@ -38,7 +38,7 @@ NEEDS_FFMPEG = "This pipeline needs FFmpeg: add ffmpeg to permissions in clipski
 NEEDS_VIDEO = "This pipeline needs the video: add video.read to permissions in clipskitty.yaml"
 # The plugin asks for ffmpeg, but no FFmpeg (or FFprobe) was found for this
 # run. The installed app always has both; a developer's PC may not.
-NOT_FOUND = "Clips Kitty couldn't find {tool} on this PC, which this pipeline needs to read the video"
+NOT_FOUND = "VilloMillo couldn't find {tool} on this PC, which this pipeline needs to read the video"
 
 
 class MediaError(RuntimeError):
@@ -119,7 +119,7 @@ class Frame:
 def _tool(job, name: str) -> str:
     """The path of FFmpeg or FFprobe for this job, or MediaError saying why there is none."""
     tools = job.data.get("tools") if isinstance(getattr(job, "data", None), dict) else None
-    if not isinstance(tools, dict) or "ffmpeg" not in tools:  # Clips Kitty hands it over only with the permission
+    if not isinstance(tools, dict) or "ffmpeg" not in tools:  # VilloMillo hands it over only with the permission
         raise MediaError(NEEDS_FFMPEG)
     path = getattr(job.tools, name, None)
     if not path:

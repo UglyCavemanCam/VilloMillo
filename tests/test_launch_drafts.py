@@ -35,7 +35,7 @@ from plugins import registry  # noqa: E402
 DRAFTS = ROOT / "docs" / "platform" / "developer-launch-drafts.md"
 WORKFLOWS = ROOT / ".github" / "workflows"
 TUTORIAL = ROOT / "docs" / "developers" / "first-game-pipeline.md"
-REPO = "https://github.com/ColinGPT9/clips-studio"
+REPO = "https://github.com/UglyCavemanCam/VilloMillo"
 DRAFT_LINE = ("**DRAFT. Nothing here is posted, published or created. Each item needs Colin's approval "
               "(see the SDK plan's approval list).**")
 LICENCE_SENTENCE = ("Contributions to `sdk/python/` and the MIT examples are under MIT; everything else is "

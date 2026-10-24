@@ -47,7 +47,7 @@ NO_ANSWER = "The model didn't answer that time. Try again, or ask for one thing 
 HUMAN_ONLY: set[str] = set()
 
 SYSTEM = (
-    "You drive Clips Kitty, a local video clipping app, through its tools.\n"
+    "You drive VilloMillo, a local video clipping app, through its tools.\n"
     "NEVER ask the person for something you can look up. If they describe a "
     "video by its subject or title, call list_videos and match it yourself. If "
     "you need clip ids, call list_clips. Asking for an id you could have "

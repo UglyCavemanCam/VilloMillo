@@ -4,7 +4,7 @@
 
     from clipskitty_sdk import read_job
 
-    job = read_job()                      # the job folder Clips Kitty made
+    job = read_job()                      # the job folder VilloMillo made
     for i, (start, end) in enumerate(find_moments(job.video.path)):
         job.progress(i / 10, "Looking for moments")
         job.add_range(start, end, score=80, label="goal", reason="the crowd erupts")
@@ -23,7 +23,7 @@ A plugin that rates the moments others found, or says what happens in them,
 gets those moments in `job.moments` and answers about each one:
 
     def main(job):
-        for m in job.moments:                     # found by Clips Kitty or a pipeline
+        for m in job.moments:                     # found by VilloMillo or a pipeline
             said = job.text(m).lower()            # what is said during the moment
             if "quark burst" in said:
                 job.rate(m, min(100, m.score + 15), reason="the caster called a big play")
@@ -33,17 +33,17 @@ gets those moments in `job.moments` and answers about each one:
 declared, or declared without a default and left empty by the creator)
 raises SettingMissing; `job.settings.get(name, default)` never does.
 
-A plugin that suggests edits gets the clips Clips Kitty is about to make in
+A plugin that suggests edits gets the clips VilloMillo is about to make in
 `job.moments` too, in a run of its own, and suggests an edit for each one it
 wants to change. Times are seconds of the video:
 
     def main(job):
-        for m in job.moments:                     # the clips Clips Kitty will make
+        for m in job.moments:                     # the clips VilloMillo will make
             s = job.suggest_edit(m)
             s.trim(m.start + 2).fade(fade_out=0.5).title_overlay("Triple bloom!")
             s.reason("Starts on the action")
 
-Clips Kitty keeps the suggestion for the creator, who can use it in the
+VilloMillo keeps the suggestion for the creator, who can use it in the
 editor; it changes no clip by itself. `m.suggested` holds what edit plugins
 before this one suggested for the clip.
 
@@ -111,12 +111,12 @@ MISTAKE = "it stopped on a mistake in its own code. Ask its developer to fix it.
 # Exceptions that mean the plugin's code has a mistake, rather than a problem
 # it reports in words of its own (those keep their message).
 PROGRAMMING_ERRORS = (LookupError, AttributeError, TypeError, NameError, ArithmeticError)
-# The error line for a plugin that imports a part of the SDK this Clips Kitty
-# doesn't have: it was made with a newer SDK. Clips Kitty's script host says
+# The error line for a plugin that imports a part of the SDK this VilloMillo
+# doesn't have: it was made with a newer SDK. VilloMillo's script host says
 # the same for an import at the top of the plugin's file
 # (_clipskitty_script_host.py NEWER_VERSION; tests/test_script_host.py checks
 # they agree); run() says it for one inside main().
-NEWER_VERSION = ("This pipeline needs a newer version of Clips Kitty. Update Clips Kitty, or ask the pipeline's "
+NEWER_VERSION = ("This pipeline needs a newer version of VilloMillo. Update VilloMillo, or ask the pipeline's "
                  "developer which version it needs.")
 
 
@@ -205,7 +205,7 @@ class Limits:
 class Model:
     """One model the manifest lists, on this PC. `path` is the folder (Hugging
     Face), the file (url), the name:tag (Ollama) or the app's own path
-    (bundled); None when Clips Kitty couldn't tell (Ollama not answering).
+    (bundled); None when VilloMillo couldn't tell (Ollama not answering).
     `files` maps each listed file to its full path."""
 
     path: Path | None
@@ -238,7 +238,7 @@ def one_line(text) -> str:
 @dataclass(frozen=True)
 class Suggested:
     """What an edit plugin that ran before this one in the same job suggested
-    for a clip (Moment.suggested), as Clips Kitty keeps it: read-only. `by`
+    for a clip (Moment.suggested), as VilloMillo keeps it: read-only. `by`
     is that plugin's id and `name` its name; `edit` holds the fitted fields
     (contract.EDIT_FIELDS but `reason`), in seconds of the video. Without
     transcript.read, `reason` is empty and `edit` has no title_overlay: they
@@ -265,14 +265,14 @@ class Moment:
     """One moment of the video: handed over in `job.moments`, or a range of
     the plugin's own from `job.add_range()`.
 
-    A handed moment's `id` is the one Clips Kitty gave it (m1, m2, ... in its
+    A handed moment's `id` is the one VilloMillo gave it (m1, m2, ... in its
     order); the plugin's own ranges are r1, r2, ... in the order added.
     `score` is its current score, after any plugin that rated it before this
     one, and `found_score` the score it was found with (for an own range, the
     score given to add_range, if any). `found_by` is "clipskitty" or the id of
     the plugin that found it. `title`, `reason` and `context` (what earlier
     plugins said happens in it) come from what was said, so they are empty
-    without transcript.read. `signals` holds Clips Kitty's own subscores for
+    without transcript.read. `signals` holds VilloMillo's own subscores for
     it: text, audio, visual, engagement, game, and reaction when it was
     measured. `context` is never changed; `notes` are the ones this run
     added with job.understand(). In a run that suggests edits, `suggested`
@@ -333,16 +333,16 @@ class EditSuggestion:
     Times are seconds of the video, as `m.start` and `m.end` are. A value
     the contract refuses raises ContractError at the call. What depends on
     the job or the editor is logged once instead: a span wholly outside the
-    clip (not kept), a crop this job's clips don't use (kept; Clips Kitty
-    ignores it), and a fade, speed or hook title length that Clips Kitty
-    will set to the nearest of the timeline editor's choices. Clips Kitty
+    clip (not kept), a crop this job's clips don't use (kept; VilloMillo
+    ignores it), and a fade, speed or hook title length that VilloMillo
+    will set to the nearest of the timeline editor's choices. VilloMillo
     fits the rest when it reads the answer (host.read_edits).
     """
 
     def __init__(self, job: Job, moment: Moment, *, kept: bool):
         self._job = job
         self._m = moment
-        self._kept = kept  # False: a call Clips Kitty didn't ask for, logged and never written
+        self._kept = kept  # False: a call VilloMillo didn't ask for, logged and never written
         self._cuts: list[tuple[float, float]] = []
         self._mutes: list[tuple[float, float]] = []
         self._values: dict = {}
@@ -380,7 +380,7 @@ class EditSuggestion:
         spans[:] = merged
 
     def _note(self, message: str) -> None:
-        # A call Clips Kitty didn't ask for was logged once as ignored when
+        # A call VilloMillo didn't ask for was logged once as ignored when
         # it was made; saying what would happen to it would only mislead.
         if self._kept:
             self._job._log_once(message)
@@ -444,7 +444,7 @@ class EditSuggestion:
         return self
 
     def fade(self, fade_in: float | None = None, fade_out: float | None = None) -> EditSuggestion:
-        """Fade in and out over this many seconds, up to 3 each. Clips Kitty
+        """Fade in and out over this many seconds, up to 3 each. VilloMillo
         uses the nearest of the editor's choices, 0, 0.3, 0.5 or 1 s."""
         for key, value in (("fade_in", fade_in), ("fade_out", fade_out)):
             if value is not None:
@@ -454,7 +454,7 @@ class EditSuggestion:
         return self
 
     def speed(self, factor: float) -> EditSuggestion:
-        """Play the whole clip this much faster, 0.5 to 3. Clips Kitty uses
+        """Play the whole clip this much faster, 0.5 to 3. VilloMillo uses
         the nearest of the editor's choices, 0.75, 1, 1.25, 1.5 or 2."""
         number = self._number("speed", factor, *EDIT_NUMBERS["speed"])
         self._nearest("speed", number, nearest_choice(number, SPEED_CHOICES, toward=1))
@@ -463,9 +463,9 @@ class EditSuggestion:
 
     def title_overlay(self, text: str, seconds: float = DEFAULT_TITLE_OVERLAY_SECONDS) -> EditSuggestion:
         """The editor's Hook title: big text at the top for the clip's first
-        `seconds` (1 to 10; Clips Kitty uses the nearest of 2, 3, 5 or 8).
+        `seconds` (1 to 10; VilloMillo uses the nearest of 2, 3, 5 or 8).
         The text is put on one line and cut to MAX_TITLE_OVERLAY characters;
-        Clips Kitty takes out web addresses."""
+        VilloMillo takes out web addresses."""
         line = one_line(text)[:MAX_TITLE_OVERLAY].rstrip()
         if not line:
             raise self._refuse(f"title_overlay needs text (got {_shown(text)})")
@@ -476,7 +476,7 @@ class EditSuggestion:
 
     def crop(self, mode: str) -> EditSuggestion:
         """The clip's layout: one of job.limits.crops (contract.CROPS in a
-        job whose clips can use one). Another is kept, and Clips Kitty
+        job whose clips can use one). Another is kept, and VilloMillo
         ignores it."""
         if not isinstance(mode, str) or not mode or len(mode) > MAX_CROP:
             raise self._refuse(f"crop must be text of 1 to {MAX_CROP} characters (got {_shown(mode)})")
@@ -530,7 +530,7 @@ class EditSuggestion:
         return {key: data[key] for key in EDIT_FIELDS if key in data}
 
     def _length_lines(self, floor: float, longest) -> list[str]:
-        """What Clips Kitty will ignore because of the clip's length, as
+        """What VilloMillo will ignore because of the clip's length, as
         host.read_edits decides it."""
         m = self._m
         out = []
@@ -539,21 +539,21 @@ class EditSuggestion:
             left = kept_length(m.start, m.end, self._cuts)
             if left < floor:
                 out.append(f"{m.id}: cuts leave {left:.1f} s, under this job's {floor:g} s shortest clip: "
-                           "Clips Kitty will ignore the cuts")
+                           "VilloMillo will ignore the cuts")
             else:
                 length = left
         speed = self._speed()
         if speed > 1 and length / speed < floor:
             out.append(f"{m.id}: cuts and speed leave {length / speed:.1f} s, under this job's {floor:g} s "
-                       "shortest clip: Clips Kitty will ignore the speed")
+                       "shortest clip: VilloMillo will ignore the speed")
         elif speed < 1 and longest and length / speed > longest:
             out.append(f"{m.id}: speed makes the clip {length / speed:.1f} s, over this job's {longest:g} s "
-                       "longest clip: Clips Kitty will ignore the speed")
+                       "longest clip: VilloMillo will ignore the speed")
         return out
 
 
 class Job:
-    """One job: what Clips Kitty handed over, and the answer being returned."""
+    """One job: what VilloMillo handed over, and the answer being returned."""
 
     def __init__(self, folder: Path, data: dict, out=None):
         self.folder = Path(folder)
@@ -602,7 +602,7 @@ class Job:
         self.tools = Tools(tools.get("ffmpeg"), tools.get("ffprobe"), tools.get("ollama"))
         self.output_dir = Path(data.get("output_dir") or self.folder / "out")
 
-    # ---- talking to Clips Kitty while running --------------------------------
+    # ---- talking to VilloMillo while running --------------------------------
 
     def _say(self, line: str) -> None:
         out = self._out or sys.stdout
@@ -620,7 +620,7 @@ class Job:
     def secret(self, name: str) -> str | None:
         """A `secret` setting from the plugin's manifest (an API key, a licence key).
 
-        Clips Kitty keeps these in its own encrypted store and hands them over
+        VilloMillo keeps these in its own encrypted store and hands them over
         in the environment, never in job.json, so they are never on disk here.
         """
         return os.environ.get(SECRET_PREFIX + name.upper().replace("-", "_")) or None
@@ -637,7 +637,7 @@ class Job:
     @property
     def moments(self) -> list[Moment]:
         """The moments handed over to rate or understand, or the clips to
-        suggest edits for, in Clips Kitty's order. Empty in a find run."""
+        suggest edits for, in VilloMillo's order. Empty in a find run."""
         return list(self._handed)
 
     def text(self, m: Moment) -> str:
@@ -727,13 +727,13 @@ class Job:
 
         In a run that wasn't asked to suggest edits, the call is logged as
         ignored and nothing is kept, and so is a call on one of the plugin's
-        own ranges: Clips Kitty asks for edits on the clips it hands over.
+        own ranges: VilloMillo asks for edits on the clips it hands over.
         The returned suggestion still checks its calls, so one function can
         serve every run.
         """
         m, own = self._mine(m, "suggest_edit")
         if own is not None:
-            self._log_once(f"suggest_edit ignored on {m.id}: Clips Kitty asks for edits on the clips it hands "
+            self._log_once(f"suggest_edit ignored on {m.id}: VilloMillo asks for edits on the clips it hands "
                            "over (job.moments)")
             return self._own_edits.setdefault(m.id, EditSuggestion(self, m, kept=False))
         if not self.wants("edit"):
@@ -746,10 +746,10 @@ class Job:
                   title: str = "", reason: str = "") -> Moment:
         """One moment of the source video, in seconds, to become a clip.
 
-        `score` (0-100) is optional: without one, Clips Kitty keeps the order
+        `score` (0-100) is optional: without one, VilloMillo keeps the order
         the ranges were added in. `label` is the kind of moment ("goal",
         "team_wipe"), `title` a short headline, `reason` why it was picked;
-        Clips Kitty writes the clip's own title and captions either way.
+        VilloMillo writes the clip's own title and captions either way.
         Returns the range as a Moment (r1, r2, ...), for rate() and understand().
         """
         entry = {"start": float(start), "end": float(end), "label": str(label)[:MAX_LABEL],
@@ -801,10 +801,10 @@ class Job:
         It holds the ranges added (each with its own notes, in a run asked to
         understand), the answers about the moments handed over (with the
         edit suggested for each, in a run asked to edit), and `notes` for the
-        job log. It is checked the way Clips Kitty checks it, for the steps
+        job log. It is checked the way VilloMillo checks it, for the steps
         this run was asked for. In a run asked to edit, a clip whose cuts or
         speed leave less than the job's shortest clip (at least 1 s) gets a
-        log line saying what Clips Kitty will ignore.
+        log line saying what VilloMillo will ignore.
         """
         if self.wants("edit"):
             floor = max(1.0, _number(self.limits.min_duration) or 0.0)
@@ -847,13 +847,13 @@ def _job_folder(folder) -> str | os.PathLike | None:
 def no_job_folder_text() -> str:
     """What run() prints when the plugin was started without a job folder,
     as when a developer runs `python src/main.py`."""
-    return ("This is a Clips Kitty plugin: Clips Kitty starts it with a job folder.\n"
+    return ("This is a VilloMillo plugin: VilloMillo starts it with a job folder.\n"
             f"To try it, run: {python_command()} run <the plugin's folder> --sample\n"
             "(no job folder: pass it as the first argument or set CLIPSKITTY_JOB)\n")
 
 
 def read_job(folder: str | os.PathLike | None = None, out=None) -> Job:
-    """The job Clips Kitty prepared: from `folder`, else the first command-line
+    """The job VilloMillo prepared: from `folder`, else the first command-line
     argument, else the CLIPSKITTY_JOB environment variable."""
     where = _job_folder(folder)
     if not where:
@@ -869,7 +869,7 @@ def read_job(folder: str | os.PathLike | None = None, out=None) -> Job:
 def _where_it_stopped(error: BaseException) -> str:
     """Where in the plugin's own code `error` was raised, as " (src/main.py
     line 12)": the innermost frame in the plugin's folder (the working
-    folder, where Clips Kitty starts it), else the innermost one outside the
+    folder, where VilloMillo starts it), else the innermost one outside the
     SDK and the standard library. "" when there is none."""
     frames = traceback.extract_tb(error.__traceback__)
     sdk = Path(__file__).resolve().parent
@@ -903,7 +903,7 @@ def run(main, folder: str | os.PathLike | None = None) -> None:
     like), which gets MISTAKE, with the exception and where it happened in a
     log line; a setting with no value (SettingMissing), which gets its
     plain line, with the developer's hint in a log line; and an import of a
-    part of the SDK this Clips Kitty doesn't have (needs_newer_sdk), which
+    part of the SDK this VilloMillo doesn't have (needs_newer_sdk), which
     gets NEWER_VERSION.
 
     Started without a job folder (a developer running `python src/main.py`),

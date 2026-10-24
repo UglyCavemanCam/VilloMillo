@@ -128,7 +128,7 @@ def _message(m: dict) -> dict:
 def _choice(spec: ProviderSpec, data: dict) -> dict:
     choices = data.get("choices") or []
     if not choices or not isinstance(choices[0], dict):
-        raise LLMError("bad_response", f"{spec.label} sent back an answer Clips Kitty couldn't read.")
+        raise LLMError("bad_response", f"{spec.label} sent back an answer VilloMillo couldn't read.")
     return choices[0]
 
 

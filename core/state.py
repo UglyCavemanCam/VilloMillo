@@ -484,7 +484,7 @@ class StateDB:
         if "media_id" not in publish_cols:
             # The provider's id for the uploaded clip, written the moment the
             # upload finishes and before the post is created. WoopSocial takes
-            # no reference of ours, so if Clips Kitty stops between their
+            # no reference of ours, so if VilloMillo stops between their
             # accepting a post and this row learning its id, the media is the
             # only way to find that post again instead of sending it twice.
             self.conn.execute(
@@ -1279,7 +1279,7 @@ class StateDB:
         """
         cur = self.conn.execute(
             "UPDATE publish_jobs SET status = 'interrupted', updated_at = ?, "
-            "error = 'Clips Kitty closed while this was uploading. Check your "
+            "error = 'VilloMillo closed while this was uploading. Check your "
             "channel before trying again — it may have finished.' "
             "WHERE status = 'running'",
             (_now(),),

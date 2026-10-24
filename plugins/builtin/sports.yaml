@@ -9,8 +9,8 @@ description: >
   Soccer and basketball: finds goals, saves, dunks and game winners from the
   commentary, the crowd and the on-screen scoreboard (config/sports.yaml,
   sports/), one play per clip. The AI runs where you chose in Settings.
-author: {name: Clips Kitty}
-repository: https://github.com/ColinGPT9/clips-studio
+author: {name: VilloMillo}
+repository: https://github.com/UglyCavemanCam/VilloMillo
 license: AGPL-3.0-or-later
 requires: {clips_kitty: ">=2.0", plugin_api: 1}
 run: builtin

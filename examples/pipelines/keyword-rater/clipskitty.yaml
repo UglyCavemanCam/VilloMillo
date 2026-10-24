@@ -10,7 +10,7 @@ description: >
   score and notes the word for the title. It only matches words in the
   transcript: it knows nothing about what is happening on screen, and a moment
   nobody talks about is left as it was.
-author: {name: Clips Kitty examples}
+author: {name: VilloMillo examples}
 license: MIT
 requires: {clips_kitty: ">=2.0", plugin_api: 1}
 run:

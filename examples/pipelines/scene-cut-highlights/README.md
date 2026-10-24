@@ -1,6 +1,6 @@
 # Loud moments, cut on scene changes
 
-An example [Clips Kitty](https://github.com/ColinGPT9/clips-studio) pipeline plugin, laid out the way a plugin's own repository would be. Copy this folder to start your own.
+An example [Clips Kitty](https://github.com/UglyCavemanCam/VilloMillo) pipeline plugin, laid out the way a plugin's own repository would be. Copy this folder to start your own.
 
 ## What it does
 
@@ -8,7 +8,7 @@ It finds stretches of a video that are clearly louder than the rest (by default 
 
 **What it does not do.** It does not know what is on screen or what anyone says. Loud is not the same as interesting (music, an advert, someone shouting at a pet), and a quiet highlight is missed. Treat it as a demonstration of the plugin contract, not as a highlight detector.
 
-Clips Kitty does the rest: downloading, transcribing, titles and hashtags with your AI model, the vertical crop, captions, rendering and the library.
+VilloMillo does the rest: downloading, transcribing, titles and hashtags with your AI model, the vertical crop, captions, rendering and the library.
 
 ## Files
 
@@ -18,7 +18,7 @@ src/main.py       reads the job, runs FFmpeg, returns moments
 LICENSE           MIT
 ```
 
-`src/main.py` imports only the Python standard library and `clipskitty_sdk`, which Clips Kitty puts on the plugin's path when it runs it.
+`src/main.py` imports only the Python standard library and `clipskitty_sdk`, which VilloMillo puts on the plugin's path when it runs it.
 
 ## Settings
 
@@ -30,11 +30,11 @@ LICENSE           MIT
 
 ## Permissions
 
-`video.read` (the video file) and `ffmpeg` (Clips Kitty's FFmpeg). It runs on your PC and sends nothing anywhere.
+`video.read` (the video file) and `ffmpeg` (VilloMillo's FFmpeg). It runs on your PC and sends nothing anywhere.
 
 ## Trying it
 
-With a Clips Kitty checkout's `sdk/python` on `PYTHONPATH`:
+With a VilloMillo checkout's `sdk/python` on `PYTHONPATH`:
 
 ```text
 python -m clipskitty_sdk validate .
@@ -43,4 +43,4 @@ python -m clipskitty_sdk run . --video some-video.mp4
 
 ## Requirements
 
-Nothing for creators: in the installed app it runs on Clips Kitty's own Python, and uses the FFmpeg Clips Kitty provides. To develop it you need Python 3.10 or newer and FFmpeg.
+Nothing for creators: in the installed app it runs on VilloMillo's own Python, and uses the FFmpeg VilloMillo provides. To develop it you need Python 3.10 or newer and FFmpeg.

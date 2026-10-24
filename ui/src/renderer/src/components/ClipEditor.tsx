@@ -177,7 +177,7 @@ export default function ClipEditor({
         <p
           key={n.key}
           className="text-xs text-muted -mt-2"
-          title="What a Marketplace plugin said happens in this moment. Clips Kitty gives notes like this to the AI when it writes a new clip’s title, description and hashtags."
+          title="What a Marketplace plugin said happens in this moment. VilloMillo gives notes like this to the AI when it writes a new clip’s title, description and hashtags."
         >
           Notes from {n.who}: {n.texts.join(' · ')}
         </p>

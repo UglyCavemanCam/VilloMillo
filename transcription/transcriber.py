@@ -26,7 +26,7 @@ from core.models import Segment
 _CUBLAS12 = ("cublasLt64_12.dll", "cublas64_12.dll")   # the first is the second's dependency
 _GPU_LIBRARY_ERROR = re.compile(r"cublas|cudnn|cuda", re.IGNORECASE)
 _NO_CUBLAS12 = ("GPU transcription needs NVIDIA's cuBLAS 12 (cublas64_12.dll), which isn't on this PC. "
-                "Reinstalling Clips Kitty brings it back (from source: pip install -r requirements.txt).")
+                "Reinstalling VilloMillo brings it back (from source: pip install -r requirements.txt).")
 
 
 def _cublas12_dirs() -> list[Path]:

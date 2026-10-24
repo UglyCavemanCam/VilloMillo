@@ -377,7 +377,7 @@ def test_official_featured_and_stale(cat):
     cat.write("tools/clips-kitty-sdk.yaml", {
         "name": "Clips Kitty SDK", "description": "Write plugins.", "section": "developer",
         "relationship": "built-with", "uses": "api", "license": "MIT", "added": TODAY,
-        "source": {"github": "https://github.com/ColinGPT9/clips-studio", "path": "sdk/python"}})
+        "source": {"github": "https://github.com/UglyCavemanCam/VilloMillo", "path": "sdk/python"}})
     cat.write("apps/old-clipper.yaml", {**APP, "name": "Old Clipper",
                                         "source": {"github": "https://github.com/example-org/old"},
                                         "featured": {"reason": "The first of its kind", "date": TODAY}})
@@ -498,7 +498,7 @@ def _remote_index():
     entry = {"id": "apps/x", "kind": "app", "name": "X", "license": "MIT", "featured": {"reason": "Ours", "date": TODAY},
              "relationship": "built-with",
              "source": {"github": "https://github.com/example-org/x"}, "badges": ["official", "compatible", "featured"]}
-    own = {**entry, "id": "tools/sdk", "kind": "tool", "source": {"github": "https://github.com/ColinGPT9/clips-studio"},
+    own = {**entry, "id": "tools/sdk", "kind": "tool", "source": {"github": "https://github.com/UglyCavemanCam/VilloMillo"},
            "badges": ["community"]}
     del own["featured"]
     return {"format": 1, "plugins": [], "blocklist": [], "catalog": [entry, own], "counter": {"install": OWN_COUNTER}}
@@ -543,7 +543,7 @@ def test_an_entry_from_an_index_keeps_only_well_formed_fields():
     assert "discussions_url" not in entry and entry["platforms"] == ["windows"]
     assert entry["metrics"] == {"github": {}, "models": {"c/d": {"downloads": 3}}}
     # A listing too: odd checks or word lists are dropped, not a reason to fail.
-    listing = {"id": "example-dev/odd", "repository": "https://github.com/ColinGPT9/clips-studio", "checks": ["x"],
+    listing = {"id": "example-dev/odd", "repository": "https://github.com/UglyCavemanCam/VilloMillo", "checks": ["x"],
                "games": 5, "tags": ["ok"], "versions": [{"version": "1.0.0", "commit": "a" * 40}]}
     (got,) = registry.check_index({"format": 1, "plugins": [listing]}, ours=True)["plugins"]
     assert got["checks"] == {} and "games" not in got and got["tags"] == ["ok"]

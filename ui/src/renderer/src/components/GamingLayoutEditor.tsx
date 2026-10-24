@@ -867,7 +867,7 @@ export default function GamingLayoutEditor({
                     onError={() => {
                       fetch(frameUrl)
                         .then(async (r) => setFrameError((await r.json().catch(() => ({}))).detail || t('Couldn’t read a frame.')))
-                        .catch(() => setFrameError(t('Couldn’t reach Clips Kitty’s engine for a frame.')))
+                        .catch(() => setFrameError(t('Couldn’t reach VilloMillo’s engine for a frame.')))
                     }}
                   />
                 </>
@@ -1276,7 +1276,7 @@ export default function GamingLayoutEditor({
               )}
               {boxes.game && (
                 <button className="btn-ghost !py-1 w-full" onClick={() => setBoxes((b) => ({ ...b, game: null }))}>
-                  {t('Let Clips Kitty pick the game area')}
+                  {t('Let VilloMillo pick the game area')}
                 </button>
               )}
             </div>

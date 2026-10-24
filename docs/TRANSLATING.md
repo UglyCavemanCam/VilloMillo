@@ -21,27 +21,27 @@ pull request. Saying "this word is wrong, here is the right one" is enough.
 ## The languages
 
 Each language has its own issue. Find yours here, or in
-[the issue list](https://github.com/ColinGPT9/clips-studio/issues?q=is%3Aissue+is%3Aopen+label%3Atranslation).
+[the issue list](https://github.com/UglyCavemanCam/VilloMillo/issues?q=is%3Aissue+is%3Aopen+label%3Atranslation).
 
 | Complete, needs **checking** | Half-finished, needs **finishing** |
 |---|---|
-| [العربية (Arabic)](https://github.com/ColinGPT9/clips-studio/issues/52) | [ไทย (Thai)](https://github.com/ColinGPT9/clips-studio/issues/46) |
-| [Deutsch (German)](https://github.com/ColinGPT9/clips-studio/issues/53) | [Tagalog (Filipino)](https://github.com/ColinGPT9/clips-studio/issues/47) |
-| [Español (Spanish)](https://github.com/ColinGPT9/clips-studio/issues/54) | [اردو (Urdu)](https://github.com/ColinGPT9/clips-studio/issues/49) |
-| [Français (French)](https://github.com/ColinGPT9/clips-studio/issues/55) | [Tiếng Việt (Vietnamese)](https://github.com/ColinGPT9/clips-studio/issues/50) |
-| [हिन्दी (Hindi)](https://github.com/ColinGPT9/clips-studio/issues/56) | |
-| [Bahasa Indonesia (Indonesian)](https://github.com/ColinGPT9/clips-studio/issues/57) | |
-| [日本語 (Japanese)](https://github.com/ColinGPT9/clips-studio/issues/58) | |
-| [Português (Portuguese)](https://github.com/ColinGPT9/clips-studio/issues/59) | |
-| [Русский (Russian)](https://github.com/ColinGPT9/clips-studio/issues/60) | |
+| [العربية (Arabic)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) | [ไทย (Thai)](https://github.com/UglyCavemanCam/VilloMillo/issues/46) |
+| [Deutsch (German)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) | [Tagalog (Filipino)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) |
+| [Español (Spanish)](https://github.com/UglyCavemanCam/VilloMillo/issues/54) | [اردو (Urdu)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) |
+| [Français (French)](https://github.com/UglyCavemanCam/VilloMillo/issues/55) | [Tiếng Việt (Vietnamese)](https://github.com/UglyCavemanCam/VilloMillo/issues/50) |
+| [हिन्दी (Hindi)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) | |
+| [Bahasa Indonesia (Indonesian)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) | |
+| [日本語 (Japanese)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) | |
+| [Português (Portuguese)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) | |
+| [Русский (Russian)](https://github.com/UglyCavemanCam/VilloMillo/issues/60) | |
 
 বাংলা (Bengali), Italiano (Italian), 한국어 (Korean), Türkçe (Turkish) and 中文
 (Chinese) were finished by contributors
-([#95](https://github.com/ColinGPT9/clips-studio/pull/95),
-[#90](https://github.com/ColinGPT9/clips-studio/pull/90),
-[#45](https://github.com/ColinGPT9/clips-studio/issues/45),
-[#96](https://github.com/ColinGPT9/clips-studio/pull/96),
-[#107](https://github.com/ColinGPT9/clips-studio/pull/107)); a check by
+([#95](https://github.com/UglyCavemanCam/VilloMillo/pull/95),
+[#90](https://github.com/UglyCavemanCam/VilloMillo/pull/90),
+[#45](https://github.com/UglyCavemanCam/VilloMillo/issues/45),
+[#96](https://github.com/UglyCavemanCam/VilloMillo/pull/96),
+[#107](https://github.com/UglyCavemanCam/VilloMillo/pull/107)); a check by
 another speaker is just as welcome for those.
 
 The complete ones need **checking**. The half-finished ones stopped at 57
@@ -50,12 +50,12 @@ long had, so comparing your file with it shows what is missing. Strings added
 to the app since then show in English until someone translates them.
 That is a known gap, not something to report. Italian, Portuguese, Russian,
 Arabic and Chinese have gone further and cover most of those later strings
-too ([#90](https://github.com/ColinGPT9/clips-studio/pull/90),
-[#108](https://github.com/ColinGPT9/clips-studio/pull/108),
-[#109](https://github.com/ColinGPT9/clips-studio/pull/109)); their files are
+too ([#90](https://github.com/UglyCavemanCam/VilloMillo/pull/90),
+[#108](https://github.com/UglyCavemanCam/VilloMillo/pull/108),
+[#109](https://github.com/UglyCavemanCam/VilloMillo/pull/109)); their files are
 the place to look for the newer ones.
 
-Your language not listed? [Ask for it](https://github.com/ColinGPT9/clips-studio/issues/61).
+Your language not listed? [Ask for it](https://github.com/UglyCavemanCam/VilloMillo/issues/61).
 
 ## Where the words live
 
@@ -138,7 +138,7 @@ Two honest caveats:
   trying for non-English content, since it is reputed to be strong
   multilingually. That is reputation, not a measurement, which is exactly the
   gap worth closing. See
-  [#38](https://github.com/ColinGPT9/clips-studio/issues/38).
+  [#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38).
 - **AI dubbing works in an installed copy as of 1.1.3.** The speech engine
   ships with the app. The voice for a language is downloaded the first time
   that language is dubbed (~60 MB), so the first run needs a connection.

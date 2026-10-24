@@ -1,4 +1,4 @@
-"""A plugin's files, fetched into a folder of Clips Kitty's own. Nothing from
+"""A plugin's files, fetched into a folder of VilloMillo's own. Nothing from
 the plugin runs here: files are copied or written, never executed.
 
 Two kinds of source:
@@ -83,7 +83,7 @@ _MOUNT_POINT = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)
 
 
 class SourceError(ValueError):
-    """A source that can't be fetched, or files Clips Kitty won't install. The message is for the user."""
+    """A source that can't be fetched, or files VilloMillo won't install. The message is for the user."""
 
 
 class TooLarge(SourceError):
@@ -127,13 +127,13 @@ def clean_source(spec) -> dict:
     """A source as a caller gave it, checked for shape. Raises SourceError,
     whose message reads after "Couldn't install this pipeline: "."""
     if not isinstance(spec, dict):
-        raise SourceError("Clips Kitty wasn't told where its files are. Give a folder on this PC, or a "
+        raise SourceError("VilloMillo wasn't told where its files are. Give a folder on this PC, or a "
                           "repository's https:// address and a commit.")
     kind = spec.get("kind")
     if kind == "folder":
         path = spec.get("path")
         if not isinstance(path, str) or not path.strip():
-            raise SourceError("Clips Kitty wasn't told which folder it's in. Choose the folder that holds its "
+            raise SourceError("VilloMillo wasn't told which folder it's in. Choose the folder that holds its "
                               f"{manifest.MANIFEST_FILE}.")
         try:
             folder = Path(path.strip()).expanduser()
@@ -143,16 +143,16 @@ def clean_source(spec) -> dict:
     if kind == "git":
         url, commit = spec.get("url"), spec.get("commit")
         if not isinstance(url, str) or not GIT_URL_RE.match(url.strip()):
-            raise SourceError("its address isn't one Clips Kitty downloads from. Give the repository's https:// "
+            raise SourceError("its address isn't one VilloMillo downloads from. Give the repository's https:// "
                               "address (or a file:// address for one on this PC).")
         if not isinstance(commit, str) or not COMMIT_RE.match(commit.strip().lower()):
-            raise SourceError("Clips Kitty needs the full 40-character commit, not a branch or tag name: a branch "
+            raise SourceError("VilloMillo needs the full 40-character commit, not a branch or tag name: a branch "
                               "or tag can change after you looked at it, a commit can't.")
         out = {"kind": "git", "url": url.strip().rstrip("/"), "commit": commit.strip().lower()}
         path = spec.get("path")
         if path not in (None, "", "."):
             if not isinstance(path, str):
-                raise SourceError("its listing or link names its folder in a way Clips Kitty can't read. Its "
+                raise SourceError("its listing or link names its folder in a way VilloMillo can't read. Its "
                                   "developer needs to correct the listing or link.")
             folder = path.strip().strip("/")
             if folder not in ("", "."):  # "/" is the repository's own top folder
@@ -161,7 +161,7 @@ def clean_source(spec) -> dict:
                     raise SourceError(_FOLDER_PROBLEMS[problem].format(name=path.strip()))
                 out["path"] = PurePosixPath(folder).as_posix()
         return out
-    raise SourceError(f"Clips Kitty doesn't know how to install from {kind!r}. It installs from a folder on this "
+    raise SourceError(f"VilloMillo doesn't know how to install from {kind!r}. It installs from a folder on this "
                       "PC or from a repository's commit.")
 
 
@@ -201,9 +201,9 @@ def plugin_folder(folder: Path) -> Path:
 _FILE_PROBLEMS = {
     "characters": ("it has a file named {name!r}, and Windows doesn't allow \\ or : in a file name. "
                    "Its developer needs to rename it."),
-    "outside": ("it names a file outside its own folder ({name!r}), which Clips Kitty doesn't install. "
+    "outside": ("it names a file outside its own folder ({name!r}), which VilloMillo doesn't install. "
                 "Its developer needs to fix it."),
-    "git": ("it contains {name!r}, part of a .git folder of version history, which Clips Kitty doesn't install. "
+    "git": ("it contains {name!r}, part of a .git folder of version history, which VilloMillo doesn't install. "
             "Its developer needs to remove it."),
     "windows": "it has a file named {name!r}, which Windows can't create. Its developer needs to rename it.",
 }
@@ -255,10 +255,10 @@ class _Budget:
         self.files += 1
         self.bytes += max(0, size)
         if self.files > MAX_FILES:
-            raise SourceError(f"it has more than {MAX_FILES} files, more than Clips Kitty installs for one "
+            raise SourceError(f"it has more than {MAX_FILES} files, more than VilloMillo installs for one "
                               "pipeline. Its developer needs to make it smaller.")
         if self.bytes > MAX_BYTES:
-            raise SourceError(f"it's larger than {MAX_BYTES // (1024 * 1024)} MB, more than Clips Kitty installs "
+            raise SourceError(f"it's larger than {MAX_BYTES // (1024 * 1024)} MB, more than VilloMillo installs "
                               "for one pipeline. Its developer needs to make it smaller.")
         folded = name.lower()
         if folded in self.seen and self.seen[folded] != name:
@@ -276,7 +276,7 @@ def _write(dest: Path, rel: str, data: bytes, executable: bool, warnings: list) 
     if executable and os.name != "nt":
         target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     if data.startswith(LFS_POINTER):
-        warnings.append(f"{rel} is stored with Git LFS, which Clips Kitty does not fetch: "
+        warnings.append(f"{rel} is stored with Git LFS, which VilloMillo does not fetch: "
                         "the pipeline gets a small pointer file instead of the real one")
 
 
@@ -295,12 +295,12 @@ def _is_link(path: Path) -> bool:
 
 
 def _shortcut(rel: str, what: str = "file") -> SourceError:
-    return SourceError(f"it contains a shortcut ({rel}), which Clips Kitty doesn't install. Its developer needs to "
+    return SourceError(f"it contains a shortcut ({rel}), which VilloMillo doesn't install. Its developer needs to "
                        f"replace it with the real {what}.")
 
 
 def _not_ordinary(rel: str) -> SourceError:
-    return SourceError(f"it contains {rel}, which isn't an ordinary file or folder, so Clips Kitty doesn't install "
+    return SourceError(f"it contains {rel}, which isn't an ordinary file or folder, so VilloMillo doesn't install "
                        "it. Its developer needs to remove it.")
 
 
@@ -310,7 +310,7 @@ def _no_folder(folder: str) -> SourceError:
 
 
 def _unreadable(rel: str) -> SourceError:
-    return SourceError(f"Clips Kitty couldn't read {rel} in that folder. If another program has it open, close it "
+    return SourceError(f"VilloMillo couldn't read {rel} in that folder. If another program has it open, close it "
                        "and try again.")
 
 
@@ -327,7 +327,7 @@ def copy_folder(folder: Path, dest: Path) -> list[str]:
         except (TypeError, ValueError):
             name = "."
         name = str(folder) if name == "." else f"{name} in that folder"
-        raise SourceError(f"Clips Kitty couldn't open the folder {name}. Check that you can open it yourself, "
+        raise SourceError(f"VilloMillo couldn't open the folder {name}. Check that you can open it yourself, "
                           "then try again.") from e
 
     try:
@@ -522,7 +522,7 @@ def fetch_git(url: str, commit: str, dest: Path, *, git: str, folder: str | None
                 raise _shortcut(name)
             if mode == b"160000" or kind == b"commit":
                 raise SourceError(f"it includes {name}, a folder linked in from another project (a submodule), "
-                                  "which Clips Kitty doesn't download. Its developer needs to put those files in "
+                                  "which VilloMillo doesn't download. Its developer needs to put those files in "
                                   "the pipeline itself.")
             if kind != b"blob":
                 continue
@@ -558,7 +558,7 @@ def download(url: str, path: Path, *, limit: int = MAX_BYTES) -> None:
     import urllib.request
 
     if not url.startswith("https://"):
-        raise SourceError("Clips Kitty downloads only from secure (https://) addresses, and this one isn't.")
+        raise SourceError("VilloMillo downloads only from secure (https://) addresses, and this one isn't.")
     request = urllib.request.Request(url, headers={"User-Agent": "Clips-Kitty-plugin-manager"})
     total = 0
     try:
@@ -566,7 +566,7 @@ def download(url: str, path: Path, *, limit: int = MAX_BYTES) -> None:
             while chunk := response.read(1024 * 1024):
                 total += len(chunk)
                 if total > limit:
-                    raise TooLarge(f"the download is larger than {limit // (1024 * 1024)} MB, the most Clips Kitty "
+                    raise TooLarge(f"the download is larger than {limit // (1024 * 1024)} MB, the most VilloMillo "
                                    "takes. Its developer needs to make it smaller.")
                 out.write(chunk)
     except (OSError, http.client.HTTPException) as e:  # IncompleteRead is not an OSError
@@ -660,4 +660,4 @@ def fetch(source: dict, dest: Path, *, git: str | None = None, fetcher=None) -> 
         if failure(e) == DISK:
             raise FetchFailed("this PC's disk is full", DISK) from e
         raise SourceError(NOT_SAVED) from e
-    raise SourceError(f"Clips Kitty doesn't know how to install from {source.get('kind')!r}.")
+    raise SourceError(f"VilloMillo doesn't know how to install from {source.get('kind')!r}.")

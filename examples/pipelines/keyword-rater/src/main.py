@@ -1,6 +1,6 @@
-"""Keyword rater: an example Clips Kitty plugin that rates and understands moments.
+"""Keyword rater: an example VilloMillo plugin that rates and understands moments.
 
-It runs after the moments are found (by Clips Kitty, Sports, Gaming scoring
+It runs after the moments are found (by VilloMillo, Sports, Gaming scoring
 or a pipeline), when it is chosen under Rate & understand. What it does, and
 nothing more:
 
@@ -19,7 +19,7 @@ It only knows what is said. It doesn't know what happens on screen, or
 whether a word was said about this moment at all. That is the honest limit of
 matching words, and it is why this is an example.
 
-It imports only the Python standard library and the Clips Kitty SDK.
+It imports only the Python standard library and the VilloMillo SDK.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
-"""A Clips Kitty plugin that suggests edits for the clips Clips Kitty makes, by
+"""A VilloMillo plugin that suggests edits for the clips VilloMillo makes, by
 the words said in them.
 
-Made from the editor template of the Clips Kitty SDK, set up for Quarkbloom
+Made from the editor template of the VilloMillo SDK, set up for Quarkbloom
 Arena (a made-up game). It runs after the clips are chosen, when it is
 chosen under Suggest edits, and is handed those clips. For each one it
 suggests:
@@ -16,15 +16,15 @@ suggests:
 with a reason the creator sees. A clip with none of these gets no
 suggestion.
 
-A suggestion waits for the creator in the timeline editor: Clips Kitty
+A suggestion waits for the creator in the timeline editor: VilloMillo
 doesn't put it into a clip until the creator uses it there and applies their
-edits. Times are seconds of the video, as text.said() gives them. Clips Kitty
+edits. Times are seconds of the video, as text.said() gives them. VilloMillo
 fits each suggestion to its clip as it reads the answer: for example, cuts
 that would leave the clip shorter than the job's shortest clip are left out,
 and the job's log says so. This plugin measures that first, with
-kept_length(), so its reason never names a cut Clips Kitty leaves out.
+kept_length(), so its reason never names a cut VilloMillo leaves out.
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. To try it, run `python -m clipskitty_sdk run . --sample` in the
 plugin's folder (`py -m clipskitty_sdk` in PowerShell); it needs no FFmpeg.
@@ -41,7 +41,7 @@ WAIT_WORDS = ["respawn timer"]  # said as a wait starts
 WAIT_SECONDS = 4                # how long the wait goes on after they are said
 HOOK_WORDS = ["quark burst"]    # said at a big play
 HOOK_TITLE = "Quark burst!"     # the hook title for a clip where they are said
-HOOK_SECONDS = 3                # how long it shows: Clips Kitty uses the nearest of 2, 3, 5 or 8
+HOOK_SECONDS = 3                # how long it shows: VilloMillo uses the nearest of 2, 3, 5 or 8
 MUTE_MARGIN = 0.1               # seconds muted before and after each word
 # ------------------------------------------------------------------------------------------
 
@@ -60,11 +60,11 @@ def main(job):
     muted = said(job, words_of(job.settings.get("mute_words")))  # (start, end, word), in seconds of the video
     waits = said(job, WAIT_WORDS)
     hooks = said(job, HOOK_WORDS)
-    # Clips Kitty leaves out cuts that would make a clip shorter than this.
+    # VilloMillo leaves out cuts that would make a clip shorter than this.
     shortest = max(1.0, job.limits.min_duration or 0)
 
     suggested = 0
-    for m in job.moments:  # the clips Clips Kitty will make
+    for m in job.moments:  # the clips VilloMillo will make
         s = job.suggest_edit(m)
         why = []
         for start, end, _ in muted:

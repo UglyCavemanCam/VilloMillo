@@ -18,7 +18,7 @@ in step).
 import subprocess
 from pathlib import Path
 
-# The standard Clips Kitty vertical output.
+# The standard VilloMillo vertical output.
 TARGET = (1080, 1920)
 
 # Width / height counted as 9:16. 9:16 is 0.5625; this takes the usual

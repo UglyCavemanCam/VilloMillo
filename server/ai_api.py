@@ -109,7 +109,7 @@ def _sign_in_page(message: str, ok: bool) -> HTMLResponse:
     """What the browser shows when it comes back from signing in."""
     colour = "#22C55E" if ok else "#F87171"
     body = (
-        "<!doctype html><html><head><meta charset='utf-8'><title>Clips Kitty</title>"
+        "<!doctype html><html><head><meta charset='utf-8'><title>VilloMillo</title>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'></head>"
         "<body style='font-family:system-ui,sans-serif;background:#0B1220;color:#E5E7EB;"
         "display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0'>"
@@ -186,7 +186,7 @@ def install(app, *, config, db, data_dir, settings_path) -> None:
         if plan is None:
             raise HTTPException(404, f"Unknown plan sign-in '{provider_id}'.")
         if not plan.available():
-            raise HTTPException(400, f"{plan.label} isn't installed in this version of Clips Kitty.")
+            raise HTTPException(400, f"{plan.label} isn't installed in this version of VilloMillo.")
         return plan
 
     def _automation_allowed(provider_id: str) -> bool:
@@ -274,10 +274,10 @@ def install(app, *, config, db, data_dir, settings_path) -> None:
         spec = get(provider_id)
         if spec is None or entry is None or entry[0] != spec.id or time.time() - entry[2] > SIGN_IN_SECONDS:
             return _sign_in_page("This sign-in has expired or was already used. "
-                                 "Start it again from Clips Kitty.", ok=False)
+                                 "Start it again from VilloMillo.", ok=False)
         if not code:
             return _sign_in_page(f"{spec.label} didn't finish signing you in. "
-                                 "Start it again from Clips Kitty.", ok=False)
+                                 "Start it again from VilloMillo.", ok=False)
         try:
             key = oauth.exchange(spec, code, entry[1])
             _message, region = _check_key(spec, key)
@@ -285,7 +285,7 @@ def install(app, *, config, db, data_dir, settings_path) -> None:
             return _sign_in_page(scrub_secrets(e.message), ok=False)
         keys.save_key(data_path, spec.id, key, region)
         _forget_models(spec.id)
-        return _sign_in_page(f"Connected to {spec.label}. You can close this tab and go back to Clips Kitty.",
+        return _sign_in_page(f"Connected to {spec.label}. You can close this tab and go back to VilloMillo.",
                              ok=True)
 
     @app.delete("/ai/providers/{provider_id}/key")

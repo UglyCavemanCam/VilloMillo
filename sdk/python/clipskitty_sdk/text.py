@@ -107,7 +107,7 @@ def _seconds(value) -> float | None:
 def said(job, words) -> list[tuple[float, float, str]]:
     """Each time one of `words` is said in the job's transcript: (start,
     end, word), in time order. The times are the word's own when the
-    transcript gives each word a time (Clips Kitty's usually do),
+    transcript gives each word a time (VilloMillo's usually do),
     else the segment's that says it."""
     wanted = [(word, _pattern(word), [_EDGES.sub("", t) for t in normalise(word).split()]) for word in _words(words)]
     out = []

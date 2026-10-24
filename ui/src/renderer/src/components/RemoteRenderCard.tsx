@@ -3,7 +3,7 @@ import { api, errorText } from '../lib/api'
 import { t } from '../lib/i18n'
 import { workerSummary, type RemoteRenderState, type RenderWorker } from '../lib/remoteRender'
 
-const DOCS = 'https://github.com/ColinGPT9/clips-studio/blob/main/docs/REMOTE-RENDERING.md'
+const DOCS = 'https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/REMOTE-RENDERING.md'
 
 /** Remote rendering: another PC of yours renders the clips, so this one
  *  stays free. Lives under Settings → Advanced settings, off by default:
@@ -77,7 +77,7 @@ export default function RemoteRenderCard(): JSX.Element {
         <span>
           <span className="text-sm font-medium">{t('Remote rendering')}</span>
           <span className="block text-xs text-muted">
-            {t('Another computer of yours renders the clips, so this one stays free while a long stream is processed. Both need Clips Kitty, on the same network or the same Tailscale tailnet.')}{' '}
+            {t('Another computer of yours renders the clips, so this one stays free while a long stream is processed. Both need VilloMillo, on the same network or the same Tailscale tailnet.')}{' '}
             <button className="underline" onClick={() => void window.studio.openExternal(DOCS)}>
               {t('How it works')}
             </button>

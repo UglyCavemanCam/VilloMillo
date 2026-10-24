@@ -1,4 +1,4 @@
-"""Loud moments, cut on scene changes: an example Clips Kitty pipeline.
+"""Loud moments, cut on scene changes: an example VilloMillo pipeline.
 
 What it does, and nothing more:
 
@@ -15,7 +15,7 @@ It does not know what is on screen or what is said. Loud is not the same as
 interesting, and a quiet highlight is missed. That is the honest limit of a
 detector built on two FFmpeg filters, and it is why this is an example.
 
-It imports only the Python standard library and the Clips Kitty SDK.
+It imports only the Python standard library and the VilloMillo SDK.
 """
 
 from __future__ import annotations

@@ -19,7 +19,7 @@ import { forgetAIStatus } from '../lib/useAIStatus'
  *       key. Claude and Gemini say why their plans can't be used.
  *
  *  Every cloud option is bring-your-own-key: the user's key and account, the
- *  provider's bill. Clips Kitty has no key of its own and proxies nothing.
+ *  provider's bill. VilloMillo has no key of its own and proxies nothing.
  *  Nothing switches on until the user has pasted their own key and picked a
  *  model. The tiers come from the engine (GET /ai), so a new provider lands
  *  in the right place without touching this file. The key is write-only: the
@@ -180,7 +180,7 @@ function JobChoice({
         tone="local"
         tagline={
           job === 'ai'
-            ? t('Runs AI on your computer. No API key needed, nothing sent anywhere. The first choice for Clips Kitty.')
+            ? t('Runs AI on your computer. No API key needed, nothing sent anywhere. The first choice for VilloMillo.')
             : t('Transcribes on your computer. No API key needed, nothing sent anywhere.')
         }
       >
@@ -458,14 +458,14 @@ function ProviderPanel({
       {provider.oauth && !provider.has_key && (
         <div className="space-y-2">
           <p className="text-xs text-muted">
-            {t('Sign in with your')} {provider.label} {t('account and approve Clips Kitty. It gets a key of your own, on your')}{' '}
+            {t('Sign in with your')} {provider.label} {t('account and approve VilloMillo. It gets a key of your own, on your')}{' '}
             {provider.label} {t('credits: nothing to copy or paste. Add credit on')} {provider.label}{' '}
             {t('first, or start with its free models.')}
           </p>
           {waiting ? (
             <div className="space-y-1">
               <p className="text-xs text-accent">
-                {t('Waiting for you to approve Clips Kitty in your browser…')}{' '}
+                {t('Waiting for you to approve VilloMillo in your browser…')}{' '}
                 <button className="text-muted hover:underline" onClick={() => setWaiting(false)}>
                   {t('Cancel')}
                 </button>
@@ -503,7 +503,7 @@ function ProviderPanel({
                 >
                   {t('Create a key on')} {provider.label} ↗
                 </button>{' '}
-                {t('and paste it here. Clips Kitty checks it before keeping it.')}
+                {t('and paste it here. VilloMillo checks it before keeping it.')}
               </p>
               <KeyField provider={provider} busy={busy} run={run} />
             </div>
@@ -677,7 +677,7 @@ function ProviderPanel({
       <p className="text-[11px] text-muted leading-snug">
         {provider.id === 'openrouter' ? (
           <>
-            {t("Prices shown are OpenRouter's current listed prices. API usage is charged to your OpenRouter account; Clips Kitty doesn't provide or pay for it.")}{' '}
+            {t("Prices shown are OpenRouter's current listed prices. API usage is charged to your OpenRouter account; VilloMillo doesn't provide or pay for it.")}{' '}
             <button
               className="text-accent hover:underline"
               onClick={() => void window.studio.openExternal('https://openrouter.ai/docs/faq')}
@@ -687,7 +687,7 @@ function ProviderPanel({
           </>
         ) : (
           <>
-            {t('Billed by')} {provider.label} {t("to your account. Clips Kitty doesn't provide or pay for API use.")}{' '}
+            {t('Billed by')} {provider.label} {t("to your account. VilloMillo doesn't provide or pay for API use.")}{' '}
             <button
               className="text-accent hover:underline"
               onClick={() => void window.studio.openExternal(provider.pricing_url)}

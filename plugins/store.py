@@ -66,14 +66,14 @@ def load(data_dir) -> dict:
 
 @functools.lru_cache(maxsize=1)
 def app_version() -> str:
-    """This Clips Kitty's version (ui/package.json, as GET /health reports it), or "?"."""
+    """This VilloMillo's version (ui/package.json, as GET /health reports it), or "?"."""
     from server.feedback import _app_version
 
     return str(_app_version().get("app") or "?")
 
 
 def compatibility_problem(manifest_data: dict, version: str | None = None) -> str | None:
-    """Why a plugin can't run on this Clips Kitty, or None. An unknown app
+    """Why a plugin can't run on this VilloMillo, or None. An unknown app
     version is not held against the plugin."""
     spec = (manifest_data.get("requires") or {}).get("clips_kitty")
     version = version or app_version()
@@ -82,8 +82,8 @@ def compatibility_problem(manifest_data: dict, version: str | None = None) -> st
     try:
         ok = manifest.version_satisfies(version, spec)
     except ValueError:
-        return f"its Clips Kitty version range {spec!r} can't be read"
-    return None if ok else f"it needs Clips Kitty {spec}, and this is {version}"
+        return f"its VilloMillo version range {spec!r} can't be read"
+    return None if ok else f"it needs VilloMillo {spec}, and this is {version}"
 
 
 def read_manifest(folder: Path) -> dict:

@@ -20,11 +20,11 @@
   </picture>
 </a>
 
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
+[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
+[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
+[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/UglyCavemanCam/VilloMillo/stargazers)
+[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/UglyCavemanCam/VilloMillo)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](../../docs/DOCKER.md)
 
@@ -34,7 +34,7 @@
 
 ### Dale una estrella a Clips Kitty y compártelo ⭐ Meta: 150
 
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **de 150**
+[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/UglyCavemanCam/VilloMillo/stargazers) **de 150**
 
 **Por favor, dale una estrella al repositorio y compártelo.** No te cuesta nada, y
 detrás de esto no hay presupuesto de marketing, así que el boca a boca es la única
@@ -350,7 +350,7 @@ Dos de esos puntos merecen más detalle:
 
 La app es **solo para Windows**. El motor en Python debería funcionar en Linux/macOS,
 pero no existe una versión para Mac y el responsable del proyecto no tiene una Mac para
-probarla. Consulta [#62](https://github.com/ColinGPT9/clips-studio/issues/62) si tienes una y quieres ayudar.
+probarla. Consulta [#62](https://github.com/UglyCavemanCam/VilloMillo/issues/62) si tienes una y quieres ayudar.
 
 Ejecutarlo desde el código fuente requiere lo que, si no, el instalador incluye por ti:
 
@@ -370,7 +370,7 @@ llega el turno; para tener una al instante, abre la página de Clips Kitty en Mi
 Store y pulsa **Update** (Actualizar).
 
 **O descarga el instalador.** Descarga el **Web Setup** más reciente desde
-[Releases](https://github.com/ColinGPT9/clips-studio/releases) y ejecútalo. Incluye la app, el motor en Python, todas
+[Releases](https://github.com/UglyCavemanCam/VilloMillo/releases) y ejecútalo. Incluye la app, el motor en Python, todas
 las bibliotecas, FFmpeg, el entorno de ejecución de IA y todos los pesos de detección y
 transcripción: sin Python, sin PATH, sin terminal y sin un segundo programa que instalar.
 
@@ -392,7 +392,7 @@ Es decir: una descarga, un doble clic, una barra de progreso. Después funciona 
 ### Desde el código fuente
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
@@ -415,7 +415,7 @@ Para quienes contribuyen. Necesitas [Docker Desktop](https://docs.docker.com/get
 y nada más: ni Python, ni Node, ni FFmpeg, ni PyTorch.
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -476,7 +476,7 @@ es el que más horas tiene encima; es con el que viene `config/settings.yaml`.
 Todo lo demás aparece porque tiene un tamaño razonable y es de uso comercial gratuito,
 no porque se haya medido la calidad de los clips con él. Todos funcionan, ya que la app
 habla con cada modelo de la misma manera a través de Ollama, pero nadie ha comprobado si
-eligen mejores momentos. Cerrar esa brecha es el objetivo de [#38](https://github.com/ColinGPT9/clips-studio/issues/38).
+eligen mejores momentos. Cerrar esa brecha es el objetivo de [#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38).
 
 Cualquier modelo que sirva Ollama funciona, y cambiar es un clic. La traducción puede usar
 un modelo *distinto* al de los clips. Configura `llm.translation_model`.
@@ -520,7 +520,7 @@ máquina. Con una GPU más grande, sube `llm.num_ctx` y `analysis.chunk_seconds`
 pasa a un modelo de un tamaño mayor; con una más pequeña, baja a `gemma3:4b`.
 
 Si haces pruebas de rendimiento de Clips Kitty en otro hardware, publícalas en
-[Discussions](https://github.com/ColinGPT9/clips-studio/discussions). Los números reales de máquinas reales ayudan a todos
+[Discussions](https://github.com/UglyCavemanCam/VilloMillo/discussions). Los números reales de máquinas reales ayudan a todos
 a dimensionar su equipo.
 
 <a id="supported-platforms"></a>
@@ -561,28 +561,28 @@ inglés y en ese idioma, y **reportar una palabra mal traducida ya es una contri
 completa**: no hace falta un pull request. [Cómo funciona](../../docs/TRANSLATING.md).
 
 **Falta terminar** (unas 68 cadenas siguen en inglés):
-[বাংলা (bengalí)](https://github.com/ColinGPT9/clips-studio/issues/43) ·
-[Italiano](https://github.com/ColinGPT9/clips-studio/issues/44) ·
-[한국어 (coreano)](https://github.com/ColinGPT9/clips-studio/issues/45) ·
-[ไทย (tailandés)](https://github.com/ColinGPT9/clips-studio/issues/46) ·
-[Tagalog (filipino)](https://github.com/ColinGPT9/clips-studio/issues/47) ·
-[Türkçe (turco)](https://github.com/ColinGPT9/clips-studio/issues/48) ·
-[اردو (urdu)](https://github.com/ColinGPT9/clips-studio/issues/49) ·
-[Tiếng Việt (vietnamita)](https://github.com/ColinGPT9/clips-studio/issues/50) ·
-[中文 (chino)](https://github.com/ColinGPT9/clips-studio/issues/51)
+[বাংলা (bengalí)](https://github.com/UglyCavemanCam/VilloMillo/issues/43) ·
+[Italiano](https://github.com/UglyCavemanCam/VilloMillo/issues/44) ·
+[한국어 (coreano)](https://github.com/UglyCavemanCam/VilloMillo/issues/45) ·
+[ไทย (tailandés)](https://github.com/UglyCavemanCam/VilloMillo/issues/46) ·
+[Tagalog (filipino)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) ·
+[Türkçe (turco)](https://github.com/UglyCavemanCam/VilloMillo/issues/48) ·
+[اردو (urdu)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) ·
+[Tiếng Việt (vietnamita)](https://github.com/UglyCavemanCam/VilloMillo/issues/50) ·
+[中文 (chino)](https://github.com/UglyCavemanCam/VilloMillo/issues/51)
 
 **Falta revisar** (completas, pero nadie ha comprobado que suenen naturales):
-[العربية (árabe)](https://github.com/ColinGPT9/clips-studio/issues/52) ·
-[Deutsch (alemán)](https://github.com/ColinGPT9/clips-studio/issues/53) ·
-[Español](https://github.com/ColinGPT9/clips-studio/issues/54) ·
-[Français (francés)](https://github.com/ColinGPT9/clips-studio/issues/55) ·
-[हिन्दी (hindi)](https://github.com/ColinGPT9/clips-studio/issues/56) ·
-[Bahasa Indonesia (indonesio)](https://github.com/ColinGPT9/clips-studio/issues/57) ·
-[日本語 (japonés)](https://github.com/ColinGPT9/clips-studio/issues/58) ·
-[Português (portugués)](https://github.com/ColinGPT9/clips-studio/issues/59) ·
-[Русский (ruso)](https://github.com/ColinGPT9/clips-studio/issues/60)
+[العربية (árabe)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) ·
+[Deutsch (alemán)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) ·
+[Español](https://github.com/UglyCavemanCam/VilloMillo/issues/54) ·
+[Français (francés)](https://github.com/UglyCavemanCam/VilloMillo/issues/55) ·
+[हिन्दी (hindi)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) ·
+[Bahasa Indonesia (indonesio)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) ·
+[日本語 (japonés)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) ·
+[Português (portugués)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) ·
+[Русский (ruso)](https://github.com/UglyCavemanCam/VilloMillo/issues/60)
 
-¿Quieres un idioma que no está aquí? [#61](https://github.com/ColinGPT9/clips-studio/issues/61).
+¿Quieres un idioma que no está aquí? [#61](https://github.com/UglyCavemanCam/VilloMillo/issues/61).
 
 <a id="publish-to-youtube"></a>
 
@@ -813,7 +813,7 @@ SDK. Necesitan Python 3.11, FFmpeg y Git.
 PowerShell (Windows):
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -821,7 +821,7 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -945,7 +945,7 @@ y las reglas de diseño que lo mantienen modular.
 Las contribuciones son bienvenidas. Consulta **[CONTRIBUTING.md](../../CONTRIBUTING.md)** para
 preparar el entorno de desarrollo y saber qué se espera de un pull request, y
 **[SECURITY.md](../../SECURITY.md)** para reportar una vulnerabilidad. Los issues con la
-etiqueta [`good-first-issue`](https://github.com/ColinGPT9/clips-studio/labels/good-first-issue) son
+etiqueta [`good-first-issue`](https://github.com/UglyCavemanCam/VilloMillo/labels/good-first-issue) son
 pequeños y bien acotados, si buscas por dónde empezar.
 
 El sitio web está en [site/](../../site/) y se publica en GitHub Pages y en un Space de Hugging

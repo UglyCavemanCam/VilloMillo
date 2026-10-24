@@ -2,7 +2,7 @@
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """Warnings about a plugin's Python code that would work on the developer's
 PC and fail on a creator's: `python -m clipskitty_sdk validate` and `run`
-print them. Clips Kitty itself never runs this (the manifest checks in
+print them. VilloMillo itself never runs this (the manifest checks in
 manifest.validate are the shared rule book).
 
     from clipskitty_sdk.lint import lint_folder
@@ -13,8 +13,8 @@ manifest.validate are the shared rule book).
 It reads each .py file in the plugin's folder (never runs it) and warns
 about:
 
-- syntax newer than Clips Kitty's Python (host.APP_PYTHON);
-- imports Clips Kitty's Python doesn't promise: anything but the standard
+- syntax newer than VilloMillo's Python (host.APP_PYTHON);
+- imports VilloMillo's Python doesn't promise: anything but the standard
   library (less the modules the app leaves out, and those Windows lacks),
   clipskitty_sdk and the plugin's own modules beside the script;
 - text files opened without `encoding=`.
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from .host import APP_PYTHON
 
-# Clips Kitty's own top-level packages and modules: a pipeline can't import
+# VilloMillo's own top-level packages and modules: a pipeline can't import
 # them, and the app stops a run that tries (_clipskitty_script_host.py
 # ENGINE_PACKAGES; tests/test_script_host.py checks the two lists agree).
 ENGINE_PACKAGES = frozenset({
@@ -51,14 +51,14 @@ APP_LEAVES_OUT = frozenset({
     "distutils", "pydoc_data", "antigravity", "this",
 })
 
-# Standard library modules that don't exist on Windows, where Clips Kitty
+# Standard library modules that don't exist on Windows, where VilloMillo
 # runs. The app bundles only what the Windows PC that builds it has, so these
 # are missing there. CI's SDK (Windows) job checks each fails to import.
 NOT_ON_WINDOWS = frozenset({
     "fcntl", "grp", "pwd", "resource", "termios", "tty", "pty", "readline", "curses", "syslog", "posix",
 })
 
-# Every standard library module Clips Kitty's Python doesn't have.
+# Every standard library module VilloMillo's Python doesn't have.
 NOT_BUNDLED = APP_LEAVES_OUT | NOT_ON_WINDOWS
 
 # Folders never read: version control, caches, virtual environments, and
@@ -94,7 +94,7 @@ def _script(folder: Path, manifest: dict | None) -> Path | None:
 
 
 def _home(path: Path, folder: Path, script: Path | None) -> Path:
-    """The folder on sys.path when `path` runs or is imported. Clips Kitty
+    """The folder on sys.path when `path` runs or is imported. VilloMillo
     puts only the script's own folder there (with the SDK), so for the
     script and anything under its folder that is the script's folder. For
     another file it is the file's own folder, or for a module inside a
@@ -158,19 +158,19 @@ def _import_problem(name: str, own: set[str], folder: Path, *, at_root: bool, sc
     if name == "clipskitty_sdk" or name in own:
         return None
     if name in ENGINE_PACKAGES:
-        return (f"imports {name}, which is Clips Kitty's own code: pipelines can't use it, and Clips Kitty "
+        return (f"imports {name}, which is VilloMillo's own code: pipelines can't use it, and VilloMillo "
                 "stops a run that tries")
     if name in NOT_ON_WINDOWS:
-        return f"imports {name}, which isn't on Windows, where Clips Kitty runs"
+        return f"imports {name}, which isn't on Windows, where VilloMillo runs"
     if name in NOT_BUNDLED:
-        return f"imports {name}, which Clips Kitty's Python leaves out"
+        return f"imports {name}, which VilloMillo's Python leaves out"
     if name in sys.stdlib_module_names:
         return None
     if not at_root and name in _modules_in(folder):
         shown = f"{name}.py" if (folder / f"{name}.py").is_file() else f"{name}/"
         return (f"imports {name}, but {shown} is at the plugin's root, which isn't on the path when Clips "
                 f"Kitty runs {script}: move it into {home}/")
-    return (f"imports {name}. Pipelines run on Clips Kitty's own Python, which promises only the standard "
+    return (f"imports {name}. Pipelines run on VilloMillo's own Python, which promises only the standard "
             "library and clipskitty_sdk, so this may fail on creators' PCs")
 
 
@@ -252,7 +252,7 @@ def lint_file(path: Path, folder: Path, *, script: Path | None = None) -> list[s
         ast.parse(source, filename=rel, feature_version=APP_PYTHON)
     except SyntaxError as e:
         version = ".".join(map(str, APP_PYTHON))
-        problems.append(f"{rel} line {e.lineno}: this needs a newer Python than Clips Kitty's ({version}): {e.msg}")
+        problems.append(f"{rel} line {e.lineno}: this needs a newer Python than VilloMillo's ({version}): {e.msg}")
     except (ValueError, RecursionError, MemoryError):
         pass  # the first parse read it; nothing more to say
 
@@ -274,7 +274,7 @@ def lint_file(path: Path, folder: Path, *, script: Path | None = None) -> list[s
     for node in calls:
         called = _without_encoding(node, modules)
         if called:
-            problems.append(f"{rel} line {node.lineno}: {called} without encoding=. Clips Kitty's Python doesn't "
+            problems.append(f"{rel} line {node.lineno}: {called} without encoding=. VilloMillo's Python doesn't "
                             "use UTF-8 mode, so on Windows text files would use the PC's own code page: pass "
                             'encoding="utf-8"')
     return problems
@@ -282,7 +282,7 @@ def lint_file(path: Path, folder: Path, *, script: Path | None = None) -> list[s
 
 def lint_folder(folder: str | os.PathLike, manifest: dict | None = None) -> list[str]:
     """Every warning for the plugin in `folder`, file by file. `manifest`
-    (its clipskitty.yaml, when read) names the script Clips Kitty starts."""
+    (its clipskitty.yaml, when read) names the script VilloMillo starts."""
     folder = Path(folder).resolve()
     script = _script(folder, manifest)
     out = []

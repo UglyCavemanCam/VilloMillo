@@ -26,7 +26,7 @@ if str(SDK) not in sys.path:
 from clipskitty_sdk import PLUGIN_API_VERSION, __version__  # noqa: E402
 from clipskitty_sdk.__main__ import main, version_line  # noqa: E402
 
-REPO = "https://github.com/ColinGPT9/clips-studio"
+REPO = "https://github.com/UglyCavemanCam/VilloMillo"
 # The one sentence that says which Clips Kitty runs plugins. It lives under
 # "Which release runs plugins" in versioning.md; other pages repeat it word
 # for word.

@@ -12,7 +12,7 @@ interface Turn {
   steps?: { tool: string; result: string }[]
 }
 
-/** Ask Clips Kitty to do things in plain language.
+/** Ask VilloMillo to do things in plain language.
  *
  *  A local model reads the request and calls the app's own tools: find a
  *  video, list its clips, plan uploads. It is the same tool list the MCP
@@ -270,7 +270,7 @@ export default function Assistant(): JSX.Element | null {
   if (ready === false) {
     return (
       <section className="card h-full overflow-y-auto" aria-label={t('Assistant')}>
-        <p className="font-semibold">{t('Ask Clips Kitty')}</p>
+        <p className="font-semibold">{t('Ask VilloMillo')}</p>
         {install ? (
           /* Nothing installed can run the box. Say what it needs and offer it,
              rather than sending someone to another page to choose a build. */
@@ -327,7 +327,7 @@ export default function Assistant(): JSX.Element | null {
       aria-label={t('Assistant')}
     >
       <div className="flex items-baseline justify-between shrink-0">
-        <p className="font-semibold">{t('Ask Clips Kitty')}</p>
+        <p className="font-semibold">{t('Ask VilloMillo')}</p>
         {model && <span className="text-[11px] text-muted tabular-nums">{model}</span>}
       </div>
       <div ref={scrollRef} className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">

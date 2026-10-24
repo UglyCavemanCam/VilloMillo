@@ -1,6 +1,6 @@
 """YouTube upload via the YouTube Data API v3.
 
-One-time setup per user (Clips Kitty walks you through this in Settings):
+One-time setup per user (VilloMillo walks you through this in Settings):
 
 1. Google Cloud Console -> create project -> enable "YouTube Data API v3"
 2. OAuth consent screen -> fill it in -> **Publish app**. Leaving it in

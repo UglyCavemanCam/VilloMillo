@@ -10,8 +10,8 @@ description: >
   reaction to it, using the game being played (config/gaming.yaml), chat and
   game sounds, with the Gaming layout for the facecam and gameplay. The AI
   runs where you chose in Settings.
-author: {name: Clips Kitty}
-repository: https://github.com/ColinGPT9/clips-studio
+author: {name: VilloMillo}
+repository: https://github.com/UglyCavemanCam/VilloMillo
 license: AGPL-3.0-or-later
 requires: {clips_kitty: ">=2.0", plugin_api: 1}
 run: builtin

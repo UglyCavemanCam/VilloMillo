@@ -9,8 +9,8 @@ description: >
   of the video and starts each clip on the nearest scene cut before it, using
   FFmpeg only. It knows nothing about what is happening on screen: loud is not
   always interesting, and quiet highlights are missed.
-author: {name: Clips Kitty examples}
-repository: https://github.com/ColinGPT9/clips-studio
+author: {name: VilloMillo examples}
+repository: https://github.com/UglyCavemanCam/VilloMillo
 license: MIT
 requires: {clips_kitty: ">=2.0", plugin_api: 1}
 run:

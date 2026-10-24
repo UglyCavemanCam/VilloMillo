@@ -5,10 +5,10 @@ import type { JobOptions, PipelineChoice, SportChoice } from '../../lib/types'
 import PipelineFields from '../PipelineFields'
 
 /** The words of each step's rows: the first row's label, the label of the
- *  rows after it, and what Clips Kitty does when no plugin is chosen. */
+ *  rows after it, and what VilloMillo does when no plugin is chosen. */
 const ROWS: Record<JobStep, { first: string; more: string; none: string }> = {
-  understand: { first: 'Understand them with', more: 'and with', none: 'Clips Kitty (from what’s said)' },
-  rate: { first: 'Rate them with', more: 'then with', none: 'Clips Kitty’s own scores' },
+  understand: { first: 'Understand them with', more: 'and with', none: 'VilloMillo (from what’s said)' },
+  rate: { first: 'Rate them with', more: 'then with', none: 'VilloMillo’s own scores' },
   edit: { first: 'Suggest edits with', more: 'and with', none: 'No suggestions' }
 }
 
@@ -39,7 +39,7 @@ export default function StepFields({
   pipelines: InstalledPlugin[] | null
   sports: SportChoice[]
   name: string
-  /** The step's new list; an empty one means Clips Kitty does that step. */
+  /** The step's new list; an empty one means VilloMillo does that step. */
   onChange: (step: JobStep, next: PipelineChoice[]) => void
   /** Whether a row's settings hold a value that can't be sent. */
   onProblem: (step: JobStep, id: string, bad: boolean) => void
@@ -50,7 +50,7 @@ export default function StepFields({
       ? `${t('Sports')} (${t(sports.find((s) => s.id === options.sport?.name)?.label ?? options.sport.name)})`
       : options.gaming || options.gaming_scoring
         ? t('Gaming scoring')
-        : t('Clips Kitty')
+        : t('VilloMillo')
 
   const step = (which: JobStep): JSX.Element => {
     const chosen = options[which] ?? []
@@ -133,7 +133,7 @@ export default function StepFields({
       {step('understand')}
       {understanders >= 2 && (
         <p className="text-xs text-muted">
-          {t('Clips Kitty can use what each of them says (up to 8 notes for each moment).')}
+          {t('VilloMillo can use what each of them says (up to 8 notes for each moment).')}
         </p>
       )}
       {step('rate')}

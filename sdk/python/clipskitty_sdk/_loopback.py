@@ -5,8 +5,8 @@
 urllib's default opener takes proxy settings from the environment
 (http_proxy, HTTP_PROXY, HTTPS_PROXY and the like) and, on Windows, from the
 system's settings, and it sends a request for 127.0.0.1 or localhost to that
-proxy unless no_proxy says otherwise. Clips Kitty passes HTTP_PROXY on to
-plugins, so a plugin's request to a model or to Clips Kitty on this PC could
+proxy unless no_proxy says otherwise. VilloMillo passes HTTP_PROXY on to
+plugins, so a plugin's request to a model or to VilloMillo on this PC could
 leave the PC. Checking the address doesn't help; the route does: urlopen()
 here sends every request through one opener built with an empty
 ProxyHandler, which uses no proxy at all. That opener follows a redirect

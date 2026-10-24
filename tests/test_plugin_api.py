@@ -539,7 +539,7 @@ def test_the_catalog_route_lists_the_directory_with_honest_labels(tmp_path, monk
          "metrics": {"models": {"example-org/example-speech": {"downloads": 1200, "likes": 30}}}},
         {"id": "tools/clips-kitty-sdk", "kind": "tool", "slug": "clips-kitty-sdk", "name": "Clips Kitty SDK",
          "description": "Write plugins.", "section": "developer", "relationship": "built-with", "uses": "api",
-         "license": "MIT", "source": {"github": "https://github.com/ColinGPT9/clips-studio", "path": "sdk/python"},
+         "license": "MIT", "source": {"github": "https://github.com/UglyCavemanCam/VilloMillo", "path": "sdk/python"},
          "badges": ["official"], "added": "2026-10-07"},
         {"id": "apps/../evil", "kind": "app", "name": "Bad id", "license": "MIT",
          "source": {"github": "https://github.com/example-org/x"}},
@@ -594,7 +594,7 @@ def test_a_listing_from_the_projects_own_repository_is_official(tmp_path, monkey
 
     bundled = tmp_path / "index.json"
     bundled.write_text(json.dumps({"format": 1, "blocklist": [], "plugins": [
-        listing("clips-kitty-examples/demo", "https://github.com/ColinGPT9/clips-studio"),
+        listing("clips-kitty-examples/demo", "https://github.com/UglyCavemanCam/VilloMillo"),
         listing("example-dev/claims-official", "https://github.com/example-dev/claims-official")]}))
     monkeypatch.setenv("CLIPS_KITTY_SESSION_SECRET", HEADERS["X-Clips-Kitty-Session"])
     app = FastAPI()

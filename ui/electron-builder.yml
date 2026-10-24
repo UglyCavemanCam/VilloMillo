@@ -1,4 +1,4 @@
-# Windows installer for Clips Kitty.
+# Windows installer for VilloMillo.
 #
 # Produces an NSIS installer that carries everything the app needs: the
 # Electron front end, the frozen Python engine, FFmpeg, and the YOLO
@@ -22,7 +22,7 @@
 #
 # Only productName, which is what people actually read, changed.
 appId: com.clipsstudio.app
-productName: Clips Kitty
+productName: VilloMillo
 copyright: Copyright © 2026 ColinGPT9
 
 directories:
@@ -131,7 +131,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Clips Kitty
+  shortcutName: VilloMillo
   # The payload is several gigabytes, so give the user a real progress
   # dialog rather than a frozen window.
   deleteAppDataOnUninstall: false
@@ -164,5 +164,5 @@ compression: maximum
 # huggingface.co/<repo>/resolve/main/<file> is exactly that.
 publish:
   - provider: generic
-    url: https://huggingface.co/ColinGPT9/clips-studio-releases/resolve/main
+    url: https://raw.githubusercontent.com/UglyCavemanCam/VilloMillo/main/updates
     channel: latest

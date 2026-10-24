@@ -2,13 +2,13 @@
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """The plugin contract, version 1: what goes into a plugin and what comes out.
 
-Clips Kitty hands a plugin a job folder with `job.json` in it, starts the
+VilloMillo hands a plugin a job folder with `job.json` in it, starts the
 plugin's command, reads progress lines from its standard output, and reads
 `result.json` back when it exits with 0. This module defines those files and
-lines and checks them. It imports only the standard library, and Clips Kitty
+lines and checks them. It imports only the standard library, and VilloMillo
 uses the very same checks, so what passes here passes in the app.
 
-`job.json` (written by Clips Kitty):
+`job.json` (written by VilloMillo):
 
     {"plugin_api": 1,
      "plugin": {"id": "example-dev/example-pipeline", "version": "1.0.0"},
@@ -56,7 +56,7 @@ can add them.
                  "title": "...", "reason": "..."}],
      "notes": "optional text shown in the job log"}
 
-`score` (0-100) is optional; without one Clips Kitty keeps the plugin's order.
+`score` (0-100) is optional; without one VilloMillo keeps the plugin's order.
 
 A find run asked to understand may give each range up to MAX_CONTEXT_ITEMS
 notes of what happens in it, each at most MAX_CONTEXT characters:
@@ -73,7 +73,7 @@ what it had.
 
 Suggesting edits. A plugin with `edits` in its outputs and `moments` in its
 inputs can be asked for `["edit"]`, a run of its own: its `moments` are the
-clips Clips Kitty is about to make, and `limits.crops` lists the layouts
+clips VilloMillo is about to make, and `limits.crops` lists the layouts
 those clips can use (CROPS, or none). A clip may carry `suggested`, what the
 edit plugins before this one in the same job suggested for it, read-only.
 Times are seconds of the video, as everywhere in this contract. The answer
@@ -86,7 +86,7 @@ holds at most one `edit` for each moment id, every field optional:
 
 A value outside the render's own limits refuses the whole answer. A field
 this contract doesn't name is ignored, and the host's read_edits() fits the
-rest to the clip and to the timeline editor's choices. Clips Kitty keeps an
+rest to the clip and to the timeline editor's choices. VilloMillo keeps an
 edit as a suggestion the creator can use in the editor; it changes no clip
 by itself.
 
@@ -127,7 +127,7 @@ MAX_MOMENT_ID = 32
 # them, and suggest edits for the clips made from them.
 STEPS = ("find", "understand", "rate", "edit")
 # Steps that are planned but not part of plugin contract 1. They are named for
-# messages only: Clips Kitty never asks a plugin for them, and job.wants() is
+# messages only: VilloMillo never asks a plugin for them, and job.wants() is
 # False for them.
 PLANNED_STEPS = ("export",)
 
@@ -144,7 +144,7 @@ MAX_CROP = 32
 EDIT_NUMBERS = {"volume": (0, 2), "fade_in": (0, 3), "fade_out": (0, 3), "speed": (0.5, 3)}
 TITLE_OVERLAY_SECONDS = (1, 10)
 DEFAULT_TITLE_OVERLAY_SECONDS = 3
-# The timeline editor's own choices (TimelineEditor.tsx), which Clips Kitty
+# The timeline editor's own choices (TimelineEditor.tsx), which VilloMillo
 # sets a suggested fade, speed and hook title length to: the nearest one, a
 # tie going toward no change. tests/test_plugin_sdk_edit.py reads the
 # editor's lists, so the two can't drift apart.

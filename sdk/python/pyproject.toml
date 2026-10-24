@@ -41,10 +41,10 @@ test = ["pytest"]
 clipskitty-sdk = "clipskitty_sdk.__main__:main"
 
 [project.urls]
-Documentation = "https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/sdk.md"
-Source = "https://github.com/ColinGPT9/clips-studio/tree/main/sdk/python"
-Issues = "https://github.com/ColinGPT9/clips-studio/issues"
-Changelog = "https://github.com/ColinGPT9/clips-studio/blob/main/sdk/python/CHANGELOG.md"
+Documentation = "https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/sdk.md"
+Source = "https://github.com/UglyCavemanCam/VilloMillo/tree/main/sdk/python"
+Issues = "https://github.com/UglyCavemanCam/VilloMillo/issues"
+Changelog = "https://github.com/UglyCavemanCam/VilloMillo/blob/main/sdk/python/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["clipskitty_sdk"]

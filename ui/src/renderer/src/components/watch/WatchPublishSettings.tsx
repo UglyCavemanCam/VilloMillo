@@ -253,7 +253,7 @@ export default function WatchPublishSettings({
       <div className="flex gap-x-6 gap-y-3 flex-wrap items-end">
         <label className="text-sm space-y-1">
           <span className="label block">
-            {t('If several videos were posted while Clips Kitty was not watching, clip')}
+            {t('If several videos were posted while VilloMillo was not watching, clip')}
           </span>
           <select
             className="input !w-72"

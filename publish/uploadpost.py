@@ -385,7 +385,7 @@ def _classify(status: int, payload: dict, body: str) -> PublishError:
 
 
 class UploadPostClient:
-    """Everything Clips Kitty needs from the Upload-Post API, and nothing else.
+    """Everything VilloMillo needs from the Upload-Post API, and nothing else.
 
     The key is held here and never returned by any method, so no caller can
     accidentally put it in a response body, a log line or an event.
@@ -467,7 +467,7 @@ class UploadPostClient:
             parsed = json.loads(raw)
         except ValueError as e:
             raise UploadPostError(
-                "Upload-Post sent a reply Clips Kitty could not read.",
+                "Upload-Post sent a reply VilloMillo could not read.",
                 detail=raw[:200],
             ) from e
         return parsed if isinstance(parsed, dict) else {"data": parsed}
@@ -518,7 +518,7 @@ class UploadPostClient:
     def connect_url(self, username: str) -> str:
         """A hosted page for linking social accounts, good for 48 hours.
 
-        This is why Clips Kitty needs no social OAuth of its own and never asks
+        This is why VilloMillo needs no social OAuth of its own and never asks
         for a platform password: the user does it on Upload-Post's page, in
         their own browser.
         """
@@ -761,7 +761,7 @@ def validate_schedule(when: str, *, now=None) -> str:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as e:
         raise UploadPostError(
-            "That scheduled time was not a date Clips Kitty could read."
+            "That scheduled time was not a date VilloMillo could read."
         ) from e
 
     current = now or datetime.now(tz.utc)

@@ -27,7 +27,7 @@ def ensure_certificate(directory: Path) -> tuple[Path, Path]:
     from cryptography.x509.oid import NameOID
 
     private = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, f"Clips Kitty on {socket.gethostname()}")])
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, f"VilloMillo on {socket.gethostname()}")])
     now = datetime.datetime.now(datetime.timezone.utc)
     certificate = (
         x509.CertificateBuilder()

@@ -349,7 +349,7 @@ function SetupWizard(props: WizardProps): JSX.Element {
         <p className="text-xs font-medium text-warn">{t('Read this first')}</p>
         <p className="text-[11px]">
           {t(
-            'Until your Google Cloud project passes YouTube’s free audit, YouTube locks every video uploaded through it to private - permanently. You cannot make it public afterwards in Studio; the only fix is uploading it again from an audited project. Clips Kitty checks after each upload and tells you if it happened.'
+            'Until your Google Cloud project passes YouTube’s free audit, YouTube locks every video uploaded through it to private - permanently. You cannot make it public afterwards in Studio; the only fix is uploading it again from an audited project. VilloMillo checks after each upload and tells you if it happened.'
           )}
         </p>
         <button className="text-[11px] text-accent hover:underline" onClick={open(AUDIT_FORM)}>

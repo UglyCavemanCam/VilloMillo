@@ -38,7 +38,7 @@ const DRAFT_KEY = 'queue-draft'
 const REASONS: Record<string, string> = {
   already_processed: 'already processed',
   already_queued: 'already in the queue',
-  unrecognized: 'not a link Clips Kitty recognises',
+  unrecognized: 'not a link VilloMillo recognises',
   bad_option: 'a setting on this video was rejected',
   queue_full: 'the queue is full — let one finish first'
 }
@@ -130,21 +130,21 @@ const TOGGLES: { key: ToggleKey; label: string; hint: string; title: string }[] 
     label: 'Pipeline',
     hint: '(Marketplace)',
     title:
-      'A pipeline you installed from the Marketplace finds this video’s moments its own way; Clips Kitty still cuts, frames and captions the clips. Not with Sports or Longform. Choose which pipeline below.'
+      'A pipeline you installed from the Marketplace finds this video’s moments its own way; VilloMillo still cuts, frames and captions the clips. Not with Sports or Longform. Choose which pipeline below.'
   },
   {
     key: 'steps',
     label: 'Rate & understand',
     hint: '(Marketplace)',
     title:
-      'Plugins you installed from the Marketplace look at the moments once they’re found, by Clips Kitty, Sports, Gaming scoring or a pipeline. One that understands says what happens in each moment, so the titles, descriptions and hashtags can say it. One that rates gives each moment its own score, which decides which clips are made and their order. Clips Kitty does any step you leave to it. Not with Longform.'
+      'Plugins you installed from the Marketplace look at the moments once they’re found, by VilloMillo, Sports, Gaming scoring or a pipeline. One that understands says what happens in each moment, so the titles, descriptions and hashtags can say it. One that rates gives each moment its own score, which decides which clips are made and their order. VilloMillo does any step you leave to it. Not with Longform.'
   },
   {
     key: 'edit',
     label: 'Suggest edits',
     hint: '(Marketplace)',
     title:
-      'Plugins you installed from the Marketplace look at each clip Clips Kitty is about to make and suggest edits: cuts, mutes, fades, speed, a hook title or the layout. Suggestions wait for you in the editor. Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload). Not with Longform.'
+      'Plugins you installed from the Marketplace look at each clip VilloMillo is about to make and suggest edits: cuts, mutes, fades, speed, a hook title or the layout. Suggestions wait for you in the editor. VilloMillo doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload). Not with Longform.'
   },
   {
     key: 'watermark',
@@ -594,7 +594,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
   }
 
   /** One Rate & understand step's plugins for this video, or its Suggest
-   *  edits plugins. An empty list leaves the step to Clips Kitty; with no
+   *  edits plugins. An empty list leaves the step to VilloMillo; with no
    *  plugin left, the switch is off. */
   const setStep = (key: string, step: JobStep, list: PipelineChoice[]): void => {
     rememberChoices(PREF[step], list)

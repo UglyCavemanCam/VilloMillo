@@ -1,6 +1,6 @@
 """The branded end card appended to every clip.
 
-Clip ends -> Clippy pounces on a ball of yarn -> "Clips Kitty" lands ->
+Clip ends -> Clippy pounces on a ball of yarn -> "VilloMillo" lands ->
 "Made with" / "Free & Open Source" -> hard cut. 2.9 seconds.
 
 This is organic marketing: a clip in someone's feed is the only distribution
@@ -73,7 +73,7 @@ KITTY = art.SKY                # --color-accent
 STROKE = art.NAVY_DEEP         # --color-base
 INK_SOFT = art.NAVY            # supporting lines
 
-KICKER, WORDMARK, TAGLINE = "Made with", "Clips Kitty", "Free & Open Source"
+KICKER, WORDMARK, TAGLINE = "Made with", "VilloMillo", "Free & Open Source"
 KICK_PT, WORD_PT, TAG_PT, STROKE_PT = 68, 142, 68, 9
 GAP_KICK, GAP_TAG, GAP_CAT = 20, 26, 58
 
@@ -743,7 +743,7 @@ class _Layout:
 
 
 def _text(img, L, t):
-    """'Made with' / Clips Kitty / 'Free & Open Source'.
+    """'Made with' / VilloMillo / 'Free & Open Source'.
 
     The name appears once. "with" stays lowercase: it is a preposition inside
     a fragment running into the name, not a title.

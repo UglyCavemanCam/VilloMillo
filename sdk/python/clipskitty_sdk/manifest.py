@@ -287,7 +287,7 @@ def _check_requires(c: _Check, value) -> None:
         return
     c.unknown("requires", req, ("clips_kitty", "plugin_api"))
     if "clips_kitty" not in req:
-        c.error("requires.clips_kitty", "is required: the Clips Kitty versions it works with, e.g. \">=2.0\"")
+        c.error("requires.clips_kitty", "is required: the VilloMillo versions it works with, e.g. \">=2.0\"")
     elif c.text("requires.clips_kitty", req["clips_kitty"], limit=100):
         if not re.match(RANGE_PATTERN, req["clips_kitty"]):
             c.error("requires.clips_kitty", f"{req['clips_kitty']!r} is not a version range like \">=2.0, <3\"")
@@ -297,14 +297,14 @@ def _check_requires(c: _Check, value) -> None:
     elif isinstance(api, bool) or not isinstance(api, int):
         c.error("requires.plugin_api", "must be a whole number")
     elif api not in SUPPORTED_PLUGIN_APIS:
-        c.error("requires.plugin_api", f"needs plugin API {api}; this Clips Kitty supports "
+        c.error("requires.plugin_api", f"needs plugin API {api}; this VilloMillo supports "
                 + ", ".join(str(v) for v in SUPPORTED_PLUGIN_APIS))
 
 
 def _check_run(c: _Check, value, *, builtin: bool) -> None:
     if value == "builtin":
         if not builtin:
-            c.error("run", "'builtin' is only for pipelines that ship inside Clips Kitty")
+            c.error("run", "'builtin' is only for pipelines that ship inside VilloMillo")
         return
     run = c.mapping("run", value)
     if not run:
@@ -332,7 +332,7 @@ def _check_run(c: _Check, value, *, builtin: bool) -> None:
         c.error("run.python_requirements", "must be a file inside the plugin's folder")
     if req is not None:
         c.warn("run.python_requirements", "per-plugin Python packages are planned; until then a pipeline runs on "
-               "Clips Kitty's own Python with only the standard library and clipskitty_sdk, so these packages "
+               "VilloMillo's own Python with only the standard library and clipskitty_sdk, so these packages "
                "won't be there")
     timeout = run.get("timeout_minutes")
     if timeout is not None:
@@ -442,7 +442,7 @@ def _check_model(c: _Check, i: int, entry, names: set) -> None:
                 c.error(f"{where}.files[{j}]", "must be a file path inside the repository")
             elif f.lower().endswith(PICKLE_SUFFIXES):
                 c.warn(f"{where}.files[{j}]", f"{f} is a pickle-format file, which can run code when loaded; "
-                       "Clips Kitty will ask the user before downloading it")
+                       "VilloMillo will ask the user before downloading it")
     elif source == "ollama":
         c.text(f"{where}.id", mid, pattern=OLLAMA_ID_PATTERN, hint="must look like name:tag")
         rev = m.get("revision")
@@ -454,7 +454,7 @@ def _check_model(c: _Check, i: int, entry, names: set) -> None:
         if not isinstance(sha, str) or not re.match(SHA256_PATTERN, sha):
             c.error(f"{where}.sha256", "is required for a url model: the file's SHA-256, 64 hex characters")
         if isinstance(mid, str) and mid.lower().split("#")[0].split("?")[0].endswith(PICKLE_SUFFIXES):
-            c.warn(f"{where}.id", "a pickle-format file, which can run code when loaded; Clips Kitty will ask "
+            c.warn(f"{where}.id", "a pickle-format file, which can run code when loaded; VilloMillo will ask "
                    "the user before downloading it")
     elif source == "bundled":
         c.text(f"{where}.id", mid, limit=80)
@@ -520,7 +520,7 @@ def _check_steps(c: _Check, data: dict) -> None:
                 "add ratings, context or edits to outputs")
     if "edits" in outputs and "moments" not in inputs and "ratings" not in outputs:
         # with ratings it is the first rule's, and its fix fixes both
-        c.error(f"outputs[{outputs.index('edits')}]", "edits are suggested for the clips Clips Kitty makes "
+        c.error(f"outputs[{outputs.index('edits')}]", "edits are suggested for the clips VilloMillo makes "
                 "from moments: add moments to inputs")
     if ("context" in outputs and "ranges" not in outputs and "moments" not in inputs
             and "ratings" not in outputs and "edits" not in outputs):
@@ -531,7 +531,7 @@ def _check_steps(c: _Check, data: dict) -> None:
 
 def validate(data, *, builtin: bool = False) -> Report:
     """Every problem with a manifest mapping. `builtin` is for the manifests
-    that ship inside Clips Kitty (plugins/builtin/), the only ones that may use
+    that ship inside VilloMillo (plugins/builtin/), the only ones that may use
     the reserved publisher and `run: builtin`."""
     c = _Check()
     if not isinstance(data, dict):
@@ -544,14 +544,14 @@ def validate(data, *, builtin: bool = False) -> Report:
 
     mv = data.get("manifest_version")
     if "manifest_version" in data and mv not in MANIFEST_VERSIONS:
-        c.error("manifest_version", f"{mv!r} is not a manifest version this Clips Kitty reads "
+        c.error("manifest_version", f"{mv!r} is not a manifest version this VilloMillo reads "
                 f"({', '.join(map(str, MANIFEST_VERSIONS))})")
     pid = data.get("id")
     if "id" in data and c.text("id", pid, pattern=ID_PATTERN, limit=103,
                                hint="must look like publisher/name: lower case letters, digits and hyphens"):
         publisher = pid.split("/", 1)[0]
         if publisher in RESERVED_PUBLISHERS and not builtin:
-            c.error("id", f"the publisher {publisher!r} is reserved for plugins that ship with Clips Kitty")
+            c.error("id", f"the publisher {publisher!r} is reserved for plugins that ship with VilloMillo")
     if "name" in data:
         c.text("name", data["name"], limit=60)
     if "version" in data:
@@ -763,7 +763,7 @@ def step_problem(manifest, step: str) -> str | None:
         return None
     if step == "find":
         if steps_of(manifest) == ("edit",):
-            return ("doesn't find moments: it suggests edits for the clips Clips Kitty makes. "
+            return ("doesn't find moments: it suggests edits for the clips VilloMillo makes. "
                     "Choose it under Suggest edits instead")
         return ("doesn't find moments: it rates or understands moments others found. "
                 "Choose it under Rate & understand instead")
@@ -855,7 +855,7 @@ def json_schema() -> dict:
     ]}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Clips Kitty plugin manifest (clipskitty.yaml)",
+        "title": "VilloMillo plugin manifest (clipskitty.yaml)",
         "description": "Generated by clipskitty_sdk.manifest.json_schema(); "
                        "python -m clipskitty_sdk validate checks more than this schema can.",
         "type": "object",

@@ -80,7 +80,7 @@ _MESSAGES = {
     "userRateLimitExceeded": "YouTube asked us to slow down. Retrying shortly.",
     "uploadLimitExceeded": (
         "YouTube has limited uploads on your channel — this is a limit on the "
-        "channel itself, not on Clips Kitty or your API key, so a different key "
+        "channel itself, not on VilloMillo or your API key, so a different key "
         "will not help. It usually clears within a day."
     ),
     "youtubeSignupRequired": (

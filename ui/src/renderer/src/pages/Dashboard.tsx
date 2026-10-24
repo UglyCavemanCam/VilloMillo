@@ -667,7 +667,7 @@ export default function Dashboard({
                       publishing does; they are just not worth the card's space. */}
                   <p className="text-sm text-ink/80 mt-0.5">
                     {t(
-                      'One upload reaches YouTube, TikTok, Instagram, Facebook and X. The free plan connects two accounts. Connect them all and post everywhere at once. Then add your WoopSocial API key in Settings so Clips Kitty can post for you.'
+                      'One upload reaches YouTube, TikTok, Instagram, Facebook and X. The free plan connects two accounts. Connect them all and post everywhere at once. Then add your WoopSocial API key in Settings so VilloMillo can post for you.'
                     )}
                   </p>
                   {/* Readable, not buried: it has to be legible to be a
@@ -675,7 +675,7 @@ export default function Dashboard({
                       link it describes — so both are here in every state. */}
                   <p className="text-xs text-ink/70 mt-1.5">
                     {t(
-                      'Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.'
+                      'Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you.'
                     )}
                   </p>
                 </div>
@@ -703,7 +703,7 @@ export default function Dashboard({
             <div className="flex-1 flex items-center justify-between gap-4">
               <div className="min-w-0 self-start">
                 <p className="font-bold text-lg text-ink">
-                  {t('Clips Kitty is free & open source ❤️')}
+                  {t('VilloMillo is free & open source ❤️')}
                 </p>
                 <p className="text-sm text-ink/80 mt-0.5">
                   {t('It runs on your PC with no fees. Donations cover development.')}
@@ -731,7 +731,7 @@ export default function Dashboard({
           <div
             role="separator"
             aria-orientation="horizontal"
-            aria-label={t('Drag to resize Ask Clips Kitty')}
+            aria-label={t('Drag to resize Ask VilloMillo')}
             tabIndex={0}
             onPointerDown={startResize}
             onPointerMove={onResize}

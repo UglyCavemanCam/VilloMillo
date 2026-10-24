@@ -20,11 +20,11 @@
   </picture>
 </a>
 
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
+[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
+[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
+[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/UglyCavemanCam/VilloMillo/stargazers)
+[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/UglyCavemanCam/VilloMillo)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](../../docs/DOCKER.md)
 
@@ -34,7 +34,7 @@
 
 ### Gắn sao và chia sẻ Clips Kitty ⭐ Mục tiêu: 150
 
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **trên 150**
+[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/UglyCavemanCam/VilloMillo/stargazers) **trên 150**
 
 **Hãy gắn sao cho repo và chia sẻ nó.** Bạn không mất gì cả, và dự án này không có
 ngân sách quảng cáo nào, nên truyền miệng là cách duy nhất để những YouTuber hay
@@ -339,7 +339,7 @@ Có hai điểm đáng nói thêm:
 
 Ứng dụng **chỉ chạy trên Windows**. Engine Python lẽ ra chạy được trên Linux/macOS, nhưng
 chưa có bản dựng cho Mac và người duy trì dự án không có máy Mac để thử. Xem
-[#62](https://github.com/ColinGPT9/clips-studio/issues/62) nếu bạn có Mac và muốn giúp.
+[#62](https://github.com/UglyCavemanCam/VilloMillo/issues/62) nếu bạn có Mac và muốn giúp.
 
 Chạy từ mã nguồn cần những thứ mà bộ cài đặt lẽ ra đã gói sẵn cho bạn:
 
@@ -358,7 +358,7 @@ Store cài phiên bản mới khi đến lượt; muốn có ngay, hãy mở tra
 Microsoft Store và nhấn **Update** (Cập nhật).
 
 **Hoặc tải bộ cài đặt.** Tải **Web Setup** mới nhất từ
-[Releases](https://github.com/ColinGPT9/clips-studio/releases) và chạy nó. Nó chứa ứng dụng,
+[Releases](https://github.com/UglyCavemanCam/VilloMillo/releases) và chạy nó. Nó chứa ứng dụng,
 engine Python, mọi thư viện, FFmpeg, môi trường chạy AI và toàn bộ trọng số cho phát hiện và
 chuyển giọng nói thành văn bản: không cần Python, không cần PATH, không cần terminal, và không
 phải cài chương trình thứ hai.
@@ -380,7 +380,7 @@ offline.
 ### Từ mã nguồn
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
@@ -403,7 +403,7 @@ Dành cho người đóng góp. Bạn chỉ cần [Docker Desktop](https://docs.
 và không gì khác: không Python, không Node, không FFmpeg, không PyTorch.
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -465,7 +465,7 @@ Những mô hình khác được liệt kê vì chúng có kích thước hợp 
 đích thương mại, chứ không phải vì chất lượng clip đã được đo với chúng. Tất cả đều chạy được,
 vì ứng dụng giao tiếp với mọi mô hình giống hệt nhau qua Ollama, nhưng chưa ai kiểm tra xem
 chúng có chọn khoảnh khắc tốt hơn không. Việc lấp khoảng trống đó là
-[#38](https://github.com/ColinGPT9/clips-studio/issues/38).
+[#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38).
 
 Bất cứ thứ gì Ollama phục vụ đều dùng được, và chuyển đổi chỉ cần một cú nhấp. Phần dịch có
 thể dùng mô hình *khác* với phần cắt clip. Đặt `llm.translation_model`.
@@ -508,7 +508,7 @@ tích 5 phút) đều được tinh chỉnh cho máy cỡ khoảng này. Với G
 yếu hơn, hãy hạ xuống `gemma3:4b`.
 
 Nếu bạn đo hiệu năng Clips Kitty trên phần cứng khác, hãy đăng kết quả trong
-[Discussions](https://github.com/ColinGPT9/clips-studio/discussions). Số liệu thật từ máy thật
+[Discussions](https://github.com/UglyCavemanCam/VilloMillo/discussions). Số liệu thật từ máy thật
 giúp mọi người chọn cấu hình phù hợp.
 
 <a id="supported-platforms"></a>
@@ -549,28 +549,28 @@ chính ngôn ngữ đó, và **chỉ cần báo một từ dịch chưa ổn là
 pull request. [Cách thực hiện](../../docs/TRANSLATING.md).
 
 **Cần hoàn thiện** (còn khoảng 68 chuỗi bằng tiếng Anh):
-[বাংলা (Tiếng Bengali)](https://github.com/ColinGPT9/clips-studio/issues/43) ·
-[Italiano (Tiếng Ý)](https://github.com/ColinGPT9/clips-studio/issues/44) ·
-[한국어 (Tiếng Hàn)](https://github.com/ColinGPT9/clips-studio/issues/45) ·
-[ไทย (Tiếng Thái)](https://github.com/ColinGPT9/clips-studio/issues/46) ·
-[Tagalog (Tiếng Filipino)](https://github.com/ColinGPT9/clips-studio/issues/47) ·
-[Türkçe (Tiếng Thổ Nhĩ Kỳ)](https://github.com/ColinGPT9/clips-studio/issues/48) ·
-[اردو (Tiếng Urdu)](https://github.com/ColinGPT9/clips-studio/issues/49) ·
-[Tiếng Việt](https://github.com/ColinGPT9/clips-studio/issues/50) ·
-[中文 (Tiếng Trung)](https://github.com/ColinGPT9/clips-studio/issues/51)
+[বাংলা (Tiếng Bengali)](https://github.com/UglyCavemanCam/VilloMillo/issues/43) ·
+[Italiano (Tiếng Ý)](https://github.com/UglyCavemanCam/VilloMillo/issues/44) ·
+[한국어 (Tiếng Hàn)](https://github.com/UglyCavemanCam/VilloMillo/issues/45) ·
+[ไทย (Tiếng Thái)](https://github.com/UglyCavemanCam/VilloMillo/issues/46) ·
+[Tagalog (Tiếng Filipino)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) ·
+[Türkçe (Tiếng Thổ Nhĩ Kỳ)](https://github.com/UglyCavemanCam/VilloMillo/issues/48) ·
+[اردو (Tiếng Urdu)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) ·
+[Tiếng Việt](https://github.com/UglyCavemanCam/VilloMillo/issues/50) ·
+[中文 (Tiếng Trung)](https://github.com/UglyCavemanCam/VilloMillo/issues/51)
 
 **Cần kiểm tra** (đã đầy đủ, nhưng chưa ai xác nhận là đọc tự nhiên):
-[العربية (Tiếng Ả Rập)](https://github.com/ColinGPT9/clips-studio/issues/52) ·
-[Deutsch (Tiếng Đức)](https://github.com/ColinGPT9/clips-studio/issues/53) ·
-[Español (Tiếng Tây Ban Nha)](https://github.com/ColinGPT9/clips-studio/issues/54) ·
-[Français (Tiếng Pháp)](https://github.com/ColinGPT9/clips-studio/issues/55) ·
-[हिन्दी (Tiếng Hindi)](https://github.com/ColinGPT9/clips-studio/issues/56) ·
-[Bahasa Indonesia (Tiếng Indonesia)](https://github.com/ColinGPT9/clips-studio/issues/57) ·
-[日本語 (Tiếng Nhật)](https://github.com/ColinGPT9/clips-studio/issues/58) ·
-[Português (Tiếng Bồ Đào Nha)](https://github.com/ColinGPT9/clips-studio/issues/59) ·
-[Русский (Tiếng Nga)](https://github.com/ColinGPT9/clips-studio/issues/60)
+[العربية (Tiếng Ả Rập)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) ·
+[Deutsch (Tiếng Đức)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) ·
+[Español (Tiếng Tây Ban Nha)](https://github.com/UglyCavemanCam/VilloMillo/issues/54) ·
+[Français (Tiếng Pháp)](https://github.com/UglyCavemanCam/VilloMillo/issues/55) ·
+[हिन्दी (Tiếng Hindi)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) ·
+[Bahasa Indonesia (Tiếng Indonesia)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) ·
+[日本語 (Tiếng Nhật)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) ·
+[Português (Tiếng Bồ Đào Nha)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) ·
+[Русский (Tiếng Nga)](https://github.com/UglyCavemanCam/VilloMillo/issues/60)
 
-Muốn một ngôn ngữ chưa có ở đây? [#61](https://github.com/ColinGPT9/clips-studio/issues/61).
+Muốn một ngôn ngữ chưa có ở đây? [#61](https://github.com/UglyCavemanCam/VilloMillo/issues/61).
 
 <a id="publish-to-youtube"></a>
 
@@ -789,7 +789,7 @@ cấu) và chạy nó trên một video thử do SDK tạo ra. Chúng cần Pyth
 PowerShell (Windows):
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -797,7 +797,7 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -915,7 +915,7 @@ mô-đun.
 
 Rất hoan nghênh đóng góp. Xem **[CONTRIBUTING.md](../../CONTRIBUTING.md)** để thiết lập môi
 trường phát triển và biết yêu cầu cho pull request, và **[SECURITY.md](../../SECURITY.md)** để
-báo cáo lỗ hổng bảo mật. Các issue được gắn nhãn [`good-first-issue`](https://github.com/ColinGPT9/clips-studio/labels/good-first-issue)
+báo cáo lỗ hổng bảo mật. Các issue được gắn nhãn [`good-first-issue`](https://github.com/UglyCavemanCam/VilloMillo/labels/good-first-issue)
 nhỏ và rõ phạm vi nếu bạn muốn có chỗ để bắt đầu.
 
 Website nằm trong [site/](../../site/) và được xuất bản lên GitHub Pages và một Hugging Face

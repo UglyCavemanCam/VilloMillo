@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """The core of `python -m clipskitty_sdk run`: what a developer's run of a
-plugin hands it, built the way Clips Kitty builds it (clipskitty_sdk.host),
+plugin hands it, built the way VilloMillo builds it (clipskitty_sdk.host),
 and what it answered.
 
 The command line (__main__.py) reads the options and prints; this module does
@@ -29,7 +29,7 @@ DEFAULT_MIN_SCORE = 55.0
 # Where a plugin with the ollama permission is told the local model answers, as in the app's settings.
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 # What `run` says for a plugin with the ollama permission and no --ollama-model.
-NO_OLLAMA_MODEL = ("no --ollama-model given, so the plugin is told there is no local model, as when Clips Kitty's "
+NO_OLLAMA_MODEL = ("no --ollama-model given, so the plugin is told there is no local model, as when VilloMillo's "
                    "AI runs at a cloud provider. To try it with one, run Ollama on this PC and pass --ollama-model "
                    "with the name of a model you have in it")
 # A moment run's steps, in the order the app runs them.
@@ -48,7 +48,7 @@ SAMPLE_MOMENTS = 5
 SAMPLE_SECONDS = 20.0
 # What run --sample says when it can't make the test video.
 SAMPLE_NEEDS_FFMPEG = ("--sample needs FFmpeg to make the test video. Install FFmpeg, or pass --ffmpeg and "
-                       f"--ffprobe. An installed Clips Kitty has both, in {samples.INSTALLED_FFMPEG}.")
+                       f"--ffprobe. An installed VilloMillo has both, in {samples.INSTALLED_FFMPEG}.")
 SAMPLE_WITHOUT_VIDEO = (f"no FFmpeg here, so this run gets the sample transcript and a "
                         f"{samples.SAMPLE_VIDEO_SECONDS:g}-second length but no video; this plugin doesn't read "
                         "the video, so that is all it needs")
@@ -196,7 +196,7 @@ def crops_for(layout: str | None) -> tuple[str, ...]:
 
 
 def time_limit(manifest: dict, steps) -> float:
-    """How long Clips Kitty would let this run take, in seconds."""
+    """How long VilloMillo would let this run take, in seconds."""
     default = host.FIND_TIMEOUT_MINUTES if "find" in steps else host.MOMENT_TIMEOUT_MINUTES
     return host.timeout_seconds(manifest, default)
 
@@ -247,7 +247,7 @@ def _url_file(address: str) -> str:
 
 def models_for(manifest: dict, given: dict[str, str]) -> dict:
     """job.json's `models` for --model NAME=PATH: each where the developer
-    has it, with the files its manifest entry lists (as Clips Kitty's model
+    has it, with the files its manifest entry lists (as VilloMillo's model
     store hands them over)."""
     listed = {m.get("name"): m for m in manifest.get("models") or [] if isinstance(m, dict)}
     out = {}
@@ -311,7 +311,7 @@ def transcript_end(transcript: dict) -> float | None:
 
 def moment(number: int, start: float, end: float, score: float, *, label="", title="", reason="",
            context=(), suggested=()) -> dict:
-    """One moment as the app hands it over: found by Clips Kitty, its score
+    """One moment as the app hands it over: found by VilloMillo, its score
     as found, with what earlier edit plugins suggested for it when there is
     anything."""
     out = {"id": f"m{number}", "start": start, "end": end, "score": score, "found_score": score,
@@ -403,7 +403,7 @@ def moments_from(data) -> list[dict]:
 def start(folder: Path, manifest: dict, job_folder: Path, job: dict, transcript: dict | None, *, python: str,
           base_env: dict, secrets: dict | None = None, timeout: float | None = None,
           on_event=None) -> host.RunOutcome:
-    """Write the job folder and run the plugin in it, as Clips Kitty does."""
+    """Write the job folder and run the plugin in it, as VilloMillo does."""
     host.write_job(job_folder, job, transcript)
     env = host.plugin_env(base_env, job_folder=job_folder, secrets=secrets)
     return host.run_plugin(host.resolve_command(manifest["run"]["command"], python, folder), cwd=folder,

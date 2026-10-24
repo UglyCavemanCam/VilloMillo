@@ -12,7 +12,7 @@ import type { ModelPull, StudioEvent } from './types'
  *
  *  Pure helpers, no React and no fetch, so both screens word it the same. */
 
-export const CHECKING = 'Checking the download… keep Clips Kitty open'
+export const CHECKING = 'Checking the download… keep VilloMillo open'
 
 /** Ollama's steps once the bytes are in. None of them has a percentage. */
 export function isChecking(status: string | undefined): boolean {

@@ -1,7 +1,7 @@
 """OpenRouter: one key, many providers' models, billed to the user's account.
 
 Every request OpenRouter gets from this app carries the app's attribution
-headers, which is how its usage is credited to Clips Kitty in OpenRouter's app
+headers, which is how its usage is credited to VilloMillo in OpenRouter's app
 rankings. They are the app's identity, not a user setting, and they are built
 here and nowhere else: SPEC.extra_headers hands them to llm/providers/http.py,
 which puts them on every request (chat, models, key check, transcription and
@@ -9,14 +9,14 @@ every retry). `video-gen` is the category in OpenRouter's Creative section
 that fits; a bare "creative" is not a category and would be dropped.
 
 The website (web/lib/openrouter.ts) sends its own set, with its own origin and
-the title "Clips Kitty Web", from the visitor's browser.
+the title "VilloMillo Web", from the visitor's browser.
 """
 
 from llm.providers.base import ModelInfo, ProviderSpec
 
 SITE = "https://openrouter.ai"
-APP_URL = "https://colingpt9.github.io/clips-studio/"
-APP_TITLE = "Clips Kitty"
+APP_URL = "https://github.com/UglyCavemanCam/VilloMillo/"
+APP_TITLE = "VilloMillo"
 APP_CATEGORY = "video-gen"
 
 

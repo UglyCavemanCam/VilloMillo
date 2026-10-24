@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
-"""Developer tools: check a plugin, and run it on a video the way Clips Kitty would.
+"""Developer tools: check a plugin, and run it on a video the way VilloMillo would.
 
     python -m clipskitty_sdk new FOLDER --template NAME [--publisher NAME] [--name "Display name"]
                                  [--game SLUG] [--author NAME] [--license SPDX]
@@ -31,7 +31,7 @@ name when the options don't give them.
 
 `validate` runs the manifest checks the app, the plugin manager and the
 registry run, shows the line in clipskitty.yaml each problem is on, and warns
-about code in the plugin that would fail on Clips Kitty's own Python
+about code in the plugin that would fail on VilloMillo's own Python
 (clipskitty_sdk.lint). `run` does the same checks, then builds the same job
 folder the app builds (clipskitty_sdk.host), starts the plugin's command from
 its manifest, shows its progress, and checks its result.json with the same
@@ -53,19 +53,19 @@ else to the end of --transcript. --sample hands over a 40-second test video
 and its transcript instead, made in the job folder (clipskitty_sdk.samples);
 a plugin that never touches the video gets the transcript even without
 FFmpeg. --set values follow the setting's type. The run may take as long as
-Clips Kitty would allow (run.timeout_minutes, else 60 minutes to find and 10
+VilloMillo would allow (run.timeout_minutes, else 60 minutes to find and 10
 to understand, rate or suggest edits) unless --timeout says otherwise.
 
 `sample` writes that test video and transcript somewhere else, and `frame`
 writes one frame of a video as a PNG, with a box drawn around --region and
 the region in pixels, to measure where something shows on screen. Neither
-writes inside a plugin's folder: Clips Kitty copies everything there.
+writes inside a plugin's folder: VilloMillo copies everything there.
 
-`install` puts the plugin into the Clips Kitty running on this PC, as
+`install` puts the plugin into the VilloMillo running on this PC, as
 Marketplace › Browse › For developers does (clipskitty_sdk.installer): it
-shows Clips Kitty's install screen as text and asks first. --yes skips the
+shows VilloMillo's install screen as text and asks first. --yes skips the
 question only when nothing is new, and --watch reinstalls on each save until
-a save adds something. It talks only to Clips Kitty on this PC, never
+a save adds something. It talks only to VilloMillo on this PC, never
 through a proxy.
 
 `listing` writes the file that lists a finished plugin in Awesome Clips
@@ -78,7 +78,7 @@ nothing; the pull request, with the catalog's index rebuilt, is yours to open.
 Exit code 0 means the app would accept the plugin's answer, 1 that the plugin
 failed or the app would refuse its answer, 2 that the run couldn't start.
 For `install`: 0 installed, 1 not installed, 2 it couldn't get as far as
-Clips Kitty's plan. For `listing`: 0 written, 2 refused.
+VilloMillo's plan. For `listing`: 0 written, 2 refused.
 """
 
 from __future__ import annotations
@@ -137,7 +137,7 @@ def cmd_validate(args) -> int:
     if report.ok:
         print(f"{manifest['id']} {manifest['version']}: valid" + (f", {warnings} warning(s)" if warnings else ""))
         return 0
-    print(f"{len(report.errors)} problem(s): Clips Kitty would refuse to install this plugin")
+    print(f"{len(report.errors)} problem(s): VilloMillo would refuse to install this plugin")
     return 1
 
 
@@ -200,7 +200,7 @@ def cmd_run(args) -> int:
     if report is None:
         return 2
     if not report.ok:
-        print("error: fix the manifest first; Clips Kitty would refuse to install this plugin", file=sys.stderr)
+        print("error: fix the manifest first; VilloMillo would refuse to install this plugin", file=sys.stderr)
         return 2
     perms = set(manifest.get("permissions") or [])
     ffmpeg = args.ffmpeg or shutil.which("ffmpeg")
@@ -320,7 +320,7 @@ def cmd_run(args) -> int:
     progress.done()
     if outcome.timed_out:
         if args.timeout is None:
-            print(f"failed: the plugin ran past its {timeout / 60:g} minute limit, as Clips Kitty would stop it",
+            print(f"failed: the plugin ran past its {timeout / 60:g} minute limit, as VilloMillo would stop it",
                   file=sys.stderr)
         else:
             print(f"failed: the plugin ran past the {timeout:g} second limit --timeout set", file=sys.stderr)
@@ -348,9 +348,9 @@ def _show_ranges(job_folder: Path, job: dict, duration: float | None) -> int:
         result = host.read_result(job_folder, duration=duration, max_clips=job["limits"]["max_clips"],
                                   steps=job.get("steps"))
     except ContractError as e:
-        print(f"Clips Kitty would refuse this answer: {e}", file=sys.stderr)
+        print(f"VilloMillo would refuse this answer: {e}", file=sys.stderr)
         return 1
-    print(f"{len(result['ranges'])} moment(s), as Clips Kitty would take them:")
+    print(f"{len(result['ranges'])} moment(s), as VilloMillo would take them:")
     for r in result["ranges"]:
         score = "  -" if r.get("score") is None else f"{r['score']:3.0f}"
         print(f"  {r['start']:8.1f}s  {r['end']:8.1f}s  score {score}  {r.get('title') or r.get('label') or ''}")
@@ -368,10 +368,10 @@ def _show_answers(job_folder: Path, steps: tuple[str, ...], moments: list[dict])
     try:
         answers, ignored = host.read_answers(job_folder, steps=steps, ids=[m["id"] for m in moments])
     except ContractError as e:
-        print(f"Clips Kitty would refuse this answer: {e}", file=sys.stderr)
+        print(f"VilloMillo would refuse this answer: {e}", file=sys.stderr)
         return 1
     print(f"{' and '.join(steps).capitalize()}: {len(answers)} of {len(moments)} moment(s) answered, "
-          "as Clips Kitty would use them:")
+          "as VilloMillo would use them:")
     for m in moments:
         answer = answers.get(m["id"], {})
         line = f"{m['id']:<4} {m['start']:.1f}s-{m['end']:.1f}s  score {_g(m['score'])}"
@@ -397,9 +397,9 @@ def _show_edits(job_folder: Path, job: dict, moments: list[dict]) -> int:
                                        min_length=max(1.0, float(limits.get("min_duration") or 0)),
                                        max_length=limits.get("max_duration"))
     except ContractError as e:
-        print(f"Clips Kitty would refuse this answer: {e}", file=sys.stderr)
+        print(f"VilloMillo would refuse this answer: {e}", file=sys.stderr)
         return 1
-    print(f"Suggest edits: {len(edits)} of {len(moments)} clip(s) given a suggestion, as Clips Kitty would "
+    print(f"Suggest edits: {len(edits)} of {len(moments)} clip(s) given a suggestion, as VilloMillo would "
           "keep them:")
     for line in devrun.edit_lines(moments, edits) + lines:
         print(line)
@@ -410,7 +410,7 @@ def _show_edits(job_folder: Path, job: dict, moments: list[dict]) -> int:
 
 
 def _inside_plugin(what: str, example: str) -> str:
-    return (f"error: that is inside a plugin's folder, and Clips Kitty copies everything there on install. "
+    return (f"error: that is inside a plugin's folder, and VilloMillo copies everything there on install. "
             f"Write the {what} somewhere else, for example: {example}")
 
 
@@ -424,7 +424,7 @@ def cmd_sample(args) -> int:
     ffmpeg = args.ffmpeg or shutil.which("ffmpeg")
     if not ffmpeg:
         print("error: sample needs FFmpeg to make the test video. Install FFmpeg, or pass --ffmpeg. An installed "
-              f"Clips Kitty has it, in {samples.INSTALLED_FFMPEG}.", file=sys.stderr)
+              f"VilloMillo has it, in {samples.INSTALLED_FFMPEG}.", file=sys.stderr)
         return 2
     try:
         video, transcript = samples.make_sample(out, ffmpeg)
@@ -553,11 +553,11 @@ def main(argv: list[str] | None = None) -> int:
     new.add_argument("--license", metavar="SPDX", default=scaffold.DEFAULT_LICENSE,
                      help=f"the plugin's licence, as an SPDX id (default: {scaffold.DEFAULT_LICENSE}, whose text "
                           "is written as LICENSE)")
-    check = sub.add_parser("validate", help="check a plugin's manifest the way Clips Kitty and the registry do")
+    check = sub.add_parser("validate", help="check a plugin's manifest the way VilloMillo and the registry do")
     check.add_argument("plugin", help="the plugin's folder (the one holding clipskitty.yaml)")
     schema = sub.add_parser("schema", help="print the manifest's JSON Schema, for editors")
     schema.add_argument("--write", action="store_true", help="write it to the SDK's schema/ folder (contributors)")
-    run = sub.add_parser("run", help="run a plugin on a video the way Clips Kitty would")
+    run = sub.add_parser("run", help="run a plugin on a video the way VilloMillo would")
     run.add_argument("plugin", help="the plugin's folder (the one holding clipskitty.yaml)")
     run.add_argument("--video", help="a video file to run it on (needed with video.read)")
     run.add_argument("--sample", action="store_true",
@@ -597,7 +597,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--ffmpeg")
     run.add_argument("--ffprobe")
     run.add_argument("--timeout", type=float, metavar="SECONDS",
-                     help="stop the plugin after this long (default: what Clips Kitty allows: "
+                     help="stop the plugin after this long (default: what VilloMillo allows: "
                           "run.timeout_minutes, else 60 minutes to find and 10 to understand, rate or suggest "
                           "edits)")
     run.add_argument("--job-dir", help="where to build the job folder (default: a new temporary folder)")
@@ -613,7 +613,7 @@ def main(argv: list[str] | None = None) -> int:
                             "(quote it); prints it in pixels")
     frame.add_argument("--out", metavar="FILE.png", help="where to write it (default: frame-SECONDSs.png here)")
     frame.add_argument("--ffmpeg")
-    inst = sub.add_parser("install", help="install a plugin you're writing into the Clips Kitty running on this PC")
+    inst = sub.add_parser("install", help="install a plugin you're writing into the VilloMillo running on this PC")
     inst.add_argument("plugin", help="the plugin's folder (the one holding clipskitty.yaml)")
     inst.add_argument("--watch", action="store_true",
                       help="after installing, reinstall it each time a file in the folder is saved, until a save "
@@ -622,10 +622,10 @@ def main(argv: list[str] | None = None) -> int:
                       help="install without asking, only when nothing is new: the same plugin is installed and the "
                            "update adds no permission, network host, data sent, change to where it runs, or step")
     inst.add_argument("--data-dir", metavar="DIR",
-                      help="Clips Kitty's data folder, the one holding plugins/session.secret (default: the one "
-                           "Clips Kitty names, else the installed app's)")
+                      help="VilloMillo's data folder, the one holding plugins/session.secret (default: the one "
+                           "VilloMillo names, else the installed app's)")
     inst.add_argument("--api", default=installer.DEFAULT_API, metavar="URL",
-                      help=f"where Clips Kitty's API is, on this PC only (default: {installer.DEFAULT_API})")
+                      help=f"where VilloMillo's API is, on this PC only (default: {installer.DEFAULT_API})")
     lst = sub.add_parser("listing", help="write the file that lists your plugin in the Marketplace's catalog "
                          "(it only reads git: it never pushes or fetches)")
     lst.add_argument("plugin", help="the plugin's folder (the one holding clipskitty.yaml), committed and pushed")

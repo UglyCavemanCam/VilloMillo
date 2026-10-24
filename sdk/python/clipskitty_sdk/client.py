@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
-"""Calling Clips Kitty's local API from a plugin or a script.
+"""Calling VilloMillo's local API from a plugin or a script.
 
     from clipskitty_sdk.client import LocalAPI
 
@@ -65,7 +65,7 @@ class LocalAPI:
                 detail = e.reason
             raise APIError(e.code, detail) from e
         except (urllib.error.URLError, OSError) as e:
-            raise APIError(0, f"Clips Kitty is not answering at {self.base_url} ({e})") from e
+            raise APIError(0, f"VilloMillo is not answering at {self.base_url} ({e})") from e
         return json.loads(raw) if raw else None
 
     def get(self, path: str, **params):
@@ -87,7 +87,7 @@ class LocalAPI:
         info = self.get("/health")
         version = (info or {}).get("api_version")
         if version is not None and version not in SUPPORTED_API_VERSIONS:
-            raise APIError(0, f"Clips Kitty speaks API {version}; this SDK knows {SUPPORTED_API_VERSIONS}")
+            raise APIError(0, f"VilloMillo speaks API {version}; this SDK knows {SUPPORTED_API_VERSIONS}")
         return info
 
     def add_job(self, url: str, **options) -> dict:

@@ -312,8 +312,8 @@ def test_listing_checks_the_remote_and_the_publisher(repo, capsys):
     assert refused() == (2, [("error: the id's publisher is test-owner, but the repository's owner is someone-else: "
                               "they must be the same")])
     # ... except in the Clips Kitty project's own repositories, which list its examples.
-    git(repo.root, "remote", "set-url", "origin", "https://github.com/ColinGPT9/clips-studio")
-    assert listed()["repository"] == "https://github.com/ColinGPT9/clips-studio"
+    git(repo.root, "remote", "set-url", "origin", "https://github.com/UglyCavemanCam/VilloMillo")
+    assert listed()["repository"] == "https://github.com/UglyCavemanCam/VilloMillo"
 
     # The remote is the one the branch tracks, else origin.
     git(repo.root, "remote", "set-url", "origin", GITHUB)

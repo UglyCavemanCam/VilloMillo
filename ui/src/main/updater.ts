@@ -1,4 +1,4 @@
-// Checking for a newer Clips Kitty, and installing it.
+// Checking for a newer VilloMillo, and installing it.
 //
 // This exists because of when it has to exist: the moment somebody installs a
 // build, you need a way to move them off it. Adding updates after a release
@@ -174,7 +174,7 @@ function stopPackageWatch(): void {
 export function setupUpdater(win: BrowserWindow): void {
   mainWindow = win
 
-  // Clips Kitty's page in the Store app. Only a Store copy shows the button.
+  // VilloMillo's page in the Store app. Only a Store copy shows the button.
   ipcMain.handle('update:openStore', async () => {
     await shell.openExternal(STORE_PAGE)
     return { ok: true }

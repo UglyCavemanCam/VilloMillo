@@ -192,7 +192,7 @@ class Worker:
             return
         if r.status_code == 409:
             self.connected = False
-            self.last_error = "worker update required: install the same Clips Kitty version as the main PC"
+            self.last_error = "worker update required: install the same VilloMillo version as the main PC"
             return
         if r.status_code != 200:
             self.connected = False

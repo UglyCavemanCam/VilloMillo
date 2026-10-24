@@ -310,7 +310,7 @@ export default function YouTubePanel({
 
       <details className="border border-raised/60 rounded-lg">
         <summary className="px-3 py-2 text-xs cursor-pointer hover:bg-raised/40 rounded-lg">
-          {t("What Clips Kitty can't set")}
+          {t("What VilloMillo can't set")}
         </summary>
         <div className="p-3 pt-0 text-[11px] text-muted space-y-1">
           <p>

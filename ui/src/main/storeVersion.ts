@@ -13,13 +13,13 @@
 //
 // No Electron in here, so it runs under Node in tests/test_ui_store_update.py.
 
-/** Clips Kitty in the Microsoft Store (the id in the README's Store link). */
+/** VilloMillo in the Microsoft Store (the id in the README's Store link). */
 export const STORE_PRODUCT_ID = '9NB6XT7DSQZZ'
 
 /** The package's name (appx.identityName in electron-builder.yml). */
 export const STORE_IDENTITY = 'ClipsStudio.ClipsStudio'
 
-/** Clips Kitty's page in the Store app, where Update is pressed. */
+/** VilloMillo's page in the Store app, where Update is pressed. */
 export const STORE_PAGE = `ms-windows-store://pdp/?ProductId=${STORE_PRODUCT_ID}`
 
 /** One plain request, carrying the product id and nothing about this PC. */

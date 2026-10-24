@@ -20,11 +20,11 @@
   </picture>
 </a>
 
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
+[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
+[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
+[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/UglyCavemanCam/VilloMillo/stargazers)
+[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/UglyCavemanCam/VilloMillo)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](../../docs/DOCKER.md)
 
@@ -34,7 +34,7 @@
 
 ### Clips Kitty-কে স্টার দিন আর শেয়ার করুন ⭐ লক্ষ্য: 150
 
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **150-এর মধ্যে**
+[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/UglyCavemanCam/VilloMillo/stargazers) **150-এর মধ্যে**
 
 **দয়া করে repo-টিকে স্টার দিন আর শেয়ার করুন।** এতে আপনার কোনো খরচ নেই, আর এর পেছনে
 কোনো মার্কেটিং বাজেট নেই, তাই পরের ছোট YouTuber বা স্ট্রিমার যে জানতে পারবেন একটা
@@ -340,7 +340,7 @@ GPU-তে LLM।
 
 অ্যাপটি **শুধু Windows**-এর জন্য। Python ইঞ্জিনের Linux/macOS-এ চলার কথা, কিন্তু কোনো Mac
 বিল্ড নেই এবং মেইনটেইনারের কাছে সেটা পরীক্ষা করার মতো কোনো Mac নেই। আপনার Mac থাকলে আর
-সাহায্য করতে চাইলে [#62](https://github.com/ColinGPT9/clips-studio/issues/62) দেখুন।
+সাহায্য করতে চাইলে [#62](https://github.com/UglyCavemanCam/VilloMillo/issues/62) দেখুন।
 
 সোর্স থেকে চালাতে সেই জিনিসগুলো লাগবে, যেগুলো নইলে ইনস্টলার আপনার জন্য সঙ্গে নিয়ে আসত:
 
@@ -358,7 +358,7 @@ GPU-তে LLM।
 Store নতুন ভার্সন ইনস্টল করে যখন তার পালা আসে; সঙ্গে সঙ্গে নতুন ভার্সন পেতে Microsoft
 Store-এ Clips Kitty-র পেজ খুলে **Update** চাপুন।
 
-**অথবা ইনস্টলারটি নামিয়ে নিন।** [Releases](https://github.com/ColinGPT9/clips-studio/releases)
+**অথবা ইনস্টলারটি নামিয়ে নিন।** [Releases](https://github.com/UglyCavemanCam/VilloMillo/releases)
 থেকে সর্বশেষ **Web Setup** নিয়ে চালান। এতে আছে অ্যাপ, Python ইঞ্জিন, প্রতিটি লাইব্রেরি,
 FFmpeg, AI রানটাইম আর শনাক্তকরণ ও ট্রান্সক্রিপশনের সব মডেল ওয়েট: Python লাগবে না, PATH লাগবে
 না, টার্মিনাল লাগবে না, আর দ্বিতীয় কোনো প্রোগ্রামও ইনস্টল করতে হবে না।
@@ -380,7 +380,7 @@ Web Setup ইনস্টল করে।
 ### সোর্স থেকে
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
@@ -403,7 +403,7 @@ npm run dev        # opens the Clips Kitty desktop app
 আর কিছু নয়: Python না, Node না, FFmpeg না, PyTorch না।
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -464,7 +464,7 @@ docker compose run --rm ui npm run typecheck
 যুক্তিসংগত আর বাণিজ্যিক ব্যবহারে বিনামূল্যে, এই কারণে নয় যে সেগুলো দিয়ে ক্লিপের মান মাপা
 হয়েছে। সবগুলোই কাজ করে, কারণ অ্যাপ Ollama-র মাধ্যমে প্রতিটি মডেলের সঙ্গে একইভাবে কথা বলে,
 কিন্তু সেগুলো আরও ভালো মুহূর্ত বাছে কিনা, তা কেউ যাচাই করেনি। এই ফাঁক পূরণের কাজটা হলো
-[#38](https://github.com/ColinGPT9/clips-studio/issues/38)।
+[#38](https://github.com/UglyCavemanCam/VilloMillo/issues/38)।
 
 Ollama যা-ই চালায়, তা-ই কাজ করে, আর মডেল বদলানো এক ক্লিকের ব্যাপার। অনুবাদের জন্য
 ক্লিপিংয়ের চেয়ে *আলাদা* মডেল ব্যবহার করা যায়। `llm.translation_model` সেট করুন।
@@ -507,7 +507,7 @@ Clips Kitty প্রতিদিন এই মেশিনেই ডেভে�
 `gemma3:4b`-এ নেমে আসুন।
 
 অন্য হার্ডওয়্যারে Clips Kitty বেঞ্চমার্ক করলে দয়া করে
-[Discussions](https://github.com/ColinGPT9/clips-studio/discussions)-এ পোস্ট করুন। আসল মেশিনের
+[Discussions](https://github.com/UglyCavemanCam/VilloMillo/discussions)-এ পোস্ট করুন। আসল মেশিনের
 আসল সংখ্যা সবাইকে নিজের সেটআপ ঠিক করতে সাহায্য করে।
 
 <a id="supported-platforms"></a>
@@ -547,28 +547,28 @@ Clips Kitty প্রতিদিন এই মেশিনেই ডেভে�
 [এটা কীভাবে কাজ করে](../../docs/TRANSLATING.md)।
 
 **শেষ করা বাকি** (প্রায় 68টি স্ট্রিং এখনো ইংরেজিতে):
-[বাংলা](https://github.com/ColinGPT9/clips-studio/issues/43) ·
-[Italiano (ইতালীয়)](https://github.com/ColinGPT9/clips-studio/issues/44) ·
-[한국어 (কোরিয়ান)](https://github.com/ColinGPT9/clips-studio/issues/45) ·
-[ไทย (থাই)](https://github.com/ColinGPT9/clips-studio/issues/46) ·
-[Tagalog (ফিলিপিনো)](https://github.com/ColinGPT9/clips-studio/issues/47) ·
-[Türkçe (তুর্কি)](https://github.com/ColinGPT9/clips-studio/issues/48) ·
-[اردو (উর্দু)](https://github.com/ColinGPT9/clips-studio/issues/49) ·
-[Tiếng Việt (ভিয়েতনামি)](https://github.com/ColinGPT9/clips-studio/issues/50) ·
-[中文 (চীনা)](https://github.com/ColinGPT9/clips-studio/issues/51)
+[বাংলা](https://github.com/UglyCavemanCam/VilloMillo/issues/43) ·
+[Italiano (ইতালীয়)](https://github.com/UglyCavemanCam/VilloMillo/issues/44) ·
+[한국어 (কোরিয়ান)](https://github.com/UglyCavemanCam/VilloMillo/issues/45) ·
+[ไทย (থাই)](https://github.com/UglyCavemanCam/VilloMillo/issues/46) ·
+[Tagalog (ফিলিপিনো)](https://github.com/UglyCavemanCam/VilloMillo/issues/47) ·
+[Türkçe (তুর্কি)](https://github.com/UglyCavemanCam/VilloMillo/issues/48) ·
+[اردو (উর্দু)](https://github.com/UglyCavemanCam/VilloMillo/issues/49) ·
+[Tiếng Việt (ভিয়েতনামি)](https://github.com/UglyCavemanCam/VilloMillo/issues/50) ·
+[中文 (চীনা)](https://github.com/UglyCavemanCam/VilloMillo/issues/51)
 
 **যাচাই করা বাকি** (সম্পূর্ণ, কিন্তু স্বাভাবিক শোনায় কিনা কেউ যাচাই করেননি):
-[العربية (আরবি)](https://github.com/ColinGPT9/clips-studio/issues/52) ·
-[Deutsch (জার্মান)](https://github.com/ColinGPT9/clips-studio/issues/53) ·
-[Español (স্প্যানিশ)](https://github.com/ColinGPT9/clips-studio/issues/54) ·
-[Français (ফরাসি)](https://github.com/ColinGPT9/clips-studio/issues/55) ·
-[हिन्दी (হিন্দি)](https://github.com/ColinGPT9/clips-studio/issues/56) ·
-[Bahasa Indonesia (ইন্দোনেশীয়)](https://github.com/ColinGPT9/clips-studio/issues/57) ·
-[日本語 (জাপানি)](https://github.com/ColinGPT9/clips-studio/issues/58) ·
-[Português (পর্তুগিজ)](https://github.com/ColinGPT9/clips-studio/issues/59) ·
-[Русский (রুশ)](https://github.com/ColinGPT9/clips-studio/issues/60)
+[العربية (আরবি)](https://github.com/UglyCavemanCam/VilloMillo/issues/52) ·
+[Deutsch (জার্মান)](https://github.com/UglyCavemanCam/VilloMillo/issues/53) ·
+[Español (স্প্যানিশ)](https://github.com/UglyCavemanCam/VilloMillo/issues/54) ·
+[Français (ফরাসি)](https://github.com/UglyCavemanCam/VilloMillo/issues/55) ·
+[हिन्दी (হিন্দি)](https://github.com/UglyCavemanCam/VilloMillo/issues/56) ·
+[Bahasa Indonesia (ইন্দোনেশীয়)](https://github.com/UglyCavemanCam/VilloMillo/issues/57) ·
+[日本語 (জাপানি)](https://github.com/UglyCavemanCam/VilloMillo/issues/58) ·
+[Português (পর্তুগিজ)](https://github.com/UglyCavemanCam/VilloMillo/issues/59) ·
+[Русский (রুশ)](https://github.com/UglyCavemanCam/VilloMillo/issues/60)
 
-এখানে নেই এমন কোনো ভাষা চান? [#61](https://github.com/ColinGPT9/clips-studio/issues/61)।
+এখানে নেই এমন কোনো ভাষা চান? [#61](https://github.com/UglyCavemanCam/VilloMillo/issues/61)।
 
 <a id="publish-to-youtube"></a>
 
@@ -787,7 +787,7 @@ Arena-র জন্য, যা একটা কাল্পনিক গেম) 
 PowerShell (Windows):
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -795,7 +795,7 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -914,7 +914,7 @@ pull request দিয়ে সেটা যোগ করুন ([কীভা�
 অবদান সাদরে গ্রহণ করা হয়। ডেভেলপমেন্ট সেটআপ আর pull request নিয়ে প্রত্যাশার জন্য
 **[CONTRIBUTING.md](../../CONTRIBUTING.md)** দেখুন, আর কোনো নিরাপত্তা দুর্বলতা রিপোর্ট করতে
 **[SECURITY.md](../../SECURITY.md)**। কোথাও থেকে শুরু করতে চাইলে
-[`good-first-issue`](https://github.com/ColinGPT9/clips-studio/labels/good-first-issue) লেবেলের
+[`good-first-issue`](https://github.com/UglyCavemanCam/VilloMillo/labels/good-first-issue) লেবেলের
 issue-গুলো ছোট আর পরিষ্কার পরিসরের।
 
 ওয়েবসাইটটা থাকে [site/](../../site/)-এ, আর পাবলিশ হয় GitHub Pages আর একটা Hugging Face

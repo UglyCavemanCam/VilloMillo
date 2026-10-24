@@ -17,13 +17,13 @@ You do not install it in the app. When Clips Kitty starts your plugin it puts it
 To develop against it, install it from the repository with pip. The `yaml` extra adds PyYAML, for reading manifests, and `test` adds pytest, for your plugin's tests. PowerShell:
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 ```
 
 bash:
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 ```
 
 Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0 ([Versioning](versioning.md#which-release-runs-plugins)).
@@ -31,14 +31,14 @@ Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 
 Or point `PYTHONPATH` at a Clips Kitty checkout. PowerShell:
 
 ```powershell
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 $env:PYTHONPATH = "C:\path\to\clips-studio\sdk\python"
 ```
 
 bash:
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 export PYTHONPATH=/path/to/clips-studio/sdk/python
 ```
 

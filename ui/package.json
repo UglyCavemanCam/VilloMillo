@@ -3,7 +3,7 @@
   "version": "2.1.0",
   "description": "VilloMillo: local-first AI clipping studio (desktop app). A fork of Clips Kitty (AGPL-3.0).",
   "author": "ColinGPT9",
-  "homepage": "https://github.com/ColinGPT9/clips-studio",
+  "homepage": "https://github.com/UglyCavemanCam/VilloMillo",
   "license": "AGPL-3.0-or-later",
   "main": "./out/main/index.js",
   "private": true,

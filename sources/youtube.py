@@ -128,14 +128,14 @@ def _friendly_message(error: str) -> str | None:
             "Twitch, Kick and local files are not affected."
         )
 
-    # Age-gated videos need a signed-in session, which Clips Kitty does not
+    # Age-gated videos need a signed-in session, which VilloMillo does not
     # have: it downloads anonymously on purpose. yt-dlp's own text points at
     # two wiki pages about exporting cookies, which reads like a crash rather
     # than like a video YouTube will not hand over. Retrying never helps.
     if "confirm your age" in error or "age-restricted" in error.lower():
         return (
             "YouTube will not serve this video to anyone who is not signed "
-            "in, because it is age-restricted. Clips Kitty downloads without "
+            "in, because it is age-restricted. VilloMillo downloads without "
             "an account, so it cannot fetch this one. The same stream on "
             "Twitch or Kick will work, as will a local file."
         )
@@ -144,7 +144,7 @@ def _friendly_message(error: str) -> str | None:
     # words it as a request to sign in. By the time this is shown the request
     # has been made both ways the PC has (ytdlp_common.extract_info: IPv4 as
     # well as IPv6) and refused both, so it is the network as a whole. A
-    # signed-in session would get through; Clips Kitty does not have one.
+    # signed-in session would get through; VilloMillo does not have one.
     if is_bot_check(error):
         if cookies():
             return (
@@ -156,7 +156,7 @@ def _friendly_message(error: str) -> str | None:
             )
         return (
             "YouTube is treating this network as a bot and will not serve the "
-            "video to it. The link is fine, and Clips Kitty has already asked "
+            "video to it. The link is fine, and VilloMillo has already asked "
             "a second way. It usually clears on its own: wait an hour and try "
             "again, switch off a VPN if you have one on, or try a different "
             "network. If it keeps happening, set YouTube cookies under "

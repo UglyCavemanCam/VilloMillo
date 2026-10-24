@@ -5,9 +5,9 @@ import { PLATFORMS, WOOPSOCIAL_PLATFORMS, platformLabel } from '../lib/uploadpos
 
 /** Settings for publishing through WoopSocial.
  *
- *  The provider Clips Kitty leads with, and the default in the editor.
+ *  The provider VilloMillo leads with, and the default in the editor.
  *  Bring-your-own-key like the other one: the creator's own account, their
- *  own connected socials, their own allowance. Clips Kitty holds no shared
+ *  own connected socials, their own allowance. VilloMillo holds no shared
  *  key and pays for nothing.
  *
  *  Why this one first: their free plan connects two accounts with API
@@ -214,7 +214,7 @@ export default function WoopSocialCard(): JSX.Element {
           <h3 className="font-semibold">{t('Publish through WoopSocial')}</h3>
           <p className="text-xs text-muted mt-1 max-w-xl">
             {t(
-              'Send a clip to YouTube, TikTok, Instagram and more in one go, through your own WoopSocial account. Their free plan connects two accounts. Your accounts are connected on WoopSocial, not here, so Clips Kitty never asks for a social password.'
+              'Send a clip to YouTube, TikTok, Instagram and more in one go, through your own WoopSocial account. Their free plan connects two accounts. Your accounts are connected on WoopSocial, not here, so VilloMillo never asks for a social password.'
             )}
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function WoopSocialCard(): JSX.Element {
         <>
           <p className="text-[11px] text-muted border-l-2 border-raised pl-2">
             {t(
-              'Publishing this way sends the clip and its details to WoopSocial, which delivers them to the platforms you pick. Everything else in Clips Kitty still runs on your PC.'
+              'Publishing this way sends the clip and its details to WoopSocial, which delivers them to the platforms you pick. Everything else in VilloMillo still runs on your PC.'
             )}
           </p>
 
@@ -388,13 +388,13 @@ export default function WoopSocialCard(): JSX.Element {
                   and 32 were rejected. */}
               <p className="text-xs text-warn">
                 {t(
-                  'Worth knowing: YouTube allows about 5 posts a day on the free plan. Use the posts-a-day setting when you publish and Clips Kitty spreads them out for you.'
+                  'Worth knowing: YouTube allows about 5 posts a day on the free plan. Use the posts-a-day setting when you publish and VilloMillo spreads them out for you.'
                 )}
               </p>
               {affiliate && (
                 <p className="text-[11px] text-muted">
                   {t(
-                    'Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.'
+                    'Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you.'
                   )}
                 </p>
               )}

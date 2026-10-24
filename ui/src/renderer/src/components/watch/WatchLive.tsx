@@ -17,7 +17,7 @@ const TONE: Record<string, string> = {
   learned: 'text-accent'
 }
 
-/** The live panel: that Clips Kitty is watching, what it is doing this
+/** The live panel: that VilloMillo is watching, what it is doing this
  *  second, and the last few things it did. Big enough to read on a screen
  *  recording, and fed by the engine's own steps rather than guessed. */
 export default function WatchLive(): JSX.Element | null {

@@ -183,7 +183,7 @@ export function stepPostingLines(
 }
 
 /** What Suggest edits means for a watched channel's clips: suggestions wait
- *  in the editor, so what posts is the clip as Clips Kitty made it, and the
+ *  in the editor, so what posts is the clip as VilloMillo made it, and the
  *  clips are ready only once every plugin has answered. */
 export function editPostingLines(
   channel: ChannelPosting,
@@ -195,7 +195,7 @@ export function editPostingLines(
   if (channel.mode === 'auto')
     out.push(
       tr(
-        'This channel posts clips as Clips Kitty made them, without waiting for you. Suggested edits wait in the editor, and Clips Kitty doesn’t put one into a clip until you use it and apply your edits. Using one later changes the clip in Clips Kitty. Posts that already went out stay as they were, and a later re-send of that clip sends the edited one.'
+        'This channel posts clips as VilloMillo made them, without waiting for you. Suggested edits wait in the editor, and VilloMillo doesn’t put one into a clip until you use it and apply your edits. Using one later changes the clip in VilloMillo. Posts that already went out stay as they were, and a later re-send of that clip sends the edited one.'
       )
     )
   else if (channel.mode === 'ask') out.push(tr('Suggested edits wait for you in the editor. Check them before you publish.'))
@@ -213,7 +213,7 @@ function nameOf(run: Pick<StepRun, 'name' | 'plugin'>): string {
 }
 
 /** One line of the video page's "Marketplace plugins on this video": what a
- *  plugin's run on the moments did, or why Clips Kitty made the clips without
+ *  plugin's run on the moments did, or why VilloMillo made the clips without
  *  it. A Suggest edits run (steps ['edit']) says how many clips it suggested
  *  edits for; its failure changed no clip, so it says no suggestions came. */
 export function stepRunText(run: StepRun, minScore: number, tr: Words = english): string {
@@ -230,7 +230,7 @@ export function stepRunText(run: StepRun, minScore: number, tr: Words = english)
   }
   if (!run.ok) {
     const why = run.error ? ` ${tr(run.error)}` : ''
-    return `${tr('Clips Kitty made these clips without')} ${name}.${why}`
+    return `${tr('VilloMillo made these clips without')} ${name}.${why}`
   }
   const understood = run.steps.includes('understand')
   const rated = run.steps.includes('rate')

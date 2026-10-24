@@ -2,7 +2,7 @@
 
 process_video calls find_clips() at its detection step when the job names a
 pipeline plugin. Everything before (download, transcription) and after
-(titles, rendering, captions, the library) is Clips Kitty's, unchanged.
+(titles, rendering, captions, the library) is VilloMillo's, unchanged.
 answer_moments() is the other kind of run: a plugin chosen under Rate &
 understand is handed the moments once they are found (plugins/steps.py) and
 answers about each one, and one chosen under Suggest edits is handed the
@@ -87,7 +87,7 @@ def secret_name(plugin_id: str) -> str:
 
 
 def secrets_for(plugin: store.Installed, data_dir) -> dict:
-    """The plugin's `secret` settings from Clips Kitty's secrets store."""
+    """The plugin's `secret` settings from VilloMillo's secrets store."""
     declared = [n for n, s in (plugin.manifest.get("settings") or {}).items()
                 if isinstance(s, dict) and s.get("type") == "secret"]
     if not declared:
@@ -195,7 +195,7 @@ def timeout_seconds(manifest: dict, default: float = DEFAULT_TIMEOUT_MINUTES) ->
     understands moments), never over MAX_TIMEOUT_MINUTES.
 
     The rule is the SDK's (host.timeout_seconds), so `python -m clipskitty_sdk
-    run` stops a plugin when Clips Kitty would. The runner calls this name,
+    run` stops a plugin when VilloMillo would. The runner calls this name,
     so a caller can still replace it (scripts/check_compatibility.py caps it,
     and a test shortens it)."""
     return host.timeout_seconds(manifest, default, MAX_TIMEOUT_MINUTES)
@@ -226,12 +226,12 @@ def _failure(plugin, outcome, reported: list[str]) -> str:
     process said and its exit code go to the log, never into the message."""
     if outcome.timed_out:
         minutes = round(timeout_seconds(plugin.manifest) / 60)
-        return f"{plugin.name} took longer than its {minutes} minute limit, so Clips Kitty stopped it."
+        return f"{plugin.name} took longer than its {minutes} minute limit, so VilloMillo stopped it."
     if reported:
         return f"{plugin.name} failed: {reported[-1]}"
     if outcome.exit_code is None:
         log.warning("%s %s could not be started: %s", plugin.id, plugin.version, outcome.error)
-        return f"Clips Kitty couldn't start {plugin.name}. {TRY_AGAIN}"
+        return f"VilloMillo couldn't start {plugin.name}. {TRY_AGAIN}"
     log.warning("%s %s stopped with exit code %s: %s", plugin.id, plugin.version, outcome.exit_code,
                 outcome.error)
     return f"{plugin.name} stopped before it finished. {TRY_AGAIN}"
@@ -354,7 +354,7 @@ def find_clips(choice: dict, *, video, segments, language: str, config: dict, da
         result = host.read_result(folder, duration=video.duration,
                                   max_clips=job["limits"]["max_clips"], steps=steps)
     except contract.ContractError as e:
-        raise PluginError(f"{plugin.name} gave an answer Clips Kitty can't use: {e}") from e
+        raise PluginError(f"{plugin.name} gave an answer VilloMillo can't use: {e}") from e
     if result.get("notes"):
         print(f"      [{plugin.id}] {result['notes']}")
     progress.emit(stage="analyze", video_id=video.video_id, fraction=1.0,
@@ -365,12 +365,12 @@ def find_clips(choice: dict, *, video, segments, language: str, config: dict, da
 # ---- a run that rates or understands the moments others found -------------------
 
 # Why a moment run didn't happen, in the creator's words (the video page
-# shows "Clips Kitty made these clips without {name}. {why}"). None names the
+# shows "VilloMillo made these clips without {name}. {why}"). None names the
 # plugin, and none asks for a bug report about someone else's plugin.
 _NOT_READY = {
     "missing": "It isn't installed any more.",
     "off": "It's turned off in Marketplace › Installed.",
-    "incompatible": "It can't run on this version of Clips Kitty.",
+    "incompatible": "It can't run on this version of VilloMillo.",
     "command": "Its files are damaged. Install it again.",
     "python": "It needs Python, and none was found on this PC.",
     "model": "A model it needs isn't on this PC. Get it in Marketplace › Installed.",
@@ -397,14 +397,14 @@ def _why_not_ready(e: PluginError, step: str) -> str:
         detail = getattr(cause, "detail", "") or str(cause or "")
         return _sentence(f"A setting chosen for it no longer fits: {detail.strip().rstrip('.')}")
     # A choice that isn't even shaped like one (a hand-written settings.yaml).
-    return _NOT_READY.get(e.code or "", "Clips Kitty couldn't read how it was chosen.")
+    return _NOT_READY.get(e.code or "", "VilloMillo couldn't read how it was chosen.")
 
 
 def _moment_failure(plugin: store.Installed, outcome, reported: list[str], timeout: float) -> PluginError:
     """A moment run that didn't end well: the log's message, and its `why`."""
     if outcome.timed_out:
         minutes = max(1, round(timeout / 60))
-        stopped = f"took longer than its {minutes} minute limit, so Clips Kitty stopped it."
+        stopped = f"took longer than its {minutes} minute limit, so VilloMillo stopped it."
         return PluginError(f"{plugin.name} {stopped}", why=f"It {stopped}")
     # The last error line it reported with words in it: a blank one (" ")
     # says nothing, and would read "It said: ." on the video page.
@@ -412,8 +412,8 @@ def _moment_failure(plugin: store.Installed, outcome, reported: list[str], timeo
     if said:
         return PluginError(f"{plugin.name} failed: {said}", why="It said: " + _sentence(said[:MAX_SAID]))
     if outcome.exit_code is None:
-        return PluginError(f"Clips Kitty couldn't start {plugin.name}: {outcome.error}",
-                           why="Clips Kitty couldn't start it.")
+        return PluginError(f"VilloMillo couldn't start {plugin.name}: {outcome.error}",
+                           why="VilloMillo couldn't start it.")
     return PluginError(f"{plugin.name} stopped with exit code {outcome.exit_code}: {outcome.error}",
                        why="It stopped before it finished.")
 
@@ -502,13 +502,13 @@ def answer_moments(choice, steps, moments: list[dict], *, video, segments, langu
         else:
             answers, ignored = host.read_answers(folder, steps=asked, ids=[m["id"] for m in moments])
     except contract.ContractError as e:
-        raise PluginError(f"{plugin.name} gave an answer Clips Kitty can't use: {e}",
-                          why="Clips Kitty couldn't use its answer.") from e
+        raise PluginError(f"{plugin.name} gave an answer VilloMillo can't use: {e}",
+                          why="VilloMillo couldn't use its answer.") from e
     except Exception as e:
         # Anything else reading it raised: still an answer that can't be used,
         # so this run is skipped and the job goes on without it.
-        raise PluginError(f"{plugin.name} gave an answer Clips Kitty couldn't read: {type(e).__name__}: {e}",
-                          why="Clips Kitty couldn't use its answer.") from e
+        raise PluginError(f"{plugin.name} gave an answer VilloMillo couldn't read: {type(e).__name__}: {e}",
+                          why="VilloMillo couldn't use its answer.") from e
     notes = _result_notes(folder)
     if notes:
         print(f"      [{plugin.id}] {notes}")

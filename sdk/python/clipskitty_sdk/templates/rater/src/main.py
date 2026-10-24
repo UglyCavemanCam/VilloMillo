@@ -1,7 +1,7 @@
-"""A Clips Kitty plugin that rates the moments others found, by the words said in them.
+"""A VilloMillo plugin that rates the moments others found, by the words said in them.
 
-Made from the rater template of the Clips Kitty SDK. It runs after the
-moments are found (by Clips Kitty, or a pipeline), when it is chosen under
+Made from the rater template of the VilloMillo SDK. It runs after the
+moments are found (by VilloMillo, or a pipeline), when it is chosen under
 Rate & understand, and is handed those moments:
 
 - a moment where one of the `good_words` is said gains `bonus` points (never
@@ -14,7 +14,7 @@ Scores decide which clips are made and their order. It reads only what is
 said: it doesn't see the screen, and it can't tell whether the words are
 about the moment.
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. To try it, run `python -m clipskitty_sdk run . --sample` in the
 plugin's folder (`py -m clipskitty_sdk` in PowerShell); it needs no FFmpeg.

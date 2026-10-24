@@ -278,7 +278,7 @@ def games_from_info(info: dict | None, platform: str) -> list[dict]:
 # ---- which yt-dlp this copy of the app is running ---------------------------
 #
 # Twitch, Kick and YouTube change something regularly, and yt-dlp fixes it
-# within days — but the copy inside Clips Kitty is frozen at build time
+# within days — but the copy inside VilloMillo is frozen at build time
 # (clips-studio.spec collects yt_dlp into the installer), so an installed app
 # can be carrying an extractor that was fixed upstream last week. The gap
 # shows up as a download that stopped working, and the failure itself never
@@ -372,20 +372,20 @@ def failure_note(error: BaseException) -> str | None:
     version = installed_version()
     if any(sign in text for sign in _EXTRACTOR_SIGNS):
         return (
-            f"Clips Kitty's bundled yt-dlp is {version}. This reads like a change on the "
+            f"VilloMillo's bundled yt-dlp is {version}. This reads like a change on the "
             f"site, which yt-dlp fixes within days — but the copy inside the app is fixed "
             f"at build time, so a newer yt-dlp may already have the fix: {_RELEASES}"
         )
     if any(sign in text for sign in _NETWORK_SIGNS):
         return (
-            f"Clips Kitty's bundled yt-dlp is {version}. This reads as the connection "
+            f"VilloMillo's bundled yt-dlp is {version}. This reads as the connection "
             f"failing rather than the app or the link, so a newer yt-dlp is very unlikely "
             f"to change it."
         )
     if any(sign in text for sign in _ACCESS_SIGNS):
         return (
-            f"Clips Kitty's bundled yt-dlp is {version}. This reads as the video's own "
+            f"VilloMillo's bundled yt-dlp is {version}. This reads as the video's own "
             f"access rules rather than the app, so a newer yt-dlp is very unlikely to "
             f"change it."
         )
-    return f"Clips Kitty's bundled yt-dlp is {version}."
+    return f"VilloMillo's bundled yt-dlp is {version}."

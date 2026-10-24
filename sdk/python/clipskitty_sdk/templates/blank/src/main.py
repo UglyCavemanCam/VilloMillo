@@ -1,11 +1,11 @@
-"""A Clips Kitty pipeline that will find moments in a video. It finds none yet.
+"""A VilloMillo pipeline that will find moments in a video. It finds none yet.
 
-This is the blank template of the Clips Kitty SDK: add your own checks in
-main(), in the marked block. Clips Kitty starts this file with a job folder;
+This is the blank template of the VilloMillo SDK: add your own checks in
+main(), in the marked block. VilloMillo starts this file with a job folder;
 to try it, run `python -m clipskitty_sdk run . --sample` in the plugin's
 folder (`py -m clipskitty_sdk` in PowerShell).
 
-Clips Kitty runs it on its own Python, which has the Python standard library
+VilloMillo runs it on its own Python, which has the Python standard library
 and clipskitty_sdk and nothing else, so import only those, at the top of the
 file. Open text files with encoding="utf-8".
 """

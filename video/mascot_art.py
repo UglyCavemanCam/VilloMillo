@@ -1,4 +1,4 @@
-"""Draw the Clips Kitty mascot. THIS MODULE IS THE SOURCE OF THE ARTWORK.
+"""Draw the VilloMillo mascot. THIS MODULE IS THE SOURCE OF THE ARTWORK.
 
 A cat-monkey. Cat's head and ears; monkey's heart-shaped face patch, long
 curling tail and little grabby hands. Dark navy fur from the dashboard

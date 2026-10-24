@@ -21,7 +21,7 @@ KEY_SECRET = "woopsocial_key"
 # A WoopSocial "project" is what their UI calls a Business Profile: the thing
 # connected social accounts belong to. Created on demand under this name so a
 # creator is never asked to invent one.
-DEFAULT_PROJECT_NAME = "Clips Kitty"
+DEFAULT_PROJECT_NAME = "VilloMillo"
 
 # The approved WoopSocial referral URL, shipped to everyone.
 #
@@ -29,7 +29,7 @@ DEFAULT_PROJECT_NAME = "Clips Kitty"
 # link users actually see has to live here, in the code that ships. Setting
 # it turns on the affiliate CTA and, with it, the disclosure that has to sit
 # beside it — the two are never shown apart.
-AFFILIATE_URL = "https://woopsocial.com/?via=clipskitty"
+AFFILIATE_URL = "https://woopsocial.com/"
 
 DEFAULTS = {
     "enabled": False,
@@ -311,14 +311,14 @@ def publish_clips(
 
     One post per clip, because each clip is different media. The spacing uses
     WoopSocial's own scheduler rather than a timer here, so a run stretching
-    over days keeps going with Clips Kitty closed.
+    over days keeps going with VilloMillo closed.
 
     `once` is for callers nobody is watching, which may run this again for the
     same clips after a restart or to retry failures. WoopSocial has no
     idempotency key, so the guard is here: a clip already sent or on its way to
     a platform is left alone, and each send is recorded as "sending" before any
     request goes out, then tagged with its media the moment the upload lands,
-    so reconcile_sending can settle it if Clips Kitty stops halfway. Without
+    so reconcile_sending can settle it if VilloMillo stops halfway. Without
     `once` nothing changes: a person pressing Publish again means it.
 
     `footer` goes under the standing text. `remember` keeps a background run
@@ -505,7 +505,7 @@ def publish_clips(
 
 
 def reconcile_sending(db, data_dir: Path, *, older_than: float = STALE_SENDING_SECONDS) -> dict:
-    """Settle posts Clips Kitty stopped in the middle of sending.
+    """Settle posts VilloMillo stopped in the middle of sending.
 
     A row still at "sending" long after any send could have finished means the
     app stopped between writing it and learning the result. Either the post
@@ -534,7 +534,7 @@ def reconcile_sending(db, data_dir: Path, *, older_than: float = STALE_SENDING_S
 
     publisher = None
     adopted = failed = 0
-    never_sent = "Clips Kitty stopped before this was sent. It is safe to send again."
+    never_sent = "VilloMillo stopped before this was sent. It is safe to send again."
     for (clip_id, media_id), group in groups.items():
         platforms = [r["platform"] for r in group]
         found = None

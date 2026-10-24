@@ -69,7 +69,7 @@ export default function NoClipsExplanation({ outcome, compact }: Props): JSX.Ele
           </p>
           <p className="text-muted">
             {t(
-              'Clips Kitty is tuned for IRL, just chatting, podcasts, vlogs and interviews. It is what it was built and tested on.'
+              'VilloMillo is tuned for IRL, just chatting, podcasts, vlogs and interviews. It is what it was built and tested on.'
             )}
           </p>
         </>

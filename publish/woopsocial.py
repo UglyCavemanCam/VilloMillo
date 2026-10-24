@@ -48,7 +48,7 @@ UPLOAD_TIMEOUT = 900
 SINGLE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 
 # Their platform identifiers are upper case. Mapped to the same lower-case
-# names Clips Kitty uses everywhere else, so the UI and the database do not
+# names VilloMillo uses everywhere else, so the UI and the database do not
 # have to care which provider delivered a post.
 PLATFORMS = {
     "youtube": "YOUTUBE",
@@ -122,7 +122,7 @@ def _safe_id(value: str) -> str:
 
 
 class WoopSocialClient:
-    """Everything Clips Kitty needs from the WoopSocial API.
+    """Everything VilloMillo needs from the WoopSocial API.
 
     The key is held here and never returned by any method, the same rule the
     Upload-Post client follows.
@@ -198,7 +198,7 @@ class WoopSocialClient:
             return json.loads(raw)
         except ValueError as e:
             raise WoopSocialError(
-                "WoopSocial sent a reply Clips Kitty could not read.", detail=raw[:200]
+                "WoopSocial sent a reply VilloMillo could not read.", detail=raw[:200]
             ) from e
 
     # ---- account -----------------------------------------------------------

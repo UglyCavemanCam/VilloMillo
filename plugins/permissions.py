@@ -1,7 +1,7 @@
 """What a plugin's manifest asks for, in the words the install screen uses.
 
 The labels and the enforced-or-declared split are the ones in
-docs/developers/permissions.md. "Enforced" means Clips Kitty decides what it
+docs/developers/permissions.md. "Enforced" means VilloMillo decides what it
 hands over (plugins/runner.py); "declared" means the developer states it and
 nothing stops the plugin doing otherwise, because a plugin runs with the
 user's own rights. Nothing here claims more than that. The person installing
@@ -13,17 +13,17 @@ from __future__ import annotations
 import sys
 
 NOTICE = "This pipeline is a program from the internet. It can do anything you can do on this PC."
-ENFORCED = "Clips Kitty hands this over"
+ENFORCED = "VilloMillo hands this over"
 DECLARED = "the developer says so"
 # What the two say, wherever they are shown (the Marketplace has the same words).
-ENFORCEMENT_NOTE = ("“Clips Kitty hands this over”: Clips Kitty decides what the pipeline is given. "
+ENFORCEMENT_NOTE = ("“VilloMillo hands this over”: VilloMillo decides what the pipeline is given. "
                     "“The developer says so”: a promise only. Nothing stops a pipeline doing more, because it "
                     "can do anything you can do on this PC.")
 
 LABELS = {
     "video.read": "Reads the video you process",
     "transcript.read": "Reads its transcript",
-    "ffmpeg": "Uses Clips Kitty's FFmpeg",
+    "ffmpeg": "Uses VilloMillo's FFmpeg",
     "ollama": "Uses your local AI model",
     "gpu": "Uses your graphics card",
     "network": "Connects to: {hosts}",
@@ -49,13 +49,13 @@ EXECUTION = {
 }
 
 # Where an installed plugin came from. "listed-official" and "listed" both
-# come from a catalog listing; the first is in one of the Clips Kitty
+# come from a catalog listing; the first is in one of the VilloMillo
 # project's own repositories (plugins/catalog.py OFFICIAL_OWNERS).
 TIERS = {
     "official": "Official",
-    "listed-official": "✓ Official · made by the Clips Kitty project",
+    "listed-official": "✓ Official · made by the VilloMillo project",
     "listed": "Community · not reviewed by a person",
-    "link": "Not listed · Clips Kitty has not checked this",
+    "link": "Not listed · VilloMillo has not checked this",
 }
 LISTED_TIERS = ("listed-official", "listed")
 
@@ -74,9 +74,9 @@ STEP_WORDS = {
 UNDERSTANDS_ITS_OWN = "Understands what it finds"
 # How long it may take, as the app stops it: rating or understanding the
 # moments, suggesting edits for the clips, or both.
-TIME_LIMIT = "Clips Kitty stops it after {n} {unit} when it rates or understands a video’s moments."
-TIME_LIMIT_EDITS = "Clips Kitty stops it after {n} {unit} when it suggests edits for a video’s clips."
-TIME_LIMIT_BOTH = ("Clips Kitty stops it after {n} {unit} when it rates or understands a video’s moments or "
+TIME_LIMIT = "VilloMillo stops it after {n} {unit} when it rates or understands a video’s moments."
+TIME_LIMIT_EDITS = "VilloMillo stops it after {n} {unit} when it suggests edits for a video’s clips."
+TIME_LIMIT_BOTH = ("VilloMillo stops it after {n} {unit} when it rates or understands a video’s moments or "
                    "suggests edits for its clips.")
 
 
@@ -141,7 +141,7 @@ def requirement_lines(manifest: dict) -> list[str]:
 
 def model_lines(manifest: dict) -> list[dict]:
     """The models it lists, as the manifest states them (Phase 9 adds what
-    is already installed and the sizes Clips Kitty can check)."""
+    is already installed and the sizes VilloMillo can check)."""
     out = []
     for m in manifest.get("models") or []:
         if isinstance(m, dict):
@@ -153,7 +153,7 @@ def model_lines(manifest: dict) -> list[dict]:
 def step_lines(manifest: dict) -> list[str]:
     """What it can be chosen for, in pill words: Finds moments (a pipeline),
     Understands moments and Rates moments (Rate & understand), Suggests edits
-    (for the clips Clips Kitty makes), or Understands what it finds (a
+    (for the clips VilloMillo makes), or Understands what it finds (a
     finder that describes its own moments)."""
     from plugins._sdk import manifest as vocabulary
 
@@ -205,7 +205,7 @@ def describe(manifest: dict, *, tier: str = "link") -> dict:
                      "required": bool(service.get("required"))} if service else None),
         "secrets": secret_settings,
         "secrets_notice": secrets_notice() if secret_settings else None,
-        "python_packages": ("This pipeline lists extra parts it needs. Clips Kitty can't download them yet, so it "
+        "python_packages": ("This pipeline lists extra parts it needs. VilloMillo can't download them yet, so it "
                             "runs without them and may not work."
                             if run.get("python_requirements") else None),
         "steps": step_lines(manifest),

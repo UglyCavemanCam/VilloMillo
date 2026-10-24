@@ -188,7 +188,7 @@ def install(app, *, config, db, data_dir, publish_worker=None) -> None:
     def connect(body: ConnectIn):
         """Hand back a hosted page for linking social accounts.
 
-        The renderer opens this in the real browser. Clips Kitty never sees a
+        The renderer opens this in the real browser. VilloMillo never sees a
         social password and runs no OAuth of its own — Upload-Post owns those
         connections, which is the point of using it.
         """

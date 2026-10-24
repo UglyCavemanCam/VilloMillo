@@ -48,7 +48,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
     from fastapi import FastAPI, Request
     from fastapi.responses import FileResponse, Response
 
-    app = FastAPI(title="Clips Kitty render gateway", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="VilloMillo render gateway", docs_url=None, redoc_url=None, openapi_url=None)
     results = Path(data_dir) / "remote_render" / "results"
     uploads = Path(data_dir) / "remote_render" / "uploads"
     assets_dir = Path(data_dir) / "branding" / "assets"
@@ -74,7 +74,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
         body = await request.json()
         caps = body.get("caps") or {}
         if int(caps.get("protocol") or 0) != protocol.PROTOCOL:
-            raise _no(409, "This render worker is a different version of Clips Kitty. Update both to the same version.")
+            raise _no(409, "This render worker is a different version of VilloMillo. Update both to the same version.")
         got = queue.redeem(str(body.get("code") or ""), str(body.get("name") or caps.get("name") or ""), caps)
         if got is None:
             raise _no(403, "That pairing code is wrong or has expired. Make a new one on the main PC.")

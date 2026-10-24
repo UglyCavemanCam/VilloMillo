@@ -2,7 +2,7 @@
 
 OpenRouter's flow, for people who have never made an API key: the app sends
 the user's own browser to openrouter.ai/auth with a code challenge; they sign
-in and approve Clips Kitty; OpenRouter sends the browser back to the app's
+in and approve VilloMillo; OpenRouter sends the browser back to the app's
 callback on this PC with a one-time code, and the app trades the code and its
 verifier for an API key of the user's own, which spends their OpenRouter
 credits (POST /auth/keys). No app secret and no registration: the verifier
@@ -24,7 +24,7 @@ from llm.providers.base import LLMError, ProviderSpec
 
 # What the key is called in the user's OpenRouter key list, so they can see
 # where it came from and revoke it there.
-KEY_LABEL = "Clips Kitty"
+KEY_LABEL = "VilloMillo"
 
 
 def pkce_pair() -> tuple[str, str]:

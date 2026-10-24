@@ -1,4 +1,4 @@
-"""An MCP server for Clips Kitty, spoken over stdio.
+"""An MCP server for VilloMillo, spoken over stdio.
 
 Lets Claude, ChatGPT, Cursor or any MCP client drive the engine in plain
 language: queue a stream, watch the job, read back the clips it chose, export
@@ -23,7 +23,7 @@ Run it:
     python main.py mcp                 # from a source checkout
     api.exe mcp                        # inside an installed build
 
-The engine has to be running: open Clips Kitty, or `python main.py serve`.
+The engine has to be running: open VilloMillo, or `python main.py serve`.
 """
 
 import json
@@ -44,7 +44,7 @@ METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 
 NOT_RUNNING = (
-    "Clips Kitty is not answering on {base}. Open the app, or start the engine "
+    "VilloMillo is not answering on {base}. Open the app, or start the engine "
     "on its own with: python main.py serve"
 )
 
@@ -433,7 +433,7 @@ def _export_clip(args: dict) -> str:
 def _engine_status(_args: dict) -> str:
     health = _request("GET", "/health", timeout=10.0)
     return (
-        f"Clips Kitty {health.get('app_version', '?')} is running at {api_base()} "
+        f"VilloMillo {health.get('app_version', '?')} is running at {api_base()} "
         f"(API v{health.get('api_version', '?')})."
     )
 
@@ -442,7 +442,7 @@ def _youtube_status(_args: dict) -> str:
     status = _request("GET", "/youtube/status")
     if not status.get("enabled"):
         return (
-            "YouTube publishing is switched off. Open Clips Kitty, go to Settings, and "
+            "YouTube publishing is switched off. Open VilloMillo, go to Settings, and "
             "turn on Publish to YouTube. It needs the user's own Google key, so this is "
             "not something to work around from here."
         )
@@ -460,7 +460,7 @@ def _uploadpost_status(_args: dict) -> str:
     status = _request("GET", "/uploadpost/status")
     if not status.get("enabled"):
         return (
-            "Multi-platform publishing is switched off. Open Clips Kitty, go to Settings, "
+            "Multi-platform publishing is switched off. Open VilloMillo, go to Settings, "
             "and turn on Publish to several platforms. It needs the user's own Upload-Post "
             "API key, so this is not something to work around from here."
         )
@@ -717,7 +717,7 @@ TOOLS: list[dict] = [
         "name": "youtube_status",
         "title": "Is YouTube connected",
         "description": (
-            "Whether Clips Kitty can publish to YouTube right now, which channel, and how "
+            "Whether VilloMillo can publish to YouTube right now, which channel, and how "
             "many uploads are left today. Check this before planning a batch."
         ),
         "inputSchema": {"type": "object", "properties": {}},
@@ -727,7 +727,7 @@ TOOLS: list[dict] = [
         "name": "woopsocial_status",
         "title": "Is WoopSocial publishing ready",
         "description": (
-            "Whether Clips Kitty can post to social platforms through the person's "
+            "Whether VilloMillo can post to social platforms through the person's "
             "WoopSocial account. Check this before offering to schedule anything."
         ),
         "inputSchema": {"type": "object", "properties": {}},
@@ -812,7 +812,7 @@ TOOLS: list[dict] = [
         "name": "uploadpost_status",
         "title": "Is multi-platform publishing ready",
         "description": (
-            "Whether Clips Kitty can publish to several platforms at once through the "
+            "Whether VilloMillo can publish to several platforms at once through the "
             "user's Upload-Post account, and which profile. Check this before offering to "
             "publish anywhere other than YouTube."
         ),
@@ -946,7 +946,7 @@ TOOLS: list[dict] = [
         "name": "queue_video",
         "title": "Clip a video or stream",
         "description": (
-            "Hand Clips Kitty a YouTube, Twitch or Kick link and it finds the moments worth "
+            "Hand VilloMillo a YouTube, Twitch or Kick link and it finds the moments worth "
             "posting, crops them to vertical and captions them, all on this computer. "
             "Returns a job id; processing a long stream takes a while."
         ),
@@ -1137,7 +1137,7 @@ TOOLS: list[dict] = [
     {
         "name": "list_videos",
         "title": "List processed videos",
-        "description": "Videos Clips Kitty has processed, newest first, with clip counts.",
+        "description": "Videos VilloMillo has processed, newest first, with clip counts.",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": _list_videos,
     },
@@ -1182,7 +1182,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "engine_status",
-        "title": "Is Clips Kitty running",
+        "title": "Is VilloMillo running",
         "description": "Whether the engine is up, and which version it is.",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": _engine_status,
@@ -1190,7 +1190,7 @@ TOOLS: list[dict] = [
 ]
 
 INSTRUCTIONS = (
-    "Clips Kitty turns long videos into short vertical clips, entirely on this computer. "
+    "VilloMillo turns long videos into short vertical clips, entirely on this computer. "
     "Queue work with queue_video or queue_local_file, follow it with job_status, then read "
     "the results with list_clips and export_clip. Processing a long stream takes tens of "
     "minutes, so never block on it: queue, then check back."
@@ -1252,7 +1252,7 @@ def handle(message: dict) -> dict | None:
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {
                 "name": "clips-kitty",
-                "title": "Clips Kitty",
+                "title": "VilloMillo",
                 "version": _app_version(),
             },
             "instructions": INSTRUCTIONS,

@@ -1,6 +1,6 @@
 # Clips Kitty Web
 
-A browser-only taster for [Clips Kitty](https://github.com/ColinGPT9/clips-studio).
+A browser-only taster for [Clips Kitty](https://github.com/UglyCavemanCam/VilloMillo).
 Point it at a recording, it finds the moments worth clipping and cuts them out
 as landscape MP4s.
 

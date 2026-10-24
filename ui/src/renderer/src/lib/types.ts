@@ -501,7 +501,7 @@ export interface JobOptions {
   /** The Sports toggle: the match is scored and framed as that sport. */
   sport?: SportOption
   /** A community pipeline from the Marketplace finds the moments instead of
-   *  Clips Kitty's own scoring (plugins/runner.py). Not with Sports, Gaming
+   *  VilloMillo's own scoring (plugins/runner.py). Not with Sports, Gaming
    *  scoring or Longform; layouts still apply. */
   pipeline?: PipelineChoice
   /** Rate & understand (plugins/steps.py): up to 3 Marketplace plugins each
@@ -787,7 +787,7 @@ export interface Settings {
   privacy: string
   content_language: string // 'auto' or ISO code (es / pt / hi / id ...)
   translation_model: string // local model used for translation ('' = the main one)
-  outro: boolean // append the Clips Kitty end card to each clip (clips.outro)
+  outro: boolean // append the VilloMillo end card to each clip (clips.outro)
   min_score: number // clips.min_score: clips scoring below it are dropped (0-100)
   youtube_cookies: '' | 'firefox' | 'file' // 'file': the cookies.txt kept in the data folder (#136)
 }

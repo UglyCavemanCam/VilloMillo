@@ -2,7 +2,7 @@
 
 Only where the provider officially lets a third-party app do it: through the
 provider's own documented SDK or sign-in flow, unmodified, with the sign-in
-held by that SDK and never seen by Clips Kitty. ChatGPT, through OpenAI's
+held by that SDK and never seen by VilloMillo. ChatGPT, through OpenAI's
 Codex, is the one that does today. Anthropic and Google do not allow their
 plans outside their own apps (docs/AI-BACKENDS.md has the sources), so they
 stay API key only.

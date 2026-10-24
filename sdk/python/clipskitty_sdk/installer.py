@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
 """The core of `python -m clipskitty_sdk install`: put a plugin you are
-writing into the Clips Kitty running on this PC, as Marketplace › Browse ›
+writing into the VilloMillo running on this PC, as Marketplace › Browse ›
 For developers does, from the command line.
 
     python -m clipskitty_sdk install FOLDER [--watch] [--yes] [--data-dir DIR] [--api http://127.0.0.1:8765]
@@ -9,17 +9,17 @@ For developers does, from the command line.
 In order, it:
 
 1. refuses development folders (.venv, venv, node_modules) and symbolic
-   links, which Clips Kitty would copy into every install or refuse, and warns
+   links, which VilloMillo would copy into every install or refuse, and warns
    about .clipskitty and big videos, which it would copy (development_files);
 2. checks the plugin as `validate` does, lint included;
-3. talks only to Clips Kitty on this PC (127.0.0.1, localhost or ::1), never
+3. talks only to VilloMillo on this PC (127.0.0.1, localhost or ::1), never
    through a proxy (_loopback);
-4. asks GET /health whether Clips Kitty is running, and GET /plugins whether it
+4. asks GET /health whether VilloMillo is running, and GET /plugins whether it
    can install plugins at all, before it looks for anything else;
-5. finds the session file Clips Kitty writes for scripts (session_file):
-   --data-dir, then the path Clips Kitty's own 403 answer names, then the
+5. finds the session file VilloMillo writes for scripts (session_file):
+   --data-dir, then the path VilloMillo's own 403 answer names, then the
    installed app's data folder;
-6. asks Clips Kitty for a plan (POST /plugins/plan), prints its install screen
+6. asks VilloMillo for a plan (POST /plugins/plan), prints its install screen
    as text, asks, and installs (POST /plugins/install).
 
 `--yes` skips the question only when nothing is new (nothing_new): the same
@@ -28,7 +28,7 @@ sent off the PC, change to where it runs, or step. `--watch` reinstalls on
 each save with the same check, and stops when a save adds something.
 
 The session secret is read from its file for each request, sent only in the
-X-Clips-Kitty-Session header to Clips Kitty on this PC, and never printed,
+X-Clips-Kitty-Session header to VilloMillo on this PC, and never printed,
 logged, written anywhere, or put in a command line or the environment. It
 keeps out web pages and scripts that don't know it, not programs running as
 you: any program running as the user can read its file, plugins included.
@@ -36,7 +36,7 @@ Only _call here sends that header. LocalAPI never does: plugins use LocalAPI,
 and a plugin must not install or remove plugins.
 
 Exit codes: 0 installed (or --watch stopped with Ctrl+C), 1 not installed
-(Clips Kitty refused it, the question was answered no, or --yes or --watch
+(VilloMillo refused it, the question was answered no, or --yes or --watch
 found something new), 2 it couldn't get as far as a plan. Standard library
 only.
 """
@@ -58,17 +58,17 @@ from . import _loopback, devrun
 from .manifest import validate_folder
 
 DEFAULT_API = "http://127.0.0.1:8765"
-# The header Clips Kitty's plugin manager asks for, and the file it writes the
-# secret to, inside its data folder (plugins/session.py in Clips Kitty).
+# The header VilloMillo's plugin manager asks for, and the file it writes the
+# secret to, inside its data folder (plugins/session.py in VilloMillo).
 HEADER = "X-Clips-Kitty-Session"
 SESSION_FILE = "session.secret"
 _SECRET_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,256}")
 # The root README's "From source" heading.
-FROM_SOURCE = "https://github.com/ColinGPT9/clips-studio#from-source"
+FROM_SOURCE = "https://github.com/UglyCavemanCam/VilloMillo#from-source"
 
-# Folders a developer's tools make, which Clips Kitty would copy into every install.
+# Folders a developer's tools make, which VilloMillo would copy into every install.
 DEV_FOLDERS = (".venv", "venv", "node_modules")
-# What Clips Kitty leaves out when it copies a plugin folder.
+# What VilloMillo leaves out when it copies a plugin folder.
 NOT_COPIED = (".git", "__pycache__")
 # Copied, though only there for development.
 DEV_ONLY = (".clipskitty",)
@@ -84,37 +84,37 @@ PLAN_TIMEOUT = 300.0
 _PROBE = {"plan_id": "0" * 16}
 
 QUESTION = "Install it? [y/N] "
-INSTALLED = "Installed {id} {version}. Choose it in Clips Kitty: Pipeline (to find moments) or Rate & understand."
+INSTALLED = "Installed {id} {version}. Choose it in VilloMillo: Pipeline (to find moments) or Rate & understand."
 REINSTALLED = "Reinstalled {id} {version} at {time}"
 NOT_INSTALLED = "Not installed."
 STOPPED = "Stopped watching."
 
-DEV_FOLDER = ("{name} is inside the plugin's folder, and Clips Kitty would copy it into every install. Move it next "
+DEV_FOLDER = ("{name} is inside the plugin's folder, and VilloMillo would copy it into every install. Move it next "
               "to the folder, then run this again.")
-COPIED = "{name} is inside the plugin's folder; Clips Kitty copies everything there except .git and __pycache__."
-LINK = "{path} is a symbolic link, and Clips Kitty refuses to install a folder that has one"
-OFF_THIS_PC = "install only talks to Clips Kitty on this PC (127.0.0.1, localhost or ::1)"
-NOT_RUNNING = "Clips Kitty isn't running: nothing answered at {api}. Open the app, then run this again."
-NOT_CLIPS_KITTY = "something answered at {api}, but not as Clips Kitty does: is --api right?"
+COPIED = "{name} is inside the plugin's folder; VilloMillo copies everything there except .git and __pycache__."
+LINK = "{path} is a symbolic link, and VilloMillo refuses to install a folder that has one"
+OFF_THIS_PC = "install only talks to VilloMillo on this PC (127.0.0.1, localhost or ::1)"
+NOT_RUNNING = "VilloMillo isn't running: nothing answered at {api}. Open the app, then run this again."
+NOT_CLIPS_KITTY = "something answered at {api}, but not as VilloMillo does: is --api right?"
 BAD_API = f"--api {{api}} isn't an address install can use: give one such as {DEFAULT_API}"
-CUT_OFF = "Clips Kitty's answer to {method} {path} stopped part way: is it still running?"
-TOO_OLD = ("This Clips Kitty ({app_version}) can't install plugins: it came out before plugin support. Use a newer "
-           f"Clips Kitty, or run it from source: {FROM_SOURCE}")
-NO_SESSION_FILE = ("couldn't find Clips Kitty's session file. Pass --data-dir with Clips Kitty's data folder (the one "
+CUT_OFF = "VilloMillo's answer to {method} {path} stopped part way: is it still running?"
+TOO_OLD = ("This VilloMillo ({app_version}) can't install plugins: it came out before plugin support. Use a newer "
+           f"VilloMillo, or run it from source: {FROM_SOURCE}")
+NO_SESSION_FILE = ("couldn't find VilloMillo's session file. Pass --data-dir with VilloMillo's data folder (the one "
                    "holding plugins/session.secret)")
-SESSION_REFUSED = ("Clips Kitty didn't accept the session file {path}: it may belong to another Clips Kitty, or one "
+SESSION_REFUSED = ("VilloMillo didn't accept the session file {path}: it may belong to another VilloMillo, or one "
                    "that has since restarted. Pass --data-dir with the data folder of the one that is running (the "
                    "one holding plugins/session.secret)")
 YES_REFUSED = ("--yes only skips the question when nothing is new; this adds: {new}. Run without --yes and answer "
                "the question.")
 WATCH_REFUSED = "Stopped watching: this change adds {new}. Run install again to see it and answer."
-APP_REFUSED = "Clips Kitty won't install it, for the reasons above"
+APP_REFUSED = "VilloMillo won't install it, for the reasons above"
 
 # What a plan's `update` says is new, in the order the install screen shows it.
 _NEW_LISTS = {"added_permissions": "permissions", "added_hosts": "network hosts",
               "added_data_warnings": "data sent off the PC", "added_steps": "steps"}
-FIRST_INSTALL = "a plugin that isn't installed in this Clips Kitty yet"
-UNSAID = "{what} (this Clips Kitty's plan doesn't say, so it counts as new)"
+FIRST_INSTALL = "a plugin that isn't installed in this VilloMillo yet"
+UNSAID = "{what} (this VilloMillo's plan doesn't say, so it counts as new)"
 
 
 class InstallRefused(Exception):
@@ -130,7 +130,7 @@ class InstallRefused(Exception):
 
 def _is_link(path: Path) -> bool:
     """A symbolic link, or a Windows junction (which Path.is_symlink doesn't
-    report before Python 3.12): Clips Kitty refuses both."""
+    report before Python 3.12): VilloMillo refuses both."""
     try:
         info = os.lstat(path)
     except OSError:
@@ -142,10 +142,10 @@ def _is_link(path: Path) -> bool:
 
 
 def development_files(folder: str | os.PathLike) -> list[str]:
-    """Check a plugin folder for what Clips Kitty shouldn't copy. Raises
+    """Check a plugin folder for what VilloMillo shouldn't copy. Raises
     InstallRefused for a development folder (.venv, venv, node_modules) or a
     symbolic link; returns a warning for .clipskitty and each video over 50
-    MB, which it would copy. Clips Kitty copies everything but .git and
+    MB, which it would copy. VilloMillo copies everything but .git and
     __pycache__, on every --watch save too."""
     folder = Path(folder)
     if _is_link(folder):
@@ -200,11 +200,11 @@ def _checked(folder: Path, err) -> Path:
     for line in devrun.report_lines(folder, report, manifest):
         _say(err, line)
     if not report.ok:
-        raise InstallRefused("fix the manifest first; Clips Kitty would refuse to install this plugin")
+        raise InstallRefused("fix the manifest first; VilloMillo would refuse to install this plugin")
     return folder
 
 
-# ---- talking to Clips Kitty -------------------------------------------------------------
+# ---- talking to VilloMillo -------------------------------------------------------------
 
 
 def _secret_in(path: Path) -> str:
@@ -220,7 +220,7 @@ def _secret_in(path: Path) -> str:
 
 def _call(api: str, method: str, path: str, body=None, secret: Path | None = None, *,
           timeout: float = HEALTH_TIMEOUT) -> tuple[int, object]:
-    """One request to Clips Kitty on this PC: (HTTP status, its JSON answer,
+    """One request to VilloMillo on this PC: (HTTP status, its JSON answer,
     or None). With `secret` (the session file), the secret read from it goes
     in the session header: the only place the SDK sends it. Every request goes
     through _loopback, so proxy settings never route it off this PC."""
@@ -243,7 +243,7 @@ def _call(api: str, method: str, path: str, body=None, secret: Path | None = Non
         status, raw = e.code, _error_body(e)
     except (urllib.error.URLError, OSError) as e:
         if isinstance(getattr(e, "reason", e), TimeoutError):
-            raise InstallRefused(f"Clips Kitty didn't answer {method} {path} within {timeout:g} seconds", 1) from None
+            raise InstallRefused(f"VilloMillo didn't answer {method} {path} within {timeout:g} seconds", 1) from None
         raise InstallRefused(NOT_RUNNING.format(api=api)) from None
     # http.client's own errors, which urllib passes on: an address it can't
     # use, an answer cut off part way, or one that isn't HTTP at all.
@@ -268,14 +268,14 @@ def _error_body(error: urllib.error.HTTPError) -> bytes:
 
 
 def _detail(answer) -> str:
-    """The message in a refusal's answer ({"detail": ...}, as Clips Kitty gives it)."""
+    """The message in a refusal's answer ({"detail": ...}, as VilloMillo gives it)."""
     if isinstance(answer, dict) and isinstance(answer.get("detail"), str):
         return answer["detail"]
     return "" if answer is None else json.dumps(answer)
 
 
 def can_install_plugins(api: str) -> str:
-    """Check that Clips Kitty is running at `api` and has plugin routes, and
+    """Check that VilloMillo is running at `api` and has plugin routes, and
     return its version. An app from before plugin support (2.0.0, say) answers
     404 to GET /plugins, which needs no secret, so this comes before any
     looking for the session file."""
@@ -287,7 +287,7 @@ def can_install_plugins(api: str) -> str:
     if status == 404:
         raise InstallRefused(TOO_OLD.format(app_version=version))
     if status != 200:
-        raise InstallRefused(f"Clips Kitty answered {status} to GET /plugins: {_detail(answer)}", 1)
+        raise InstallRefused(f"VilloMillo answered {status} to GET /plugins: {_detail(answer)}", 1)
     return version
 
 
@@ -316,17 +316,17 @@ def path_from_403(detail) -> Path | None:
 
 def installed_app_file() -> Path | None:
     """Where the installed app keeps its session file:
-    %LOCALAPPDATA%\\Clips Studio\\data\\plugins\\session.secret (the data
+    %LOCALAPPDATA%\\VilloMillo\\data\\plugins\\session.secret (the data
     folder kept its old name). None off Windows without LOCALAPPDATA."""
     base = os.environ.get("LOCALAPPDATA")
     if not base and sys.platform == "win32":
         base = str(Path.home() / "AppData" / "Local")
-    return Path(base) / "Clips Studio" / "data" / "plugins" / SESSION_FILE if base else None
+    return Path(base) / "VilloMillo" / "data" / "plugins" / SESSION_FILE if base else None
 
 
 def session_file(api: str, data_dir: str | os.PathLike | None = None) -> Path:
     """The session file to read the secret from: --data-dir's
-    plugins/session.secret, else the one Clips Kitty's 403 answer names
+    plugins/session.secret, else the one VilloMillo's 403 answer names
     (asked with no header, for a plan that doesn't exist), else the
     installed app's."""
     if data_dir:
@@ -349,8 +349,8 @@ def _refusal(status: int, answer, secret: Path, what: str) -> InstallRefused:
         return InstallRefused(SESSION_REFUSED.format(path=secret))
     detail = _detail(answer)
     if status in (400, 404, 409):
-        return InstallRefused(detail or f"Clips Kitty refused the {what} ({status})", 1)
-    return InstallRefused(f"Clips Kitty answered {status} to the {what}" + (f": {detail}" if detail else ""), 1)
+        return InstallRefused(detail or f"VilloMillo refused the {what} ({status})", 1)
+    return InstallRefused(f"VilloMillo answered {status} to the {what}" + (f": {detail}" if detail else ""), 1)
 
 
 def plan(api: str, folder: Path, secret: Path) -> dict:
@@ -363,7 +363,7 @@ def plan(api: str, folder: Path, secret: Path) -> dict:
 
 
 def install_plan(api: str, planned: dict, secret: Path) -> dict:
-    """POST /plugins/install for a plan: the installed plugin, as Clips Kitty lists it."""
+    """POST /plugins/install for a plan: the installed plugin, as VilloMillo lists it."""
     status, answer = _call(api, "POST", "/plugins/install", {"plan_id": planned.get("plan_id")}, secret,
                            timeout=PLAN_TIMEOUT)
     if status == 200 and isinstance(answer, dict):
@@ -375,7 +375,7 @@ def install_plan(api: str, planned: dict, secret: Path) -> dict:
 
 
 def plan_text(planned: dict) -> str:
-    """The plan's install screen as text: Clips Kitty's own (`text`), or for
+    """The plan's install screen as text: VilloMillo's own (`text`), or for
     an app that doesn't send it, the name, version, permissions, data
     warnings, errors and warnings."""
     text = planned.get("text")
@@ -396,7 +396,7 @@ def plan_text(planned: dict) -> str:
 
 def what_is_new(planned: dict) -> list[str]:
     """What a plan adds that the person installing hasn't agreed to yet, in
-    words; empty when nothing is. Clips Kitty's plan puts what an update
+    words; empty when nothing is. VilloMillo's plan puts what an update
     changes straight into `update` (added_permissions, added_hosts,
     added_data_warnings, execution_changed, added_steps). A first install
     (no `update`) is new, and so is a key the plan leaves out."""
@@ -532,7 +532,7 @@ def _watch(api: str, given: Path, folder: Path, secret: Path, *, out, err, sleep
 
 def run(folder, *, api: str = DEFAULT_API, data_dir=None, yes: bool = False, watch: bool = False, ask=None,
         out=None, err=None, sleep=None, interval: float = 1.0) -> int:
-    """`install`: check the folder, install it into the Clips Kitty on this
+    """`install`: check the folder, install it into the VilloMillo on this
     PC, and with `watch`, reinstall it on each save until a save adds
     something new or Ctrl+C. Returns the exit code."""
     out = out or sys.stdout

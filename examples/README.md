@@ -22,7 +22,7 @@ them under any licence.
 |---|---|
 | [`pipelines/scene-cut-highlights/`](pipelines/scene-cut-highlights/) | A pipeline that finds moments: loud stretches, each starting on a scene cut ([guide](../docs/developers/example-pipeline.md)) |
 | [`pipelines/keyword-rater/`](pipelines/keyword-rater/) | A plugin that rates and understands moments others found: it raises a moment's score and notes the word when the commentary says one of your words ([guide](../docs/developers/steps.md)) |
-| [`pipelines/transcript-highlights/`](pipelines/transcript-highlights/) | Clips Kitty's own transcript scorer through the plugin contract. It imports Clips Kitty's internals, so it is not one to copy |
+| [`pipelines/transcript-highlights/`](pipelines/transcript-highlights/) | VilloMillo's own transcript scorer through the plugin contract. It imports VilloMillo's internals, so it is not one to copy |
 
 Try one without the app, with `sdk/python` on `PYTHONPATH`:
 
@@ -79,7 +79,7 @@ python examples/drive_the_api.py --file "D:/footage/stream.mp4"
 
 It submits the job, follows progress over the WebSocket, and lists the
 clips. Nothing in it is privileged. The Electron UI makes the same calls.
-If you want Clips Kitty to do something on a schedule, or from a bot, or
+If you want VilloMillo to do something on a schedule, or from a bot, or
 across a folder of old VODs, this file is the starting point.
 
 ## Writing your own

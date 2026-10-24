@@ -56,7 +56,7 @@ const SESSION_SECRET = process.env.CLIPS_KITTY_SESSION_SECRET || randomBytes(32)
 //
 // Off by default, and while it is off nothing below changes anything: closing
 // the window quits, exactly as it always has. It exists for people who leave
-// Clips Kitty on a spare PC to watch channels (server/automation.py), where
+// VilloMillo on a spare PC to watch channels (server/automation.py), where
 // closing the window must not stop the watching.
 
 let mainWindow: BrowserWindow | null = null
@@ -99,13 +99,13 @@ async function ensureTray(): Promise<void> {
     .catch(() => nativeImage.createEmpty())
   if (tray) return // a second close raced this one
   tray = new Tray(icon)
-  tray.setToolTip('Clips Kitty: watching for new videos')
+  tray.setToolTip('VilloMillo: watching for new videos')
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Open Clips Kitty', click: showWindow },
+      { label: 'Open VilloMillo', click: showWindow },
       { type: 'separator' },
       // before-quit asks first if a model is downloading.
-      { label: 'Quit Clips Kitty', click: () => app.quit() }
+      { label: 'Quit VilloMillo', click: () => app.quit() }
     ])
   )
   tray.on('click', showWindow)
@@ -159,7 +159,7 @@ async function confirmQuit(parent: BrowserWindow | null): Promise<boolean> {
     buttons: ['Quit anyway', 'Keep downloading'],
     defaultId: 1,
     cancelId: 1,
-    title: 'Clips Kitty',
+    title: 'VilloMillo',
     message: 'A model is still downloading. Quit anyway?',
     // Nothing starts it again by itself: the engine forgets its downloads
     // when it stops. Started again, it carries on rather than starting over
@@ -205,7 +205,7 @@ function openOllamaLog(dir: string): number | null {
     const fd = openSync(join(dir, 'ollama.log'), 'a')
     ollamaLogDir = dir
     try {
-      writeSync(fd, `\n--- ${new Date().toISOString()} Clips Kitty started Ollama ---\n`)
+      writeSync(fd, `\n--- ${new Date().toISOString()} VilloMillo started Ollama ---\n`)
     } catch {
       // Only a marker between runs; the log works without it.
     }
@@ -218,7 +218,7 @@ function openOllamaLog(dir: string): number | null {
 /** Start the Ollama runtime that ships inside the app.
  *
  *  Packaged builds carry their own copy (see scripts/fetch_ollama.py) so that
- *  installing Clips Kitty installs everything Clips Kitty needs. In a
+ *  installing VilloMillo installs everything VilloMillo needs. In a
  *  checkout there is nothing to start: a developer already has Ollama on its
  *  default port, and the engine falls back to that because startBackend only
  *  overrides the host when packaged.
@@ -235,20 +235,20 @@ function startOllama(): void {
   // in core/paths.py, or the engine and the runtime disagree about what is
   // downloaded.
   const localAppData = process.env.LOCALAPPDATA ?? join(app.getPath('home'), 'AppData', 'Local')
-  const dataDir = join(localAppData, 'Clips Studio', 'data')
-  // The 1.1.3 rename (d708b34) moved this folder to "Clips Kitty" while
-  // core/paths.py rightly kept the data folder at "Clips Studio", so the two
+  const dataDir = join(localAppData, 'VilloMillo', 'data')
+  // The 1.1.3 rename (d708b34) moved this folder to "VilloMillo" while
+  // core/paths.py rightly kept the data folder at "VilloMillo", so the two
   // stopped matching: models from earlier versions were stranded and fetched
   // again. Keep whichever folder already holds models, so 1.1.3 and 1.1.4
   // installs keep theirs; otherwise use the data folder's own name.
-  const kittyModels = join(localAppData, 'Clips Kitty', 'data', 'models')
+  const kittyModels = join(localAppData, 'VilloMillo', 'data', 'models')
   const models = existsSync(join(kittyModels, 'manifests')) ? kittyModels : join(dataDir, 'models')
 
   // Unfinished downloads kept for resuming (OLLAMA_NOPRUNE below) that have
   // sat untouched for a week are deleted first, while Ollama isn't running.
   const dropped = dropStalePartials(models)
 
-  // Ollama's own output goes to %LOCALAPPDATA%\Clips Studio\data\logs\ollama.log,
+  // Ollama's own output goes to %LOCALAPPDATA%\VilloMillo\data\logs\ollama.log,
   // the default data folder's logs. A data_dir set in settings.yaml moves the
   // job logs but not this file. It used to go nowhere, so a download that
   // failed inside Ollama left nothing to read.
@@ -420,7 +420,7 @@ function createWindow(): void {
           if (!toldAboutTray && Notification.isSupported()) {
             toldAboutTray = true
             new Notification({
-              title: 'Clips Kitty is still watching',
+              title: 'VilloMillo is still watching',
               body: 'It keeps running in the system tray. Quit it from the tray icon.'
             }).show()
           }
@@ -655,7 +655,7 @@ const EXTERNAL_ALLOWED = [
   /^https:\/\/chatgpt\.com\/codex\/settings\/usage$/,
   /^https:\/\/learn\.chatgpt\.com\/docs\//,
   /^https:\/\/code\.claude\.com\/docs\//,
-  /^https:\/\/github\.com\/ColinGPT9\/clips-studio(\/|$)/,
+  /^https:\/\/github\.com\/(ColinGPT9\/clips-studio|UglyCavemanCam\/VilloMillo)(\/|$)/,
   // YouTube publishing: the setup wizard sends people to Cloud Console and
   // the audit form, and a published clip links to its own watch/Studio page.
   /^https:\/\/console\.cloud\.google\.com\//,
@@ -777,19 +777,19 @@ async function openAfterAsking(event: IpcMainInvokeEvent, url: unknown, from: st
 }
 
 ipcMain.handle('open-plugin-link', (event, url: unknown) =>
-  openAfterAsking(event, url, "This link comes from the pipeline's developer, not from Clips Kitty.")
+  openAfterAsking(event, url, "This link comes from the pipeline's developer, not from VilloMillo.")
 )
 
-// An Awesome Clips Kitty entry's download page or home. The renderer says
-// whether the entry came from one of Clips Kitty's own lists (the one that
+// An Awesome VilloMillo entry's download page or home. The renderer says
+// whether the entry came from one of VilloMillo's own lists (the one that
 // came with the app or its online copy) or from another list.
 ipcMain.handle('open-catalog-link', (event, url: unknown, ours: unknown) =>
   openAfterAsking(
     event,
     url,
     ours === true
-      ? "This link is in Clips Kitty's list. It opens a website outside Clips Kitty."
-      : "This link is in a list that isn't Clips Kitty's. It opens a website outside Clips Kitty."
+      ? "This link is in VilloMillo's list. It opens a website outside VilloMillo."
+      : "This link is in a list that isn't VilloMillo's. It opens a website outside VilloMillo."
   )
 )
 
@@ -812,12 +812,12 @@ ipcMain.handle('pick-folder', async () => {
   return result.canceled ? null : result.filePaths[0]
 })
 
-// One Clips Kitty at a time. A second launch used to start a second engine
+// One VilloMillo at a time. A second launch used to start a second engine
 // that could not bind port 8765 and a window talking to the first one's; with
 // the window hidden in the tray it would look like the app had not started at
 // all. Now it brings the running one forward instead.
 if (!app.requestSingleInstanceLock()) {
-  // Nothing to ask: a download the engine reports belongs to the Clips Kitty
+  // Nothing to ask: a download the engine reports belongs to the VilloMillo
   // already running, which carries on.
   quitting = true
   app.quit()

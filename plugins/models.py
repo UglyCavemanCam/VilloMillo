@@ -1,14 +1,14 @@
 """Model references: what a plugin's manifest lists under `models:`, where each
-one is on this PC, and fetching the ones Clips Kitty downloads.
+one is on this PC, and fetching the ones VilloMillo downloads.
 
 Four sources (docs/developers/model-references.md):
 
     huggingface  owner/name at a 40-character commit, the files listed
     url          one file at an https address, checked against its SHA-256
     ollama       name:tag in Ollama's own store, read through its API
-    bundled      a model that ships with Clips Kitty (Whisper, YOLO pose, PANNs)
+    bundled      a model that ships with VilloMillo (Whisper, YOLO pose, PANNs)
 
-Files Clips Kitty downloads go in one folder shared by every plugin,
+Files VilloMillo downloads go in one folder shared by every plugin,
 <data_dir>/plugin-models/:
 
     huggingface/models--<owner>--<name>/blobs/<sha256>             the bytes, once
@@ -28,7 +28,7 @@ Ollama's models stay in Ollama's store and the app's own models stay where the
 app keeps them: this module reads those, it never copies them. It never sets
 HF_HUB_CACHE or anything else for the engine.
 
-Clips Kitty never loads a plugin's model. It hands the plugin the paths
+VilloMillo never loads a plugin's model. It hands the plugin the paths
 (job.json "models", see plugins/runner.py); loading is the plugin's job, in
 its own process, because loading some formats runs code.
 """
@@ -63,7 +63,7 @@ CHUNK = 1024 * 1024
 SOURCES = manifest.MODEL_SOURCES
 PICKLE_SUFFIXES = manifest.PICKLE_SUFFIXES
 GATED = ("Its makers share this model only with people who sign in to Hugging Face and are given access. "
-         "Clips Kitty can't sign in to Hugging Face for you yet.")
+         "VilloMillo can't sign in to Hugging Face for you yet.")
 OLLAMA_MODELS = "Models that run in Ollama are downloaded on the Models page"
 
 _lock = threading.Lock()
@@ -168,7 +168,7 @@ def target_path(data_dir, ref: dict, file: str) -> Path:
         if not ref["sha256"] or not re.match(r"^[0-9a-f]{64}$", ref["sha256"]):
             raise ModelError(f"{ref['id']}: a url model needs its SHA-256")
         return root(data_dir) / "files" / ref["sha256"] / _url_file_name(ref["id"])
-    raise ModelError(f"Clips Kitty doesn't download {ref['source']} models")
+    raise ModelError(f"VilloMillo doesn't download {ref['source']} models")
 
 
 # ---- the shared index ----------------------------------------------------------------------
@@ -251,23 +251,23 @@ def _ollama_match(model_id: str, installed: list[dict], digest: str | None) -> d
 
 def status(data_dir, ref: dict, *, ollama: list[dict] | None = None, bundled=_bundled_path) -> dict:
     """Where a reference is on this PC. `installed` is True, False, or None when
-    Clips Kitty can't tell (Ollama not reachable). `ollama` is Ollama's model
+    VilloMillo can't tell (Ollama not reachable). `ollama` is Ollama's model
     list (ollama_models()), or None when it couldn't be read."""
     out = {**ref, "installed": False, "path": None, "files_status": [], "store": "", "link": None,
            "pickle_files": [f for f in ref["files"] if is_pickle(f)], "shared_with": [], "note": ""}
     source = ref["source"]
     if source == "bundled":
         path = bundled(ref["id"])
-        out.update(store="ships with Clips Kitty", installed=bool(path), path=path)
+        out.update(store="ships with VilloMillo", installed=bool(path), path=path)
         if not path:
-            out["note"] = (f"{ref['id']} is not a model this copy of Clips Kitty has"
+            out["note"] = (f"{ref['id']} is not a model this copy of VilloMillo has"
                            if not ref["id"].startswith("whisper:") and ref["id"] not in BUNDLED_IDS
                            else f"this install doesn't carry {ref['id']}")
         return out
     if source == "ollama":
         out["store"] = "Ollama"
         if ollama is None:
-            out.update(installed=None, note="Ollama isn't reachable, so Clips Kitty can't tell")
+            out.update(installed=None, note="Ollama isn't reachable, so VilloMillo can't tell")
             return out
         match = _ollama_match(ref["id"], ollama, ref["revision"])
         out["installed"] = match is not None
@@ -281,7 +281,7 @@ def status(data_dir, ref: dict, *, ollama: list[dict] | None = None, bundled=_bu
         return out
 
     index = load_index(data_dir)
-    out["store"] = "Clips Kitty's shared model folder"
+    out["store"] = "VilloMillo's shared model folder"
     total, known = 0, True
     for file in ref["files"]:
         try:
@@ -289,7 +289,7 @@ def status(data_dir, ref: dict, *, ollama: list[dict] | None = None, bundled=_bu
         except ModelError as e:
             # Said in our own words: what the error says goes to the log.
             log.warning("%s of %s has no place in the model folder: %s", file, ref["id"], e)
-            out["note"] = (f"{file} can't be kept in Clips Kitty's model folder: the pipeline lists it "
+            out["note"] = (f"{file} can't be kept in VilloMillo's model folder: the pipeline lists it "
                            "wrongly. Ask the pipeline's developer.")
             out["files_status"].append({"file": file, "installed": False, "path": None, "size": None})
             continue
@@ -448,7 +448,7 @@ def plan(data_dir, ref: dict, *, fetch_json=get_json, ollama: list[dict] | None 
            "download_bytes": 0, "size_known": True, "pickle_files": st["pickle_files"], "problem": None}
     if ref["source"] in ("ollama", "bundled"):
         out["problem"] = (f"{OLLAMA_MODELS}: download {ref['id']} there." if ref["source"] == "ollama"
-                          else "it ships with Clips Kitty; nothing to download")
+                          else "it ships with VilloMillo; nothing to download")
         return out
     hub = hub_info(ref, fetch_json=fetch_json) if ref["source"] == "huggingface" else {"files": {}}
     if hub.get("license") and not out["license"]:
@@ -488,7 +488,7 @@ def download(data_dir, ref: dict, *, fetcher=fetch_https, fetch_json=get_json, a
     if ref["source"] == "ollama":
         raise ModelError(f"{ref['name']}: {OLLAMA_MODELS}.")
     if ref["source"] not in ("huggingface", "url"):
-        raise ModelError(f"{ref['name']}: Clips Kitty doesn't download {ref['source']} models")
+        raise ModelError(f"{ref['name']}: VilloMillo doesn't download {ref['source']} models")
     pickles = [f for f in ref["files"] if is_pickle(f)]
     if pickles and not allow_pickle:
         raise ModelError(f"{ref['name']}: {', '.join(pickles)} is in a pickle format, which can run code when it "
@@ -575,7 +575,7 @@ def _failed(ref: dict, item: dict, error: BaseException, *, saving: bool = False
                 else f" (the model is {size_text(ref['size_bytes'])})" if ref.get("size_bytes") else "")
         return ModelError(f"Couldn't save {file}: this PC's disk is full{need}. Free up some space and try again.")
     if saving or isinstance(error, PermissionError):
-        return ModelError(f"Couldn't save {file} in Clips Kitty's model folder. {sources.TRY_AGAIN}")
+        return ModelError(f"Couldn't save {file} in VilloMillo's model folder. {sources.TRY_AGAIN}")
     if kind == sources.OFFLINE:
         return ModelError(f"Couldn't download {file}. Check your internet connection and try again.")
     if kind == sources.GONE:
@@ -603,7 +603,7 @@ def for_job(data_dir, data: dict, *, ollama_host: str | None = None, fetch_json=
             if ref["source"] == "ollama":
                 missing.append(f"{model} isn't downloaded yet. Download {ref['id']} on the Models page.")
             elif ref["source"] == "bundled":
-                missing.append(f"{model} isn't part of this copy of Clips Kitty.")
+                missing.append(f"{model} isn't part of this copy of VilloMillo.")
             elif ref["gated"]:  # no Download button for it (plan()'s problem is GATED)
                 where = " on Hugging Face" if ref["source"] == "huggingface" else ""
                 missing.append(f"{model} is shared only with people its makers give access to{where}, so Clips "

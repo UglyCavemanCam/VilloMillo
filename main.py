@@ -198,9 +198,9 @@ def main() -> int:
     p_models.add_argument("model", nargs="?", help="Ollama model tag, e.g. gemma3:12b")
 
     # Remote rendering (remote_render/): this PC renders clips for another
-    # Clips Kitty. Headless on an always-on box, or started by the desktop
+    # VilloMillo. Headless on an always-on box, or started by the desktop
     # app when "Use this PC as a render worker" is on.
-    p_rw = sub.add_parser("render-worker", help="Render clips for another Clips Kitty (remote rendering)")
+    p_rw = sub.add_parser("render-worker", help="Render clips for another VilloMillo (remote rendering)")
     p_rw.add_argument("--pair", nargs=2, metavar=("MAIN_PC", "CODE"),
                       help="pair with a main PC first: its address (host:port) and the code it shows")
     p_rw.add_argument("--run-job", type=Path, help=argparse.SUPPRESS)  # one job, in a child process

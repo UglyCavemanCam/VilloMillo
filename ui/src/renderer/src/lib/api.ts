@@ -719,7 +719,7 @@ export const api = {
   deleteUploadPostKey: () =>
     request<UploadPostStatus & { removed: boolean }>('/uploadpost/key', { method: 'DELETE' }),
   /** A hosted Upload-Post page for linking social accounts, good for 48 hours.
-   *  Opened in the real browser — Clips Kitty never sees a social password. */
+   *  Opened in the real browser — VilloMillo never sees a social password. */
   uploadPostConnect: (username?: string) =>
     request<{ url: string; expires_hours: number; profile: string }>('/uploadpost/connect', {
       method: 'POST',

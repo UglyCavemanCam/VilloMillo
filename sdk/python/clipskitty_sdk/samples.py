@@ -42,7 +42,7 @@ SCENE_CUTS = (10.0, 20.0, 30.0)
 # What `run --sample` says it hands over.
 SAMPLE_NOTE = ('a 40-second test video with a red banner at the top and a loud sound from 22 to 27 s, '
                'and a transcript that says "quark burst" there')
-# Where an installed Clips Kitty keeps its FFmpeg (ui/electron-builder.yml
+# Where an installed VilloMillo keeps its FFmpeg (ui/electron-builder.yml
 # puts the frozen engine in resources/backend; clips-studio.spec puts FFmpeg
 # in its _internal/ffmpeg folder).
 INSTALLED_FFMPEG = r"resources\backend\_internal\ffmpeg inside the folder it was installed to"
@@ -175,7 +175,7 @@ def make_sample(out: Path, ffmpeg: str) -> tuple[Path, Path]:
 
 def plugin_folder_holding(path: Path) -> Path | None:
     """The plugin folder (one holding clipskitty.yaml) that `path` would be
-    written into, at or above its folder, or None. Clips Kitty copies
+    written into, at or above its folder, or None. VilloMillo copies
     everything in a plugin's folder when it installs it, so test media
     doesn't belong there."""
     folder = Path(path).resolve().parent

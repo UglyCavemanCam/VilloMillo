@@ -36,7 +36,7 @@ TIMEOUT = 10
 # Shown to creators, through the screen's translations (ui/src/renderer/src/locales/*.json): a
 # change here needs the same key changed in every locale file.
 EXPLAIN = ("Each install from the Marketplace adds one to a public count for that pipeline, kept by GitHub. "
-           "Clips Kitty sends no account, no ID and nothing about your videos; GitHub sees the request as it "
+           "VilloMillo sends no account, no ID and nothing about your videos; GitHub sees the request as it "
            "sees any download.")
 
 

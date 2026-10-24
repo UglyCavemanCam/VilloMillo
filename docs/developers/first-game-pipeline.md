@@ -16,13 +16,13 @@ Every command is shown twice: for PowerShell on Windows (`py -m clipskitty_sdk`)
 PowerShell:
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 ```
 
 bash:
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 ```
 
 `yaml` adds PyYAML, which reads `clipskitty.yaml`; `test` adds pytest, for your plugin's tests. Check it with `py -m clipskitty_sdk --version` (bash: `python -m clipskitty_sdk --version`), which prints `clipskitty-sdk 1.2.0 (plugin contract 1)`.
@@ -47,7 +47,7 @@ python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publishe
 Made quarkbloom-bursts from the game-events template.
 Next: python -m clipskitty_sdk run quarkbloom-bursts --sample
 Then change clipskitty.yaml, src/main.py and README.md for your game:
-https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/first-game-pipeline.md
+https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/first-game-pipeline.md
 ```
 
 Put your own GitHub name, in lower case, in place of `your-github-name`: it becomes the publisher in the plugin's id, `your-github-name/quarkbloom-bursts`. On Windows the Next line may say `py -m clipskitty_sdk`: it names the Python that ran `new`. `new --list` shows the other templates: `blank`, `transcript`, `rater`, `understander` and `editor`.

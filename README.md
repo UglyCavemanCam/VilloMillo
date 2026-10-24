@@ -6,28 +6,9 @@
 
 # VilloMillo: the free, open-source Opus Clip alternative for chatting, gaming and sports, on your own PC
 
-> **VilloMillo is a fork of [Clips Kitty](https://github.com/ColinGPT9/clips-studio)** (commit `92f72a8`, 2.1.0), by ColinGPT9, licensed AGPL-3.0. The original licence, copyright notices and credits are kept. Most of the code below still says Clips Kitty until the rename is finished.
+> **VilloMillo is a fork of [VilloMillo](https://github.com/UglyCavemanCam/VilloMillo)** (commit `92f72a8`, 2.1.0), by ColinGPT9, licensed AGPL-3.0. The original licence, copyright notices and credits are kept. Most of the code below still says VilloMillo until the rename is finished.
 
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="Get Clips Kitty from the Microsoft Store" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
-[![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/ColinGPT9/clips-studio/releases)
-[![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](LICENSE)
-[![Stars](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars)](https://github.com/ColinGPT9/clips-studio/stargazers)
-[![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
-[![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](docs/DOCKER.md)
-
-<a href="https://youtu.be/g1dMqrq-YaI"><img src="https://github.com/user-attachments/assets/2a1bdd85-723e-46d6-b74b-00579c71b6a7" alt="Clips Kitty turning an NBA broadcast into a 9:16 clip that follows the ball" width="100%"></a>
-
-### Star and share Clips Kitty ⭐ Goal: 150
-
-[![Stars so far](https://badgen.net/github/stars/ColinGPT9/clips-studio?label=stars%20so%20far&color=0969da&scale=1.6)](https://github.com/ColinGPT9/clips-studio/stargazers) **of 150**
+<a href="https://youtu.be/g1dMqrq-YaI"><img src="https://github.com/user-attachments/assets/2a1bdd85-723e-46d6-b74b-00579c71b6a7" alt="VilloMillo turning an NBA broadcast into a 9:16 clip that follows the ball" width="100%"></a>
 
 **Please star the repo and share it.** It costs you nothing, and there is no
 marketing budget behind this, so word of mouth is the only way the next small
@@ -38,13 +19,10 @@ options or an editor. It is a free Opus Clip, Vizard and Klap alternative that
 runs **Google Gemma** on your own PC: no server cost, no per-clip fee, no AI
 usage fee.
 
-> **Clips Kitty was called Clips Studio until version 1.1.3**, renamed to meet
-> Microsoft Store naming requirements. Same app, same repository, same data.
-
 <img src="docs/brand/mascot.png" alt="" width="150" align="right">
 
 **Turn long streams and videos into ready-to-post Shorts, Reels, and TikToks,
-entirely on your own machine.** Clips Kitty is a free, open-source AI clip generator
+entirely on your own machine.** VilloMillo is a free, open-source AI clip generator
 and video editor for creators: paste a YouTube, Twitch, or Kick link and it finds the
 best moments, crops them to 9:16 with the speaker kept centred, burns in word-synced
 captions, and writes titles, descriptions, and hashtags.
@@ -71,7 +49,7 @@ needed elsewhere. This runs on hardware you already own, so it costs nothing to 
 there is no cap on how many clips you make.
 
 <img src="docs/store-screenshots/fs-dashboard-202754.png" width="100%"
-     alt="The Clips Kitty dashboard: paste a YouTube, Twitch or Kick URL, pick caption and
+     alt="The VilloMillo dashboard: paste a YouTube, Twitch or Kick URL, pick caption and
           format options, and a finished video row showing 38 clips produced in 19m 38s,
           with live CPU, RAM, GPU and storage readouts beside it.">
 
@@ -107,7 +85,7 @@ there is no cap on how many clips you make.
 
 ## What it does
 
-You give Clips Kitty a long video. It gives you back a folder of finished vertical
+You give VilloMillo a long video. It gives you back a folder of finished vertical
 clips you can post, plus a studio to review and fix them before you do.
 
 It is built for the content most clipping tools handle worst: **live streams, IRL and
@@ -116,13 +94,13 @@ videos where the good moments are buried and a transcript alone won't find them.
 
 ## How it compares to Opus Clip, Klap, Vizard and CapCut
 
-Clips Kitty is an open-source alternative to cloud clipping tools. The difference that
+VilloMillo is an open-source alternative to cloud clipping tools. The difference that
 matters is where the work happens: your video is never uploaded, so there is nothing to
 meter and nothing to charge for.
 
 | Tool | Price, billed monthly | Free tier | Finds the clips for you | Watermark | Uploads your video | Open source |
 | ---- | --------------------- | --------- | ----------------------- | --------- | ------------------ | ----------- |
-| **Clips Kitty** | Free, no paid tier | The whole app | Yes | Never | No, runs on your PC | Yes, AGPL-3.0 |
+| **VilloMillo** | Free, no paid tier | The whole app | Yes | Never | No, runs on your PC | Yes, AGPL-3.0 |
 | Opus Clip | $15 Starter, $29 Pro | 1080p, watermarked, expires in 3 days | Yes | On the free tier | Yes | No |
 | Klap | $29 Pro, $14 Basic billed yearly | One video | Yes | Not stated | Yes | No |
 | Vizard | $29 Creator, $14.50 billed yearly | 60 credits a month, 720p | Yes | On the free tier | Yes | No |
@@ -133,13 +111,11 @@ meter and nothing to charge for.
 
 **CapCut is the one worth understanding**, because it is the free answer everyone gives.
 It is a good editor and it costs nothing, but you find every moment and crop every clip
-yourself. Clips Kitty is also free, and that first pass is the part it does for you.
+yourself. VilloMillo is also free, and that first pass is the part it does for you.
 
 **Opus Clip, Klap or Vizard are the better choice** if you don't have a Windows PC with a
-graphics card, you clip occasionally, or you need to work from a phone. Clips Kitty is
+graphics card, you clip occasionally, or you need to work from a phone. VilloMillo is
 built for clipping at volume on hardware you already own.
-
-**[Full comparison of all seven, with what each one is best at](https://colingpt9.github.io/clips-studio/alternatives.html)**
 
 <sub>Prices checked on each company's own pricing page, 17 September 2026. CapCut
 publishes no pricing page we could read, so no price is quoted for it. Plans change; this
@@ -247,7 +223,7 @@ through Ollama.
   before export. With two people talking, the second speaker's captions can take
   another colour, and one it gets wrong can be switched by hand.
 - **AI edit chat**: describe what's wrong in plain language and it re-edits.
-- **Ask Clips Kitty**: the text box at the bottom of the dashboard. Say what you want in
+- **Ask VilloMillo**: the text box at the bottom of the dashboard. Say what you want in
   a sentence, such as *"clip this stream, make sure you include when I died to the boss,
   with big yellow captions"*, and it queues the video, tells the clip picker what to look
   for and sets the options you named. **It needs a Gemma 4 model**: see
@@ -319,19 +295,10 @@ Running from source needs the things the installer would otherwise bundle for yo
 
 ## Install and run
 
-**The easiest way is the [Microsoft Store](https://apps.microsoft.com/detail/9NB6XT7DSQZZ).**
-One click, it updates itself, and Windows raises no security prompt. Microsoft
-certified and signed the package, so the SmartScreen warning described below
-does not appear at all. The Store installs new versions when it gets to them; to have
-one at once, open Clips Kitty's page in the Microsoft Store and press **Update**.
-
 **Or grab the installer.** The latest **Web Setup** from
 [Releases](../../releases) and run it. It carries the app, the Python engine, every
 library, FFmpeg, the AI runtime and all the detection and transcription weights: no
 Python, no PATH, no terminal, and no second program to install.
-
-**Or use winget.** `winget install ColinGPT9.ClipsKitty` installs the same Web Setup
-from a terminal.
 
 The one thing it doesn't carry is the language model itself, because those ship under
 licences the person downloading has to accept rather than something that can be
@@ -345,13 +312,13 @@ double-click, one progress bar. After that it runs offline.
 ### From source
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 pip install -r requirements.txt
 
 cd ui
 npm install
-npm run dev        # opens the Clips Kitty desktop app
+npm run dev        # opens the VilloMillo desktop app
 ```
 
 The app starts its own Python engine automatically. Paste a link in **Clip Editor**,
@@ -366,7 +333,7 @@ For contributors. You need [Docker Desktop](https://docs.docker.com/get-started/
 and nothing else: no Python, no Node, no FFmpeg, no PyTorch.
 
 ```bash
-git clone https://github.com/ColinGPT9/clips-studio
+git clone https://github.com/UglyCavemanCam/VilloMillo
 cd clips-studio
 docker compose up
 ```
@@ -432,7 +399,7 @@ Anything Ollama serves works, and switching is one click. Translation can use a
 
 ### The text box at the bottom needs Gemma 4
 
-**Ask Clips Kitty**, the text box at the bottom of the dashboard, only works with a model
+**Ask VilloMillo**, the text box at the bottom of the dashboard, only works with a model
 that can use the app's tools. Gemma 4 can. `gemma:7b` and the Gemma 3 models cannot, and
 setup installs one of those on a PC with no graphics card or with 8 GB or more of VRAM.
 There the box will not work until you add a Gemma 4 model: version 2.0 says *"No installed
@@ -446,7 +413,7 @@ and needs nothing installed.
 
 ## Tested hardware and performance
 
-Clips Kitty is developed and tested daily on this machine, so it's a useful reference
+VilloMillo is developed and tested daily on this machine, so it's a useful reference
 point if you're comparing your own results:
 
 | | |
@@ -463,7 +430,7 @@ analysis chunk size) is tuned for roughly this class of machine. On a bigger GPU
 raise `llm.num_ctx` and `analysis.chunk_seconds` together and move up a model size;
 on a smaller one, drop to `gemma3:4b`.
 
-If you benchmark Clips Kitty on different hardware, please post it in
+If you benchmark VilloMillo on different hardware, please post it in
 [Discussions](../../discussions). Real numbers from real machines help everyone size
 their setup.
 
@@ -526,7 +493,7 @@ Want a language that isn't here? [#61](../../issues/61).
 
 Off by default. Turn it on in **Settings → Publish to YouTube** and a **YouTube**
 tab appears in the editor: fill in the title, description, tags, thumbnail,
-playlist, audience and visibility, then press **Upload now**. Clips Kitty renders
+playlist, audience and visibility, then press **Upload now**. VilloMillo renders
 the clip if you have unsaved edits and uploads it straight to your channel. There
 is no export step and no separate publishing page. You never leave the editor.
 
@@ -537,16 +504,16 @@ If you leave it switched off, nothing changes anywhere in the app.
 Choosing **Schedule on YouTube** uploads the video *immediately*, marks it
 private, and hands YouTube a publish time. YouTube publishes it on the day.
 
-**You can close Clips Kitty and switch your computer off.** There is no timer in
+**You can close VilloMillo and switch your computer off.** There is no timer in
 this app, no background service, and nothing to leave running. Once YouTube has
-accepted the video, Clips Kitty's job is done.
+accepted the video, VilloMillo's job is done.
 
 ### You need your own Google API key
 
-Clips Kitty does not ship a shared one, and this is not just caution. Google's
+VilloMillo does not ship a shared one, and this is not just caution. Google's
 upload quota is **per Cloud project**: one shared key would mean every user in the
 world drawing from the same 100 uploads a day. Your own project gives you your own
-allowance, and your credentials never leave your machine. There is no Clips Kitty
+allowance, and your credentials never leave your machine. There is no VilloMillo
 server in the path.
 
 Setup is free and takes about ten minutes; the wizard in Settings walks through it:
@@ -572,7 +539,7 @@ One thing to know before you rely on this, because no software can work around i
 > make the video public afterwards in Studio, and there is no appeal. The only fix
 > is uploading it again from an audited project.
 
-Clips Kitty checks after every upload and tells you plainly if it happened, rather
+VilloMillo checks after every upload and tells you plainly if it happened, rather
 than reporting success for a video nobody can watch. If you intend to publish
 publicly, submit the
 [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form)
@@ -605,21 +572,18 @@ spaced out so a dozen clips do not land at the same second.
 
 This one is **not local**. The clip and its details are sent to a publishing
 service, which delivers them and holds the connections to your social
-accounts, so Clips Kitty never asks for a social password. Everything else in
+accounts, so VilloMillo never asks for a social password. Everything else in
 the app still runs on your PC.
 
-Two services are supported: **[WoopSocial](https://woopsocial.com/?via=clipskitty)**,
+Two services are supported: **[WoopSocial](https://woopsocial.com/)**,
 whose free plan connects two accounts and allows roughly 5 YouTube posts a
 day, with the paid plans lifting both, and
 **[Upload-Post](https://www.upload-post.com/)**, which reaches more
 destinations and adds thumbnails, first comments and a posting queue. Turn on
 either, or both.
 
-<sub>Affiliate link - Clips Kitty may earn a commission if you sign up through
-it, at no extra cost to you.</sub>
-
 **Bring your own key.** You create the account, connect your own socials and
-use your own allowance. Clips Kitty charges nothing, holds no shared key and
+use your own allowance. VilloMillo charges nothing, holds no shared key and
 pays for nothing — the same arrangement as the YouTube integration, and for
 the same reason.
 
@@ -694,15 +658,15 @@ without touching Python.
 
 Know a game, a sport or a kind of show better than a general-purpose detector does?
 Write a small Python plugin that finds, understands or rates the moments in a video,
-and Clips Kitty does the rest. The SDK is MIT, so your plugin can use any licence, and
+and VilloMillo does the rest. The SDK is MIT, so your plugin can use any licence, and
 nothing has to be forked.
 
 ```text
-Clips Kitty SDK
+VilloMillo SDK
 
 Input                      a link or a video file
   ↓
-Video                      Clips Kitty downloads it and writes down what is said
+Video                      VilloMillo downloads it and writes down what is said
   ↓
 Your plugin                every step is optional
   ├── find                 picks the moments                  built
@@ -710,17 +674,17 @@ Your plugin                every step is optional
   ├── rate                 scores each moment                 built
   └── edit                 suggests edits for the creator     built
   ↓
-Clips Kitty                does every step no plugin does, then cuts, frames and captions the clips
+VilloMillo                does every step no plugin does, then cuts, frames and captions the clips
   ↓
 Creator / Social Platform  posts when the creator clicks Publish, or on a schedule or automatic posting the creator switched on
 ```
 
-- One plugin can find moments for a video; it replaces Clips Kitty's own finding.
+- One plugin can find moments for a video; it replaces VilloMillo's own finding.
 - Up to 3 plugins can understand and up to 3 can rate, after any finder.
 - A plugin's role comes from `inputs` and `outputs` in its manifest ([Steps](docs/developers/steps.md)).
 - Up to 3 plugins can suggest edits for the clips that will be made.
 - Edit plugins suggest edits that wait for the creator in the editor ([Steps](docs/developers/steps.md#suggest-edits-the-edit-step)).
-- Posting isn't a plugin step: Clips Kitty posts clips itself, and through WoopSocial it can post to many sites at once on the creator's own account ([Publish to every platform at once](#publish-to-every-platform-at-once)). `kind: publisher` is refused: plugins don't post.
+- Posting isn't a plugin step: VilloMillo posts clips itself, and through WoopSocial it can post to many sites at once on the creator's own account ([Publish to every platform at once](#publish-to-every-platform-at-once)). `kind: publisher` is refused: plugins don't post.
 
 Three commands install the SDK, make a plugin from the `game-events` template (for
 Quarkbloom Arena, a made-up game) and run it on a test video the SDK makes. They need
@@ -729,7 +693,7 @@ Python 3.11, FFmpeg and Git.
 PowerShell (Windows):
 
 ```powershell
-py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+py -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 py -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 py -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
@@ -737,25 +701,25 @@ py -m clipskitty_sdk run quarkbloom-bursts --sample
 bash (macOS, Linux):
 
 ```bash
-python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/ColinGPT9/clips-studio#subdirectory=sdk/python"
+python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name
 python -m clipskitty_sdk run quarkbloom-bursts --sample
 ```
 
-Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
+VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
 
 **[Your first game pipeline](docs/developers/first-game-pipeline.md)** goes on from
-there, step by step, to a plugin installed in Clips Kitty and listed in its Marketplace.
+there, step by step, to a plugin installed in VilloMillo and listed in its Marketplace.
 The [Signals cookbook](docs/developers/signals-cookbook.md) has recipes for reading a
 game's video, the [SDK reference](docs/developers/sdk.md) has every command and call,
 and the [developer docs](docs/developers/README.md) have everything else. The website's
-[Clips Kitty SDK](https://colingpt9.github.io/clips-studio/developers.html) page is the
+[VilloMillo SDK](https://colingpt9.github.io/clips-studio/developers.html) page is the
 short version.
 
 ## Build on it
 
 The desktop app is a window onto a **local HTTP API**, which is running whenever
-Clips Kitty is open. A Discord bot, a batch runner, a web front end or an OBS
+VilloMillo is open. A Discord bot, a batch runner, a web front end or an OBS
 integration can drive the same pipeline, and nothing has to be added to the app
 first.
 
@@ -789,15 +753,15 @@ That is building *around* the app. You can also build *inside* it, and the place
 start is a plugin ([Write a plugin](#write-a-plugin)). If the footage you care about is
 not what this was tuned for, whether that is sports, gaming, reactions, lectures or
 something nobody has tried, a plugin can find, understand or rate its moments without a
-fork. It runs on Clips Kitty's own Python, with the standard library (minus a few
-modules the app leaves out) and the SDK: Clips Kitty can't install other Python packages
+fork. It runs on VilloMillo's own Python, with the standard library (minus a few
+modules the app leaves out) and the SDK: VilloMillo can't install other Python packages
 for a plugin yet.
 
 To change the app itself instead: the pipeline runs **YOLOv8 (ultralytics), OpenCV and
 TalkNet-ASD** locally, and what decides which moments become clips is a set of
 per-second signals, not a hardcoded idea of what is interesting. A detector that emits
 a confidence over the timeline can be added as one more signal, and its peaks become
-candidate clips. If your detection needs Python packages Clips Kitty can't install for a
+candidate clips. If your detection needs Python packages VilloMillo can't install for a
 plugin yet, fork it and plug your own detection in.
 **[docs/EXTENDING.md](docs/EXTENDING.md#bring-your-own-model)** has the contract, the
 file to copy, and the performance trap worth knowing before you start.
@@ -809,7 +773,7 @@ every few seconds. Details in [docs/API.md](docs/API.md#webhooks-being-told-inst
 
 ### Ask an AI agent to do it
 
-Clips Kitty ships an **MCP server**, so Claude, Cursor or any MCP client can drive
+VilloMillo ships an **MCP server**, so Claude, Cursor or any MCP client can drive
 the same pipeline in plain language: queue a stream, follow the job, read the clips
 it chose, export one.
 
@@ -820,18 +784,18 @@ claude mcp add clips-kitty -- python main.py mcp
 In an installed build the engine's binary is `api.exe` (in the app's
 `resources\backend` folder), so the command there is `api.exe mcp`.
 
-It talks to the running engine over `127.0.0.1:8765`, so Clips Kitty has to be
+It talks to the running engine over `127.0.0.1:8765`, so VilloMillo has to be
 open, and it needs no API key of any kind: the model doing the clipping is the one
 on your own machine (or, if you chose one in Settings → AI, a cloud model on your own
 key, which the MCP client never sees). An agent skill for clients that support them is in
 [skills/clips-kitty/](skills/clips-kitty/).
 
-### Built with Clips Kitty
+### Built with VilloMillo
 
-Projects that run on this API are listed in **[Awesome Clips Kitty](https://github.com/ColinGPT9/awesome-clips-kitty)**,
-the list of pipelines, plugins, integrations, apps and tools built with Clips Kitty. The
-first is the [Clips Kitty OBS Plugin](https://github.com/ColinGPT9/clips-kitty-obs-plugin),
-an OBS Studio dock that hands your stream to Clips Kitty after it ends. Built one?
+Projects that run on this API are listed in **[Awesome VilloMillo](https://github.com/ColinGPT9/awesome-clips-kitty)**,
+the list of pipelines, plugins, integrations, apps and tools built with VilloMillo. The
+first is the [VilloMillo OBS Plugin](https://github.com/ColinGPT9/clips-kitty-obs-plugin),
+an OBS Studio dock that hands your stream to VilloMillo after it ends. Built one?
 Add it with a pull request ([how](https://github.com/ColinGPT9/awesome-clips-kitty/blob/main/CONTRIBUTING.md)), and give your
 repository the `clips-kitty` topic.
 
@@ -861,7 +825,7 @@ Packaging and release documentation:
   creating a developer account through to certification
 - **[packaging/winget/](packaging/winget/)**: the winget manifests, which point at
   the installer above
-- **[whop-app/](whop-app/)**: the Whop app, which puts Clips Kitty in front of
+- **[whop-app/](whop-app/)**: the Whop app, which puts VilloMillo in front of
   members of clipping communities. Marketing pages only: it does not process
   video, store anything, or talk to the desktop app
 - **[docs/DOCKER.md](docs/DOCKER.md)**: running the engine without installing
@@ -920,14 +884,14 @@ Basketball's ball, hoop and player detection is the
 under CC BY 4.0. Thank you for
 publishing it openly. Every other bundled component and its licence is in [NOTICE](NOTICE).
 
-Three parts are licensed separately, so that building on Clips Kitty stays easy:
+Three parts are licensed separately, so that building on VilloMillo stays easy:
 
 | Part | Licence |
 |---|---|
-| Clips Kitty (the app, its engine, this repository) | AGPL-3.0-or-later |
+| VilloMillo (the app, its engine, this repository) | AGPL-3.0-or-later |
 | The plugin SDK, [`sdk/python/`](sdk/python/) | MIT ([sdk/python/LICENSE](sdk/python/LICENSE)) |
 | The example plugins, [`examples/pipelines/scene-cut-highlights/`](examples/pipelines/scene-cut-highlights/) and [`examples/pipelines/keyword-rater/`](examples/pipelines/keyword-rater/) | MIT |
-| The copy of the Awesome Clips Kitty list that ships with the app, `plugins/catalog_index.json` (the list is [its own repository](https://github.com/ColinGPT9/awesome-clips-kitty)) | CC0-1.0 |
+| The copy of the Awesome VilloMillo list that ships with the app, `plugins/catalog_index.json` (the list is [its own repository](https://github.com/ColinGPT9/awesome-clips-kitty)) | CC0-1.0 |
 
 Plugins, pipelines and apps made by other people keep whatever licence their authors
 chose; the Marketplace shows it on every listing. Using the SDK does not put a
@@ -945,12 +909,12 @@ Still built to be modified: swap models, tune prompts, add platforms.
 
 ## Star history
 
-Thank you to everyone who stars, shares, reports bugs and translates Clips Kitty.
+Thank you to everyone who stars, shares, reports bugs and translates VilloMillo.
 
 <a href="https://www.star-history.com/#ColinGPT9/clips-studio&amp;Date">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date&amp;theme=dark&amp;legend=top-left" />
     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date&amp;legend=top-left" />
-    <img alt="Clips Kitty GitHub star history" src="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date" />
+    <img alt="VilloMillo GitHub star history" src="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date" />
   </picture>
 </a>

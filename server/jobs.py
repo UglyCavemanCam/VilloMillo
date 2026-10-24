@@ -641,7 +641,7 @@ class Worker(threading.Thread):
 
                 names = failed_steps(db.get_outcome(video_id))
                 if names:
-                    print(f"  Publish skipped: Clips Kitty made these clips without {', '.join(names)}, "
+                    print(f"  Publish skipped: VilloMillo made these clips without {', '.join(names)}, "
                           "so they wait for you to publish them.")
                     return
             platforms = list(then.get("platforms") or [])

@@ -16,7 +16,7 @@ does not.
     GET    /marketplace?q=&category=&tag=&kind=&section=   listed plugins, searched (no header)
     GET    /marketplace/catalog?q=&kind=&section=      the catalog's apps, models, workflows, integrations
                                                        and tools, searched (no header)
-    POST   /marketplace/refresh  {"automatic": false}  check Clips Kitty's online list and the index addresses
+    POST   /marketplace/refresh  {"automatic": false}  check VilloMillo's online list and the index addresses
                                                        in settings ("automatic": the online list, if it's due)
     GET    /marketplace/online                         whether the online list is checked by itself, and when
     PUT    /marketplace/online    {"enabled": false}   switch those automatic checks off (or on)
@@ -256,7 +256,7 @@ def install(app, *, data_dir: Path, config: dict | None = None, app_version: str
     @app.post("/marketplace/refresh", dependencies=guarded)
     def marketplace_refresh(body: RefreshIn | None = None):
         """Check for new listings. Pressing Check for new pipelines fetches
-        Clips Kitty's online list and every address in settings; the
+        VilloMillo's online list and every address in settings; the
         Marketplace opening (`automatic`) fetches only the online list, and
         only when registry.online_due says so. `checked` is whether anything was fetched."""
         if body is not None and body.automatic:

@@ -334,7 +334,7 @@ class SettingsPatch(BaseModel):
     privacy: str | None = None
     content_language: str | None = None  # auto / ISO code (es, pt, hi, id...)
     translation_model: str | None = None  # local model used for translation
-    outro: bool | None = None  # append the Clips Kitty end card (clips.outro)
+    outro: bool | None = None  # append the VilloMillo end card (clips.outro)
     min_score: int | None = None  # clips.min_score: the quality bar, 0-100
     # "" none or "firefox": asked with only when YouTube takes the PC for a
     # bot (sources/ytdlp_common.py, #136). A cookies.txt comes as its text in
@@ -667,7 +667,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
     from sources import ytdlp_common
 
     ytdlp_common.set_cookies(config.get("youtube_cookies"), config["paths"]["data_dir"])  # #136
-    app = FastAPI(title="Clips Kitty API", version="0.1")
+    app = FastAPI(title="VilloMillo API", version="0.1")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite dev server
@@ -811,8 +811,8 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
 
     @app.get("/health")
     def health():
-        # Integrations such as the OBS plugin read these to tell "Clips Kitty is
-        # running" apart from "this Clips Kitty is too old for me". api_version
+        # Integrations such as the OBS plugin read these to tell "VilloMillo is
+        # running" apart from "this VilloMillo is too old for me". api_version
         # moves only when a supported endpoint changes shape.
         return {"ok": True, "app_version": app_version, "api_version": API_VERSION}
 
@@ -3310,7 +3310,7 @@ def _suggestion_state(row, value) -> str:
         saved = {}
     if edit_marks.still_held(scores.get("plugin_edits"), sid, saved, (row["start_s"], row["end_s"])):
         raise HTTPException(409, "suggestion: some of it is still in the clip's saved edit. Take it back and "
-                                 "apply your edits, and Clips Kitty hides it then")
+                                 "apply your edits, and VilloMillo hides it then")
     return json.dumps({**scores, "plugin_edits": entries})
 
 

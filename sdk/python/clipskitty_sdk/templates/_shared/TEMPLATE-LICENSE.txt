@@ -1,6 +1,6 @@
-This plugin was started from the @@TEMPLATE@@ template of the Clips Kitty SDK
+This plugin was started from the @@TEMPLATE@@ template of the VilloMillo SDK
 (python -m clipskitty_sdk new). The code that came from the template is under
-the MIT licence below, the Clips Kitty SDK's own, which asks that its notice
+the MIT licence below, the VilloMillo SDK's own, which asks that its notice
 is included with copies or substantial portions of that code, so keep this
 file in your plugin. What you write yourself is under the licence you chose in
 clipskitty.yaml.
