@@ -8,17 +8,27 @@ rem serve = dashboard only. run = dashboard plus the background worker that does
 set MODE=serve
 set URL=http://127.0.0.1:8780
 
-set PY=python
-where python >nul 2>nul
-if errorlevel 1 (
-    where py >nul 2>nul
-    if errorlevel 1 (
-        echo Python was not found. Install Python 3.11 or newer from python.org and tick "Add to PATH".
-        pause
-        exit /b 1
+rem The app needs Python 3.11 or newer. Look for one, newest first. An old Python on PATH
+rem (3.8, 3.9) cannot install the packages, so it is skipped.
+set PY=
+for %%V in (3.13 3.12 3.11) do (
+    if not defined PY (
+        py -%%V -c "import sys" >nul 2>nul && set PY=py -%%V
     )
-    set PY=py -3
 )
+if not defined PY (
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul && set PY=python
+)
+if not defined PY (
+    echo.
+    echo This app needs Python 3.11 or newer, and only an older one was found.
+    echo Install Python 3.12 from https://www.python.org/downloads/ and tick "Add python.exe to PATH".
+    echo Keep your old Python; both can stay installed. Then run this again.
+    pause
+    exit /b 1
+)
+echo Using: %PY%
+%PY% --version
 
 rem The dashboard needs these packages; install whatever is missing.
 %PY% -c "import fastapi, uvicorn, jinja2, yaml, yt_dlp, cv2, numpy, PIL" >nul 2>nul
