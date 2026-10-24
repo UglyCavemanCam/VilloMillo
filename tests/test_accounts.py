@@ -182,19 +182,29 @@ def test_a_sudden_drop_in_views_is_noticed_only_with_enough_posts():
     assert not accounts.views_dropped([100] * 5, [1000] * 3), "too little history to tell"
 
 
-# --- the Accounts page ------------------------------------------------------------------------------------------
+# --- the account controls on a channel's page ------------------------------------------------------------------------------------------
 
-def test_the_accounts_page_shows_state_and_pause_and_resume_work(db):
+def test_the_channel_page_shows_account_state_and_pause_and_resume_work(db):
     sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
     client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
-    page = client.get("/accounts?profile=solved").text
-    assert "Youtube Shorts" in page and "Not passed yet" in page and ">Pause<" in page
+    page = client.get("/channels/solved").text
+    assert "YouTube Shorts" in page and "Not passed yet" in page and ">Pause<" in page
     form = {"profile": "solved", "platform": "youtube_shorts", "action": "pause"}
     assert client.post("/api/account-state", data=form).status_code == 200
     assert accounts.is_paused(db, "solved", "youtube_shorts")
-    assert "Resume" in client.get("/accounts?profile=solved").text
+    assert "Resume" in client.get("/channels/solved").text
     assert client.post("/api/account-state", data={**form, "action": "resume"}).status_code == 200
     assert not accounts.is_paused(db, "solved", "youtube_shorts")
     assert client.post("/api/account-state", data=form, headers={"origin": "https://evil.example"}).status_code == 403
     assert client.post("/api/account-state", data={**form, "platform": "tiktok"}).status_code == 404
     assert client.post("/api/account-state", data={**form, "action": "explode"}).status_code == 422
+
+
+def test_the_old_accounts_address_goes_to_channels_and_the_sidebar_has_no_accounts_tab(db):
+    sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    r = client.get("/accounts?profile=solved", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"].startswith("/channels")
+    assert 'href="/accounts' not in client.get("/channels").text
+    accounts.pause(db, "solved", "youtube_shorts", "paused by you")
+    assert "Paused" in client.get("/channels").text and "An account is paused" in client.get("/channels").text

@@ -133,7 +133,7 @@ def views_dropped(recent: list[int], baseline: list[int], *, factor: float = 0.3
 # --- the overview ----------------------------------------------------------------------------------------------
 
 def overview(db: Database, profiles: dict[str, Profile], at: datetime | None = None) -> list[dict]:
-    """One row per channel and platform, for the Accounts page and the command line."""
+    """One row per channel and platform, for a channel's page and the command line."""
     rows = []
     for profile in profiles.values():
         if profile.posting is None:

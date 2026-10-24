@@ -15,7 +15,7 @@
     <div class="top" style="display:flex;gap:12px;align-items:center">
       <span class="avatar">{{ c.name[:1]|upper }}</span>
       <div style="flex:1;min-width:0"><h2 style="margin:0">{{ c.name }}</h2><div class="muted" style="font-size:13px">{{ c.category }}</div></div>
-      <span class="badge {{ 'good' if c.ready else 'warn' }}">{{ 'Ready' if c.ready else 'Set up' }}</span>
+      <span class="badge {{ 'bad' if c.paused else ('good' if c.ready else 'warn') }}">{{ 'Paused' if c.paused else ('Ready' if c.ready else 'Set up') }}</span>
     </div>
     <dl class="kv">
       <dt>YouTube</dt><dd>{% if c.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>

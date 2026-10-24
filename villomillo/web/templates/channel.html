@@ -13,6 +13,41 @@
   {% for s in d.steps %}<li class="{{ 'done' if s.done }}"><b>{{ s.n }}. {{ s.title }}</b>{{ 'Done' if s.done else 'Still to do' }}</li>{% endfor %}
 </ol>
 
+<section class="stack" aria-labelledby="acc-h">
+  <h2 id="acc-h" style="margin:0">Accounts and safety stops</h2>
+  <div class="notice">{{ icon('info') }}<div>A platform's API only posts for real once you record that its audit passed. Until then posts stay by hand. An account pauses by itself after three failed posts in a row, a broken sign-in, or a message that looks like a strike or suspension. A paused account sends nothing until you resume it.</div></div>
+  <div class="cards-3">
+  {% for a in d.accounts %}
+  <section class="card account" aria-label="{{ a.platform_name }}">
+    <div class="top"><span class="plat">{{ a.mark }}</span>
+      <div style="flex:1;min-width:0"><h3 style="margin:0">{{ a.platform_name }}</h3></div>
+      <span class="badge {{ 'bad' if a.status == 'paused' else 'good' }}">{{ 'Paused' if a.status == 'paused' else 'Active' }}</span></div>
+    <dl class="kv">
+      <dt>Connection</dt><dd>{% if a.connected %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>
+      <dt>Posts go out</dt><dd>{{ 'Automatically' if a.route == 'api' else 'By hand' }}<br><span class="muted" style="font-size:13px">{{ a.why }}</span></dd>
+      <dt>Audit</dt><dd>{{ 'Passed' if a.audit else 'Not passed yet' }}</dd>
+      <dt>Waiting posts</dt><dd class="num">{{ a.waiting }}</dd>
+      {% if a.failures and a.status == 'active' %}<dt>Failed in a row</dt><dd class="num">{{ a.failures }} of 3</dd>{% endif %}
+    </dl>
+    {% if a.reason %}<div class="notice bad">{{ icon('alert') }}<div>{{ a.reason }}</div></div>{% endif %}
+    {% if not a.connected %}<div class="notice">{{ icon('plug') }}<div>{{ a.connect_hint }}</div></div>{% endif %}
+    <div class="cluster" style="margin-top:auto">
+      {% if a.status == 'paused' %}
+      <button type="button" class="btn btn-primary btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "resume"}|tojson }}' data-ok="Resumed">Resume</button>
+      {% else %}
+      <button type="button" class="btn btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "pause"}|tojson }}' data-ok="Paused" data-confirm="No post will be sent for this account until you resume it. Posts stay planned and wait." data-confirm-title="Pause this account?">Pause</button>
+      {% endif %}
+      {% if a.audit %}
+      <button type="button" class="btn btn-sm btn-ghost" data-act="/api/audit" data-fields='{{ {"profile": a.profile, "platform": a.platform, "passed": "0"}|tojson }}' data-ok="Audit recorded as not passed" data-confirm="Posts for this platform go back to manual." data-confirm-title="Record the audit as not passed?">Audit not passed</button>
+      {% else %}
+      <button type="button" class="btn btn-sm btn-ghost" data-act="/api/audit" data-fields='{{ {"profile": a.profile, "platform": a.platform, "passed": "1"}|tojson }}' data-ok="Audit recorded as passed" data-confirm="Only do this once the platform has approved your app. If this channel's route is set to the API and its dry run is off, posts then go out by themselves." data-confirm-title="Record the audit as passed?">Audit passed</button>
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+  </div>
+</section>
+
 <form class="stack" method="post" action="/channels/{{ d.c.id }}/save">
   <section class="card" aria-labelledby="s1"><h2 id="s1" style="margin-bottom:12px">1. Name and category</h2>
     <div class="form">
@@ -38,7 +73,7 @@
 
   <section class="card" aria-labelledby="s2b"><h2 id="s2b" style="margin-bottom:12px">Sending posts</h2>
     <div class="form">
-      <label>How YouTube posts go out<small>By hand: titles and captions are ready for you to copy. Automatically: sent through YouTube once its audit is recorded as passed on the Accounts page.</small>
+      <label>How YouTube posts go out<small>By hand: titles and captions are ready for you to copy. Automatically: sent through YouTube once its audit is recorded as passed in Accounts and safety stops below.</small>
         <select class="field" name="youtube_route"><option value="manual" {{ 'selected' if d.form.youtube_route == 'manual' }}>By hand</option><option value="api" {{ 'selected' if d.form.youtube_route == 'api' }}>Automatically</option></select></label>
       <label>Send posts for real<small>Off: nothing leaves this computer; each post is only written to a folder so you can check it. Turn it on when you are ready for clips to go live.</small>
         <select class="field" name="dry_run"><option value="1" {{ 'selected' if d.form.dry_run == '1' }}>No, just write them to a folder</option><option value="0" {{ 'selected' if d.form.dry_run == '0' }}>Yes, send them</option></select></label>

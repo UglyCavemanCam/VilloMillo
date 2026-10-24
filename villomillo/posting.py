@@ -229,7 +229,7 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
                         "ORDER BY scheduled_at", (profile.id, store.iso(now))).fetchall()
     lines = []
     for post in due:
-        if accounts.is_paused(db, profile.id, post["platform"]):  # the post waits; the reason is on the Accounts page
+        if accounts.is_paused(db, profile.id, post["platform"]):  # the post waits; the reason is on the channel's page
             lines.append(f"post {post['id']} ({post['platform']}): waiting, the account is paused")
             continue
         with db.conn() as c:

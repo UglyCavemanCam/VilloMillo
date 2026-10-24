@@ -364,10 +364,6 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(404, "no such post")
         return fragment("partials/post_panel.html", p=p, d=data)
 
-    @app.get("/accounts", response_class=HTMLResponse)
-    def accounts_page(profile: str | None = None):
-        p = profile_or_404(profile)
-        return render("accounts.html", p, "/accounts", "accounts", "Accounts", d=pages.accounts_page(sv, p))
 
     @app.get("/insights", response_class=HTMLResponse)
     def insights(profile: str | None = None):
@@ -391,6 +387,7 @@ def create_app(sv: Services) -> FastAPI:
             return RedirectResponse(f"{target}{'&' if '?' in target else '?'}profile={profile_or_404(profile).id}", status_code=307)
         return go
 
+    app.get("/accounts", include_in_schema=False)(moved("/channels"))
     app.get("/studio", include_in_schema=False)(moved("/clips?tab=progress"))
     app.get("/review", include_in_schema=False)(moved("/clips?tab=review"))
     app.get("/posts", include_in_schema=False)(moved("/calendar?view=list"))

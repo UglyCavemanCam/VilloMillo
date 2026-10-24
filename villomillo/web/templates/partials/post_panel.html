@@ -12,7 +12,7 @@
   </div>
 
   {% if po.error %}<div class="notice bad">{{ icon('alert') }}<div>{{ po.error }}</div></div>{% endif %}
-  {% if d.paused %}<div class="notice warn">{{ icon('pause') }}<div>This account is paused, so nothing is sent until you resume it on the Accounts page.</div></div>{% endif %}
+  {% if d.paused %}<div class="notice warn">{{ icon('pause') }}<div>This account is paused, so nothing is sent until you resume it on the channel's page.</div></div>{% endif %}
 
   {% if po.title %}
   <div><div class="card-head" style="margin-bottom:8px"><h3>Title</h3><button type="button" class="btn btn-sm" data-copy="copy-title">Copy</button></div>

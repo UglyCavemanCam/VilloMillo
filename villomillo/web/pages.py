@@ -143,7 +143,7 @@ def needs(sv: Services, p: Profile) -> list[dict]:
     for r in accounts.overview(db, sv.profiles):
         if r["profile"] == p.id and r["status"] == "paused":
             out.append({"title": f"{r['platform'].replace('_', ' ').title()} account is paused", "sub": r["reason"] or "Paused",
-                        "btn": "Accounts", "kind": "bad", "primary": False, "href": f"/accounts?profile={p.id}"})
+                        "btn": "Open channel", "kind": "bad", "primary": False, "href": f"/channels/{r['profile']}?profile={r['profile']}"})
     held = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state='approved' AND reason LIKE 'approved, but not posted%' AND reason NOT LIKE '%no channel for the category%'", p.id)
     if held["n"]:
         out.append({"title": f"{held['n']} approved clip{'s' if held['n'] != 1 else ''} fit no channel", "sub": "Not posted: see the reason on the clip",
@@ -152,8 +152,8 @@ def needs(sv: Services, p: Profile) -> list[dict]:
         for platform, route in p.posting.platforms.items():
             if route == "api" and not accounts.audit_passed(db, p.id, platform):
                 out.append({"title": f"{platform.replace('_', ' ').title()} audit has not passed",
-                            "sub": "Posts stay manual until you record the audit as passed", "btn": "Accounts", "kind": "warn",
-                            "primary": False, "href": f"/accounts?profile={p.id}"})
+                            "sub": "Posts stay manual until you record the audit as passed", "btn": "Open channel", "kind": "warn",
+                            "primary": False, "href": f"/channels/{p.id}?profile={p.id}"})
     if not engine_up():
         out.append({"title": "Clip engine is off", "sub": "Start it so videos you paste can be looked at and clipped",
                     "btn": "Settings", "kind": "neutral", "primary": False, "href": f"/settings?profile={p.id}"})
@@ -164,7 +164,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
     """What every page needs around its own content."""
     to_do = needs(sv, p)
     waiting = one(sv.db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state='review'", p.id)["n"]
-    paused = any(r["status"] == "paused" for r in accounts.overview(sv.db, sv.profiles) if r["profile"] == p.id)
+    paused = any(r["status"] == "paused" for r in accounts.overview(sv.db, sv.profiles))
     q = f"?profile={p.id}"
     up = engine_up()
     br = sv.app.spend_breaker
@@ -180,10 +180,9 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
             {"label": "Make", "links": [
                 {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
             {"label": "Post", "links": [
-                {"key": "channels", "label": "Channels", "href": f"/channels{q}", "icon": "plug"},
-                {"key": "calendar", "label": "Calendar", "href": f"/calendar{q}", "icon": "calendar"},
-                {"key": "accounts", "label": "Accounts", "href": f"/accounts{q}", "icon": "users",
-                 "dot": "An account is paused" if paused else None}]},
+                {"key": "channels", "label": "Channels", "href": f"/channels{q}", "icon": "plug",
+                 "dot": "An account is paused" if paused else None},
+                {"key": "calendar", "label": "Calendar", "href": f"/calendar{q}", "icon": "calendar"}]},
             {"label": "Learn", "links": [{"key": "insights", "label": "Insights", "href": f"/insights{q}", "icon": "chart"}]},
         ],
         "engine": {"kind": "good" if up else "", "text": "Clip engine is on" if up else "Clip engine is off",
@@ -438,23 +437,6 @@ def blueprints_summary(recipe: str) -> list[dict]:
     return out
 
 
-# --- accounts --------------------------------------------------------------------------------------------------
-
-def accounts_page(sv: Services, p: Profile) -> dict:
-    out = []
-    for r in accounts.overview(sv.db, sv.profiles):
-        owner = sv.profiles[r["profile"]]
-        yt = r["platform"].startswith("youtube")
-        connected = youtube_connected(owner) if yt else False
-        out.append({**r, "platform_name": r["platform"].replace("_", " ").title(), "mark": "YT" if yt else "TT", "connected": connected,
-                    "channel": channel_name(owner), "handle": owner.brand.handle,
-                    "connect_hint": (f"python -m villomillo youtube-connect --profile {owner.id}" if yt else
-                                     "Posting to this platform is not built yet"),
-                    "dry_run": owner.posting.dry_run if owner.posting else True,
-                    "mine": r["profile"] == p.id})
-    return {"accounts": out}
-
-
 # --- channels --------------------------------------------------------------------------------------------------
 
 def _channel_card(sv: Services, c: Profile) -> dict:
@@ -465,7 +447,19 @@ def _channel_card(sv: Services, c: Profile) -> dict:
     held = sum(h["clips"] for h in routing.held_categories(db) if c.category and h["category"].lower() == c.category.lower())
     return {"id": c.id, "name": channel_name(c), "category": c.category or "No category yet", "about": c.niche.definition,
             "youtube": youtube_connected(c), "tiktok": c.tiktok_handle, "clips": clips, "posted": posted, "waiting": waiting,
-            "held": held, "ready": bool(c.category and youtube_connected(c))}
+            "held": held, "ready": bool(c.category and youtube_connected(c)),
+            "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c}))}
+
+
+def _account_rows(sv: Services, c: Profile) -> list[dict]:
+    """One row per platform a channel posts to: its connection, route, audit, and the safety stop that can pause it."""
+    out = []
+    for r in accounts.overview(sv.db, {c.id: c}):
+        yt = r["platform"].startswith("youtube")
+        out.append({**r, "platform_name": {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok"}.get(r["platform"], r["platform"]),
+                    "mark": "YT" if yt else "TT", "connected": youtube_connected(c) if yt else False,
+                    "connect_hint": "Use Connect YouTube above." if yt else "Posting to this platform is not built yet"})
+    return out
 
 
 def channels_page(sv: Services, p: Profile) -> dict:
@@ -490,7 +484,7 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
               "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
               "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0", **(form or {})}
     return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
-            "youtube": youtube_connected(c), "card": _channel_card(sv, c),
+            "youtube": youtube_connected(c), "card": _channel_card(sv, c), "accounts": _account_rows(sv, c),
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
 
 
