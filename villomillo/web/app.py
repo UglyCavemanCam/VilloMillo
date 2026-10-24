@@ -129,11 +129,6 @@ def create_app(sv: Services) -> FastAPI:
         p = profile_or_404(profile)
         return render("home.html", p, "/", "home", "Home", d=pages.home_page(sv, p))
 
-    @app.get("/research", response_class=HTMLResponse)
-    def research(profile: str | None = None, gate: str = "all", q: str = "", page: int = 1):
-        p = profile_or_404(profile)
-        return render("research.html", p, "/research", "research", "Research", d=pages.research_page(sv, p, gate, q, max(1, page)))
-
     @app.get("/clips", response_class=HTMLResponse)
     def clips(profile: str | None = None, tab: str = "all"):
         p = profile_or_404(profile)

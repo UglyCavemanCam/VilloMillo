@@ -165,7 +165,7 @@
   palette.addEventListener("click", function (ev) { if (ev.target === palette) palette.close(); });
 
   /* ---- keyboard shortcuts: g then a letter goes to a page; / searches; [ folds the side panel; ? lists them ---- */
-  var shortcuts = $("#shortcuts"), goKeys = { h: "/?", r: "/research", c: "/clips", p: "/calendar", a: "/accounts", i: "/insights", s: "/settings" }, going = 0;
+  var shortcuts = $("#shortcuts"), goKeys = { h: "/?", c: "/clips", p: "/calendar", a: "/accounts", i: "/insights", s: "/settings" }, going = 0;
   function typing(t) { return t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable); }
   document.addEventListener("keydown", function (ev) {
     if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target) || $("dialog[open]")) return;

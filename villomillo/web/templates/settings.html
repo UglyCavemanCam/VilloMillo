@@ -10,7 +10,6 @@
     <div class="card-head"><div><h2>{{ c.name }}</h2><div class="sub">{{ c.display }}{% if c.handle %} · {{ c.handle }}{% endif %}</div></div><code class="muted">config/villomillo/channels/{{ c.id }}.yaml</code></div>
     <dl class="kv">
       <dt>Niche</dt><dd style="line-height:1.5">{{ c.niche }}</dd>
-      <dt>Research</dt><dd>{{ c.watched }} watched channels, {{ c.topics }} keyword topics, clip gate at {{ c.min_score|round|int }}</dd>
       {% if c.campaign %}<dt>Campaign rules</dt><dd>{{ c.campaign.name }}: {{ c.campaign.min_s|round|int }} to {{ c.campaign.max_s|round|int }} s, host's face in the first {{ c.campaign.face_window_s|round|int }} s, {{ 'subtitles required, ' if c.campaign.require_captions }}{{ 'no ad reads' if c.campaign.no_ad_reads }}</dd>{% endif %}
       {% if c.posting %}<dt>Posting</dt><dd>{% for platform, route in c.posting.platforms.items() %}<span class="chip" style="margin-right:6px">{{ platform|replace('_', ' ') }}: {{ route }}</span>{% endfor %}
         <div class="muted" style="font-size:13px;margin-top:6px">At most {{ c.posting.daily_cap }} a day per platform, at least {{ c.posting.min_gap_minutes }} minutes apart, privacy {{ c.posting.privacy }}. Dry run is {{ 'on: nothing is sent for the API route' if c.posting.dry_run else 'off' }}.</div></dd>{% endif %}

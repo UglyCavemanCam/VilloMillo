@@ -7,7 +7,7 @@ import threading
 import traceback
 from datetime import timedelta
 
-from . import discovery, engine, learning, spend, store, tasks
+from . import spend, store, tasks
 from .services import Services
 
 
@@ -15,34 +15,8 @@ def _profile(sv: Services, payload: dict):
     return sv.profiles[payload["profile"]]
 
 
-def do_watch(sv: Services, payload: dict) -> None:
-    discovery.discover(sv.db, sv.yt, _profile(sv, payload), topics=False)
-
-
-def do_topics(sv: Services, payload: dict) -> None:
-    p = _profile(sv, payload)
-    discovery.search_topics(sv.db, sv.yt, p)
-    discovery.apply_filters(sv.db, p)
-
-
-def do_snapshots(sv: Services, payload: dict) -> None:
-    p = _profile(sv, payload)
-    discovery.refresh_stats(sv.db, sv.yt, p)
-    engine.rescore(sv.db, p)
-
-
-def do_grade(sv: Services, payload: dict) -> None:
-    p = _profile(sv, payload)
-    discovery.apply_filters(sv.db, p)
-    engine.grade_new(sv.db, sv.jev, sv.app, p)
-    engine.deepen(sv.db, sv.jev, sv.app, p)
-    engine.second_opinions(sv.db, sv.app, p)
-    engine.rescore(sv.db, p)
-    queue_clips(sv, p)
-
-
 def do_clip(sv: Services, payload: dict) -> None:
-    """Hand one video to the clipping engine , then look at it later."""
+    """Hand one video to the clipping engine, then look at it later."""
     from . import clipper, tasks
 
     p = _profile(sv, payload)
@@ -75,46 +49,6 @@ def do_collect(sv: Services, payload: dict) -> None:
                       run_after=store.now() + timedelta(minutes=5))
 
 
-def queue_clips(sv: Services, profile) -> int:
-    """Queue a clip task for each video that passed the gate. Dedupe means each video is queued once."""
-    from . import tasks
-
-    with sv.db.conn() as c:
-        ready = [r["video_id"] for r in c.execute(
-            "SELECT video_id FROM scores WHERE profile_id=? AND gate='pass'", (profile.id,))]
-    return sum(
-        1 for v in ready
-        if tasks.enqueue(sv.db, "clip", {"profile": profile.id, "video_id": v},
-                         dedupe_key=f"clip:{profile.id}:{v}") is not None
-    )
-
-
-def do_review(sv: Services, payload: dict) -> None:
-    """The weekly review: Claude reads the week's numbers and suggests ideas. Nothing is applied automatically."""
-    from . import claude
-
-    p = _profile(sv, payload)
-    if (pause := spend.current(sv.db, sv.app.spend_breaker)):
-        store.event(sv.db, "warn", "review", f"Weekly review skipped: {pause.title.lower()}")
-        return
-    check = store.last_selfcheck(sv.db, p.id)
-    rows = store.ranked(sv.db, p.id, limit=10)
-    facts = {
-        "channel": p.display_name,
-        "niche": p.niche.definition,
-        "self_check": check and {k: check[k] for k in ("verdict", "sample", "rank_correlation", "top_hit_rate")},
-        "calibration": learning.calibration(sv.db, p.id),
-        "videos_by_stage": store.counts_by_state(sv.db, p.id),
-        "top_graded": [{"title": r["title"], "grade": r["score"], "gate": r["gate"]} for r in rows],
-    }
-    review, cost = claude.weekly_review(claude._client(), facts)
-    with sv.db.conn() as c:
-        c.execute("INSERT INTO suggestions (profile_id, created_at, body_json) VALUES (?,?,?)",
-                  (p.id, store.iso(), json.dumps(review)))
-        store.add_ai_usage(c, "claude", 0, 0, cost)
-    store.event(sv.db, "info", "review", "Weekly review written")
-
-
 def do_copy(sv: Services, payload: dict) -> None:
     """Write the title and caption options for one planned post."""
     from . import copywriter
@@ -140,11 +74,6 @@ def do_post(sv: Services, payload: dict) -> None:
 HANDLERS = {
     "copy": do_copy,
     "post": do_post,
-    "watch": do_watch,
-    "topics": do_topics,
-    "snapshots": do_snapshots,
-    "grade": do_grade,
-    "review": do_review,
     "clip": do_clip,
     "collect": do_collect,
 }

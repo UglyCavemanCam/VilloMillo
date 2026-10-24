@@ -10,19 +10,17 @@ import json
 import pathlib
 import time
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 import httpx
 import keyring
 
-from .. import accounts, clipper, learning, posting, secrets, spend, store, studio, timefmt
+from .. import accounts, clipper, posting, secrets, spend, studio, timefmt
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
 
 STATIC = pathlib.Path(__file__).parent / "static"
-GATES = ("all", "pass", "escalate", "fail")
-PAGE_SIZE = 50
 
 
 def badge(text: str, kind: str = "") -> dict:
@@ -163,9 +161,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
         "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.display_name if p.brand.name else "",
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
-            {"label": "Find", "links": [
-                {"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"},
-                {"key": "research", "label": "Research", "href": f"/research{q}", "icon": "search"}]},
+            {"label": "Find", "links": [{"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"}]},
             {"label": "Make", "links": [
                 {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
             {"label": "Post", "links": [
@@ -382,13 +378,6 @@ def home_page(sv: Services, p: Profile) -> dict:
             "has_week_items": any(d["total"] for d in week), "needs": needs(sv, p)}
 
 
-# --- research --------------------------------------------------------------------------------------------------
-
-def _age(published_at: str) -> str:
-    hours = (datetime.now(timezone.utc) - timefmt.parse(published_at)).total_seconds() / 3600
-    return f"{int(hours)} h" if hours < 48 else f"{int(hours // 24)} d"
-
-
 def blueprints_summary(recipe: str) -> list[dict]:
     """The layers of a format recipe, for the Settings page."""
     from ..formats import blueprints
@@ -400,31 +389,6 @@ def blueprints_summary(recipe: str) -> list[dict]:
     out = [{"layer": "Framing", "items": [spec["framing"]]}]
     out += [{"layer": layer.title(), "items": spec[layer]} for layer in ("text", "motion", "brand") if spec.get(layer)]
     return out
-
-
-def research_page(sv: Services, p: Profile, gate: str, query: str, page: int) -> dict:
-    everything = store.ranked(sv.db, p.id, limit=500)
-    gate = gate if gate in GATES else "all"
-    counts = {g: sum(1 for r in everything if g == "all" or r["gate"] == g) for g in GATES}
-    needle = query.strip().lower()
-    chosen = [r for r in everything if (gate == "all" or r["gate"] == gate)
-              and (not needle or needle in (r["title"] or "").lower() or needle in (r["channel_title"] or "").lower())]
-    start = max(0, page - 1) * PAGE_SIZE
-    shown = []
-    for r in chosen[start: start + PAGE_SIZE]:
-        comps = json.loads(r["components_json"])
-        feats = comps.pop("_features", {})
-        comps.pop("_risk", None)
-        reasons = [f"{k} {v:.0%}" for k, v in comps.items()]
-        if feats.get("outlier_ratio") is not None:
-            reasons.insert(0, f"views x{feats['outlier_ratio']:.2f} of usual")
-        shown.append({**r, "age": _age(r["published_at"]), "reasons": reasons, "flags": json.loads(r["flags_json"]),
-                      "thumb": f"https://i.ytimg.com/vi/{r['video_id']}/mqdefault.jpg", "url": f"https://www.youtube.com/watch?v={r['video_id']}",
-                      "minutes": round((r["duration_s"] or 0) / 60), "views_text": f"{(r['views'] or 0):,}",
-                      "gate_badge": badge(r["gate"], {"pass": "good", "escalate": "warn", "fail": "bad"}.get(r["gate"], "")),
-                      "certainty_text": f"{r['certainty'] * 100:.0f}%"})
-    return {"rows": shown, "gate": gate, "gates": [{"key": g, "count": counts[g]} for g in GATES], "q": query, "page": page,
-            "pages": max(1, -(-len(chosen) // PAGE_SIZE)), "total": len(chosen), "selfcheck": store.last_selfcheck(sv.db, p.id)}
 
 
 # --- accounts --------------------------------------------------------------------------------------------------
@@ -448,9 +412,6 @@ def accounts_page(sv: Services, p: Profile) -> dict:
 
 def insights_page(sv: Services, p: Profile) -> dict:
     db = sv.db
-    rows_ = store.ranked(db, p.id, limit=500)
-    preview = learning.shortlist_preview([dict(r, found_by=r["found_by"]) for r in rows_ if r["gate"] in ("pass", "escalate")], n=10)
-    last = one(db, "SELECT created_at, body_json FROM suggestions WHERE profile_id=? ORDER BY id DESC LIMIT 1", p.id)
     daily = rows(db, "SELECT day, engine, ROUND(SUM(cost_usd), 4) AS usd FROM ai_usage GROUP BY day, engine ORDER BY day DESC LIMIT 28")
     by_day: dict[str, float] = defaultdict(float)
     for r in daily:
@@ -458,10 +419,7 @@ def insights_page(sv: Services, p: Profile) -> dict:
     days = sorted(by_day)[-14:]
     peak = max((by_day[d] for d in days), default=0) or 1
     chart = [{"label": d[5:], "usd": by_day[d], "height": max(2, round(100 * by_day[d] / peak)), "text": money(by_day[d])} for d in days]
-    return {"selfcheck": store.last_selfcheck(db, p.id), "calibration": learning.calibration(db, p.id), "length": learning.length_status(db, p.id),
-            "preview": preview, "review": json.loads(last["body_json"]) if last else None,
-            "review_at": timefmt.full(last["created_at"]) if last else None, "chart": chart,
-            "claude_today": store.ai_requests_today(db, "claude"), "claude_limit": sv.app.budgets.claude_escalations_per_day,
+    return {"chart": chart,
             "claude_since": spend.since_approval(db, "claude"), "claude_limit_usd": sv.app.spend_breaker.claude_usd,
             "quota": {"general": (sv.quota.used("general"), sv.quota.caps["general"]), "search": (sv.quota.used("search"), sv.quota.caps["search"])},
             "jev_since": spend.since_approval(db, "jev"), "jev_limit_usd": sv.app.spend_breaker.jev_usd}
@@ -474,7 +432,6 @@ def settings_page(sv: Services, p: Profile) -> dict:
     for c in sv.profiles.values():
         channels.append({"id": c.id, "name": channel_name(c), "display": c.display_name, "niche": c.niche.definition,
                          "campaign": c.campaign, "posting": c.posting, "format": c.format, "handle": c.brand.handle,
-                         "watched": len(c.research.watch_channels), "topics": len(c.research.topics), "min_score": c.grading.min_score,
                          "recipe": blueprints_summary(c.format) if c.format else None})
     keys = [{"name": "YouTube Data API key", "present": has_secret(secrets.YOUTUBE)},
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},
@@ -484,9 +441,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
     s = sv.app.schedule
     return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,
             "zone": f"Eastern Time ({timefmt.zone_label()})", "dashboard": f"{sv.app.dashboard.host}:{sv.app.dashboard.port}",
-            "schedule": [("Look for new uploads", s.watch_every_minutes), ("Refresh view counts", s.snapshots_every_minutes),
-                         ("Grade new videos", s.grade_every_minutes), ("Send due posts", s.post_every_minutes),
-                         ("Keyword searches", s.topics_every_minutes), ("Weekly Claude review", s.review_every_minutes)],
+            "schedule": [("Send due posts", s.post_every_minutes)],
             "database": str(sv.db.path)}
 
 

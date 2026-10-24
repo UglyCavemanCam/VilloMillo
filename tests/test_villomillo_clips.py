@@ -37,8 +37,7 @@ def db(tmp_path):
 
 
 def profile():
-    return config.Profile(id="test", display_name="Test", niche={"definition": "podcasts"},
-                          research={"watch_channels": [{"handle": "@chan"}]})
+    return config.Profile(id="test", display_name="Test", niche={"definition": "podcasts"})
 
 
 CLIP_ANSWERS = {

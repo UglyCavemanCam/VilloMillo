@@ -19,12 +19,6 @@ niche:
     - ad reads and sponsor segments
     - anything not from the Solved podcast
 
-research:
-  freshness_hours: 87600        # the campaign's episodes are all older than two weeks
-  min_duration_min: 15
-  max_duration_min: 360
-  languages: [en]
-
 # The Clipfarm x Solved brief (Google Doc "Mark Manson Clipping Brief"). Only the rules a program can check
 # are here; the rest is judged by you when you review a clip.
 campaign:

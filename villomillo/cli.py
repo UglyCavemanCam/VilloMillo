@@ -1,14 +1,13 @@
-"""Command line: python -m villomillo <status | once | serve | run>."""
+"""Command line: python -m villomillo <status | serve | run | ...>."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import pathlib
 import sys
 import threading
 
-from . import engine, runner, services, store
+from . import runner, services, store
 
 
 def _services(with_apis: bool = True) -> services.Services:
@@ -19,39 +18,20 @@ def _services(with_apis: bool = True) -> services.Services:
 
 
 def cmd_status(args) -> None:
-    sv = _services(with_apis=False)
-    for p in sv.profiles.values():
-        rows = store.ranked(sv.db, p.id, limit=500)
-        print(f"{p.display_name} ({p.id})")
-        print("  videos by stage:", store.counts_by_state(sv.db, p.id) or "none yet")
-        print("  gate:", {g: sum(1 for r in rows if r["gate"] == g) for g in ("pass", "escalate", "fail")})
-        check = store.last_selfcheck(sv.db, p.id)
-        print("  last self-check:", check["verdict"] if check else "not run yet (python -m villomillo check)")
-    print("YouTube used today: general", sv.quota.used("general"), "of", sv.quota.caps["general"],
-          "| search", sv.quota.used("search"), "of", sv.quota.caps["search"])
     from . import spend
 
+    sv = _services(with_apis=False)
+    for p in sv.profiles.values():
+        print(f"{p.display_name} ({p.id})")
+        print("  videos by stage:", store.counts_by_state(sv.db, p.id) or "none yet")
+    print("YouTube used today: general", sv.quota.used("general"), "of", sv.quota.caps["general"],
+          "| search", sv.quota.used("search"), "of", sv.quota.caps["search"])
     br = sv.app.spend_breaker
     print(f"Spent since your last approval: Claude ${spend.since_approval(sv.db, 'claude'):.2f} of ${br.claude_usd:.2f}, "
           f"Jev ${spend.since_approval(sv.db, 'jev'):.2f} of ${br.jev_usd:.2f}")
     pause = spend.current(sv.db, br)
     if pause:
         print(f"PAUSED: {pause.text} (python -m villomillo approve-spend)")
-
-
-def cmd_check(args) -> None:
-    from . import selfcheck
-
-    sv = _services()
-    for p in sv.profiles.values():
-        if args.profile and p.id != args.profile:
-            continue
-        result = selfcheck.run(sv.db, sv.yt, sv.jev, p, sample=args.sample)
-        print(f"{p.display_name}: {result['verdict']}")
-        print(f"  graded {result['sample']} older uploads without using their views")
-        if "rank_correlation" in result:
-            print(f"  rank correlation with views: {result['rank_correlation']:+.2f}  (0 = no link, 1 = perfect)")
-            print(f"  top third by grade that beat the median: {result['top_hit_rate']:.0%}  (50% = chance)")
 
 
 def _pick(sv: services.Services, profile_id: str | None):
@@ -286,15 +266,6 @@ def _job(sv, p, video_id):
     return dict(row)
 
 
-def cmd_once(args) -> None:
-    sv = _services()
-    for p in sv.profiles.values():
-        if args.profile and p.id != args.profile:
-            continue
-        summary = engine.run_cycle(sv.db, sv.yt, sv.jev, sv.app, p, topics=not args.no_topics, limit=args.limit)
-        print(json.dumps(summary, indent=2, default=str))
-
-
 def _serve(sv: services.Services) -> None:
     import uvicorn
 
@@ -377,15 +348,6 @@ def main(argv: list[str] | None = None) -> None:
     recheck = sub.add_parser("recheck", help="run the campaign rules again on clips waiting or approved")
     recheck.add_argument("--profile")
     recheck.set_defaults(fn=cmd_recheck)
-    check = sub.add_parser("check", help="test whether the grades point the right way on past uploads")
-    check.add_argument("--profile")
-    check.add_argument("--sample", type=int, default=60)
-    check.set_defaults(fn=cmd_check)
-    once = sub.add_parser("once", help="run one research cycle right now")
-    once.add_argument("--profile")
-    once.add_argument("--no-topics", action="store_true", help="skip keyword searches (they use scarce allowance)")
-    once.add_argument("--limit", type=int, help="grade at most this many videos")
-    once.set_defaults(fn=cmd_once)
     sub.add_parser("serve", help="open the dashboard only").set_defaults(fn=cmd_serve)
     sub.add_parser("run", help="work in the background and serve the dashboard").set_defaults(fn=cmd_run)
     args = parser.parse_args(argv)

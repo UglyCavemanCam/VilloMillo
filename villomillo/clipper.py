@@ -13,7 +13,7 @@ import shutil
 
 import httpx
 
-from . import campaign, grading, store, validate
+from . import campaign, store, validate
 from .config import ROOT, Profile
 from .db import Database
 from .jev import Jev
@@ -21,7 +21,6 @@ from .jev import Jev
 ENGINE_URL = os.environ.get("CLIPS_STUDIO_API", "http://127.0.0.1:8765")
 OUTBOX = ROOT / "data" / "villomillo" / "outbox"
 MAX_CLIPS_PER_VIDEO = 3
-CLIP_ENGINE = "jev-clip"
 SELF_CONTAINED_MIN = 0.5
 
 
@@ -105,6 +104,15 @@ def submit(db: Database, engine: Engine, profile: Profile, video_id: str, *, for
     return f"submitted as engine job {job_id}"
 
 
+HOOK = [
+    "Nothing in the opening suggests a striking opening or claim.",
+    "A mild premise; the opening would need luck to hold a viewer.",
+    "An interesting premise, but not obviously striking.",
+    "A clear promise of something striking: a bold claim, a surprising guest, a conflict.",
+    "An unmistakable hook: a shocking claim, a famous clash or an irresistible question.",
+]
+
+
 def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str) -> dict:
     """Jev reads the clip's own words: does it stand alone, does it start strongly, does it land?"""
     questions = {
@@ -115,7 +123,7 @@ def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str
         "hook": {
             "type": "score",
             "instructions": "How strong is the opening of this clip as a hook?",
-            "criteria": grading.HOOK,
+            "criteria": HOOK,
         },
         "payoff": {
             "type": "score",
@@ -136,8 +144,6 @@ def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str
     state = {"niche": {"definition": profile.niche.definition}, "clip_text": text[:4000]}
     result = jev.ask(state, questions)
     with db.conn() as c:
-        store.save_evaluation(c, profile.id, f"clip:{clip_id}", CLIP_ENGINE, result.model, 1, result.answers,
-                              result.usage, result.cost_usd)
         store.add_ai_usage(c, "jev", result.usage.get("input_tokens") or 0, 0, result.cost_usd)
     return result.answers
 

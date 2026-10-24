@@ -16,56 +16,19 @@ CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY, display_name TEXT NOT NULL, digest TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 
--- YouTube channels we follow, per profile.
-CREATE TABLE IF NOT EXISTS watched_sources (
-    profile_id TEXT NOT NULL, channel_id TEXT NOT NULL, handle TEXT, title TEXT,
-    uploads_playlist TEXT NOT NULL, subscribers INTEGER,
-    baseline_views REAL,             -- median total views of this channel's uploads 2 weeks to 3 months old
-    backfilled INTEGER NOT NULL DEFAULT 0, last_checked_at TEXT,
-    PRIMARY KEY (profile_id, channel_id)
-);
-
 CREATE TABLE IF NOT EXISTS videos (
     profile_id TEXT NOT NULL, video_id TEXT NOT NULL,
-    found_by TEXT NOT NULL,          -- channel | topic | trending
+    found_by TEXT NOT NULL,          -- paste | research | campaign | manual
     channel_id TEXT, channel_title TEXT,
     title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', tags_json TEXT NOT NULL DEFAULT '[]',
     duration_s INTEGER, published_at TEXT NOT NULL, language TEXT, live_status TEXT,
     views INTEGER, likes INTEGER, comments INTEGER,
     first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
-    state TEXT NOT NULL DEFAULT 'discovered',  -- discovered | eligible | held | rejected | scored
+    state TEXT NOT NULL DEFAULT 'discovered',  -- discovered | clipped | held | rejected
     state_reason TEXT,
     PRIMARY KEY (profile_id, video_id)
 );
 CREATE INDEX IF NOT EXISTS videos_state ON videos (profile_id, state);
-
-CREATE TABLE IF NOT EXISTS metric_snapshots (
-    video_id TEXT NOT NULL, taken_at TEXT NOT NULL, views INTEGER, likes INTEGER, comments INTEGER,
-    PRIMARY KEY (video_id, taken_at)
-);
-
--- Raw answers from Jev / Claude, kept so scores can be recomputed without new AI calls.
-CREATE TABLE IF NOT EXISTS evaluations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, video_id TEXT NOT NULL,
-    engine TEXT NOT NULL, model TEXT, question_set_version INTEGER NOT NULL,
-    answers_json TEXT NOT NULL, input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL,
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS evaluations_video ON evaluations (profile_id, video_id);
-
-CREATE TABLE IF NOT EXISTS scores (
-    profile_id TEXT NOT NULL, video_id TEXT NOT NULL,
-    score REAL NOT NULL, certainty REAL NOT NULL, gate TEXT NOT NULL,  -- pass | escalate | fail
-    components_json TEXT NOT NULL, flags_json TEXT NOT NULL, question_set_version INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (profile_id, video_id)
-);
-
-CREATE TABLE IF NOT EXISTS ratings (
-    profile_id TEXT NOT NULL, video_id TEXT NOT NULL, rating INTEGER NOT NULL,  -- 1 up, -1 down
-    note TEXT, created_at TEXT NOT NULL,
-    PRIMARY KEY (profile_id, video_id)
-);
 
 CREATE TABLE IF NOT EXISTS quota_usage (
     day TEXT NOT NULL, bucket TEXT NOT NULL, units INTEGER NOT NULL, PRIMARY KEY (day, bucket)
@@ -142,22 +105,6 @@ CREATE TABLE IF NOT EXISTS copy_options (
     id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL, title TEXT NOT NULL, caption TEXT NOT NULL,
     tags_json TEXT NOT NULL, stop_score INTEGER, misleading REAL, chosen INTEGER NOT NULL DEFAULT 0,
     source TEXT NOT NULL, created_at TEXT NOT NULL
-);
-
--- Caption text, stored once per video so it is never fetched twice.
-CREATE TABLE IF NOT EXISTS transcripts (
-    video_id TEXT PRIMARY KEY, source TEXT NOT NULL, chars INTEGER NOT NULL, text TEXT NOT NULL, fetched_at TEXT NOT NULL
-);
-
--- Plain-language suggestions from the weekly review (advice only; nothing is applied automatically).
-CREATE TABLE IF NOT EXISTS suggestions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, created_at TEXT NOT NULL, body_json TEXT NOT NULL
-);
-
--- Results of the automatic backtest: does the grading point the right way on this channel's past uploads?
-CREATE TABLE IF NOT EXISTS selfchecks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, ran_at TEXT NOT NULL,
-    sample INTEGER NOT NULL, rank_correlation REAL, top_hit_rate REAL, verdict TEXT NOT NULL, details_json TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS events (

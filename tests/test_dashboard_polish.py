@@ -61,7 +61,7 @@ def test_a_crash_is_logged_and_shown_without_a_stack_trace(app_and_db):
 
 
 def test_every_page_lists_the_shortcuts_and_loads_the_font(client):
-    for path in ("/", "/research", "/clips", "/calendar", "/accounts", "/insights", "/settings"):
+    for path in ("/", "/clips", "/calendar", "/accounts", "/insights", "/settings"):
         html = client.get(f"{path}?profile=solved").text
         assert 'id="shortcuts"' in html and 'id="open-shortcuts"' in html, path
         assert "/static/fonts/Geist-Variable.woff2" in html, path
@@ -71,5 +71,5 @@ def test_every_page_lists_the_shortcuts_and_loads_the_font(client):
 
 def test_the_script_knows_every_page_shortcut(client):
     js = client.get("/static/app.js").text
-    for key in ("h:", "r:", "c:", "p:", "a:", "i:", "s:"):
+    for key in ("h:", "c:", "p:", "a:", "i:", "s:"):
         assert key in js

@@ -114,8 +114,7 @@ checked first and either kept, rewritten or deleted. The tests are run after eve
 **After this:** nothing new to see, but pasting a link can no longer be blocked over rights, and AI spending is guarded by the
 pause-and-approve breaker instead of monthly caps.
 **Done when:** all tests pass and no part of the code refuses a pasted link.
-**Status: done.** Differences from the first idea: the old research code stays until Phases 4 and 8 replace it (deleting it now would switch
-Research off); the per-file decisions are in `docs/CODE-AUDIT.md`. The spend breaker was built here rather than in Phase 5, so removing the
+**Status: done.** The old research code was deleted outright (the app is not live, so nothing needed keeping); Research and the scoring brain are rebuilt in Phases 4 and 8. The per-file decisions are in `docs/CODE-AUDIT.md`. The spend breaker was built here rather than in Phase 5, so removing the
 caps never left spending unguarded. Moving the Solved channel into the new channel system moves to Phase 2, where channels are built.
 
 ### Phase 2: Channels (medium)

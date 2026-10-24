@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon, badge, empty %}
-{% block action %}<a class="btn btn-primary" href="/research?profile={{ shell.current.id }}">Find videos to clip</a>{% endblock %}
+{% block action %}<a class="btn btn-primary" href="/?profile={{ shell.current.id }}">Paste a link</a>{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Clips</h1><span class="sub">Everything the engine made, and your decision on each</span></div>
 
@@ -25,7 +25,7 @@
       <div class="bar"><i data-live-bar style="width:{{ s.percent }}%"></i></div></div>
   </section>
   {% else %}
-  {{ empty('activity', 'Nothing is being clipped right now', 'When the engine works on a video, its live steps (download, transcribe, find moments, render, check) show up here.', 'Find videos to clip', '/research?profile=' ~ shell.current.id) }}
+  {{ empty('activity', 'Nothing is being clipped right now', 'When the engine works on a video, its live steps (download, transcribe, find moments, render, check) show up here.', 'Paste a link', '/?profile=' ~ shell.current.id) }}
   {% endif %}
 {% elif d.cards %}
   <div class="clip-grid">
@@ -43,6 +43,6 @@
     'approved': ('No approved clips yet', 'Approve a clip and its post is planned on the calendar by itself.'),
     'rejected': ('Nothing rejected', 'Clips you reject, and clips the campaign rules stop, show up here.'),
     'all': ('No clips yet', 'Clips appear here as soon as the engine has made them from a video that passed the gate.')} %}
-  {{ empty('clips', copy[d.tab][0], copy[d.tab][1], 'Find videos to clip', '/research?profile=' ~ shell.current.id) }}
+  {{ empty('clips', copy[d.tab][0], copy[d.tab][1], 'Paste a link', '/?profile=' ~ shell.current.id) }}
 {% endif %}
 {% endblock %}

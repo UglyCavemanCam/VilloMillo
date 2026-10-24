@@ -1,24 +1,20 @@
 # VilloMillo
 
-A research-first system that finds videos worth clipping, makes vertical clips from the ones worth clipping,
-checks and grades them, and plans the posts. It runs on your own PC, and a local dashboard is the only interface.
+A system that turns long videos into vertical clips, checks them, and plans the posts. It runs on your own PC, and a local dashboard is the only interface.
 
 VilloMillo is built on a fork of the open-source Clips Kitty engine (AGPL-3.0-or-later, by ColinGPT9), which stays in this
 repository as the clipping engine. VilloMillo's own code is in [`villomillo/`](villomillo/).
 
 ## What it does
 
-1. **Research.** Finds videos on watched channels and topics through the YouTube API, grades each one with AI
-   (Jev first, Claude for second opinions on borderline ones), and tracks growth. YouTube's daily allowance is tracked, and a
-   spend breaker pauses everything when AI spending since your last approval reaches $25 (Claude) or $5 (Jev).
-2. **Clip.** Hands a video to the clipping engine, collects the clips it makes, and checks each one
-   (length, picture, loudness, campaign rules).
-3. **Look.** Renders clips in a format recipe (framing, captions, hook title, progress bar) from
+1. **Clip.** Hands a video to the clipping engine, collects the clips it makes, and checks each one
+   (length, picture, loudness, campaign rules). A spend breaker pauses everything when AI spending since your last approval
+   reaches $25 (Claude) or $5 (Jev).
+2. **Look.** Renders clips in a format recipe (framing, captions, hook title, progress bar) from
    [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml). See [docs/FORMAT-BLUEPRINTS.md](docs/FORMAT-BLUEPRINTS.md).
-4. **Review.** You approve or reject each clip in the dashboard. With a channel's default `autopilot: review`, nothing is posted without your approval.
-5. **Post.** Plans each approved clip for the right channel and platform, writes title and caption options, and sends it
+3. **Review.** You approve or reject each clip in the dashboard. With a channel's default `autopilot: review`, nothing is posted without your approval.
+4. **Post.** Plans each approved clip for the right channel and platform, writes title and caption options, and sends it
    through the platform's API or leaves it for you to post by hand. Platforms stay manual until their audit is recorded.
-6. **Learn.** Self-checks whether the grades point the right way on past uploads and writes a weekly review.
 
 VilloMillo does not check rights: any link you paste is clipped. See [docs/AUTOPILOT-PLAN.md](docs/AUTOPILOT-PLAN.md) for where the
 system is going and [docs/CODE-AUDIT.md](docs/CODE-AUDIT.md) for what each module is for.
@@ -55,7 +51,7 @@ The engine's own dependencies are in [`requirements.txt`](requirements.txt); sta
 Settings in the dashboard shows which are stored, never their values; store one with `python -m villomillo key whop` (or `youtube`, `jev`, `claude`); it asks for the key with hidden typing and never prints it.
 
 **The clipping engine** is a separate local program on `127.0.0.1:8765`. Start it with `python main.py serve` (its
-dependencies are in [`requirements.txt`](requirements.txt)). Without it, research and review still work, and clipping
+dependencies are in [`requirements.txt`](requirements.txt)). Without it, review and posting still work, and clipping
 says plainly that the engine is not running.
 
 ## Plugins
@@ -86,13 +82,11 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 | Command | What it does |
 |---|---|
 | `status` | counts by stage, today's YouTube quota and AI spend since your last approval |
-| `once` | run one research cycle now |
 | `approve-spend` | approve more spending after the breaker paused work, or after topping up an empty account |
 | `clip` | clip one video now and wait for the engine |
 | `copy` | write title and caption options for planned posts |
 | `accounts` / `account` / `audit` | channel routes, audits, pause and resume |
 | `youtube-connect` / `post-now` | sign in to YouTube once; send one planned post now |
-| `check` | test whether the grades point the right way on past uploads |
 
 ## Settings
 
@@ -114,7 +108,7 @@ The suite needs no GPU, no network and no real footage. Some tests skip when opt
 
 | Path | What is there |
 |---|---|
-| `villomillo/` | VilloMillo: research, grading, clipper client, formats, posting, routing, dashboard (`web/`) |
+| `villomillo/` | VilloMillo: clipper client, formats, posting, routing, dashboard (`web/`) |
 | `config/villomillo/` | VilloMillo's settings, channels and format recipes |
 | `main.py`, `server/`, `core/`, `analysis/`, `llm/`, `video/`, `video_editor/`, `transcription/`, `sources/`, `publish/`, `creator/` | the clipping engine (Clips Kitty fork) |
 | `plugins/`, `sdk/`, `examples/` | the engine's plugin platform, its SDK (MIT) and example plugins |

@@ -10,8 +10,6 @@ dashboard:
 budgets:
   youtube_general_units_per_day: 8000
   youtube_search_calls_per_day: 80
-  claude_escalations_per_day: 10   # second opinions on borderline videos
-  transcript_jev_usd_per_video: 0.01
 
 # No monthly or daily dollar caps. Instead everything pauses when spending SINCE YOUR LAST APPROVAL reaches
 # these amounts (or when an account runs out of funds), and the dashboard asks you to approve.
@@ -21,10 +19,4 @@ spend_breaker:
 
 # How often each job runs.
 schedule:
-  watch_every_minutes: 30        # look for new uploads on watched channels
-  topics_every_minutes: 720      # keyword searches (these use the scarce search allowance)
-  snapshots_every_minutes: 60    # refresh view counts to measure growth
-  grade_every_minutes: 15        # grade newly found videos
-  grade_batch: 40                # most videos graded per run
-  review_every_minutes: 10080    # the weekly Claude review (7 days)
   post_every_minutes: 15         # send approved clips that are due (dry-run unless a channel turns it off)

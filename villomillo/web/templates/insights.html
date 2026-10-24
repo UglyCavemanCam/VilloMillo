@@ -1,16 +1,13 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon, empty %}
 {% block content %}
-<div class="page-head"><h1>Insights</h1><span class="sub">How well the grading works, what the AI costs, and what the system has learned</span></div>
+<div class="page-head"><h1>Insights</h1><span class="sub">What the AI costs and how much YouTube allowance is used</span></div>
 
 <section class="grid stats" aria-label="At a glance">
-  <div class="card stat"><div class="k">Self-check</div>
-    {% if d.selfcheck %}<div class="verdict {{ 'good' if d.selfcheck.verdict == 'pointing the right way' else ('bad' if d.selfcheck.verdict.startswith('backwards') else '') }}" style="line-height:36px">{{ d.selfcheck.verdict|capitalize }}</div>
-    <div class="s">{{ d.selfcheck.sample }} older uploads graded blind</div>{% else %}<div class="v">Not run</div><div class="s">Run <code>python -m villomillo check</code></div>{% endif %}</div>
-  <div class="card stat"><div class="k">Second opinions (Claude) today</div><div class="v num">{{ d.claude_today }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.claude_limit }}</span></div><div class="s">{{ d.claude_since|money }} of {{ d.claude_limit_usd|money }} since your last approval</div></div>
-  <div class="card stat"><div class="k">YouTube allowance today</div><div class="v num">{{ d.quota.general[0] }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.quota.general[1] }}</span></div>
-    <div class="bar thin"><i style="width:{{ (100 * d.quota.general[0] / d.quota.general[1])|round|int if d.quota.general[1] else 0 }}%"></i></div><div class="s">searches {{ d.quota.search[0] }} of {{ d.quota.search[1] }} · resets at midnight Pacific (3 AM Eastern)</div></div>
+  <div class="card stat"><div class="k">Claude spend since last approval</div><div class="v num">{{ d.claude_since|money }}</div><div class="s">pauses at {{ d.claude_limit_usd|money }}</div></div>
   <div class="card stat"><div class="k">Jev spend since last approval</div><div class="v num">{{ d.jev_since|money }}</div><div class="s">pauses at {{ d.jev_limit_usd|money }}</div></div>
+  <div class="card stat"><div class="k">YouTube allowance today</div><div class="v num">{{ d.quota.general[0] }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.quota.general[1] }}</span></div>
+    <div class="bar thin"><i style="width:{{ (100 * d.quota.general[0] / d.quota.general[1])|round|int if d.quota.general[1] else 0 }}%"></i></div><div class="s">searches {{ d.quota.search[0] }} of {{ d.quota.search[1] }} · resets at midnight Pacific</div></div>
 </section>
 
 <div class="grid two">
@@ -21,39 +18,8 @@
   </section>
   <section class="card" aria-labelledby="results-h">
     <h2 id="results-h" style="margin-bottom:8px">Real results</h2>
-    <p class="muted" style="line-height:1.5">Views, likes and watch time from your posts will appear here, next to the grade that predicted them. They start arriving once posts are public.</p>
-    <div class="notice" style="margin-top:14px">{{ icon('trend') }}<div>Until then the grades are checked against older uploads by the automatic self-check.</div></div>
+    <p class="muted" style="line-height:1.5">Views and earnings from your posts will appear here, next to the score that predicted them. They start arriving once posts are public.</p>
+    <div class="notice" style="margin-top:14px">{{ icon('trend') }}<div>This is where the system will learn which categories and clips really pay.</div></div>
   </section>
 </div>
-
-<section class="card" aria-labelledby="cal-h">
-  <h2 id="cal-h">Grade bands against outcome</h2>
-  <p class="muted" style="margin:4px 0 14px;font-size:13px">For this channel's older uploads: how often a video in each grade band beat the channel's median.</p>
-  <table class="tbl"><tbody>{% for b in d.calibration %}<tr><td style="width:140px">Grade {{ b.band }}</td><td>{{ b.n }} uploads</td>
-    <td>{% if b.beat_median is none %}<span class="muted">no examples</span>{% else %}<div class="scorecell" style="max-width:320px"><span class="num" style="width:44px">{{ (b.beat_median * 100)|round|int }}%</span><div class="bar"><i style="width:{{ (b.beat_median * 100)|round|int }}%"></i></div></div>{% endif %}</td></tr>{% endfor %}</tbody></table>
-</section>
-
-<div class="grid two">
-  <section class="card" aria-labelledby="len-h">
-    <h2 id="len-h" style="margin-bottom:10px">Length adjustment</h2>
-    <div class="stack" style="gap:10px">{% for g in d.length %}<div class="cluster"><span class="chip">{{ g.group }}</span><span>{{ g.examples }} examples</span><span class="muted" style="font-size:13px">{{ g.status }}</span></div>{% endfor %}</div>
-    <p class="muted" style="margin-top:12px;font-size:13px">Adjustments are at most 15% either way, and only once a length group has 20 examples.</p>
-  </section>
-  <section class="card" aria-labelledby="next-h">
-    <h2 id="next-h" style="margin-bottom:10px">Next to look at</h2>
-    <div class="events">{% for r in d.preview %}<div><span class="grade" style="font-size:16px;width:30px">{{ '%.0f'|format(r.score) }}</span><span style="flex:1;min-width:0">{{ r.title }}<span class="muted" style="display:block;font-size:12px">{{ r.why }}</span></span></div>
-      {% else %}<span class="muted">Nothing on the shortlist yet.</span>{% endfor %}</div>
-  </section>
-</div>
-
-<section class="card" aria-labelledby="rev-h">
-  <h2 id="rev-h">Weekly review</h2>
-  <p class="muted" style="margin:4px 0 14px;font-size:13px">Claude's suggestions. Advice only: nothing changes unless you change it.</p>
-  {% if d.review %}
-    <p style="line-height:1.55">{{ d.review.summary }}</p>
-    {% if d.review.keyword_ideas %}<h3 style="margin:16px 0 8px">Keyword ideas</h3><div class="cluster">{% for k in d.review.keyword_ideas %}<span class="chip">{{ k }}</span>{% endfor %}</div>{% endif %}
-    {% if d.review.watch_out %}<h3 style="margin:16px 0 8px">Watch out for</h3><ul style="margin:0;padding-left:18px;line-height:1.6">{% for w in d.review.watch_out %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
-    <div class="muted" style="margin-top:14px;font-size:12px">Written {{ d.review_at }}</div>
-  {% else %}<p class="muted">No review yet. The first one is written a week after the system starts.</p>{% endif %}
-</section>
 {% endblock %}

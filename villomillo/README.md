@@ -1,17 +1,15 @@
-# VilloMillo research engine
+# VilloMillo
 
-Finds videos on YouTube, grades them with Jev, and ranks them by how well they fit a channel profile.
-Nothing is downloaded, clipped or posted yet (that is Phases 3 and 4 of `docs/TECHNICAL-PLAN.md`).
+The app around the clipping engine: it hands videos to the engine, checks the clips, gives them a look, plans and sends the posts, and guards spending.
+See `docs/AUTOPILOT-PLAN.md` for where it is going and `docs/CODE-AUDIT.md` for what each module is for.
 
 Run these from the repository root with the project's virtual environment:
 
 | Command | What it does |
 |---|---|
-| `.venv\Scripts\python.exe -m villomillo once` | One full research cycle now (add `--no-topics` to skip keyword searches) |
 | `.venv\Scripts\python.exe -m villomillo run` | Work in the background on a schedule and serve the dashboard |
 | `.venv\Scripts\python.exe -m villomillo serve` | Dashboard only: http://127.0.0.1:8780 |
-| `.venv\Scripts\python.exe -m villomillo status` | Counts and today's YouTube and Jev usage |
+| `.venv\Scripts\python.exe -m villomillo status` | Counts, today's YouTube usage and AI spend since your last approval |
 
 Settings live in `config/villomillo/` (`app.yaml`, and one file per channel in `channels/`).
-API keys are read from Windows Credential Manager under the name `villomillo`
-(`youtube_api_key`, `typesafe_api_key`, `anthropic_api_key`). They are never written to a file.
+API keys are kept in Windows Credential Manager under the name `villomillo` (store them with `python -m villomillo key <name>`). They are never written to a file.
