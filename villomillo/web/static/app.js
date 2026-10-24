@@ -79,6 +79,7 @@
     }).then(function () {
       if (el.dataset.ok) toast(el.dataset.ok, "good");
       var after = el.dataset.after || "reload";
+      if (after.charAt(0) === "/") { setTimeout(function () { location.href = after; }, el.dataset.ok ? 450 : 0); return; }
       if (after === "panel" && currentPanel) return openPanel(currentPanel);
       if (after === "reload") setTimeout(function () { location.reload(); }, el.dataset.ok ? 450 : 0);
     }).catch(function (e) { toast(e.message, "bad"); }).then(function () { el.classList.remove("is-busy"); });

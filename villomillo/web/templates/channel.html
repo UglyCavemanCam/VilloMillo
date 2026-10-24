@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="page-head"><h1>{{ d.card.name }}</h1><span class="sub">{{ d.card.category }}</span>
+  <span class="right"><a class="btn btn-sm" href="/channels?profile={{ d.c.id }}">All channels</a></span></div>
+
+{% if d.new %}<div class="notice">{{ icon('check') }}<div><b>Channel created.</b> Finish the steps below. Until YouTube is connected, posts for this channel stay on your list to post by hand.</div></div>{% endif %}
+{% if d.released %}<div class="notice">{{ icon('check') }}<div><b>{{ d.released }} held clip{{ 's were' if d.released != 1 else ' was' }} planned</b> now that this channel exists.</div></div>{% endif %}
+{% if d.saved %}<div class="notice">{{ icon('check') }}<div>Saved.</div></div>{% endif %}
+{% if d.error %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.error }}</div></div>{% endif %}
+
+<ol class="checklist" aria-label="Setup steps">
+  {% for s in d.steps %}<li class="{{ 'done' if s.done }}"><b>{{ s.n }}. {{ s.title }}</b>{{ 'Done' if s.done else 'Still to do' }}</li>{% endfor %}
+</ol>
+
+<form class="stack" method="post" action="/channels/{{ d.c.id }}/save">
+  <section class="card" aria-labelledby="s1"><h2 id="s1" style="margin-bottom:12px">1. Name and category</h2>
+    <div class="form">
+      <label>Channel name<input class="field" name="name" value="{{ d.form.name }}" maxlength="40" required></label>
+      <label>Category<small>Changing it re-checks clips that were held for the new category.</small><input class="field" name="category" value="{{ d.form.category }}" maxlength="40" required></label>
+      <label>What does it post?<textarea class="field" name="about" maxlength="600" required>{{ d.form.about }}</textarea></label>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s2"><h2 id="s2" style="margin-bottom:12px">2. YouTube</h2>
+    <p style="margin:0 0 12px">{% if d.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</p>
+    {% if d.client_file %}
+    <button type="button" class="btn" data-act="/api/channel-youtube" data-fields='{{ {"profile": d.c.id}|tojson }}' data-after="none" data-ok="A sign-in window opened on this PC. Sign in with the account that owns this channel.">{{ 'Connect a different account' if d.youtube else 'Connect YouTube' }}</button>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">A browser window opens on this PC. Google may warn that the app is unverified: that is expected for your own app. Choose Continue. Refresh this page when you are done.</p>
+    {% else %}
+    <div class="notice">{{ icon('plug') }}<div>First save your Google OAuth client file as <code>{{ d.client_path }}</code>. Then this button signs you in.</div></div>
+    {% endif %}
+    <div class="form" style="margin-top:14px">
+      <label>Channel handle<small>Shown as the faint watermark on every clip, for example @cavemancam.</small><input class="field" name="brand_handle" value="{{ d.form.brand_handle }}" maxlength="40"></label>
+      <label>YouTube posts per day<small>Most this channel posts in a day. YouTube allows up to 100.</small><input class="field" name="youtube_daily_cap" type="number" min="1" max="100" value="{{ d.form.youtube_daily_cap }}"></label>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s3"><h2 id="s3" style="margin-bottom:12px">3. TikTok</h2>
+    <div class="form">
+      <label>TikTok handle<small>Create the account on TikTok first, then add its name here. Posting to TikTok is built in a later phase; until then clips post to YouTube only.</small>
+        <input class="field" name="tiktok_handle" value="{{ d.form.tiktok_handle }}" maxlength="25" placeholder="@name"></label>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s4"><h2 id="s4" style="margin-bottom:12px">4. Tags and look</h2>
+    <div class="form">
+      <label>Caption tags<small>@mentions or tags that must appear in every YouTube caption, written as you want them.</small><input class="field" name="youtube_tags" value="{{ d.form.youtube_tags }}" maxlength="200"></label>
+      <label>Look<small>The on-screen style clips are rendered in.</small>
+        <select class="field" name="format"><option value="">The engine's own look</option>{% for r in d.recipes %}<option value="{{ r }}" {{ 'selected' if r == d.form.format }}>{{ r }}</option>{% endfor %}</select></label>
+    </div>
+  </section>
+
+  <div class="cluster"><button class="btn btn-primary" type="submit">Save</button>
+    <button type="button" class="btn btn-ghost" data-act="/api/channel-delete" data-fields='{{ {"profile": d.c.id}|tojson }}' data-confirm-title="Delete this channel?" data-confirm="It is removed from the dashboard. A channel that already has clips or posts cannot be deleted." data-after="/channels" data-ok="Deleted">Delete channel</button></div>
+</form>
+{% endblock %}

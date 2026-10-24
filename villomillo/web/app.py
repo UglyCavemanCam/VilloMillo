@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pathlib
 import subprocess
+import threading
 from datetime import date
 from html import escape as html_escape
 from urllib.parse import urlsplit
@@ -21,7 +22,19 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .. import accounts, clipper, copywriter, posting, routing, secrets, spend, store, tasks, timefmt
+from .. import (
+    accounts,
+    channels,
+    clipper,
+    copywriter,
+    posting,
+    routing,
+    secrets,
+    spend,
+    store,
+    tasks,
+    timefmt,
+)
 from ..services import Services
 from . import pages
 
@@ -128,6 +141,104 @@ def create_app(sv: Services) -> FastAPI:
     def home(profile: str | None = None):
         p = profile_or_404(profile)
         return render("home.html", p, "/", "home", "Home", d=pages.home_page(sv, p))
+
+    # ---- channels ----------------------------------------------------------------------------------------------
+
+    connecting: set[str] = set()  # channels whose YouTube sign-in window is open right now
+
+    def finish_channel_change(category: str | None = None) -> int:
+        """After a channel is added or changed: schedule its jobs, and plan the clips that were held for its category."""
+        tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+        if not category:
+            return 0
+        planned = routing.release_held(sv.db, jev_factory, sv.profiles, category)
+        for post in planned:
+            if post["status"] == "queued":
+                tasks.enqueue(sv.db, "copy", {"profile": post["profile"], "post_id": post["id"]}, dedupe_key=f"copy:{post['id']}")
+        return len(planned)
+
+    @app.get("/channels", response_class=HTMLResponse)
+    def channels_list(profile: str | None = None):
+        p = profile_or_404(profile)
+        return render("channels.html", p, "/channels", "channels", "Channels", d=pages.channels_page(sv, p))
+
+    @app.get("/channels/new", response_class=HTMLResponse)
+    def channel_new(profile: str | None = None, category: str = ""):
+        p = profile_or_404(profile)
+        return render("channel_new.html", p, "/channels", "channels", "Add channel",
+                      d={"form": {"name": category, "category": category, "about": ""}, "error": None})
+
+    @app.post("/channels/new", response_class=HTMLResponse)
+    def channel_create(request: Request, name: str = Form(""), category: str = Form(""), about: str = Form("")):
+        _only_local(request, "changes")
+        try:
+            c = channels.create(sv.db, sv.profiles, name=name, category=category, about=about)
+        except channels.ChannelError as e:
+            r = render("channel_new.html", profile_or_404(None), "/channels", "channels", "Add channel",
+                       d={"form": {"name": name, "category": category, "about": about}, "error": str(e)})
+            r.status_code = 422
+            return r
+        released = finish_channel_change(c.category)
+        store.event(sv.db, "info", "channels", f"Channel {c.display_name} added" + (f"; {released} held clip(s) planned" if released else ""))
+        return RedirectResponse(f"/channels/{c.id}?profile={c.id}&new=1&released={released}", status_code=303)
+
+    @app.get("/channels/{channel_id}", response_class=HTMLResponse)
+    def channel_detail(channel_id: str, new: int = 0, released: int = 0, saved: int = 0):
+        c = in_profile(channel_id)
+        d = pages.channel_page(sv, c)
+        d.update(new=bool(new), released=released, saved=bool(saved))
+        return render("channel.html", c, "/channels", "channels", pages.channel_name(c), d=d)
+
+    @app.post("/channels/{channel_id}/save", response_class=HTMLResponse)
+    async def channel_save(request: Request, channel_id: str):
+        _only_local(request, "changes")
+        c = in_profile(channel_id)
+        form = {k: str(v) for k, v in (await request.form()).items()}
+        allowed = {"name", "category", "about", "brand_handle", "tiktok_handle", "youtube_tags", "youtube_daily_cap", "format"}
+        before = c.category
+        try:
+            updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})
+        except channels.ChannelError as e:
+            d = pages.channel_page(sv, c, form=form, error=str(e))
+            d.update(new=False, released=0, saved=False)
+            r = render("channel.html", c, "/channels", "channels", pages.channel_name(c), d=d)
+            r.status_code = 422
+            return r
+        released = finish_channel_change(updated.category if updated.category != before else None)
+        return RedirectResponse(f"/channels/{channel_id}?profile={channel_id}&saved=1&released={released}", status_code=303)
+
+    @app.post("/api/channel-youtube")
+    def channel_youtube(request: Request, profile: str = Form(...)):
+        _only_local(request, "changes")
+        c = in_profile(profile)
+        if not posting.YOUTUBE_CLIENT.exists():
+            raise HTTPException(422, f"save your Google OAuth client file as {posting.YOUTUBE_CLIENT} first")
+        if profile in connecting:
+            raise HTTPException(409, "a sign-in window is already open for this channel")
+        connecting.add(profile)
+
+        def sign_in():
+            try:
+                info = posting.connect_youtube(c)
+                store.event(sv.db, "info", "channels", f"{pages.channel_name(c)}: YouTube connected as {info.get('title')}")
+            except Exception as e:  # window closed, wrong account, no network: say so in the log, change nothing
+                store.event(sv.db, "warn", "channels", f"{pages.channel_name(c)}: YouTube sign-in did not finish: {str(e)[:200]}")
+            finally:
+                connecting.discard(profile)
+
+        threading.Thread(target=sign_in, name=f"youtube-connect-{profile}", daemon=True).start()
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/channel-delete")
+    def channel_delete(request: Request, profile: str = Form(...)):
+        _only_local(request, "changes")
+        in_profile(profile)
+        try:
+            channels.delete(sv.db, sv.profiles, profile)
+        except channels.ChannelError as e:
+            raise HTTPException(422, str(e)) from None
+        tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+        return JSONResponse({"ok": True})
 
     @app.get("/clips", response_class=HTMLResponse)
     def clips(profile: str | None = None, tab: str = "all"):

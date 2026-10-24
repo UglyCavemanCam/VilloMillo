@@ -1,8 +1,8 @@
 """Routing: which channel posts a clip.
 
 Hard rules come first, in code:
-- a channel may only post a video it has permission for (so a campaign's videos can only go to that campaign's
-  channel, and a Creative Commons video to any channel);
+- a clip with a category can only go to the channel for that category; with no such channel it is held until one is
+  created (release_held posts it then);
 - a channel needs posting settings, and channels whose accounts are paused or whose slots are full for days are only
   used when nothing better is left.
 Then fit to the channel's topic decides, judged by one Jev question per channel. With one candidate there is nothing
@@ -16,12 +16,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from . import accounts, posting, store
+from .channels import for_category
 from .config import Profile
 from .db import Database
 
 FIT_MIN = 3                 # of 5: a clip that scores lower for every channel fits none
 MAX_WAIT_DAYS = 3           # a channel whose next free slot is further off than this counts as full
 FIT_CRITERIA = ["Not at all", "Barely", "Somewhat", "Fits well", "A perfect fit"]
+
+
+NO_CHANNEL = "no channel for the category"  # the start of the reason a held clip carries; release_held looks for it
+HELD = "approved, but not posted: "
 
 
 @dataclass
@@ -34,7 +39,11 @@ class Decision:
 def candidates(db: Database, profiles: dict[str, Profile], clip, now: datetime) -> tuple[list[dict], dict[str, str]]:
     """Channels allowed to post this clip, each with how long until its next free slot, and why others cannot."""
     allowed, refused = [], {}
+    category = clip["category"]
     for p in profiles.values():
+        if category and not (p.category and p.category.strip().lower() == category.strip().lower()):
+            refused[p.id] = f"it is not the {category} channel"
+            continue
         if p.posting is None or not p.posting.platforms:
             refused[p.id] = "it has no posting settings"
             continue
@@ -53,6 +62,8 @@ def route_clip(db: Database, jev, profiles: dict[str, Profile], clip_id: int, *,
         clip = c.execute("SELECT * FROM clips_ready WHERE id=?", (clip_id,)).fetchone()
     if clip is None:
         raise LookupError("no such clip")
+    if clip["category"] and for_category(profiles, clip["category"]) is None:
+        return Decision(None, f"{NO_CHANNEL} {clip['category']}")
     allowed, refused = candidates(db, profiles, clip, now)
     if not allowed:
         return Decision(None, "no channel can post it: " + "; ".join(f"{k}: {v}" for k, v in refused.items()))
@@ -88,6 +99,36 @@ def assign_and_plan(db: Database, jev_factory, profiles: dict[str, Profile], own
     store.event(db, "info", "route", f"clip {clip_id}: {decision.profile_id or 'held'}: {decision.reason}")
     if decision.profile_id is None:
         with db.conn() as c:
-            c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (f"approved, but not posted: {decision.reason}", clip_id))
+            c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (f"{HELD}{decision.reason}", clip_id))
         return None
-    return posting.plan(db, profiles[decision.profile_id], clip_id, now=now, owner=owner_id)
+    planned = posting.plan(db, profiles[decision.profile_id], clip_id, now=now, owner=owner_id)
+    with db.conn() as c:  # a clip that was held no longer is
+        c.execute("UPDATE clips_ready SET reason=? WHERE id=? AND reason LIKE ?",
+                  (f"approved; planned on {profiles[decision.profile_id].display_name}", clip_id, f"{HELD}%"))
+    return planned
+
+
+def held_categories(db: Database) -> list[dict]:
+    """Categories with approved clips waiting for a channel: [{category, clips, low, high}], biggest first."""
+    with db.conn() as c:
+        rows = c.execute(
+            "SELECT category, COUNT(*) AS n, MIN(engine_score) AS lo, MAX(engine_score) AS hi FROM clips_ready "
+            "WHERE state='approved' AND category IS NOT NULL AND reason LIKE ? GROUP BY lower(category) "
+            "ORDER BY n DESC, category", (f"{HELD}{NO_CHANNEL}%",)).fetchall()
+    return [{"category": r["category"], "clips": r["n"], "low": r["lo"], "high": r["hi"]} for r in rows]
+
+
+def release_held(db: Database, jev_factory, profiles: dict[str, Profile], category: str, *,
+                 now: datetime | None = None) -> list[dict]:
+    """Plan the clips that were held for this category now that it has a channel. Returns the posts that were planned."""
+    with db.conn() as c:
+        held = c.execute(
+            "SELECT id, profile_id FROM clips_ready WHERE state='approved' AND lower(category)=lower(?) AND reason LIKE ? "
+            "AND NOT EXISTS (SELECT 1 FROM posts WHERE posts.clip_id=clips_ready.id) ORDER BY engine_score DESC, id",
+            (category, f"{HELD}{NO_CHANNEL}%")).fetchall()
+    planned = []
+    for row in held:
+        post = assign_and_plan(db, jev_factory, profiles, row["profile_id"], row["id"], now=now)
+        if post:
+            planned.append(post)
+    return planned

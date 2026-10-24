@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import secrets
-from .config import AppConfig, Profile, load_app, load_profiles
+from . import channels, secrets
+from .config import AppConfig, Profile, load_app
 from .db import Database
 from .jev import Jev
 from .quota import Quota
@@ -23,8 +23,9 @@ class Services:
 
 
 def build(*, with_apis: bool = True) -> Services:
-    app, profiles = load_app(), load_profiles()
+    app = load_app()
     db = Database(app.database_path())
+    profiles = channels.load(db)
     quota = Quota(
         db,
         general_cap=app.budgets.youtube_general_units_per_day,

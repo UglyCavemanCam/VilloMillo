@@ -25,12 +25,13 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the real campaign rules |
 | `formats/` | The on-screen look recipes (blueprints, text, render) | **Keep** |
 | `copywriter.py` | Titles and captions per platform (YouTube now, TikTok in Phase 6) | **Keep** |
-| `posting.py`, `accounts.py`, `routing.py` | Posting, per-account pause and audit state, choosing a channel | **Keep.** Phase 2 turns "profiles" into category channels; Phase 6 adds TikTok |
+| `channels.py` | Channels stored in the database: add, edit, delete, one per category | **Keep** (new, Phase 2) |
+| `posting.py`, `accounts.py`, `routing.py` | Posting, per-account pause and audit state, choosing a channel (a clip goes to its category's channel, or is held) | **Keep.** Phase 6 adds TikTok |
 | `youtube.py`, `quota.py` | YouTube Data API reads and their daily allowance | **Keep** (used by the Paste intake and, later, Research) |
 | `studio.py` | Dashboard helper for the live clip-progress view | **Rewrite in Phase 5** (run page) |
 | `cli.py`, `web/` | Command line and dashboard | **Keep.** The Research page is gone (returns in Phase 8); Home becomes the paste page in Phase 5 |
 
 ## Not yet decided
 
-- The Solved channel profile (`config/villomillo/channels/solved.yaml`) becomes the first Podcasts channel in Phase 2.
+- The Solved campaign rules (`campaign:` in `config/villomillo/channels/solved.yaml`) move to the Campaigns feature in Phase 7.
 - Twelve tests fail on a clean checkout for reasons unrelated to this work: eleven outro-font tests need Windows fonts, and one engine signal-peak test (`test_clip_intent`).

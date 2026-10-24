@@ -100,6 +100,8 @@ class Brand(_Strict):
 class Profile(_Strict):
     id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,30}$")
     display_name: str
+    category: str = ""  # what this channel posts, such as "Podcasts". One channel per category.
+    tiktok_handle: str = ""  # the channel's TikTok account, such as "@name"; posting there comes in a later phase
     autopilot: str = Field("review", pattern=r"^(off|review|auto)$")
     niche: Niche
     campaign: Campaign | None = None

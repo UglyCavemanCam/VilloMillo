@@ -61,9 +61,7 @@ def build_copy(posting: Posting, clip: dict, episode: str, platform: str) -> dic
 
 def copy_problems(copy: dict, platform: str, tag: str) -> list[str]:
     problems = []
-    if not tag:
-        problems.append("no required tags are set for this platform")
-    elif tag.lower() not in (copy["title"] + " " + copy["caption"]).lower():
+    if tag and tag.lower() not in (copy["title"] + " " + copy["caption"]).lower():
         problems.append(f"the caption is missing the campaign's tags ({tag})")
     if platform == "youtube_shorts" and len(copy["title"]) > YT_TITLE_MAX:
         problems.append("the YouTube title is too long")

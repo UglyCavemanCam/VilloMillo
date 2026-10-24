@@ -122,6 +122,11 @@ caps never left spending unguarded. Moving the Solved channel into the new chann
 Add the "held, then create a channel" behaviour. YouTube connects first; TikTok plugs in later.
 **After this:** you can add and edit channels and see which accounts are connected.
 **Done when:** adding a channel releases clips that were held for it.
+**Status: done.** Channels live in the database. The Channels page lists them with their YouTube and TikTok status; Add channel creates one (name, category,
+what it posts) and then walks you through YouTube, TikTok handle, tags and look on the channel's page. A clip with a category posts only on that
+category's channel; with none it is held and Home says "Create a channel for ...". Adding the channel plans the held clips, best score first.
+Podcasts is the starting channel (its YouTube sign-in is the one you already made). Clips get their category from their channel until the
+type detector (Phase 4) assigns it. The Solved campaign rules still sit on the Podcasts channel until Phase 7 moves them to Campaigns.
 
 ### Phase 3: Teach the engine to preview (large)
 **In plain words:** Today the engine does everything in one go: download, read, find moments, then make the clips. Your plan
@@ -151,10 +156,9 @@ learning step. You will need TikTok's approval; until it passes, posts there are
 **Done when:** a clip reaches both accounts and the daily limits hold.
 
 ### Phase 7: Campaigns (large)
-**In plain words:** First, a small test script you run once on your computer, using your Whop key (steps in section 12), to see what Content Rewards
-lets the system do. Whop's permission list suggests a key can read campaigns but cannot join them or submit links, so the expected result is:
-the system finds campaigns, checks the pay and the money left, reads the rules, finds their videos and clips them, and then shows you
-exactly what to join and which links to submit (a few taps). If the test shows joining and submitting are possible after all, the system does those too.
+**In plain words:** Whop's API cannot list or join Content Rewards campaigns (the test showed this), so the system reads the public campaign list on
+contentrewards.com first, checks the pay and the money left, reads each campaign's rules, finds its videos and clips them. If that list cannot be
+read, you paste a campaign link and the system reads that one page. It then shows you exactly what to join and which links to submit (a few taps).
 **After this:** a Campaigns page listing every campaign it looked at, why it recommends or skips each one, and a queue of videos.
 **Done when:** one real campaign is checked and queued, and any manual steps are clearly shown.
 
@@ -256,11 +260,11 @@ Keep the key only in the app's keychain. Never paste it into chat, a file or the
 **Settled by the Whop test (run on your computer):**
 - Your key is valid and works. It can list apps; `/bounties` and `/bounty_submissions` answer but are empty for your account.
 - Whop's documented API has **no Content Rewards campaign endpoints** that a clipper can use. Every address we tried (`/content_rewards`, `/campaigns` and similar) answered "not found". Whop's own documentation for Content Rewards only describes the brand side (creating campaigns and approving submissions); joining and submitting as a clipper is done on the website.
-- So in Phase 7 campaigns are not read through the Whop API. Two ways to feed them in, to be chosen before Phase 7: (a) you paste a campaign link and the system reads that public page; (b) the system also reads the public campaign list on contentrewards.com. Joining and submitting links stay manual either way.
+- So in Phase 7 campaigns are not read through the Whop API. **Decided:** the system reads the public campaign list on contentrewards.com first, and you can paste a campaign link as a fallback (the system then reads that page). Joining and submitting links stay manual either way.
 
 **Settled by you:**
 - The Solved campaign does **not** allow TikTok. Solved clips go to **YouTube only**; the TikTok account is for everything else. Every campaign needs its own "allowed platforms" setting, checked before a clip is posted.
 
 **Still open:**
 1. The TikTok account's name and handle, once the account exists (not needed before Phase 6).
-2. Phase 7 choice (a) or (b) above.
+

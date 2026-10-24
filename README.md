@@ -91,7 +91,7 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 ## Settings
 
 - [`config/villomillo/app.yaml`](config/villomillo/app.yaml): YouTube allowances, spend breaker, schedule, dashboard port, database path.
-- [`config/villomillo/channels/`](config/villomillo/channels/): one file per channel (niche, rules, format, platforms).
+- Channels are added and edited on the dashboard's **Channels** page and stored in the database. [`config/villomillo/channels/`](config/villomillo/channels/) only holds the starting channel (Podcasts), read once into an empty database.
 - [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml): the format recipes.
 
 ## Tests

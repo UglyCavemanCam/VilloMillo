@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="page-head"><h1>Add channel</h1><span class="sub">Step 1 of 4: name and category. YouTube, TikTok and the look come next.</span></div>
+{% if d.error %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.error }}</div></div>{% endif %}
+<section class="card">
+  <form class="form" method="post" action="/channels/new">
+    <label>Channel name<small>How you will see it in the dashboard, for example "Podcasts".</small>
+      <input class="field" name="name" value="{{ d.form.name }}" maxlength="40" required></label>
+    <label>Category<small>What this channel posts. A clip with this category posts here, and only here. One channel per category.</small>
+      <input class="field" name="category" value="{{ d.form.category }}" maxlength="40" required></label>
+    <label>What does it post?<small>One or two sentences. This helps the system judge which clips fit.</small>
+      <textarea class="field" name="about" maxlength="600" required>{{ d.form.about }}</textarea></label>
+    <div class="cluster"><button class="btn btn-primary" type="submit">Create and continue</button><a class="btn" href="/channels?profile={{ shell.current.id }}">Cancel</a></div>
+  </form>
+</section>
+{% endblock %}

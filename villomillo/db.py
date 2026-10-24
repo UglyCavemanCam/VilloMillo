@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS schedules (
     next_run_at TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
 );
 
+-- The channels you have added in the dashboard. Each is a category with its YouTube and TikTok accounts.
+CREATE TABLE IF NOT EXISTS channels (
+    id TEXT PRIMARY KEY, data_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
 -- Every paid AI call with a time, so the spend breaker can count what was spent since your last approval.
 CREATE TABLE IF NOT EXISTS spend_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, engine TEXT NOT NULL, cost_usd REAL NOT NULL
@@ -75,6 +80,7 @@ CREATE TABLE IF NOT EXISTS clips_ready (
     hook TEXT, file_path TEXT, validation_json TEXT NOT NULL, grade_json TEXT NOT NULL,
     state TEXT NOT NULL,        -- review | rejected_auto | failed_validation | approved | rejected
     reason TEXT, created_at TEXT NOT NULL, decided_at TEXT,
+    category TEXT,              -- what kind of clip this is; it can only post on the channel for that category
     UNIQUE (profile_id, engine_clip_id)
 );
 
@@ -121,6 +127,8 @@ class Database:
         setup = sqlite3.connect(self.path, timeout=30)  # executescript manages its own transaction
         try:
             setup.executescript(SCHEMA)
+            if "category" not in {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}:
+                setup.execute("ALTER TABLE clips_ready ADD COLUMN category TEXT")  # a database made before channels
             setup.execute(
                 "INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO NOTHING",
                 (str(SCHEMA_VERSION),),

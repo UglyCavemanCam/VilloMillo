@@ -11,11 +11,12 @@ import pathlib
 import time
 from collections import defaultdict
 from datetime import date, timedelta
+from urllib.parse import quote
 
 import httpx
 import keyring
 
-from .. import accounts, clipper, posting, secrets, spend, studio, timefmt
+from .. import accounts, clipper, posting, routing, secrets, spend, studio, timefmt
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
@@ -110,6 +111,12 @@ def has_secret(*names: str) -> bool:
 def needs(sv: Services, p: Profile) -> list[dict]:
     """Everything waiting on you, most important first. Each has a kind: accent, warn, bad or neutral."""
     db, out = sv.db, []
+    for held in routing.held_categories(db):
+        n, lo, hi = held["clips"], held["low"], held["high"]
+        out.append({"title": f"Create a channel for \"{held['category']}\"",
+                    "sub": f"{n} clip{'s are' if n != 1 else ' is'} held" + (f", scored {lo} to {hi}" if lo is not None else ""),
+                    "btn": "Add channel", "kind": "accent", "primary": True,
+                    "href": f"/channels/new?profile={p.id}&category={quote(held['category'])}"})
     waiting = one(db, "SELECT COUNT(*) AS n, MIN(id) AS first FROM clips_ready WHERE profile_id=? AND state='review'", p.id)
     if waiting["n"]:
         n = waiting["n"]
@@ -130,7 +137,7 @@ def needs(sv: Services, p: Profile) -> list[dict]:
         if r["profile"] == p.id and r["status"] == "paused":
             out.append({"title": f"{r['platform'].replace('_', ' ').title()} account is paused", "sub": r["reason"] or "Paused",
                         "btn": "Accounts", "kind": "bad", "primary": False, "href": f"/accounts?profile={p.id}"})
-    held = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state='approved' AND reason LIKE 'approved, but not posted%'", p.id)
+    held = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state='approved' AND reason LIKE 'approved, but not posted%' AND reason NOT LIKE '%no channel for the category%'", p.id)
     if held["n"]:
         out.append({"title": f"{held['n']} approved clip{'s' if held['n'] != 1 else ''} fit no channel", "sub": "Not posted: see the reason on the clip",
                     "btn": "Open clips", "kind": "warn", "primary": False, "href": f"/clips?profile={p.id}&tab=approved"})
@@ -158,13 +165,14 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
     pause = spend.current(sv.db, br)
     return {
         "pause": pause and {"title": pause.title, "text": pause.text, "kind": pause.kind},
-        "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.display_name if p.brand.name else "",
+        "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.category if p.category and p.category != channel_name(p) else "",
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
             {"label": "Find", "links": [{"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"}]},
             {"label": "Make", "links": [
                 {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
             {"label": "Post", "links": [
+                {"key": "channels", "label": "Channels", "href": f"/channels{q}", "icon": "plug"},
                 {"key": "calendar", "label": "Calendar", "href": f"/calendar{q}", "icon": "calendar"},
                 {"key": "accounts", "label": "Accounts", "href": f"/accounts{q}", "icon": "users",
                  "dot": "An account is paused" if paused else None}]},
@@ -406,6 +414,43 @@ def accounts_page(sv: Services, p: Profile) -> dict:
                     "dry_run": owner.posting.dry_run if owner.posting else True,
                     "mine": r["profile"] == p.id})
     return {"accounts": out}
+
+
+# --- channels --------------------------------------------------------------------------------------------------
+
+def _channel_card(sv: Services, c: Profile) -> dict:
+    db = sv.db
+    clips = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state!='superseded'", c.id)["n"]
+    posted = one(db, "SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND status IN ('uploaded','posted')", c.id)["n"]
+    waiting = one(db, "SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND status IN ('queued','manual_ready','dry_run')", c.id)["n"]
+    held = sum(h["clips"] for h in routing.held_categories(db) if c.category and h["category"].lower() == c.category.lower())
+    return {"id": c.id, "name": channel_name(c), "category": c.category or "No category yet", "about": c.niche.definition,
+            "youtube": youtube_connected(c), "tiktok": c.tiktok_handle, "clips": clips, "posted": posted, "waiting": waiting,
+            "held": held, "ready": bool(c.category and youtube_connected(c))}
+
+
+def channels_page(sv: Services, p: Profile) -> dict:
+    cards = [_channel_card(sv, c) for c in sv.profiles.values()]
+    return {"channels": cards, "held": routing.held_categories(sv.db)}
+
+
+def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: str | None = None) -> dict:
+    from ..formats import blueprints
+
+    _, recipes = blueprints.load()
+    tags = (c.posting.tags.get("youtube_shorts", "") if c.posting else "")
+    steps = [
+        {"n": 1, "title": "Name and category", "done": bool(c.category and c.niche.definition)},
+        {"n": 2, "title": "YouTube", "done": youtube_connected(c)},
+        {"n": 3, "title": "TikTok", "done": bool(c.tiktok_handle)},
+        {"n": 4, "title": "Tags and look", "done": bool(tags or c.format)},
+    ]
+    values = {"name": channel_name(c), "category": c.category, "about": c.niche.definition, "brand_handle": c.brand.handle,
+              "tiktok_handle": c.tiktok_handle, "youtube_tags": tags, "format": c.format or "",
+              "youtube_daily_cap": c.posting.daily_cap if c.posting else 100, **(form or {})}
+    return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
+            "youtube": youtube_connected(c), "card": _channel_card(sv, c),
+            "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
 
 
 # --- insights --------------------------------------------------------------------------------------------------

@@ -1,8 +1,10 @@
-# Profile for the "Solved with Mark Manson" clipping campaign. The campaign names its source
-# episodes, so this profile watches no channel. (Phase 2 of docs/AUTOPILOT-PLAN.md turns this into a Podcasts channel.)
+# The starting channel: Podcasts. It is read once into an empty database; after that channels are added and
+# edited in the dashboard. The id stays "solved" so the YouTube sign-in already saved for it keeps working.
+# The Solved campaign rules below move to the Campaigns feature in Phase 7.
 
 id: solved
-display_name: "Solved clips (campaign)"
+display_name: "Podcasts"
+category: Podcasts
 autopilot: review
 
 niche:
@@ -43,7 +45,7 @@ posting:
     youtube_shorts: "@solvedclips @iammarkmanson"
 
 brand:
-  name: CavemanCam
+  name: Podcasts
   handle: "@cavemancam"          # the faint watermark in the middle of every clip
 
 format: podcast_talk             # the A2 look; see config/villomillo/blueprints.yaml

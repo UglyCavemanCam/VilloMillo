@@ -207,10 +207,11 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
         with db.conn() as c:
             c.execute(
                 "INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                "file_path, validation_json, grade_json, state, reason, created_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "file_path, validation_json, grade_json, state, reason, created_at, category) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (profile.id, clip["id"], job["video_id"], clip["start_s"], clip["end_s"], clip["score"],
-                 clip.get("hook"), str(path), json.dumps(verdict), json.dumps(grade), state, reason, store.iso()),
+                 clip.get("hook"), str(path), json.dumps(verdict), json.dumps(grade), state, reason, store.iso(),
+                 profile.category or None),
             )
         saved += 1
         checked += verdict["ok"]
