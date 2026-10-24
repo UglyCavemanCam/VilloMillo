@@ -8,9 +8,11 @@ rem serve = dashboard only. run = dashboard plus the background worker that does
 set MODE=serve
 set URL=http://127.0.0.1:8780
 
-rem The app needs Python 3.11 or newer. Look for one, newest first. An old Python on PATH
-rem (3.8, 3.9) cannot install the packages, so it is skipped.
+rem Prefer the project's own virtual environment (.venv): it already has the right Python and packages.
+rem Otherwise look for Python 3.11 or newer, newest first. An old Python on PATH (3.8, 3.9)
+rem cannot install the packages, so it is skipped.
 set PY=
+if exist ".venv\Scripts\python.exe" set PY=.venv\Scripts\python.exe
 for %%V in (3.13 3.12 3.11) do (
     if not defined PY (
         py -%%V -c "import sys" >nul 2>nul && set PY=py -%%V
