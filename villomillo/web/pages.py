@@ -269,7 +269,7 @@ def _post_view(r: dict) -> dict:
     et = timefmt.to_et(moment)
     caption = r["caption"] or ""
     return {**r, "state": s, "date": et.date(), "time": timefmt.clock(moment), "platform_name": r["platform"].replace("_", " ").title(),
-            "mark": "YT" if r["platform"].startswith("youtube") else "IG" if r["platform"].startswith("instagram") else r["platform"][:2].upper(),
+            "mark": "YT" if r["platform"].startswith("youtube") else "TT" if r["platform"].startswith("tiktok") else r["platform"][:2].upper(),
             "short": (r["title"] or caption.split("\n")[0] or "Clip")[:48], "when": timefmt.full(moment),
             "panel": f"/calendar/post/{r['id']}?profile={r['profile_id']}"}
 
@@ -369,8 +369,6 @@ def home_page(sv: Services, p: Profile) -> dict:
                 ok = accounts.audit_passed(db, p.id, platform)
                 health.append({"kind": "good" if ok else "warn", "label": f"{platform.replace('_', ' ').title()} audit",
                                "value": "Passed" if ok else "Not passed, so public posts stay manual"})
-        health.append({"kind": "good" if has_secret(f"{secrets.INSTAGRAM}_{p.id}", secrets.INSTAGRAM) else "", "label": "Instagram",
-                       "value": "Connected" if has_secret(f"{secrets.INSTAGRAM}_{p.id}", secrets.INSTAGRAM) else "Not connected yet"})
     paused = [r for r in accounts.overview(db, sv.profiles) if r["profile"] == p.id and r["status"] == "paused"]
     health.append({"kind": "bad" if paused else "good", "label": "Safety stops", "value": f"{len(paused)} paused" if paused else "No account is paused"})
     health.append({"kind": "good" if claude_m < cap * 0.8 else "warn", "label": "AI budget", "value": "Well inside the caps" if claude_m < cap * 0.8 else "Close to the cap"})
@@ -432,11 +430,11 @@ def accounts_page(sv: Services, p: Profile) -> dict:
     for r in accounts.overview(sv.db, sv.profiles):
         owner = sv.profiles[r["profile"]]
         yt = r["platform"].startswith("youtube")
-        connected = youtube_connected(owner) if yt else has_secret(f"{secrets.INSTAGRAM}_{owner.id}", secrets.INSTAGRAM)
-        out.append({**r, "platform_name": r["platform"].replace("_", " ").title(), "mark": "YT" if yt else "IG", "connected": connected,
+        connected = youtube_connected(owner) if yt else False
+        out.append({**r, "platform_name": r["platform"].replace("_", " ").title(), "mark": "YT" if yt else "TT", "connected": connected,
                     "channel": channel_name(owner), "handle": owner.brand.handle,
                     "connect_hint": (f"python -m villomillo youtube-connect --profile {owner.id}" if yt else
-                                     "Needs a Meta developer app, an access token and a public link to each clip file"),
+                                     "Posting to this platform is not built yet"),
                     "dry_run": owner.posting.dry_run if owner.posting else True,
                     "mine": r["profile"] == p.id})
     return {"accounts": out}
@@ -477,7 +475,6 @@ def settings_page(sv: Services, p: Profile) -> dict:
     keys = [{"name": "YouTube Data API key", "present": has_secret(secrets.YOUTUBE)},
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},
             {"name": "Claude (Anthropic) key", "present": has_secret(secrets.CLAUDE)},
-            {"name": "Instagram token", "present": has_secret(secrets.INSTAGRAM, *[f"{secrets.INSTAGRAM}_{c}" for c in sv.profiles])},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
     return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,

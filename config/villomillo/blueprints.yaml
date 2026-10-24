@@ -5,7 +5,7 @@
 #                 A blueprint whose needs are missing is dropped, and the drop is reported.
 #   conflicts     blueprints it cannot be stacked with.
 #   added_value   counts as something the viewer could not get from the plain footage. A recipe with none of these
-#                 is refused: YouTube and Instagram reach less for a crop plus captions.
+#                 is refused: YouTube reaches less for a crop plus captions.
 #   params        defaults; a channel can override them under `format_params` in its settings file.
 
 blueprints:

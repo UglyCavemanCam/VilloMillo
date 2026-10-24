@@ -106,7 +106,7 @@ COPY_SYSTEM = (
     "Rules:\n"
     "- Every claim must be something the speaker actually said or clearly meant in the clip. Never exaggerate, "
     "invent, or change the meaning. Do not put words in quotation marks unless they are word for word in the clip.\n"
-    "- title: for YouTube only (use an empty string for Instagram). At most 60 characters. Put the single "
+    "- title: for YouTube only (use an empty string for any other platform). At most 60 characters. Put the single "
     "strongest idea or tension first. Be specific, not vague. Plain words, no hashtags, no emoji, no filler "
     "opening (now, so, and, well), never cut off, no clickbait phrases such as \"you won't believe\".\n"
     "- idea: one line of at most 100 characters. It is the first line people see, so make it punchy: a blunt point "
@@ -115,7 +115,7 @@ COPY_SYSTEM = (
     "- question: one short question (at most 100 characters) that invites a comment, ending with a question mark.\n"
     "- hashtags: 2 to 4 relevant topical hashtags with no spaces, spelled correctly (names exactly as in "
     "required_tags). Do not include #Shorts.\n"
-    "- keywords: up to 8 short phrases people would search for (YouTube only; an empty list for Instagram).\n"
+    "- keywords: up to 8 short phrases people would search for (YouTube only; an empty list for any other platform).\n"
     'Reply with only JSON: {"options": [{"title": "", "idea": "", "question": "", "hashtags": ["#a"], '
     '"keywords": ["x"]}, ... four of them]}'
 )

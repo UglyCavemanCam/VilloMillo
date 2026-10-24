@@ -13,20 +13,15 @@ from __future__ import annotations
 
 import json
 import pathlib
-import time
 from collections import Counter
 from datetime import datetime, timedelta
 
-import httpx
-
-from . import accounts, secrets, store, timefmt
+from . import accounts, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
 
-GRAPH = "https://graph.facebook.com/v21.0"
 YT_TITLE_MAX = 100
 YT_DESCRIPTION_MAX = 5000
-IG_CAPTION_MAX = 2200
 OUTBOX_ROOT = ROOT / "data" / "villomillo" / "outbox"
 
 
@@ -61,8 +56,7 @@ def build_copy(posting: Posting, clip: dict, episode: str, platform: str) -> dic
         description = f"{hook}\n\nFrom the Solved podcast: {episode}\n{tag}\n\n#Shorts"
         return {"title": title, "caption": _fit(description, YT_DESCRIPTION_MAX),
                 "tags": ["Shorts", "Solved", "Mark Manson"]}
-    caption = f"{hook}\n\n{tag}\n\n#solved #markmanson #podcast"
-    return {"title": "", "caption": _fit(caption, IG_CAPTION_MAX), "tags": []}
+    raise ValueError(f"no copy rules for {platform}")
 
 
 def copy_problems(copy: dict, platform: str, tag: str) -> list[str]:
@@ -73,8 +67,6 @@ def copy_problems(copy: dict, platform: str, tag: str) -> list[str]:
         problems.append(f"the caption is missing the campaign's tags ({tag})")
     if platform == "youtube_shorts" and len(copy["title"]) > YT_TITLE_MAX:
         problems.append("the YouTube title is too long")
-    if platform == "instagram_reels" and len(copy["caption"]) > IG_CAPTION_MAX:
-        problems.append("the Instagram caption is too long")
     return problems
 
 
@@ -161,48 +153,6 @@ class YouTubeShorts:
         return {"url": f"https://youtube.com/shorts/{result.video_id}", "notes": notes}
 
 
-class InstagramReels:
-    """Publishes through the Instagram Graph API. Instagram fetches the clip from a public link, so the file
-    must be reachable at posting.public_video_base; nothing is uploaded directly."""
-
-    def __init__(self, token: str, user_id: str, *, http: httpx.Client | None = None, sleep=time.sleep):
-        self.token = token
-        self.user_id = user_id
-        self.http = http or httpx.Client(timeout=60)
-        self.sleep = sleep
-
-    def _call(self, method: str, path: str, **kw) -> dict:
-        try:
-            r = self.http.request(method, f"{GRAPH}{path}", headers={"Authorization": f"Bearer {self.token}"}, **kw)
-        except httpx.HTTPError as e:
-            raise PostError(f"Instagram could not be reached ({type(e).__name__})") from None
-        body = r.json() if r.content else {}
-        if r.status_code >= 400 or "error" in body:
-            raise PostError("Instagram said: " + (body.get("error", {}).get("message") or f"HTTP {r.status_code}"))
-        return body
-
-    def post(self, *, video_url: str | None, copy: dict) -> dict:
-        if not self.user_id:
-            raise PostError("set posting.instagram_user_id for this channel")
-        if not video_url:
-            raise PostError("Instagram needs a public https link to the clip file: set posting.public_video_base")
-        container = self._call("POST", f"/{self.user_id}/media", data={
-            "media_type": "REELS", "video_url": video_url, "caption": copy["caption"],
-        })["id"]
-        for _ in range(60):  # Instagram takes a while to fetch and process the file
-            state = self._call("GET", f"/{container}", params={"fields": "status_code"}).get("status_code")
-            if state == "FINISHED":
-                break
-            if state in ("ERROR", "EXPIRED"):
-                raise PostError(f"Instagram could not process the video ({state})")
-            self.sleep(10)
-        else:
-            raise PostError("Instagram was still processing the video after 10 minutes")
-        media = self._call("POST", f"/{self.user_id}/media_publish", data={"creation_id": container})["id"]
-        permalink = self._call("GET", f"/{media}", params={"fields": "permalink"}).get("permalink")
-        return {"url": permalink or "https://www.instagram.com/", "notes": []}
-
-
 YOUTUBE_CLIENT = ROOT / "config" / "villomillo" / "youtube_client_secret.json"
 
 
@@ -243,9 +193,6 @@ def default_adapters(profile: Profile) -> dict:
         return adapters
     if posting.platforms.get("youtube_shorts") == "api":
         adapters["youtube_shorts"] = YouTubeShorts(_youtube_publisher(profile))
-    if posting.platforms.get("instagram_reels") == "api":
-        token = secrets.get_first(f"{secrets.INSTAGRAM}_{profile.id}", secrets.INSTAGRAM)  # the channel's own, else shared
-        adapters["instagram_reels"] = InstagramReels(token, posting.instagram_user_id or "")
     return adapters
 
 
@@ -318,13 +265,7 @@ def _send(db, profile, post, copy, clip, adapters) -> tuple[str, str | None, str
     if adapter is None:
         return "failed", f"no {post['platform']} connection is set up for this channel", None
     try:
-        if post["platform"] == "youtube_shorts":
-            result = adapter.post(path=pathlib.Path(clip["file_path"]), copy=copy, privacy=profile.posting.privacy)
-        else:
-            video_url = None
-            if profile.posting.public_video_base:
-                video_url = f"{profile.posting.public_video_base.rstrip('/')}/{profile.id}/{clip['id']}.mp4"
-            result = adapter.post(video_url=video_url, copy=copy)
+        result = adapter.post(path=pathlib.Path(clip["file_path"]), copy=copy, privacy=profile.posting.privacy)
     except PostError as e:
         return "failed", str(e), None
     for note in result["notes"]:

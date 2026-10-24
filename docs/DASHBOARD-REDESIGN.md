@@ -68,7 +68,7 @@ Today: 8 top-level pages in a text nav, all styled inline in one Python file (`v
 | Clips to review | **Clips → Waiting for you** tab | Removed as a page; review happens in a side drawer |
 | Manual uploads | **Calendar** drawer + "To post by hand" list | Removed as a page |
 | Posts | **Calendar** (month, week, list) | Removed as a page |
-| Accounts | **Accounts** | Adds connection status (YouTube connected, Instagram not), audits, safety stops |
+| Accounts | **Accounts** | Adds connection status (YouTube connected, TikTok not), audits, safety stops |
 | (none) | **Settings** | Channels, the format recipe with a live preview, budgets, key status (never key values), engine status |
 
 **Removed outright:** the unused rating endpoint `/api/rate` (you don't rate videos; the buttons are already gone), the

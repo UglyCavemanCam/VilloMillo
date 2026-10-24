@@ -11,21 +11,28 @@ This replaces all earlier autopilot plans. Two older documents stay because they
 ## 1. The goal in one paragraph
 
 VilloMillo should always be working. It gets videos, picks the moments most likely to earn money, turns them into clips,
-and posts them to the right YouTube, TikTok and Instagram accounts, with no one approving anything. **Everything is judged
+and posts them to the right YouTube and TikTok accounts, with no one approving anything. **Everything is judged
 by one thing: the best CPM** (what a video earns per 1,000 views). You step in only when something truly needs you.
 
-## 2. Words used in this plan
+## 2. Decided since the first version
+
+- **Instagram is out of the plan and the system** (it allows only 3 reels a day, which does not meet the requirements). Posting is
+  YouTube and TikTok only. (The engine's own code, inherited from Clips Kitty, still has Instagram parts; VilloMillo does not use them.)
+- **First channel: Podcasts.** Its YouTube channel is the one already connected. Its TikTok account still has to be created.
+- **The Solved campaign** is already joined by hand on Content Rewards. It becomes the first record on the Campaigns page.
+
+## 3. Words used in this plan
 
 | Word | What it means here |
 |---|---|
 | **CPM** | Dollars earned per 1,000 views. |
 | **Viral score** | A number from 0 to 100: how likely a clip is to do well. Below 75, we don't make or post it. |
 | **Category** | The kind of video: Podcast, Stream clips, Sports, and so on. |
-| **Channel** | One category with its own YouTube channel, TikTok account and Instagram account. A clip posts to all three. |
+| **Channel** | One category with its own YouTube channel and TikTok account. A clip posts to both. |
 | **Held** | A good clip that has nowhere to go yet (no channel for its category). It waits; nothing is lost. |
 | **Audit** | A platform's approval for posting automatically and publicly. Until it passes, posts stay private or wait for you. |
 
-## 3. Three ways videos come in. One system does the rest.
+## 4. Three ways videos come in. One system does the rest.
 
 | Way in | How it works | Where it lives |
 |---|---|---|
@@ -35,7 +42,7 @@ by one thing: the best CPM** (what a video earns per 1,000 views). You step in o
 
 Only the way a video arrives is different. The scoring, clipping and posting are identical for all three.
 
-## 4. What happens to every video
+## 5. What happens to every video
 
 1. **Look at it.** The video is downloaded and read, and possible clips are found. Nothing is made yet.
 2. **Score it.** Every possible clip gets a viral score, an estimated CPM and an expected revenue. The system also works out
@@ -45,11 +52,11 @@ Only the way a video arrives is different. The scoring, clipping and posting are
 5. **Check them.** Length, sound, picture, the campaign's rules, and the score again on the finished clip. A clip that falls
    short is not posted.
 6. **Pick the channel.** The kind of video decides the category, and the category decides the channel. No channel for it? The clip is held.
-7. **Post it.** A title and caption are written and the clip is posted to the channel's YouTube, TikTok and Instagram, inside each
+7. **Post it.** A title and caption are written and the clip is posted to the channel's YouTube and TikTok, inside each
    platform's daily limit. A campaign clip's link is then submitted to the campaign.
 8. **Learn.** Real views and payouts come back and make the next scores more accurate.
 
-## 5. How it decides what is worth posting
+## 6. How it decides what is worth posting
 
 - **Viral score** needs to be **75 or more**.
 - **CPM** needs to clear a floor, and the floor depends on how the video arrived:
@@ -67,15 +74,15 @@ $9.68. A clip scoring 68 is estimated at $0.91 and is not made.
 Two more checks: the **video type** must be at least 75% certain (otherwise a safe, plain look is used), and the **channel fit**
 must be 4 out of 5 or better (otherwise the clip is held).
 
-## 6. Channels
+## 7. Channels
 
-- A channel is a category plus its three accounts (YouTube, TikTok, Instagram). All accounts are yours.
+- A channel is a category plus its two accounts (YouTube and TikTok). All accounts are yours.
 - A **Channels** page lists them. **Add channel** is a short step-by-step: name and category, connect YouTube, connect TikTok,
-  connect Instagram, then caption tags and the look.
+  then caption tags and the look.
 - If a good clip has no matching channel, it is held and Home says **"Create a channel for [category]"** with an Add channel
   button. When you add it, the held clips post.
 
-## 7. The only things that need you
+## 8. The only things that need you
 
 All shown on Home under **Needs you**:
 1. A clip's category has no channel yet. Press **Add channel**.
@@ -83,21 +90,20 @@ All shown on Home under **Needs you**:
 3. A campaign that has to be joined or submitted by hand (only if Content Rewards has no way to do it automatically).
 4. A platform that is paused, disconnected, or still waiting for its audit.
 
-## 8. Safety
+## 9. Safety
 
 - **Spending guard:** there are no monthly caps, but everything pauses when Claude has spent **$25** or Jev **$5** since your
   last approval. You approve to let it spend that much more.
 - **Out of money:** if Claude or Jev runs out of funds, the system pauses and tells you which one to top up.
 - **Emergency stop:** one button pauses everything on every channel.
 - **Platform limits:** YouTube 100 posts per channel per day (your number). TikTok is about 15 per account per day (from
-  TikTok's own developer guidelines; it can vary). Instagram is reported as 100 per day, which I could not confirm. When an
-  account reaches its limit, its clips wait for the next day.
+  TikTok's own developer guidelines; it can vary). When an account reaches its limit, its clips wait for the next day.
 - **Always on:** it runs on your computer. One start file launches the engine, the worker and the dashboard, starts them when you
   log in, and restarts the engine if it stops. Your computer must not go to sleep.
 
 ---
 
-## 9. The phases, in simple terms
+## 10. The phases, in simple terms
 
 There are ten phases. You get something usable after Phase 5. Effort is my rough guess: small, medium or large.
 
@@ -111,7 +117,7 @@ into the new channel system.
 
 ### Phase 2: Channels (medium)
 **In plain words:** Build the Channels page and the Add channel steps. Channels are stored in the dashboard instead of in files.
-Add the "held, then create a channel" behaviour. YouTube connects first; TikTok and Instagram plug in later.
+Add the "held, then create a channel" behaviour. YouTube connects first; TikTok plugs in later.
 **After this:** you can add and edit channels and see which accounts are connected.
 **Done when:** adding a channel releases clips that were held for it.
 
@@ -136,14 +142,14 @@ and posted automatically. This phase also adds the spending guard, the emergency
 **After this:** you paste a link and clips appear on your YouTube channel with no further work.
 **Done when:** a test link goes all the way to a posted clip, and the spending guard pauses at the right amounts.
 
-### Phase 6: TikTok and Instagram posting (medium to large)
-**In plain words:** Add posting to TikTok and Instagram, a daily limit counter for every account, and collection of real view
-counts for the learning step. You will need to get the platform approvals; until they pass, posts there are private or wait for you.
-**After this:** one clip posts to a channel's YouTube, TikTok and Instagram together.
-**Done when:** a clip reaches all three accounts and the daily limits hold.
+### Phase 6: TikTok posting (medium)
+**In plain words:** Add posting to TikTok, a daily limit counter for every account, and collection of real view counts for the
+learning step. You will need TikTok's approval; until it passes, posts there are private or wait for you.
+**After this:** one clip posts to a channel's YouTube and TikTok together.
+**Done when:** a clip reaches both accounts and the daily limits hold.
 
 ### Phase 7: Campaigns (large)
-**In plain words:** First, a small test script you run once on your computer, using your Whop key, to see what Content Rewards
+**In plain words:** First, a small test script you run once on your computer, using your Whop key (steps in section 12), to see what Content Rewards
 lets the system do. If it allows it, the system finds campaigns, checks the pay and the money left, joins the good ones, reads
 the rules, finds their videos and clips them, then submits the links. If it does not allow it, the system does everything except the joining and
 submitting, and shows you exactly what to do (a few taps).
@@ -171,11 +177,11 @@ on Home (engine, worker, funds, last post).
 
 ---
 
-## 10. Things you should know
+## 11. Things you should know
 
 - **No approval step means mistakes can post publicly.** The protection is the scores, the checks, the spending guard, the
   emergency stop, and the ability to delete a post. Early on the CPM numbers for Paste and Research are guesses.
-- **Platform approvals take time and are outside our control.** Until YouTube, TikTok and Instagram approve automatic posting,
+- **Platform approvals take time and are outside our control.** Until YouTube and TikTok approve automatic posting,
   those posts are private or wait for you.
 - **Campaign automation depends on something that may not exist.** Whop's docs mention API keys and a bounty-submissions API, but
   I found nothing confirming that Content Rewards campaigns can be joined or submitted to automatically. The fallback is manual.
@@ -185,9 +191,28 @@ on Home (engine, worker, funds, last post).
 - **Campaign payouts** have limits per clip, a review delay (third-party guides say about 72 hours), and budgets that run out. The system checks the budget before each clip.
 - **YouTube search is rationed** (reported at about 100 a day), which slows Research until a larger allowance is requested.
 
-## 11. Still to confirm
+## 12. How to run the Whop test script
 
-1. The result of the small test script with your Whop key (what campaigns and submissions it can see).
-2. Is the Content Rewards campaign you joined the Solved campaign already set up here?
-3. The first channel's name, handle and category.
-4. Instagram's daily posting limit, from Meta's current documents.
+This asks Whop what your API key is allowed to see. It only reads, never changes anything, never saves your key and never prints it.
+
+1. **Get the script.** Double-click `get-from-github.bat`.
+2. **Make a read-only key.** In Whop, open the Developer area, then API keys, then Create (the page you sent:
+   https://docs.whop.com/api-reference/beta/api-keys/create-api-key). Give it **read permissions only**, for example the ones with
+   "read" in their name such as `bounty:basic:read`. Do **not** tick anything that creates, edits or moves money (for example `payout:transfer_funds`).
+   Names may differ from what I have seen; if unsure, pick the smallest set that lets you look at campaigns and submissions.
+3. **Open PowerShell in the VilloMillo folder** (the same place you ran `.\.venv\Scripts\python.exe -m villomillo serve`).
+4. **Run:** `.\.venv\Scripts\python.exe scripts\whop_probe.py`
+5. **Paste the key** when it asks (nothing shows as you type) and press Enter.
+6. **Copy what it prints** and paste it to me. It is also saved in `data\villomillo\whop-probe.json`. Emails, tokens and addresses are
+   already replaced with "[hidden]", but skim it before sending.
+7. **Afterwards** you can delete the key in Whop; the script did not keep it.
+
+A line saying `"status": 200` means that part works. `403` means the key lacks permission. `404` means that address does not exist
+(expected for several, because the script tries a few likely names). What it finds decides how much of Campaigns can be automatic.
+
+## 13. Still to confirm
+
+1. The result of the Whop test script.
+2. The Solved campaign's allowed platforms. The old brief saved in `solved.yaml` did **not** allow TikTok. Does the live Content Rewards page say the same? If so, Solved clips go to YouTube only, and your TikTok is used for
+   everything else.
+3. The TikTok account's name and handle once it exists.

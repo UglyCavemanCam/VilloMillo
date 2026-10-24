@@ -152,8 +152,6 @@ class Posting(_Strict):
     daily_cap: int = Field(2, ge=1)  # per platform, per UTC day
     topics: dict[str, list[str]] = {}  # platform -> words that send a clip there
     tags: dict[str, str] = {}  # platform -> the campaign's required @mentions, as written
-    instagram_user_id: str | None = None
-    public_video_base: str | None = None  # https address where Instagram can fetch clip files
 
 
 class Brand(_Strict):

@@ -23,6 +23,7 @@ FILLER_OPENERS = {"now", "so", "and", "but", "well", "um", "uh", "like", "okay",
 CLICKBAIT = ("you won't believe", "you wont believe", "shocking", "gone wrong", "not clickbait", "must watch",
              "will blow your mind", "100% real")
 HASHTAG = re.compile(r"^#[A-Za-z][A-Za-z0-9_]{1,29}$")
+PLATFORM_NAMES = {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok"}
 STOP_CRITERIA = [
     "Generic or confusing; gives no reason to stop.",
     "Dull; it names a topic without a point.",
@@ -52,7 +53,7 @@ def option_problems(option: dict, platform: str) -> list[str]:
             if "#" in title:
                 problems.append("title has a hashtag in it")
     elif title:
-        problems.append("Instagram has no title")
+        problems.append("this platform has no title")
     for phrase in CLICKBAIT:
         if phrase in f"{title} {idea}".lower():
             problems.append(f"clickbait phrase: {phrase}")
@@ -142,7 +143,7 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
     platform = post["platform"]
     grade = json.loads(clip["grade_json"])
     facts = {
-        "platform": "YouTube Shorts" if platform == "youtube_shorts" else "Instagram Reels",
+        "platform": PLATFORM_NAMES.get(platform, platform.replace("_", " ").title()),
         "channel": profile.display_name, "niche": profile.niche.definition, "episode_title": episode,
         "required_tags": profile.posting.tags.get(platform, ""),
         "clip_text": (grade.get("caption_text") or clip["hook"] or "")[:4000],

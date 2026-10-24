@@ -33,7 +33,7 @@ def db(tmp_path):
 def channel(*, route="api", dry_run=False):
     solved = config.load_profiles()["solved"]
     posting_block = solved.posting.model_copy(update={"dry_run": dry_run, "platforms": {
-        "youtube_shorts": route, "instagram_reels": "manual"}, "daily_cap": 9, "min_gap_minutes": 0})
+        "youtube_shorts": route, "tiktok": "manual"}, "daily_cap": 9, "min_gap_minutes": 0})
     return solved.model_copy(update={"posting": posting_block})
 
 
@@ -80,8 +80,8 @@ def test_the_api_is_only_used_for_real_once_the_audit_has_passed(db):
 
 def test_a_dry_run_may_rehearse_the_api_before_the_audit_and_manual_stays_manual(db):
     assert accounts.effective_route(db, channel(dry_run=True), "youtube_shorts")[0] == "api"
-    accounts.set_audit(db, "solved", "instagram_reels", True)
-    assert accounts.effective_route(db, channel(), "instagram_reels")[0] == "manual"   # set to manual in settings
+    accounts.set_audit(db, "solved", "tiktok", True)
+    assert accounts.effective_route(db, channel(), "tiktok")[0] == "manual"   # set to manual in settings
 
 
 def test_a_post_planned_before_an_audit_goes_out_by_hand_and_after_it_by_the_api(db):
@@ -139,11 +139,11 @@ def test_a_success_clears_the_count(db):
 
 
 def test_a_strike_or_a_broken_sign_in_pauses_at_once_but_a_quota_error_never_does(db):
-    assert accounts.record_failure(db, "solved", "instagram_reels", "quotaExceeded") is None
-    assert accounts.state(db, "solved", "instagram_reels")["failures"] == 0
-    assert "strike or suspension" in accounts.record_failure(db, "solved", "instagram_reels", "channel suspended")
-    accounts.resume(db, "solved", "instagram_reels")
-    assert "reconnect the account" in accounts.record_failure(db, "solved", "instagram_reels", "invalid_grant")
+    assert accounts.record_failure(db, "solved", "tiktok", "quotaExceeded") is None
+    assert accounts.state(db, "solved", "tiktok")["failures"] == 0
+    assert "strike or suspension" in accounts.record_failure(db, "solved", "tiktok", "channel suspended")
+    accounts.resume(db, "solved", "tiktok")
+    assert "reconnect the account" in accounts.record_failure(db, "solved", "tiktok", "invalid_grant")
 
 
 def test_a_paused_account_sends_nothing_and_its_posts_wait_until_you_resume(db):

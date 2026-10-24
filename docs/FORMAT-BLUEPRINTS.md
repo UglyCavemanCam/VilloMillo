@@ -8,7 +8,7 @@ they are in git history before the clean-up). Chosen base look: **A2 "Clean fram
 One look cannot suit every kind of video. A podcast clip, a Twitch stream moment, a fishing catch and a cooking
 tutorial need different framing, different text and different pacing. The system must (1) work out what a video is,
 (2) pick and combine the right building blocks, and (3) never ship a clip that is only "a crop plus captions",
-because YouTube (Oct 2026) and Instagram (Apr 2026) now say they reach less.
+because YouTube (Oct 2026) now says it reaches less.
 
 ## 2. What the engine already has (checked in this repo)
 

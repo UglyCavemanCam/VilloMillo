@@ -103,10 +103,10 @@ def test_youtube_options_are_rejected_for_each_rule(changes, expected):
     assert any(expected in p for p in problems), problems
 
 
-def test_a_good_youtube_option_passes_and_instagram_takes_no_title():
+def test_a_good_youtube_option_passes_and_a_platform_without_titles_takes_none():
     assert copywriter.option_problems(option(), "youtube_shorts") == []
-    assert copywriter.option_problems(option(title=""), "instagram_reels") == []
-    assert any("no title" in p for p in copywriter.option_problems(option(), "instagram_reels"))
+    assert copywriter.option_problems(option(title=""), "tiktok") == []
+    assert any("no title" in p for p in copywriter.option_problems(option(), "tiktok"))
 
 
 def test_the_youtube_caption_always_carries_the_campaign_tags_and_shorts_first(solved):
@@ -120,11 +120,12 @@ def test_the_youtube_caption_always_carries_the_campaign_tags_and_shorts_first(s
     assert posting.copy_problems(built, "youtube_shorts", solved.posting.tags["youtube_shorts"]) == []
 
 
-def test_the_instagram_caption_leads_with_the_idea_and_tags_the_show(solved):
-    built = copywriter.assemble(solved.posting, "instagram_reels", "Ep", option(title=""))
+def test_a_caption_for_a_platform_without_titles_leads_with_the_idea_and_tags_the_show(solved):
+    tagged = solved.posting.model_copy(update={"tags": {"tiktok": "@solvedpodcast"}})
+    built = copywriter.assemble(tagged, "tiktok", "Ep", option(title=""))
     assert built["title"] == "" and built["caption"].startswith("Luck is less random")
-    assert "@solvedpodcast @markmanson" in built["caption"]
-    assert posting.copy_problems(built, "instagram_reels", solved.posting.tags["instagram_reels"]) == []
+    assert "@solvedpodcast" in built["caption"]
+    assert posting.copy_problems(built, "tiktok", "@solvedpodcast") == []
 
 
 # --- writing, screening and choosing ----------------------------------------------------------------

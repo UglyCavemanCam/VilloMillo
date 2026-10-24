@@ -8,7 +8,6 @@ SERVICE = "villomillo"
 YOUTUBE = "youtube_api_key"
 JEV = "typesafe_api_key"
 CLAUDE = "anthropic_api_key"
-INSTAGRAM = "instagram_access_token"  # Meta developer app token for the Instagram account
 
 
 class MissingSecret(RuntimeError):

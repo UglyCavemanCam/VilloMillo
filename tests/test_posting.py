@@ -7,7 +7,6 @@ import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from villomillo import accounts, config, posting, store
@@ -50,13 +49,13 @@ def add_clip(db, *, hook="Values are a compass, not a rulebook", text="a long ta
 
 
 def audited(db):
-    """Both platforms have passed their audit for the channel, so the API may post for real."""
-    for platform in ("youtube_shorts", "instagram_reels"):
+    """The platform has passed its audit for the channel, so the API may post for real."""
+    for platform in ("youtube_shorts",):
         accounts.set_audit(db, "solved", platform, True)
 
 
 def api_profile(solved, **posting_changes):
-    changes = {"dry_run": False, "platforms": {"youtube_shorts": "api", "instagram_reels": "api"}, **posting_changes}
+    changes = {"dry_run": False, "platforms": {"youtube_shorts": "api"}, **posting_changes}
     return solved.model_copy(update={"posting": solved.posting.model_copy(update=changes)})
 
 
@@ -69,12 +68,6 @@ def test_youtube_copy_fits_the_limits_and_carries_the_campaign_tag(solved):
     assert posting.copy_problems(copy, "youtube_shorts", solved.posting.tags["youtube_shorts"]) == []
 
 
-def test_instagram_copy_leads_with_the_hook_and_tags_the_show(solved):
-    copy = posting.build_copy(solved.posting, {"hook": "Stop waiting to be chosen"}, "Ep", "instagram_reels")
-    assert copy["caption"].startswith("Stop waiting to be chosen")
-    assert "@solvedpodcast @markmanson" in copy["caption"]
-
-
 def test_a_clip_with_no_hook_uses_the_episode_name_not_an_invented_line(solved):
     copy = posting.build_copy(solved.posting, {"hook": None}, "Why Values Matter", "youtube_shorts")
     assert copy["title"].startswith("Why Values Matter")
@@ -82,7 +75,7 @@ def test_a_clip_with_no_hook_uses_the_episode_name_not_an_invented_line(solved):
 
 def test_a_caption_missing_the_campaign_tag_is_blocked(solved):
     copy = {"title": "t", "caption": "no tags here", "tags": []}
-    problems = posting.copy_problems(copy, "instagram_reels", solved.posting.tags["instagram_reels"])
+    problems = posting.copy_problems(copy, "youtube_shorts", solved.posting.tags["youtube_shorts"])
     assert any("missing the campaign's tags" in p for p in problems)
 
 
@@ -92,9 +85,17 @@ def test_a_too_long_youtube_title_is_blocked(solved):
 
 
 def test_a_clip_goes_to_the_platform_whose_topic_words_it_uses(solved):
-    assert posting.pick_platform(solved.posting, "a talk about dating and commitment") == "instagram_reels"
-    assert posting.pick_platform(solved.posting, "a talk about purpose and growth") == "youtube_shorts"
-    assert posting.pick_platform(solved.posting, "nothing matching at all") == "youtube_shorts"
+    two = solved.posting.model_copy(update={"platforms": {"youtube_shorts": "manual", "tiktok": "manual"},
+                                            "topics": {"youtube_shorts": ["growth"], "tiktok": ["dance"]}})
+    assert posting.pick_platform(two, "a talk about dance and dance") == "tiktok"
+    assert posting.pick_platform(two, "a talk about purpose and growth") == "youtube_shorts"
+    assert posting.pick_platform(two, "nothing matching at all") == "youtube_shorts"
+    assert posting.pick_platform(solved.posting, "anything") == "youtube_shorts"  # the one platform there is
+
+
+def test_copy_for_a_platform_with_no_rules_is_refused(solved):
+    with pytest.raises(ValueError, match="no copy rules"):
+        posting.build_copy(solved.posting, {"hook": "x"}, "Ep", "tiktok")
 
 
 # --- spacing ----------------------------------------------------------------------------------------
@@ -221,53 +222,8 @@ def test_a_post_with_no_connection_fails_clearly(solved, db):
     assert "no youtube_shorts connection is set up" in lines[0]
 
 
-def graph_transport(seen, *, status="FINISHED", refuse_publish=False):
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append((request.method, request.url.path, request.headers.get("authorization")))
-        if request.method == "POST" and request.url.path.endswith("/media"):
-            return httpx.Response(200, json={"id": "container1"})
-        if request.method == "GET" and request.url.path.endswith("/container1"):
-            return httpx.Response(200, json={"status_code": status})
-        if request.method == "POST" and request.url.path.endswith("/media_publish"):
-            if refuse_publish:
-                return httpx.Response(400, json={"error": {"message": "Media not ready"}})
-            return httpx.Response(200, json={"id": "media9"})
-        return httpx.Response(200, json={"permalink": "https://www.instagram.com/reel/XYZ/"})
-    return httpx.MockTransport(handler)
-
-
-def test_instagram_publishes_through_the_graph_api_with_the_token_in_a_header():
-    seen = []
-    client = httpx.Client(transport=graph_transport(seen))
-    adapter = posting.InstagramReels("secret-token", "igu1", http=client, sleep=lambda s: None)
-    result = adapter.post(video_url="https://files.example.com/solved/1.mp4", copy={"caption": "hi"})
-    assert result["url"] == "https://www.instagram.com/reel/XYZ/"
-    assert [m for m, _, _ in seen] == ["POST", "GET", "POST", "GET"]
-    assert all(auth == "Bearer secret-token" for _, _, auth in seen)
-
-
-def test_instagram_needs_a_public_link_before_it_will_try():
-    adapter = posting.InstagramReels("t", "igu1", http=httpx.Client(transport=graph_transport([])), sleep=lambda s: None)
-    with pytest.raises(posting.PostError, match="public https link"):
-        adapter.post(video_url=None, copy={"caption": "hi"})
-
-
-def test_instagram_reports_a_processing_failure():
-    adapter = posting.InstagramReels("t", "igu1", http=httpx.Client(transport=graph_transport([], status="ERROR")),
-                                     sleep=lambda s: None)
-    with pytest.raises(posting.PostError, match="could not process"):
-        adapter.post(video_url="https://files.example.com/x.mp4", copy={"caption": "hi"})
-
-
-def test_instagram_reports_an_error_from_the_publish_step():
-    adapter = posting.InstagramReels("t", "igu1", http=httpx.Client(transport=graph_transport([], refuse_publish=True)),
-                                     sleep=lambda s: None)
-    with pytest.raises(posting.PostError, match="Media not ready"):
-        adapter.post(video_url="https://files.example.com/x.mp4", copy={"caption": "hi"})
-
-
-def test_the_solved_channel_plans_both_platforms_as_manual_until_their_routes_change(solved):
-    assert solved.posting.platforms == {"youtube_shorts": "manual", "instagram_reels": "manual"}
+def test_the_solved_channel_plans_youtube_as_manual_until_its_route_changes(solved):
+    assert solved.posting.platforms == {"youtube_shorts": "manual"}
     assert solved.posting.dry_run is True
 
 
