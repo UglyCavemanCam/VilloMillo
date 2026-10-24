@@ -1,0 +1,10 @@
+# VilloMillo's own dependencies: the research engine, dashboard and API clients.
+# The clipping engine's dependencies are in requirements.txt (needed from Phase 3).
+pydantic>=2.8,<3
+PyYAML>=6.0.3,<7
+fastapi>=0.141.1,<1
+uvicorn[standard]>=0.52.4,<1
+jinja2>=3.1,<4
+httpx>=0.27,<1
+keyring>=25,<26
+python-multipart>=0.0.9,<1

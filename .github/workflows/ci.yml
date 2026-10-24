@@ -36,12 +36,12 @@ jobs:
       - name: Compile every module
         # Catches syntax errors across the whole engine in seconds, without
         # installing PyTorch. Import checking would need ~4 GB of wheels.
-        run: python -m compileall -q analysis core creator llm longform multilingual plugins publish sdk server sources sports transcription video video_editor main.py
+        run: python -m compileall -q analysis core creator llm longform multilingual plugins publish sdk server sources sports transcription video video_editor villomillo main.py
 
       - name: Install what these checks need
         # NOT requirements.txt — that pulls ~4 GB of PyTorch wheels to run a
         # syntax check. The tests are written to need nothing heavier.
-        run: pip install --quiet pyyaml ruff pytest requests
+        run: pip install --quiet pyyaml ruff pytest requests pydantic fastapi httpx jinja2 python-multipart keyring
 
       - name: Lint
         run: python -m ruff check .
