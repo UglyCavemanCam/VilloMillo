@@ -49,7 +49,6 @@ interface Window {
     readClipboardKey: () => Promise<string>
     getDownloadsPath: () => Promise<string>
     pickFolder: () => Promise<string | null>
-    openDonateWindow: () => Promise<void>
     /** Desktop notification. Resolves false if the OS refused it. */
     notify: (title: string, body: string) => Promise<boolean>
     /** Opens an allow-listed URL in the user's browser. Resolves false if

@@ -25,7 +25,6 @@ contextBridge.exposeInMainWorld('studio', {
   getDownloadsPath: (): Promise<string> => ipcRenderer.invoke('get-downloads-path'),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('pick-folder'),
   // Donation popup: PayPal in a small in-app window (no external browser).
-  openDonateWindow: (): Promise<void> => ipcRenderer.invoke('open-donate-window'),
   // Desktop notification when a queued video finishes. Text only — the main
   // process builds the toast, so the renderer cannot attach actions or links.
   notify: (title: string, body: string): Promise<boolean> =>
