@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, empty %}
+{% block content %}
+<div class="page-head"><h1>Accounts</h1><span class="sub">Which way each channel posts, and the safety stops that pause an account</span></div>
+
+<div class="notice">{{ icon('info') }}<div>A platform's API only posts for real once you record that its audit passed. Until then posts stay manual. An account pauses by itself after three failed posts in a row, a broken sign-in, or a message that looks like a strike. Only you resume it.</div></div>
+
+{% if d.accounts %}
+<div class="cards-3">
+  {% for a in d.accounts %}
+  <section class="card account" aria-label="{{ a.channel }} on {{ a.platform_name }}">
+    <div class="top"><span class="plat">{{ a.mark }}</span>
+      <div style="flex:1;min-width:0"><h2>{{ a.platform_name }}</h2><div class="muted" style="font-size:13px">{{ a.channel }}{% if a.handle %} · {{ a.handle }}{% endif %}</div></div>
+      <span class="badge {{ 'bad' if a.status == 'paused' else 'good' }}">{{ 'Paused' if a.status == 'paused' else 'Active' }}</span></div>
+    <dl class="kv">
+      <dt>Connection</dt><dd>{% if a.connected %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>
+      <dt>Posts go out</dt><dd>{{ 'Automatically' if a.route == 'api' else 'By hand' }}<br><span class="muted" style="font-size:13px">{{ a.why }}</span></dd>
+      <dt>Audit</dt><dd>{{ 'Passed' if a.audit else 'Not passed yet' }}</dd>
+      <dt>Waiting posts</dt><dd class="num">{{ a.waiting }}</dd>
+      {% if a.failures and a.status == 'active' %}<dt>Failed in a row</dt><dd class="num">{{ a.failures }} of 3</dd>{% endif %}
+    </dl>
+    {% if a.reason %}<div class="notice bad">{{ icon('alert') }}<div>{{ a.reason }}</div></div>{% endif %}
+    {% if not a.connected %}<div class="notice">{{ icon('plug') }}<div>{{ a.connect_hint }}</div></div>{% endif %}
+    <div class="cluster" style="margin-top:auto">
+      {% if a.status == 'paused' %}
+      <button type="button" class="btn btn-primary btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "resume"}|tojson }}' data-ok="Resumed">Resume</button>
+      {% else %}
+      <button type="button" class="btn btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "pause"}|tojson }}' data-ok="Paused" data-confirm="No post will be sent for this account until you resume it. Posts stay planned and wait." data-confirm-title="Pause this account?">Pause</button>
+      {% endif %}
+      {% if a.audit %}
+      <button type="button" class="btn btn-sm btn-ghost" data-act="/api/audit" data-fields='{{ {"profile": a.profile, "platform": a.platform, "passed": "0"}|tojson }}' data-ok="Audit recorded as not passed" data-confirm="Posts for this platform go back to manual." data-confirm-title="Record the audit as not passed?">Audit not passed</button>
+      {% else %}
+      <button type="button" class="btn btn-sm btn-ghost" data-act="/api/audit" data-fields='{{ {"profile": a.profile, "platform": a.platform, "passed": "1"}|tojson }}' data-ok="Audit recorded as passed" data-confirm="Only do this once the platform has approved your app. If this channel's route is set to the API and its dry run is off, posts then go out by themselves." data-confirm-title="Record the audit as passed?">Audit passed</button>
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}{{ empty('users', 'No accounts yet', 'Give a channel posting settings and its platforms show up here.') }}{% endif %}
+{% endblock %}

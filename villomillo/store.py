@@ -1,4 +1,4 @@
-"""Reads and writes for videos, scores, ratings, AI spend and the event log."""
+"""Reads and writes for videos, scores, AI spend and the event log."""
 
 from __future__ import annotations
 
@@ -128,41 +128,42 @@ def ai_spend_today(db: Database, engine: str) -> float:
     return row["cost_usd"] if row else 0.0
 
 
-def rate(db: Database, profile_id: str, video_id: str, rating: int, note: str | None = None) -> None:
-    """1 = thumbs up, -1 = thumbs down, 0 = clear it."""
-    if rating not in (-1, 0, 1):
-        raise ValueError("rating must be 1, -1 or 0")
-    with db.conn() as c:
-        if rating == 0:
-            c.execute("DELETE FROM ratings WHERE profile_id=? AND video_id=?", (profile_id, video_id))
-        else:
-            c.execute(
-                "INSERT INTO ratings (profile_id, video_id, rating, note, created_at) VALUES (?,?,?,?,?) "
-                "ON CONFLICT(profile_id, video_id) DO UPDATE SET rating=excluded.rating, note=excluded.note, "
-                "created_at=excluded.created_at",
-                (profile_id, video_id, rating, note, iso()),
-            )
-
-
 def ranked(db: Database, profile_id: str, *, limit: int = 100) -> list[dict]:
-    """Scored videos, best first, with your rating if you gave one."""
+    """Scored videos, best first."""
     with db.conn() as c:
         rows = c.execute(
-            "SELECT v.*, s.score, s.certainty, s.gate, s.components_json, s.flags_json, r.rating "
+            "SELECT v.*, s.score, s.certainty, s.gate, s.components_json, s.flags_json "
             "FROM scores s JOIN videos v ON v.profile_id=s.profile_id AND v.video_id=s.video_id "
-            "LEFT JOIN ratings r ON r.profile_id=s.profile_id AND r.video_id=s.video_id "
             "WHERE s.profile_id=? ORDER BY s.score DESC, v.published_at DESC LIMIT ?",
             (profile_id, limit),
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-def precision_at(rows: list[dict], n: int = 20) -> dict:
-    """Of the top `n` picks you have rated, how many got a thumbs up."""
-    top = rows[:n]
-    rated = [r for r in top if r["rating"] is not None]
-    up = sum(1 for r in rated if r["rating"] == 1)
-    return {"n": len(top), "rated": len(rated), "up": up, "precision": (up / len(rated)) if rated else None}
+def ai_requests_today(db: Database, engine: str) -> int:
+    with db.conn() as c:
+        row = c.execute("SELECT requests FROM ai_usage WHERE day=? AND engine=?", (pacific_day(), engine)).fetchone()
+    return row["requests"] if row else 0
+
+
+def ai_spend_month(db: Database, engine: str) -> float:
+    month = pacific_day()[:7]  # YYYY-MM
+    with db.conn() as c:
+        row = c.execute(
+            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM ai_usage WHERE engine=? AND substr(day,1,7)=?",
+            (engine, month),
+        ).fetchone()
+    return float(row["total"])
+
+
+def last_selfcheck(db: Database, profile_id: str) -> dict | None:
+    with db.conn() as c:
+        row = c.execute(
+            "SELECT ran_at, verdict, sample, rank_correlation, top_hit_rate FROM selfchecks "
+            "WHERE profile_id=? ORDER BY id DESC LIMIT 1",
+            (profile_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def counts_by_state(db: Database, profile_id: str) -> dict[str, int]:

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1><span class="sub">What is set up, and where to change it. Nothing here is edited from the dashboard yet.</span></div>
+
+<section class="stack" aria-labelledby="ch-h">
+  <h2 id="ch-h">Channels</h2>
+  {% for c in d.channels %}
+  <div class="card">
+    <div class="card-head"><div><h2>{{ c.name }}</h2><div class="sub">{{ c.display }}{% if c.handle %} · {{ c.handle }}{% endif %}</div></div><code class="muted">config/villomillo/channels/{{ c.id }}.yaml</code></div>
+    <dl class="kv">
+      <dt>Niche</dt><dd style="line-height:1.5">{{ c.niche }}</dd>
+      <dt>Research</dt><dd>{{ c.watched }} watched channels, {{ c.topics }} keyword topics, clip gate at {{ c.min_score|round|int }}</dd>
+      {% if c.campaign %}<dt>Campaign rules</dt><dd>{{ c.campaign.name }}: {{ c.campaign.min_s|round|int }} to {{ c.campaign.max_s|round|int }} s, host's face in the first {{ c.campaign.face_window_s|round|int }} s, {{ 'subtitles required, ' if c.campaign.require_captions }}{{ 'no ad reads' if c.campaign.no_ad_reads }}</dd>{% endif %}
+      {% if c.posting %}<dt>Posting</dt><dd>{% for platform, route in c.posting.platforms.items() %}<span class="chip" style="margin-right:6px">{{ platform|replace('_', ' ') }}: {{ route }}</span>{% endfor %}
+        <div class="muted" style="font-size:13px;margin-top:6px">At most {{ c.posting.daily_cap }} a day per platform, at least {{ c.posting.min_gap_minutes }} minutes apart, privacy {{ c.posting.privacy }}. Dry run is {{ 'on: nothing is sent for the API route' if c.posting.dry_run else 'off' }}.</div></dd>{% endif %}
+      {% if c.recipe %}<dt>Format</dt><dd>Recipe <b style="font-weight:600">{{ c.format }}</b>
+        {% for layer in c.recipe %}<div class="cluster" style="margin-top:6px"><span class="muted" style="width:64px;font-size:13px">{{ layer.layer }}</span>{% for i in layer['items'] %}<span class="chip">{{ i|replace('_', ' ') }}</span>{% endfor %}</div>{% endfor %}</dd>{% endif %}
+    </dl>
+  </div>
+  {% endfor %}
+</section>
+
+<div class="grid two">
+  <section class="card" aria-labelledby="keys-h">
+    <h2 id="keys-h" style="margin-bottom:12px">Keys and connections</h2>
+    <div class="stack" style="gap:10px">{% for k in d.key_list %}<div class="cluster" style="justify-content:space-between"><span class="cluster">{{ icon('key', 'icon-sm') }}{{ k.name }}</span>{% if k.present %}<span class="badge good">Stored</span>{% else %}<span class="badge warn">Missing</span>{% endif %}</div>{% endfor %}</div>
+    <p class="muted" style="margin-top:14px;font-size:13px">Keys live in Windows Credential Manager. This page only shows whether each one is there, never the value.</p>
+  </section>
+  <section class="card" aria-labelledby="eng-h">
+    <h2 id="eng-h" style="margin-bottom:12px">Clip engine and time</h2>
+    <dl class="kv" style="grid-template-columns:120px 1fr">
+      <dt>Clip engine</dt><dd><span class="cluster"><span class="dot-s {{ 'good' if d.engine_up else '' }}"></span>{{ 'On' if d.engine_up else 'Off' }} <span class="muted">{{ d.engine_url }}</span></span>{% if not d.engine_up %}<div class="muted" style="font-size:13px;margin-top:4px">Start it with <code>python main.py serve --port 8765</code></div>{% endif %}</dd>
+      <dt>Time zone</dt><dd>{{ d.zone }}</dd>
+      <dt>Dashboard</dt><dd><code>{{ d.dashboard }}</code> (this computer only)</dd>
+      <dt>Database</dt><dd><code style="word-break:break-all">{{ d.database }}</code></dd>
+    </dl>
+  </section>
+</div>
+
+<div class="grid two">
+  <section class="card" aria-labelledby="bud-h">
+    <h2 id="bud-h" style="margin-bottom:12px">Budgets</h2>
+    <dl class="kv" style="grid-template-columns:200px 1fr">
+      <dt>Claude per month</dt><dd class="num">{{ d.budgets.claude_usd_per_month|money }}</dd>
+      <dt>Second opinions per day</dt><dd class="num">{{ d.budgets.claude_escalations_per_day }}</dd>
+      <dt>Jev per day</dt><dd class="num">{{ d.budgets.jev_usd_per_day|money }}</dd>
+      <dt>YouTube units per day</dt><dd class="num">{{ d.budgets.youtube_general_units_per_day }}</dd>
+      <dt>YouTube searches per day</dt><dd class="num">{{ d.budgets.youtube_search_calls_per_day }}</dd>
+    </dl>
+    <p class="muted" style="margin-top:12px;font-size:13px">Change these in <code>config/villomillo/app.yaml</code> and restart.</p>
+  </section>
+  <section class="card" aria-labelledby="sch-h">
+    <h2 id="sch-h" style="margin-bottom:12px">Background schedule</h2>
+    <dl class="kv" style="grid-template-columns:200px 1fr">{% for name, minutes in d.schedule %}<dt>{{ name }}</dt><dd class="num">every {{ minutes }} min{% if minutes >= 1440 and minutes % 1440 == 0 %} ({{ minutes // 1440 }} d){% elif minutes >= 60 and minutes % 60 == 0 %} ({{ minutes // 60 }} h){% endif %}</dd>{% endfor %}</dl>
+  </section>
+</div>
+{% endblock %}

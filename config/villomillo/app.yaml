@@ -1,5 +1,8 @@
 # VilloMillo app settings. Edit and restart. Every key is optional; these are the defaults.
 
+# Only videos whose rights are known get clipped: yours, licensed to you, or Creative Commons.
+rights_gate: strict
+
 database: data/villomillo/villomillo.db
 
 dashboard:
@@ -12,7 +15,9 @@ budgets:
   youtube_general_units_per_day: 8000
   youtube_search_calls_per_day: 80
   jev_usd_per_day: 1.00
-  claude_usd_per_month: 25.00   # used from Phase 2
+  claude_usd_per_month: 25.00
+  claude_escalations_per_day: 10   # second opinions on borderline videos
+  transcript_jev_usd_per_video: 0.01
 
 # How often each job runs.
 schedule:
@@ -21,3 +26,5 @@ schedule:
   snapshots_every_minutes: 60    # refresh view counts to measure growth
   grade_every_minutes: 15        # grade newly found videos
   grade_batch: 40                # most videos graded per run
+  review_every_minutes: 10080    # the weekly Claude review (7 days)
+  post_every_minutes: 15         # send approved clips that are due (dry-run unless a channel turns it off)

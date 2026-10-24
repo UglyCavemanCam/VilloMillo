@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, empty %}
+{% set q = '/calendar?profile=' ~ shell.current.id %}
+{% macro chip(p) %}<button type="button" class="cal-chip {{ p.state.css }}" data-panel="{{ p.panel }}" aria-label="{{ p.platform_name }} at {{ p.time }}, {{ p.state.text }}"><span class="t">{{ p.time }}</span><span class="p">{{ p.mark }}</span><span class="x">{{ p.short }}</span></button>{% endmacro %}
+{% block content %}
+<div class="page-head"><h1>Calendar</h1><span class="sub">Every post, in Eastern Time</span></div>
+
+<div class="toolbar">
+  <nav class="tabs" aria-label="Calendar view">
+    {% for v, label in (('month', 'Month'), ('week', 'Week'), ('list', 'List')) %}<a class="tab" href="{{ q }}&view={{ v }}" {% if d.view == v %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  {% if d.prev %}
+  <div class="cluster" style="margin-left:8px">
+    <a class="icon-btn" href="{{ d.prev }}" aria-label="Previous" style="width:32px;height:32px">{{ icon('left') }}</a>
+    <b style="min-width:132px;text-align:center;font-weight:500">{{ d.period }}</b>
+    <a class="icon-btn" href="{{ d.next }}" aria-label="Next" style="width:32px;height:32px">{{ icon('right') }}</a>
+    <a class="btn btn-sm" href="{{ d.today_link }}">Today</a>
+  </div>
+  {% else %}<b style="font-weight:500;margin-left:8px">{{ d.period }}</b>{% endif %}
+  <span class="chip spacer" title="All times are Eastern Time">Eastern Time · {{ d.zone }}</span>
+</div>
+
+<div class="legend">
+  <span><i style="background:var(--accent)"></i>To post by hand <b class="num">{{ d.counts.hand }}</b></span>
+  <span><i style="background:var(--good)"></i>Uploaded <b class="num">{{ d.counts.done }}</b></span>
+  <span><i style="background:var(--faint)"></i>Planned <b class="num">{{ d.counts.plan }}</b></span>
+  <span><i style="background:var(--bad)"></i>Failed <b class="num">{{ d.counts.fail }}</b></span>
+</div>
+
+{% if not d.posts %}
+  {{ empty('calendar', 'No posts yet', 'Approve a clip and its post is planned here by itself, spaced out and capped per day.', 'Review clips', '/clips?profile=' ~ shell.current.id ~ '&tab=review') }}
+{% elif d.view == 'month' %}
+  <div class="cal">
+    {% for w in ('Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday') %}<div class="dow">{{ w }}</div>{% endfor %}
+    {% for c in d.cells %}
+    <div class="cell {{ '' if c.in_month else 'out' }} {{ 'today' if c.is_today }}">
+      <div class="num"><span class="n">{{ c.date.day }}</span>{% if c.month_label or loop.first %}<small>{{ c.date.strftime('%b') }}</small>{% endif %}</div>
+      {% for p in c.posts %}{{ chip(p) }}{% endfor %}
+      {% if c.more %}<span class="more">+{{ c.more }} more</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+{% elif d.view == 'week' %}
+  <div class="week">
+    {% for col in d.columns %}
+    <div class="col {{ 'today' if col.is_today }}"><div class="head"><span class="label" style="font-size:12px">{{ col.date.strftime('%a') }}</span><b>{{ col.date.day }}</b></div>
+      {% for p in col.posts %}
+      <button type="button" class="card-chip {{ p.state.css }}" data-panel="{{ p.panel }}">
+        <span class="cluster" style="font-size:12px;color:var(--label)"><span class="num">{{ p.time }}</span><b style="color:var(--text)">{{ p.mark }}</b></span>
+        <span style="font-size:13px;font-weight:500;line-height:18px">{{ p.short }}</span>
+        <span style="font-size:12px" class="muted">{{ p.state.text }}</span>
+      </button>
+      {% else %}<span style="font-size:12px;color:var(--faint)">Nothing planned</span>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="list">
+    <div class="lhead"><span>When</span><span>Platform</span><span>Post</span><span>Status</span></div>
+    {% for p in d.rows %}
+    <button type="button" class="lrow" data-panel="{{ p.panel }}"><span class="num label">{{ p.when }}</span><span>{{ p.platform_name }}</span><span class="ellipsis" style="font-weight:500">{{ p.short }}</span><span><span class="badge {{ p.state.kind }}">{{ p.state.text }}</span></span></button>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,33 @@
+{% from "_ui.html" import icon %}
+{% set c = d.clip %}
+<div class="drawer-head"><h2>Clip {{ c.engine_id }}</h2><span class="badge {{ c.state.kind }}">{{ c.state.text }}</span>
+  <button type="button" class="icon-btn" data-close aria-label="Close">{{ icon('x') }}</button></div>
+<div class="drawer-body">
+  <video class="player" controls preload="metadata" poster="{{ c.thumb }}" src="{{ d.file_url }}"></video>
+  <div style="display:flex;gap:18px;align-items:flex-start">
+    <div><div class="muted" style="font-size:12px">Grade</div><div class="grade" style="font-size:44px;line-height:48px">{{ c.grade }}</div></div>
+    <div style="min-width:0"><div style="font-weight:500;line-height:20px">{{ c.title }}</div>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:19px">{{ d.facts.look }} · {{ d.facts.size }} · {{ c.duration }} long, from {{ d.facts.start }} to {{ d.facts.end }} in the episode{% if d.episode %}<br>{{ d.episode }}{% endif %}</div></div>
+  </div>
+
+  <div><h3 style="margin-bottom:8px">Checks</h3>
+    <div class="checks">{% for k in d.checks %}<div>{% if k.ok %}<span class="ok">{{ icon('check') }}</span>{% else %}<span class="no">{{ icon('x') }}</span>{% endif %}<span class="name">{{ k.name }}</span><span class="val">{{ k.value }}</span></div>{% endfor %}</div>
+    {% if d.note %}<p class="muted" style="font-size:12px;margin-top:8px;line-height:17px">{{ d.note }}</p>{% endif %}
+    {% if d.reason and d.row.state in ('rejected_auto', 'failed_validation') %}<div class="notice bad" style="margin-top:10px">{{ icon('alert') }}<div>{{ d.reason }}</div></div>{% endif %}</div>
+
+  <div><h3 style="margin-bottom:8px">Post</h3>
+    {% if d.post %}
+    <div class="card" style="padding:14px"><div class="cluster" style="margin-bottom:6px"><span class="badge {{ d.post.state.kind }}">{{ d.post.state.text }}</span><span class="muted" style="font-size:13px">{{ d.post.platform_name }} · {{ d.post.when }}</span></div>
+      <div style="font-weight:500;line-height:20px">{{ d.post.title or d.post.caption.split('\n')[0] }}</div></div>
+    {% else %}<p class="muted" style="line-height:1.5">{% if d.is_review %}Titles and captions are written when you approve: Claude writes four options, Jev checks each against what is said, and the best is chosen. You can pick another.{% else %}No post is planned for this clip.{% endif %}</p>{% endif %}
+  </div>
+</div>
+<div class="drawer-foot">
+  {% if d.is_review %}
+  <button type="button" class="btn btn-danger btn-pill" data-act="/api/clip-decision" data-fields='{{ {"clip_id": d.row.id, "decision": "reject", "profile": p.id}|tojson }}' data-ok="Rejected">Reject</button>
+  <button type="button" class="btn btn-primary btn-pill" data-act="/api/clip-decision" data-fields='{{ {"clip_id": d.row.id, "decision": "approve", "profile": p.id}|tojson }}' data-ok="Approved. A post is planned and its titles are being written.">Approve</button>
+  {% else %}
+  <div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Approved by you.' if d.row.state == 'approved' else 'Rejected by you.' if d.row.state == 'rejected' else 'Stopped by the checks before it reached you.' }}</div>
+  {% if d.post %}<a class="btn btn-sm" href="/calendar?profile={{ p.id }}&view=list&panel=/calendar/post/{{ d.post.id }}">Open post</a>{% endif %}
+  {% endif %}
+</div>

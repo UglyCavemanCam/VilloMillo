@@ -44,6 +44,7 @@ def normalize(item: dict) -> dict:
         "published_at": sn.get("publishedAt", ""),
         "language": sn.get("defaultAudioLanguage") or sn.get("defaultLanguage"),
         "live_status": sn.get("liveBroadcastContent", "none"),
+        "license": item.get("status", {}).get("license"),  # "youtube" or "creativeCommon"
         "duration_s": parse_duration(cd.get("duration")),
         "views": _count(st, "viewCount"),
         "likes": _count(st, "likeCount"),
@@ -114,23 +115,25 @@ class YouTube:
         out: list[dict] = []
         for i in range(0, len(ids), 50):
             data = self._get(
-                "videos", GENERAL, part="snippet,contentDetails,statistics", id=",".join(ids[i : i + 50])
+                "videos", GENERAL, part="snippet,contentDetails,statistics,status", id=",".join(ids[i : i + 50])
             )
             out += [normalize(x) for x in data.get("items", [])]
         return out
 
     def most_popular(self, *, region: str, category: int | None, limit: int = 50) -> list[dict]:
         data = self._get(
-            "videos", GENERAL, part="snippet,contentDetails,statistics", chart="mostPopular",
+            "videos", GENERAL, part="snippet,contentDetails,statistics,status", chart="mostPopular",
             regionCode=region, videoCategoryId=category, maxResults=limit,
         )
         return [normalize(x) for x in data.get("items", [])]
 
-    def search(self, query: str, *, days: int, language: str | None = None, region: str | None = None) -> list[str]:
+    def search(self, query: str, *, days: int, language: str | None = None, region: str | None = None,
+               creative_commons: bool = False) -> list[str]:
         """Video ids for a keyword search of long videos from the last `days` days, most viewed first."""
         after = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
         data = self._get(
             "search", SEARCH, part="id", q=query, type="video", order="viewCount", videoDuration="long",
             publishedAfter=after, maxResults=25, relevanceLanguage=language, regionCode=region,
+            videoLicense="creativeCommon" if creative_commons else None,
         )
         return [i["id"]["videoId"] for i in data.get("items", []) if i.get("id", {}).get("videoId")]

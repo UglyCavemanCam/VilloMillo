@@ -1,0 +1,80 @@
+# Format blueprints: small building blocks, and recipes that stack them for one kind of video.
+# See docs/FORMAT-BLUEPRINTS.md. A recipe has exactly one framing blueprint and any text, motion and brand ones.
+#
+#   needs         what the clip must supply for the blueprint to apply (words, title, points, takeaway).
+#                 A blueprint whose needs are missing is dropped, and the drop is reported.
+#   conflicts     blueprints it cannot be stacked with.
+#   added_value   counts as something the viewer could not get from the plain footage. A recipe with none of these
+#                 is refused: YouTube and Instagram reach less for a crop plus captions.
+#   params        defaults; a channel can override them under `format_params` in its settings file.
+
+blueprints:
+  # --- framing: how the footage sits in the 1080x1920 frame -------------------------------------------------
+  clean_frame:            # the A2 look: a tracked window over a dark blurred copy, nothing written over the face
+    layer: framing
+    conflicts: [full_bleed_tracked, blur_fit]
+    params: {window_y: 500, window_h: 1000, crop_w: 1000, face_at: 0.47, title_y: 290, row_y: 375, caption_y: 1345,
+             keep_right_of: 0.0}
+  full_bleed_tracked:     # the speaker fills the screen
+    layer: framing
+    conflicts: [clean_frame, blur_fit]
+    params: {crop_w: 810, face_at: 0.40, title_y: 1085, row_y: 1170, caption_y: 1345, keep_right_of: 0.0}
+  blur_fit:               # the whole picture in the middle of a blurred copy: the safe default for anything unknown
+    layer: framing
+    conflicts: [clean_frame, full_bleed_tracked]
+    params: {title_y: 290, row_y: 375, caption_y: 1345}
+
+  # --- text -------------------------------------------------------------------------------------------------
+  hook_title:             # stays up for 1 s plus 0.4 s per word, between 2.5 and 7 s
+    layer: text
+    needs: [title]
+    added_value: true
+    params: {base_s: 1.0, per_word_s: 0.4, min_s: 2.5, max_s: 7.0}
+  captions_plain:         # three words at a time, the word being said in amber
+    layer: text
+    needs: [words]
+    conflicts: [captions_pop]
+    params: {size: 78, words_per_group: 3}
+  captions_pop:           # two words at a time, popping, key words always amber
+    layer: text
+    needs: [words]
+    conflicts: [captions_plain]
+    params: {size: 88, words_per_group: 2}
+  point_chips:            # a label for each point the speaker names, shown while he is on it
+    layer: text
+    needs: [points]
+    added_value: true
+  takeaway:               # a one-line conclusion over the last seconds
+    layer: text
+    needs: [takeaway]
+    added_value: true
+
+  # --- motion -----------------------------------------------------------------------------------------------
+  slow_push:              # one slow push-in across the whole clip
+    layer: motion
+    conflicts: [punch_ins]
+    params: {amount: 0.07}
+  punch_ins:              # quick punch-ins at the opening and wherever a point begins
+    layer: motion
+    conflicts: [slow_push]
+    params: {amount: 0.06, length_s: 2.2}
+
+  # --- brand ------------------------------------------------------------------------------------------------
+  progress_bar_bottom:    # flush with the bottom edge
+    layer: brand
+    params: {height: 14}
+  watermark_center:       # the channel handle, small and faint, in the exact middle
+    layer: brand
+    params: {alpha: 38, size: 30}
+
+recipes:
+  podcast_talk:           # talk, interview, podcast: the A2 look
+    framing: clean_frame
+    text: [hook_title, captions_plain, point_chips, takeaway]
+    motion: [slow_push]
+    brand: [progress_bar_bottom, watermark_center]
+  generic_safe:           # anything the system is unsure about
+    framing: blur_fit
+    text: [hook_title, captions_plain]
+    motion: []
+    brand: [progress_bar_bottom, watermark_center]

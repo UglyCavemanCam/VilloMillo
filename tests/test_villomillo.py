@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from villomillo import config, discovery, engine, filters, scoring, store, tasks
+from villomillo import config, discovery, engine, filters, scoring, selfcheck, store, tasks
 from villomillo.db import Database
 from villomillo.jev import Jev, JevError, JevResult
 from villomillo.quota import GENERAL, SEARCH, Quota, QuotaExceeded
@@ -102,7 +102,7 @@ def library():
 
 
 def test_the_shipped_settings_load():
-    assert "rogan" in config.load_profiles()
+    assert "solved" in config.load_profiles()
     assert config.load_app().dashboard.host == "127.0.0.1"
 
 
@@ -323,21 +323,6 @@ def test_a_bad_video_id_is_refused(db):
         store.upsert_video(c, "p", {**vid(1, age_h=1, views=1), "video_id": "../../etc"}, "channel")
 
 
-def test_ratings_toggle_and_precision_counts_only_rated_picks(db):
-    rows = [{"video_id": f"v{i}", "rating": r} for i, r in enumerate([1, 1, -1, None, 1])]
-    assert store.precision_at(rows, 5) == {"n": 5, "rated": 4, "up": 3, "precision": 0.75}
-    assert store.precision_at([], 20)["precision"] is None
-    store.rate(db, "p", "vid00000001", 1)
-    store.rate(db, "p", "vid00000001", -1)
-    with db.conn() as c:
-        assert c.execute("SELECT rating FROM ratings").fetchone()["rating"] == -1
-    store.rate(db, "p", "vid00000001", 0)
-    with db.conn() as c:
-        assert c.execute("SELECT COUNT(*) AS n FROM ratings").fetchone()["n"] == 0
-    with pytest.raises(ValueError):
-        store.rate(db, "p", "vid00000001", 5)
-
-
 def test_snapshots_are_not_taken_twice_in_a_row(db):
     with db.conn() as c:
         assert store.add_snapshot(c, "vid00000001", 1, 1, 1) is True
@@ -376,9 +361,9 @@ def test_schedules_queue_each_slot_once_even_if_ticked_twice(db):
     app, profiles = config.AppConfig(), {"test": profile()}
     tasks.ensure_schedules(db, app, profiles, at=NOW)
     first = tasks.tick_schedules(db, at=NOW)
-    assert first == 4  # watch, snapshots, grade, topics
+    assert first == 6  # watch, snapshots, grade, review, post, topics
     assert tasks.tick_schedules(db, at=NOW) == 0
-    assert tasks.tick_schedules(db, at=NOW + timedelta(minutes=16)) == 1  # only the 15-minute grade job is due
+    assert tasks.tick_schedules(db, at=NOW + timedelta(minutes=16)) == 2  # only the 15-minute grade and post jobs are due
 
 
 # ---- discovery and the full cycle --------------------------------------------------------------------------------
@@ -474,25 +459,223 @@ def test_pages_render_and_titles_are_escaped(web):
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html and "<script>alert(1)" not in html
 
 
-def test_rating_from_the_dashboard_is_saved_and_counted(web):
-    client_, sv = web
-    top = store.ranked(sv.db, "test")[0]["video_id"]
-    r = client_.post("/api/rate", data={"profile": "test", "video_id": top, "rating": 1}, headers={"Origin": "http://127.0.0.1:8780"})
-    assert r.status_code == 200 and r.json()["precision"]["up"] == 1
-    assert 'aria-pressed="true"' in client_.get("/research").text
+def test_there_is_no_rating_endpoint_any_more(web):
+    client_, _ = web
+    assert client_.post("/api/rate", data={"profile": "test", "video_id": "x", "rating": 1}).status_code in (404, 405)
 
 
-def test_a_rating_from_another_site_or_with_bad_input_is_refused(web):
-    client_, sv = web
-    top = store.ranked(sv.db, "test")[0]["video_id"]
-    ok = {"profile": "test", "video_id": top, "rating": 1}
-    assert client_.post("/api/rate", data=ok, headers={"Origin": "https://evil.example"}).status_code == 403
-    assert client_.post("/api/rate", data={**ok, "video_id": "../x"}).status_code == 422
-    assert client_.post("/api/rate", data={**ok, "rating": 7}).status_code == 422
-    assert client_.post("/api/rate", data={**ok, "profile": "nope"}).status_code == 404
-    assert json.loads(json.dumps(store.ranked(sv.db, "test")[0]["rating"])) is None
+def test_every_page_renders_and_old_addresses_redirect(web):
+    client_, _ = web
+    for path in ("/", "/clips", "/calendar", "/calendar?view=week", "/calendar?view=list", "/accounts", "/insights",
+                 "/settings", "/api/search?profile=test&q=big"):
+        assert client_.get(f"{path}{'&' if '?' in path else '?'}profile=test").status_code == 200, path
+    for old, new in (("/studio", "/clips"), ("/review", "/clips"), ("/posts", "/calendar"), ("/manual", "/calendar"),
+                     ("/learning", "/insights")):
+        r = client_.get(f"{old}?profile=test", follow_redirects=False)
+        assert r.status_code == 307 and r.headers["location"].startswith(new) and "profile=test" in r.headers["location"]
+    assert client_.get("/clips/999/panel?profile=test").status_code == 404
+    assert client_.get("/calendar/post/999?profile=test").status_code == 404
+    assert client_.get("/static/app.css").status_code == 200
+
+
+def test_search_finds_a_video_and_ignores_one_letter(web):
+    client_, _ = web
+    found = client_.get("/api/search?profile=test&q=big episode").json()["results"]
+    assert any("Big Episode" in r["title"] for r in found)
+    assert client_.get("/api/search?profile=test&q=b").json()["results"] == []
+    assert client_.get("/api/search?profile=nope&q=big").status_code == 404
 
 
 def test_the_dashboard_ignores_requests_addressed_to_other_hosts(web):
     client_, _ = web
     assert client_.get("/", headers={"Host": "evil.example"}).status_code == 400
+
+
+# ---- automatic self-check (no human ratings) ------------------------------------------------------------------
+
+
+def test_spearman_matches_known_values():
+    assert selfcheck.spearman([1, 2, 3, 4], [10, 20, 30, 40]) == pytest.approx(1.0)
+    assert selfcheck.spearman([1, 2, 3, 4], [40, 30, 20, 10]) == pytest.approx(-1.0)
+    assert selfcheck.spearman([1, 1, 1, 1], [1, 2, 3, 4]) == 0.0  # no variation: no link
+    assert selfcheck.spearman([1, 2, 3], [1, 3, 2]) == pytest.approx(0.5)
+
+
+def test_grades_ignore_views_entirely():
+    p = profile()
+    a = copy.deepcopy(ANSWERS)
+    base = selfcheck.grade_without_views(a, p)
+    assert base > 0 and base == selfcheck.grade_without_views(copy.deepcopy(ANSWERS), p)
+    a["risk_violence"]["noul"] = 0.9
+    assert selfcheck.grade_without_views(a, p) < base
+
+
+def test_verdicts():
+    assert selfcheck.verdict_for(10, 0.9, 0.9).startswith("too few")
+    assert selfcheck.verdict_for(40, 0.5, 0.8) == "pointing the right way"
+    assert selfcheck.verdict_for(40, -0.1, 0.4) == "backwards: do not trust the grades yet"
+    assert selfcheck.verdict_for(40, 0.05, 0.5) == "not clear yet"
+
+
+class ViewsFollowTitles(FakeJev):
+    """Grades a video high when its title says 'great'. Used to check the self-check can see a real link."""
+
+    def ask(self, state, questions):
+        good = "great" in state["video"]["title"].lower()
+        answers = copy.deepcopy(ANSWERS)
+        answers["has_moments"] = {"type": "score", "score": 4.5 if good else 0.5, "confidence": 0.9,
+                                  "legend": {str(i): "x" for i in range(5)}}
+        self.calls.append(state)
+        return JevResult("jev-test", answers, {"input_tokens": 1000, "output_tokens": 5})
+
+
+def test_the_self_check_finds_a_real_link_and_reports_it(db):
+    old_good = [vid(100 + i, age_h=24 * (30 + i), views=2_000_000, title=f"Great episode {i}") for i in range(20)]
+    old_poor = [vid(200 + i, age_h=24 * (30 + i), views=400_000, title=f"Plain episode {i}") for i in range(20)]
+    yt = FakeYT(old_good + old_poor)
+    p = profile()
+    # the self-check reads the channel's upload list, so the profile needs a watched source first
+    discovery.resolve_sources(db, yt, p)
+    result = selfcheck.run(db, yt, ViewsFollowTitles(), p)
+    assert result["verdict"] == "pointing the right way"
+    assert result["rank_correlation"] > 0.5 and result["top_hit_rate"] == 1.0
+    assert store.last_selfcheck(db, p.id)["verdict"] == "pointing the right way"
+
+
+def test_the_self_check_says_so_when_there_is_too_little_history(db):
+    yt = FakeYT([vid(1, age_h=24 * 30, views=100_000)])
+    p = profile()
+    discovery.resolve_sources(db, yt, p)
+    result = selfcheck.run(db, yt, FakeJev(), p)
+    assert result["verdict"].startswith("too few") and result["graded"] == 0
+
+
+# ---- Phase 2: transcripts, second opinions, learning ------------------------------------------------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+from villomillo import claude, learning, transcripts  # noqa: E402
+from villomillo.engine import _apply_second_opinion  # noqa: E402
+from villomillo.grading import combine_transcript  # noqa: E402
+
+
+def test_long_transcripts_are_split_and_sampled_evenly():
+    text = " ".join(f"word{i}" for i in range(60_000))
+    pieces = transcripts.chunks(text)
+    assert len(pieces) == transcripts.MAX_CHUNKS
+    assert pieces[0].startswith("word0 ") and pieces[-1].split()[0] != "word0"
+    assert transcripts.chunks("short text") == ["short text"]
+
+
+def test_transcript_answers_are_blended_into_the_title_answers():
+    chunk = {
+        "standalone_moment": {"type": "noul", "noul": 1.0},
+        "best_hook": {"type": "score", "score": 4.0, "confidence": 0.9, "legend": {str(i): "x" for i in range(5)}},
+        "speech": {"type": "choice", "choice": "talk", "confidence": 0.9, "probabilities": {"talk": 1.0, "non_speech": 0.0}},
+    }
+    merged, summary = combine_transcript(ANSWERS, [chunk, chunk])
+    assert merged["has_moments"]["score"] == pytest.approx((3.5 + 4) / 2)  # transcript said yes to a moment
+    assert merged["hook_potential"]["score"] == 4.0  # the stronger of the two hook answers
+    assert summary["standalone_moment_share"] == 1.0 and summary["non_speech_share"] == 0.0
+
+
+def test_a_claude_opinion_settles_only_a_confident_borderline_video():
+    g = config.Grading(min_score=70, escalate_band=5)
+    base = scoring.Result(score=68, certainty=0.5, gate="escalate", components={}, flags=[])
+    yes = {"clip_worthy": True, "confidence": 0.9, "reason": "x"}
+    unsure = {"clip_worthy": True, "confidence": 0.4, "reason": "x"}
+    r = scoring.Result(**{**base.__dict__, "flags": []})
+    _apply_second_opinion(r, yes, g, [])
+    assert r.gate == "pass"
+    r = scoring.Result(**{**base.__dict__, "flags": []})
+    _apply_second_opinion(r, unsure, g, [])
+    assert r.gate == "escalate"
+    flagged = scoring.Result(**{**base.__dict__, "flags": ["risk_violence (90%)"]})
+    _apply_second_opinion(flagged, yes, g, [])
+    assert flagged.gate == "escalate"  # a safety flag is never overridden
+
+
+def test_claude_replies_are_validated_before_use():
+    def reply(text):
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)], stop_reason="end_turn",
+                               usage=SimpleNamespace(input_tokens=100, output_tokens=20))
+
+    class Fake:
+        def __init__(self, text):
+            self.messages = SimpleNamespace(create=lambda **kw: reply(text))
+
+    ok = claude.judge(Fake('Sure: {"clip_worthy": true, "confidence": 0.8, "reason": "a clear story"}'),
+                      niche="n", title="t", description="d", excerpt="e")
+    assert ok[0]["clip_worthy"] is True and ok[1] > 0
+    for bad in ('{"clip_worthy": "yes", "confidence": 0.8}', '{"clip_worthy": true, "confidence": 7}', "no json here"):
+        with pytest.raises(claude.ClaudeError):
+            claude.judge(Fake(bad), niche="n", title="t", description="d", excerpt="e")
+
+
+def test_the_shortlist_keeps_some_variety_and_says_why():
+    cands = [{"video_id": f"a{i:010d}", "score": 90 - i, "found_by": "channel"} for i in range(8)]
+    cands += [{"video_id": f"b{i:010d}", "score": 50 - i, "found_by": "topic"} for i in range(4)]
+    picked = learning.shortlist_preview(cands, n=5, explore_share=0.4)
+    assert len(picked) == 5
+    assert any(p["found_by"] == "topic" for p in picked), "an under-tested source should be explored"
+    assert {p["why"].split(":")[0] for p in picked} == {"top score", "explore"}
+
+
+def test_length_learning_stays_off_without_enough_examples(db):
+    store.event(db, "info", "t", "x")  # make sure the DB exists
+    assert learning.length_multiplier(db, "p", 3 * 3600) is None
+    rows = [{"grade": 70, "beat_median": i % 2 == 0, "duration_min": 150} for i in range(30)]
+    with db.conn() as c:
+        c.execute("INSERT INTO selfchecks (profile_id, ran_at, sample, verdict, details_json) VALUES ('p', ?, 30, 'x', ?)",
+                  (store.iso(), json.dumps({"rows": rows})))
+    m = learning.length_multiplier(db, "p", 3 * 3600)
+    assert m is not None and 0.85 <= m <= 1.15
+    assert learning.length_status(db, "p")[2]["status"] == "active"
+    assert learning.length_multiplier(db, "p", 30 * 60) is None  # that group has no examples
+
+
+def test_calibration_groups_grades_into_bands(db):
+    rows = [{"grade": g, "beat_median": b, "duration_min": 100} for g, b in [(55, True), (58, False), (75, True), (77, True)]]
+    with db.conn() as c:
+        c.execute("INSERT INTO selfchecks (profile_id, ran_at, sample, verdict, details_json) VALUES ('p', ?, 4, 'x', ?)",
+                  (store.iso(), json.dumps({"rows": rows})))
+    bands = {b["band"]: b for b in learning.calibration(db, "p")}
+    assert bands["50-59"]["n"] == 2 and bands["50-59"]["beat_median"] == 0.5
+    assert bands["70-79"]["beat_median"] == 1.0
+    assert bands["80-100"]["n"] == 0
+
+
+def test_a_failed_claude_call_is_logged_and_skipped_not_fatal(db):
+    from villomillo.engine import second_opinions
+
+    p = profile()
+    app = config.AppConfig()
+    store.sync_profile(db, p.id, p.display_name, p.digest())
+    v = vid(1, age_h=5, views=100)
+    with db.conn() as c:
+        store.upsert_video(c, p.id, v, "channel")
+        store.save_score(c, p.id, v["video_id"], scoring.Result(60, 0.5, "escalate", {}, []), 1)
+
+    class Broken:
+        class messages:
+            @staticmethod
+            def create(**kw):
+                raise RuntimeError("network down")
+
+    out = second_opinions(db, app, p, client=Broken())
+    assert out["asked"] == 0
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM events WHERE component='second-opinion'").fetchone()["n"] == 1
+
+
+def test_a_removed_channel_profile_leaves_no_schedules_or_waiting_tasks_behind(db):
+    app = config.AppConfig()
+    gone, kept = profile(), profile()
+    gone = gone.model_copy(update={"id": "gone"})
+    tasks.ensure_schedules(db, app, {"gone": gone, "test": kept}, at=NOW)
+    tasks.enqueue(db, "grade", {"profile": "gone"})
+    tasks.enqueue(db, "grade", {"profile": "test"})
+    tasks.ensure_schedules(db, app, {"test": kept}, at=NOW)  # the "gone" profile was deleted from the settings
+    with db.conn() as c:
+        assert {r["profile_id"] for r in c.execute("SELECT profile_id FROM schedules")} == {"test"}
+        assert [json.loads(r["payload_json"])["profile"] for r in c.execute("SELECT payload_json FROM tasks WHERE status='queued'")] == ["test"]

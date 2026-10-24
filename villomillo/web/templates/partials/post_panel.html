@@ -1,0 +1,49 @@
+{% from "_ui.html" import icon %}
+{% set po = d.post %}
+<div class="drawer-head"><h2>{{ po.platform_name }}</h2><span class="badge {{ po.state.kind }}">{{ po.state.text }}</span>
+  <button type="button" class="icon-btn" data-close aria-label="Close">{{ icon('x') }}</button></div>
+<div class="drawer-body">
+  <div class="panel-top">
+    {% if d.clip %}<a class="thumb" href="/clips?profile={{ p.id }}&panel=/clips/{{ d.clip.id }}/panel" style="width:120px"><img src="{{ d.clip.thumb }}" alt="Open the clip"></a>{% endif %}
+    <dl class="kv" style="grid-template-columns:1fr;gap:2px;min-width:0">
+      <dt>When (Eastern Time)</dt><dd style="font-weight:500;margin-bottom:8px">{{ po.when }}</dd>
+      <dt>How it goes out</dt><dd style="font-weight:500;line-height:20px">{{ 'Through the API' if d.route == 'api' else 'By hand' }}<br><span class="muted" style="font-weight:400;font-size:13px">{{ d.route_why }}</span></dd>
+    </dl>
+  </div>
+
+  {% if po.error %}<div class="notice bad">{{ icon('alert') }}<div>{{ po.error }}</div></div>{% endif %}
+  {% if d.paused %}<div class="notice warn">{{ icon('pause') }}<div>This account is paused, so nothing is sent until you resume it on the Accounts page.</div></div>{% endif %}
+
+  {% if po.title %}
+  <div><div class="card-head" style="margin-bottom:8px"><h3>Title</h3><button type="button" class="btn btn-sm" data-copy="copy-title">Copy</button></div>
+    <div class="textbox" id="copy-title">{{ po.title }}</div></div>
+  {% endif %}
+  <div><div class="card-head" style="margin-bottom:8px"><h3>Caption</h3><button type="button" class="btn btn-sm" data-copy="copy-caption">Copy</button></div>
+    <div class="textbox" id="copy-caption">{{ po.caption }}</div></div>
+
+  {% if d.options %}
+  <div><h3 style="margin-bottom:8px">Options <span class="muted" style="font-weight:400">the best-scoring one is in use</span></h3>
+    <div class="stack" style="gap:8px">
+      {% for o in d.options %}
+      <button type="button" class="option {{ 'on' if o.chosen }}" {% if d.can_edit and not o.chosen %}data-act="/api/post-copy" data-fields='{{ {"post_id": po.id, "option_id": o.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Using this option"{% else %}disabled{% endif %}>
+        <span class="grow"><b style="font-weight:500">{{ o.title or o.caption.split('\n')[0] }}</b>{% if o.title %}<span class="muted" style="display:block;font-size:13px">{{ o.caption.split('\n')[0] }}</span>{% endif %}</span>
+        <span class="cluster"><span class="chip">hook {{ o.stop_score }}/5</span>{% if o.chosen %}<span class="badge good">In use</span>{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif d.can_edit %}
+  <div class="notice">{{ icon('info') }}<div>No title options yet. <button type="button" class="btn btn-sm" style="margin-left:6px" data-act="/api/post-copy-write" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-ok="Options written">Write title options</button><br><span class="muted">Claude writes four and Jev checks them. About a cent.</span></div></div>
+  {% endif %}
+</div>
+<div class="drawer-foot" style="flex-direction:column;align-items:stretch">
+  {% if d.is_hand %}
+  <form data-act="/api/post-done" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-ok="Marked as posted" style="display:flex;gap:8px">
+    <input class="field pill" style="flex:1" type="url" name="url" required placeholder="Paste the post link (https://...)" aria-label="Post link">
+    <button type="submit" class="btn btn-primary btn-pill">Mark as posted</button>
+  </form>
+  {% elif po.url %}
+  <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Private test. Delete it in YouTube Studio if you do not want to keep it.' if po.status == 'uploaded' else 'Posted.' }}</div>
+    <a class="btn btn-sm" href="{{ po.url }}" target="_blank" rel="noopener noreferrer">Open post {{ icon('external', 'icon-sm') }}</a></div>
+  {% else %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
+</div>

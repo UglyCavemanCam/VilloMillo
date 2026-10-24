@@ -203,8 +203,12 @@ def download(url: str, output_dir: Path, vertical: bool = False) -> DownloadedVi
         # software AV1 decoding made a 25-min video take longer than a 2-hour
         # H.264 Twitch VOD. Twitch/Kick only serve H.264, so only YouTube
         # needs this. Fallbacks still avoid AV1 before giving up.
+        # Up to 1440p, so a tall 9:16 crop is enlarged about 1.3x rather than 1.8x: 1080p sources
+        # looked soft in portrait. VP9 is fine here; AV1 stays excluded. Falls back to 1080p H.264.
         "format": (
-            "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]"
+            "bv*[height<=1440][vcodec!^=av01]+ba[ext=m4a]"
+            "/bv*[height<=1440][vcodec!^=av01]+ba"
+            "/bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]"
             "/bv*[height<=1080][ext=mp4][vcodec!^=av01]+ba[ext=m4a]"
             "/b[ext=mp4]/b"
         ),

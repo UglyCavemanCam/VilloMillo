@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -36,6 +37,8 @@ class Budgets(_Strict):
     youtube_search_calls_per_day: int = 80
     jev_usd_per_day: float = 1.0
     claude_usd_per_month: float = 25.0
+    claude_escalations_per_day: int = Field(10, ge=0)
+    transcript_jev_usd_per_video: float = 0.01  # a single video's transcript pass should never cost more than this
 
 
 class Schedule(_Strict):
@@ -44,9 +47,14 @@ class Schedule(_Strict):
     snapshots_every_minutes: int = Field(60, ge=10)
     grade_every_minutes: int = Field(15, ge=1)
     grade_batch: int = Field(40, ge=1)
+    review_every_minutes: int = Field(10080, ge=60)  # weekly
+    post_every_minutes: int = Field(15, ge=1)  # send posts that are due
 
 
 class AppConfig(_Strict):
+    # Only clip videos whose rights are known: yours, licensed to you, or Creative Commons.
+    # "off" is deliberately not accepted; it would need an explicit decision and a code change.
+    rights_gate: Literal["strict"] = "strict"
     database: str = "data/villomillo/villomillo.db"
     dashboard: Dashboard = Dashboard()
     budgets: Budgets = Budgets()
@@ -119,6 +127,40 @@ class Grading(_Strict):
         return v
 
 
+class Campaign(_Strict):
+    """The rules a clipping campaign sets that code can check on a finished clip."""
+    name: str
+    min_s: float = Field(20, ge=5)
+    max_s: float = Field(60, ge=10)
+    face_window_s: float = Field(5, gt=0)  # the campaign's face rule: the host on screen in the first N seconds
+    require_captions: bool = True
+    no_ad_reads: bool = True
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        if self.min_s >= self.max_s:
+            raise ValueError("campaign min_s must be less than max_s")
+        return self
+
+
+class Posting(_Strict):
+    """How approved clips go out. Every posting path starts as a dry run."""
+    dry_run: bool = True  # write what would be posted to the outbox; send nothing
+    platforms: dict[str, Literal["api", "manual"]] = {}  # platform -> how it goes out
+    privacy: Literal["private", "unlisted", "public"] = "private"
+    min_gap_minutes: int = Field(180, ge=0)
+    daily_cap: int = Field(2, ge=1)  # per platform, per UTC day
+    topics: dict[str, list[str]] = {}  # platform -> words that send a clip there
+    tags: dict[str, str] = {}  # platform -> the campaign's required @mentions, as written
+    instagram_user_id: str | None = None
+    public_video_base: str | None = None  # https address where Instagram can fetch clip files
+
+
+class Brand(_Strict):
+    name: str = ""  # the channel's name as people see it, for the dashboard
+    handle: str = ""  # the channel handle, shown as the faint watermark in the middle of every clip
+
+
 class Profile(_Strict):
     id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,30}$")
     display_name: str
@@ -126,6 +168,12 @@ class Profile(_Strict):
     niche: Niche
     research: Research = Research()
     grading: Grading = Grading()
+    campaign: Campaign | None = None
+    posting: Posting | None = None
+    brand: Brand = Brand()
+    format: str | None = None  # the recipe in config/villomillo/blueprints.yaml; None keeps the engine's own look
+    format_forbid: list[str] = []  # blueprints this channel must never use (for example outside footage)
+    format_params: dict[str, dict] = {}  # per-blueprint parameter overrides
 
     def digest(self) -> str:
         blob = json.dumps(self.model_dump(), sort_keys=True).encode()

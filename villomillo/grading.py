@@ -7,6 +7,7 @@ that tries to talk the grader into something can at worst move itself up or down
 
 from __future__ import annotations
 
+import copy
 import json
 
 from . import store
@@ -118,4 +119,61 @@ def grade_one(db: Database, jev: Jev, profile: Profile, video: dict) -> dict:
     return result.answers
 
 
-__all__ = ["QUESTION_SET_VERSION", "JevError", "build_questions", "build_state", "grade_one"]
+TRANSCRIPT_VERSION = 1
+
+
+def build_transcript_questions() -> dict:
+    return {
+        "standalone_moment": {
+            "type": "noul",
+            "instructions": (
+                "Does this excerpt of a video's transcript contain at least one self-contained story, opinion, "
+                "joke or reveal that a viewer would understand and enjoy as a 15 to 60 second clip, without the "
+                "rest of the video?"
+            ),
+        },
+        "best_hook": {
+            "type": "score",
+            "instructions": "How strong is the best opening line or claim in this excerpt as the hook of a short clip?",
+            "criteria": HOOK,
+        },
+        "speech": {
+            "type": "choice",
+            "instructions": "What does this excerpt mostly consist of?",
+            "criteria": {
+                "talk": "People talking to each other or to the viewer",
+                "mixed": "Talk mixed with a lot of music, sound effects or silence",
+                "non_speech": "Mostly music, silence or sound effects with little talking",
+            },
+        },
+    }
+
+
+def transcript_state(video: dict, profile: Profile, excerpt: str) -> dict:
+    state = build_state(video, profile)
+    state["video"].pop("description", None)  # the excerpt is what matters at this stage
+    state["excerpt"] = excerpt
+    return state
+
+
+def combine_transcript(meta: dict, chunks: list[dict]) -> tuple[dict, dict]:
+    """Blend the title-based answers with the transcript answers. Returns (answers for scoring, summary)."""
+    moment_frac = sum(float(c["standalone_moment"]["noul"]) for c in chunks) / len(chunks)
+    hook_best = max(float(c["best_hook"]["score"]) for c in chunks)
+    nonspeech = sum(float(c["speech"]["probabilities"].get("non_speech", 0.0)) for c in chunks) / len(chunks)
+    merged = copy.deepcopy(meta)
+    m = merged["has_moments"]
+    m["score"] = (float(m["score"]) + 4 * moment_frac) / 2  # the scale runs 0 to 4
+    h = merged["hook_potential"]
+    h["score"] = max(float(h["score"]), hook_best)
+    v = merged["needs_visuals"]
+    v["noul"] = max(float(v["noul"]), nonspeech)
+    summary = {"chunks": len(chunks), "standalone_moment_share": round(moment_frac, 3),
+               "best_hook": round(hook_best, 2), "non_speech_share": round(nonspeech, 3)}
+    return merged, summary
+
+
+__all__ = [
+    "QUESTION_SET_VERSION", "TRANSCRIPT_VERSION", "JevError", "build_questions", "build_state",
+    "build_transcript_questions", "combine_transcript", "grade_one", "transcript_state",
+]

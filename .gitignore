@@ -289,3 +289,4 @@ _test_*.py
 
 # Private business plan: keep out of the public repository
 docs/TECHNICAL-PLAN.md
+config/villomillo/youtube_client_secret.json

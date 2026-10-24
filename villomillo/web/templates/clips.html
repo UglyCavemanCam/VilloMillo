@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge, empty %}
+{% block action %}<a class="btn btn-primary" href="/research?profile={{ shell.current.id }}">Find videos to clip</a>{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Clips</h1><span class="sub">Everything the engine made, and your decision on each</span></div>
+
+<div class="toolbar">
+  <nav class="tabs" aria-label="Clip status">
+    {% for t in d.tabs %}<a class="tab" href="/clips?profile={{ shell.current.id }}&tab={{ t.key }}" {% if t.key == d.tab %}aria-current="page"{% endif %}>{{ t.label }}<small>{{ t.count }}</small></a>{% endfor %}
+  </nav>
+</div>
+
+{% if d.tab == 'progress' %}
+  {% set s = d.studio %}
+  {% if s.engine_message %}<div class="notice warn">{{ icon('alert') }}<div>{{ s.engine_message }} Start it from Settings.</div></div>{% endif %}
+  {% if s.job %}
+  <section class="card stack" data-live data-active="{{ 1 if d.live else 0 }}" aria-label="Live progress">
+    {% if s.video %}
+    <div class="card-head" style="margin:0"><div><h2>{{ s.video.title }}</h2><div class="sub muted">{{ s.video.duration_s|mmss }} long · {{ s.job.status }} · {{ (s.job.elapsed_s // 60) }} min elapsed</div></div></div>
+    <div><div class="timeline">{% for c in s.video.clips %}<i class="{{ c.state }}" style="left:{{ c.left_pct }}%;width:{{ c.width_pct }}%"></i>{% endfor %}</div>
+      <div class="muted" style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px"><span>0:00</span><span>clips are marked on the episode</span><span>{{ s.video.duration_s|mmss }}</span></div></div>
+    {% endif %}
+    <div class="steps" data-live-steps>{% for st in s.steps %}<div class="step {{ st.state if st.state in ('done', 'now') else '' }}">{{ st.name }}</div>{% endfor %}</div>
+    <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span data-live-title>{% if s.error %}Stopped: {{ s.error[:160] }}{% elif s.job.status == 'done' %}Finished{% else %}Working{% endif %}</span><span class="muted">Progress is approximate: the engine reports stages, not percentages.</span></div>
+      <div class="bar"><i data-live-bar style="width:{{ s.percent }}%"></i></div></div>
+  </section>
+  {% else %}
+  {{ empty('activity', 'Nothing is being clipped right now', 'When the engine works on a video, its live steps (download, transcribe, find moments, render, check) show up here.', 'Find videos to clip', '/research?profile=' ~ shell.current.id) }}
+  {% endif %}
+{% elif d.cards %}
+  <div class="clip-grid">
+    {% for c in d.cards %}
+    <button type="button" class="clip-card" data-panel="{{ c.panel }}" aria-label="Open clip {{ c.engine_id }}, {{ c.state.text }}">
+      <div class="thumb"><img src="{{ c.thumb }}" alt="" loading="lazy"><span class="tl badge {{ c.state.kind }}">{{ c.state.text }}</span><span class="br">{{ c.duration }}</span></div>
+      <div class="clip-meta"><span class="grade">{{ c.grade }}</span><span class="t">{{ c.title }}</span></div>
+      <div class="clip-tags"><span class="chip">{{ c.look }}</span><span class="chip {{ c.rules.kind }}"><span class="dot-s {{ c.rules.kind }}"></span>{{ c.rules.text }}</span></div>
+    </button>
+    {% endfor %}
+  </div>
+{% else %}
+  {% set copy = {
+    'review': ('Nothing is waiting for you', 'New clips that pass every check land here for your decision.'),
+    'approved': ('No approved clips yet', 'Approve a clip and its post is planned on the calendar by itself.'),
+    'rejected': ('Nothing rejected', 'Clips you reject, and clips the campaign rules stop, show up here.'),
+    'all': ('No clips yet', 'Clips appear here as soon as the engine has made them from a video that passed the gate.')} %}
+  {{ empty('clips', copy[d.tab][0], copy[d.tab][1], 'Find videos to clip', '/research?profile=' ~ shell.current.id) }}
+{% endif %}
+{% endblock %}

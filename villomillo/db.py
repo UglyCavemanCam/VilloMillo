@@ -91,6 +91,86 @@ CREATE TABLE IF NOT EXISTS schedules (
     next_run_at TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
 );
 
+-- Rights: what you have told us about a channel, and what was decided for each video at clip time.
+CREATE TABLE IF NOT EXISTS channel_rights (
+    profile_id TEXT NOT NULL, channel_id TEXT NOT NULL, status TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+    set_at TEXT NOT NULL, PRIMARY KEY (profile_id, channel_id)
+);
+CREATE TABLE IF NOT EXISTS video_rights (
+    profile_id TEXT NOT NULL, video_id TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL,
+    checked_at TEXT NOT NULL, PRIMARY KEY (profile_id, video_id)
+);
+
+-- Videos a clipping campaign tells its clippers to use. Permission comes from the campaign's own
+-- instructions, so it covers only the videos listed here, never the whole channel.
+CREATE TABLE IF NOT EXISTS campaign_videos (
+    profile_id TEXT NOT NULL, video_id TEXT NOT NULL, campaign_url TEXT NOT NULL, note TEXT NOT NULL,
+    added_at TEXT NOT NULL, PRIMARY KEY (profile_id, video_id)
+);
+
+-- One clipping run on the engine per source video.
+CREATE TABLE IF NOT EXISTS clip_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, video_id TEXT NOT NULL,
+    engine_job_id INTEGER, status TEXT NOT NULL,   -- submitted | done | failed
+    error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE (profile_id, video_id)
+);
+
+-- Clips the engine made for us, checked and waiting for your decision.
+CREATE TABLE IF NOT EXISTS clips_ready (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, engine_clip_id INTEGER NOT NULL,
+    video_id TEXT NOT NULL, start_s REAL NOT NULL, end_s REAL NOT NULL, engine_score INTEGER,
+    hook TEXT, file_path TEXT, validation_json TEXT NOT NULL, grade_json TEXT NOT NULL,
+    state TEXT NOT NULL,        -- review | rejected_auto | failed_validation | approved | rejected
+    reason TEXT, created_at TEXT NOT NULL, decided_at TEXT,
+    UNIQUE (profile_id, engine_clip_id)
+);
+
+-- Approved clips on their way out. One row per clip and platform.
+CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, clip_id INTEGER NOT NULL,
+    platform TEXT NOT NULL, route TEXT NOT NULL,    -- api | manual
+    status TEXT NOT NULL,       -- queued | blocked | dry_run | manual_ready | uploaded | failed | posted
+    title TEXT NOT NULL, caption TEXT NOT NULL, tags_json TEXT NOT NULL,
+    scheduled_at TEXT NOT NULL, posted_at TEXT, url TEXT, error TEXT, created_at TEXT NOT NULL,
+    UNIQUE (clip_id, platform)
+);
+
+-- Whether a platform has passed its audit for a channel. Until it has, that platform's posts stay manual.
+CREATE TABLE IF NOT EXISTS platform_audits (
+    profile_id TEXT NOT NULL, platform TEXT NOT NULL, passed INTEGER NOT NULL DEFAULT 0, note TEXT,
+    set_at TEXT NOT NULL, PRIMARY KEY (profile_id, platform)
+);
+
+-- Whether a channel's account on a platform is allowed to post, and why not when it is paused.
+CREATE TABLE IF NOT EXISTS account_state (
+    profile_id TEXT NOT NULL, platform TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',  -- active | paused
+    reason TEXT, failures INTEGER NOT NULL DEFAULT 0, changed_at TEXT NOT NULL, PRIMARY KEY (profile_id, platform)
+);
+
+-- The title and caption options written for a post. One of them is chosen; the others stay for you to pick.
+CREATE TABLE IF NOT EXISTS copy_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL, title TEXT NOT NULL, caption TEXT NOT NULL,
+    tags_json TEXT NOT NULL, stop_score INTEGER, misleading REAL, chosen INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL, created_at TEXT NOT NULL
+);
+
+-- Caption text, stored once per video so it is never fetched twice.
+CREATE TABLE IF NOT EXISTS transcripts (
+    video_id TEXT PRIMARY KEY, source TEXT NOT NULL, chars INTEGER NOT NULL, text TEXT NOT NULL, fetched_at TEXT NOT NULL
+);
+
+-- Plain-language suggestions from the weekly review (advice only; nothing is applied automatically).
+CREATE TABLE IF NOT EXISTS suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, created_at TEXT NOT NULL, body_json TEXT NOT NULL
+);
+
+-- Results of the automatic backtest: does the grading point the right way on this channel's past uploads?
+CREATE TABLE IF NOT EXISTS selfchecks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, ran_at TEXT NOT NULL,
+    sample INTEGER NOT NULL, rank_correlation REAL, top_hit_rate REAL, verdict TEXT NOT NULL, details_json TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, level TEXT NOT NULL,
     component TEXT NOT NULL, message TEXT NOT NULL, data_json TEXT

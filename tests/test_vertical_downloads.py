@@ -18,7 +18,9 @@ pytest.importorskip("yt_dlp")
 from sources import dispatch, kick, twitch, vertical, youtube
 
 STANDARD_YOUTUBE_FORMAT = (
-    "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]"
+    "bv*[height<=1440][vcodec!^=av01]+ba[ext=m4a]"
+    "/bv*[height<=1440][vcodec!^=av01]+ba"
+    "/bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]"
     "/bv*[height<=1080][ext=mp4][vcodec!^=av01]+ba[ext=m4a]"
     "/b[ext=mp4]/b"
 )
@@ -70,7 +72,7 @@ def test_youtube_vertical_asks_for_portrait_at_1080_on_the_short_side(ydl, tmp_p
     assert video.path.name == "abcdefghijk__vertical.mp4" and video.video_id == "abcdefghijk"
 
 
-def test_the_standard_youtube_download_is_unchanged(ydl, tmp_path):
+def test_the_standard_youtube_download_asks_for_up_to_1440p_and_never_av1(ydl, tmp_path):
     video = youtube.download("https://www.youtube.com/watch?v=abcdefghijk", tmp_path)
     opts = ydl.seen[-1]
     assert opts["format"] == STANDARD_YOUTUBE_FORMAT and "format_sort" not in opts

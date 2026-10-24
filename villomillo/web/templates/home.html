@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge, empty %}
+{% block action %}{% set first = d.needs|first %}{% if first and first.primary %}<a class="btn btn-primary" href="{{ first.href }}">{{ first.btn }}</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Home</h1><span class="sub">{{ shell.channel_name }}{% if shell.channel_sub %} · {{ shell.channel_sub }}{% endif %}</span></div>
+
+<section class="grid stats" aria-label="At a glance">
+  {% for s in d.stats %}
+  <div class="card stat"><div class="k">{{ s.k }}</div><div class="v">{{ s.v }}</div><div class="s">{{ s.s }}</div>
+    {% if s.bar is defined %}<div class="bar thin" style="margin-top:4px"><i style="width:{{ s.bar }}%"></i></div>{% endif %}</div>
+  {% endfor %}
+</section>
+
+<div class="grid two">
+  <section class="card tight" aria-labelledby="needs-h">
+    <h2 id="needs-h" style="padding:12px 12px 8px">Needs you</h2>
+    {% for n in d.needs %}
+    <a class="row" href="{{ n.href }}">
+      <span class="dot-s {{ {'accent': 'warn', 'warn': 'warn', 'bad': 'bad'}.get(n.kind, '') }}" style="{% if n.kind == 'accent' %}background:var(--accent){% endif %}"></span>
+      <span class="grow"><b>{{ n.title }}</b><small>{{ n.sub }}</small></span>
+      <span class="btn btn-sm {{ 'btn-primary' if n.primary else '' }}">{{ n.btn }}</span>
+    </a>
+    {% else %}
+    <div class="row"><span class="dot-s good"></span><span class="grow"><b>All clear</b><small>Nothing is waiting for you right now.</small></span></div>
+    {% endfor %}
+  </section>
+
+  <section class="card" aria-labelledby="pipe-h">
+    <h2 id="pipe-h">Pipeline</h2>
+    <p class="muted" style="margin:4px 0 16px;font-size:13px">From the videos found to a post</p>
+    <div class="funnel">
+      {% for p in d.pipeline %}
+      <div class="line"><div class="top"><span>{{ p.label }}</span><b class="num">{{ p.count }}</b></div><div class="bar"><i style="width:{{ p.width }}%"></i></div></div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="recent-h">
+  <div class="card-head"><h2 id="recent-h">Recent clips</h2><a class="btn btn-sm" href="/clips?profile={{ shell.current.id }}">View all</a></div>
+  {% if d.recent %}
+  <div class="clip-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:16px">
+    {% for c in d.recent %}
+    <a class="clip-card" style="padding:0;gap:10px" href="/clips?profile={{ shell.current.id }}&panel=/clips/{{ c.id }}/panel">
+      <div class="thumb"><img src="{{ c.thumb }}" alt="" loading="lazy"><span class="tl badge {{ c.state.kind }}">{{ c.state.text }}</span><span class="br">{{ c.duration }}</span></div>
+      <div class="clip-meta" style="padding:0"><span class="grade" style="font-size:22px">{{ c.grade }}</span><span class="t" style="font-size:13px;line-height:18px">{{ c.title }}</span></div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}{{ empty('clips', 'No clips yet', 'Clips appear here as soon as the engine has made them from a video that passed the gate.') }}{% endif %}
+</section>
+
+<div class="grid two">
+  <section class="card" aria-labelledby="week-h">
+    <div class="card-head"><h2 id="week-h">Next 7 days</h2><a class="btn btn-sm" href="/calendar?profile={{ shell.current.id }}">Open calendar</a></div>
+    <div class="dayrow">
+      {% for w in d.week %}
+      <div class="day {{ 'today' if w.is_today }}"><span class="w">{{ w.date.strftime('%a') }}</span><span class="d">{{ w.date.strftime('%b') }} {{ w.date.day }}</span>
+        {% if w.total %}{% if w.hand %}<span class="hand">{{ w.hand }} by hand</span>{% endif %}{% if w.done %}<span class="done">{{ w.done }} uploaded</span>{% endif %}{% if w.other %}<span class="muted" style="font-size:12px">{{ w.other }} planned</span>{% endif %}
+        {% else %}<span class="none">Nothing planned</span>{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% if not d.has_week_items %}<p class="muted" style="margin-top:14px;font-size:13px">Approve a clip and its post is planned here by itself.</p>{% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="health-h">
+    <h2 id="health-h" style="margin-bottom:14px">Health</h2>
+    <div class="health">
+      {% for h in d.health %}<div class="h"><span class="dot-s {{ h.kind }}"></span><div><b style="font-weight:500">{{ h.label }}</b><small>{{ h.value }}</small></div></div>{% endfor %}
+    </div>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="act-h">
+  <h2 id="act-h" style="margin-bottom:10px">Recent activity <span class="muted" style="font-weight:400;font-size:13px">Eastern Time</span></h2>
+  <div class="events">
+    {% for e in d.events %}<div><span class="when">{{ e.when }}</span><span class="{{ e.level }}">{{ e.text }}</span></div>
+    {% else %}<span class="muted">Nothing yet.</span>{% endfor %}
+  </div>
+</section>
+{% endblock %}

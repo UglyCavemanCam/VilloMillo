@@ -1,0 +1,62 @@
+# Profile for the "Solved with Mark Manson" clipping campaign. The campaign names its source
+# episodes, so this profile watches no channel: the episodes are added with
+#   python -m villomillo campaign add ...
+# and permission covers only those episodes (see villomillo/rights.py).
+
+id: solved
+display_name: "Solved clips (campaign)"
+autopilot: review
+
+niche:
+  definition: >-
+    Episodes of the Solved podcast with Mark Manson: practical talk about personal growth,
+    relationships, values, discipline and how to live well, with blunt hard truths and short stories.
+  include:
+    - a hard truth stated plainly
+    - a problem almost everyone has, and the answer
+    - a short story with a payoff
+    - dating, relationships and commitment advice
+    - values, purpose and personal growth
+  exclude:
+    - ad reads and sponsor segments
+    - anything not from the Solved podcast
+
+research:
+  freshness_hours: 87600        # the campaign's episodes are all older than two weeks
+  min_duration_min: 15
+  max_duration_min: 360
+  languages: [en]
+
+# The Clipfarm x Solved brief (Google Doc "Mark Manson Clipping Brief"). Only the rules a program can check
+# are here; the rest is judged by you when you review a clip.
+campaign:
+  name: "Clipfarm x Solved with Mark Manson"
+  min_s: 20
+  max_s: 60
+  face_window_s: 5          # Mark's face must be on screen in the first 5 seconds
+  require_captions: true    # subtitles on the whole clip
+  no_ad_reads: true
+
+posting:
+  dry_run: true             # nothing is sent until you turn this off
+  platforms:                # the brief allows YouTube Shorts and Instagram Reels only (no TikTok)
+    youtube_shorts: manual  # YouTube's audit has not passed yet, so uploads are copied by hand
+    instagram_reels: manual # the Instagram API needs a public link to the file first
+  privacy: private
+  min_gap_minutes: 180
+  daily_cap: 2
+  topics:                   # the brief's own split: values/growth to Shorts, relationships to Reels
+    youtube_shorts: [values, purpose, meaning, growth, discipline, life, self, hard truth]
+    instagram_reels: [dating, relationship, commitment, narciss, partner, marriage, love, date, breakup]
+  tags:
+    youtube_shorts: "@solvedclips @iammarkmanson"
+    instagram_reels: "@solvedpodcast @markmanson"
+
+brand:
+  name: CavemanCam
+  handle: "@cavemancam"          # the faint watermark in the middle of every clip
+
+format: podcast_talk             # the A2 look; see config/villomillo/blueprints.yaml
+format_params:
+  clean_frame:
+    keep_right_of: 0.40625       # the show's own on-screen text sits left of this part of the picture: never show it

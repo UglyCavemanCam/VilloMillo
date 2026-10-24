@@ -75,9 +75,23 @@ def fail(db: Database, task: dict, error: str, *, at: datetime | None = None) ->
 # --- schedules: "run this every N minutes" -------------------------------------------------------
 
 
+def drop_removed_profiles(db: Database, known: set[str]) -> None:
+    """Forget schedules and waiting tasks for channel profiles that no longer exist in the settings."""
+    with db.conn() as c:
+        c.execute(
+            f"DELETE FROM schedules WHERE profile_id IS NOT NULL AND profile_id NOT IN ({','.join('?' * len(known)) or 'NULL'})",
+            tuple(known),
+        )
+        for row in c.execute("SELECT id, payload_json FROM tasks WHERE status IN ('queued', 'running')").fetchall():
+            profile = json.loads(row["payload_json"]).get("profile")
+            if profile is not None and profile not in known:
+                c.execute("DELETE FROM tasks WHERE id=?", (row["id"],))
+
+
 def ensure_schedules(db: Database, app: AppConfig, profiles: dict[str, Profile], *, at: datetime | None = None) -> None:
     """Make sure each recurring job exists. Safe to call at every start."""
     at = at or store.now()
+    drop_removed_profiles(db, set(profiles))
     s = app.schedule
     with db.conn() as c:
         for profile_id, profile in profiles.items():
@@ -85,6 +99,8 @@ def ensure_schedules(db: Database, app: AppConfig, profiles: dict[str, Profile],
                 ("watch", s.watch_every_minutes),
                 ("snapshots", s.snapshots_every_minutes),
                 ("grade", s.grade_every_minutes),
+                ("review", s.review_every_minutes),
+                ("post", s.post_every_minutes),
             ]
             if profile.research.topics:
                 jobs.append(("topics", s.topics_every_minutes))
