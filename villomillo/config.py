@@ -43,6 +43,19 @@ class SpendBreaker(_Strict):
     jev_usd: float = Field(5.0, gt=0)
 
 
+class Scoring(_Strict):
+    """The numbers behind a clip's viral score, estimated CPM and expected revenue (docs/AUTOPILOT-PLAN.md, section 6)."""
+
+    viral_min: int = Field(75, ge=0, le=100)  # a clip needs at least this viral score
+    engine_weight: float = Field(0.6, ge=0, le=1)  # the engine's rating counts this much; Jev's reading of the clip counts the rest
+    cpm_base: float = Field(1.0, gt=0)  # estimated CPM of a clip that scores exactly viral_min in a factor-1 category
+    cpm_floor: float = Field(1.0, ge=0)  # a pasted clip needs at least this estimated CPM
+    predicted_views: int = Field(8000, ge=0)  # a rough guess per clip, replaced by real results later
+    type_certainty_min: float = Field(0.75, ge=0, le=1)  # below this, the video's kind is unsure and the plain look is used
+    category_factors: dict[str, float] = {"Podcasts": 1.0, "Stream clips": 1.0}  # all 1.0 until real results say otherwise
+    default_factor: float = Field(1.0, gt=0)
+
+
 class Schedule(_Strict):
     post_every_minutes: int = Field(15, ge=1)  # send posts that are due
 
@@ -52,6 +65,7 @@ class AppConfig(_Strict):
     dashboard: Dashboard = Dashboard()
     budgets: Budgets = Budgets()
     spend_breaker: SpendBreaker = SpendBreaker()
+    scoring: Scoring = Scoring()
     schedule: Schedule = Schedule()
 
     def database_path(self) -> pathlib.Path:

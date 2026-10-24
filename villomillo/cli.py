@@ -84,6 +84,43 @@ def cmd_preview(args) -> None:
         print(f"  {m['id']:>2}  score {m['score']:>3}  {m['start']:7.1f}s - {m['end']:7.1f}s  {m['hook'][:70]}")
 
 
+def cmd_score(args) -> None:
+    """Score a video's moments: viral score, estimated CPM, expected revenue, and what kind of video it is."""
+    from . import clipper, links, scoring
+
+    try:
+        link = links.parse(args.link)
+    except links.LinkError as e:
+        sys.exit(str(e))
+    sv = _services()
+    engine = clipper.Engine()
+    try:
+        preview = engine.preview(link.video_id)
+        if not preview["moments"] or args.again:
+            job_id = clipper.start_preview(engine, link, focus=args.focus or "", force=True)
+            print(f"{link.name} video {link.video_id}: finding moments (engine job {job_id})...", flush=True)
+            job = _wait_for_job(engine, job_id)
+            if job["status"] != "done":
+                sys.exit(f"the engine did not finish: {job.get('error') or job['status']}")
+            preview = engine.preview(link.video_id)
+    except clipper.EngineUnavailable as e:
+        sys.exit(str(e))
+    if not preview["moments"]:
+        sys.exit("No moments worth clipping were found.")
+    from . import spend
+
+    try:
+        result = scoring.score_video(sv.db, sv.jev, sv.app.scoring, preview, source=args.source, breaker=sv.app.spend_breaker)
+    except spend.SpendPaused as e:
+        sys.exit(str(e))
+    print(f"\nKind: {result.kind.explain}\nCategory: {result.kind.category}. Look: {result.kind.look}.\n")
+    for m in result.moments:
+        print(f"moment {m.id}  {m.start:.0f}s - {m.end:.0f}s  {m.hook[:60]}")
+        for line in m.explain:
+            print(f"    {line}")
+    print(f"\n{len(result.makeable)} of {len(result.moments)} moments clear the bar.")
+
+
 def cmd_make(args) -> None:
     """Make only the chosen moments of a video that was previewed."""
     from . import clipper, links
@@ -361,6 +398,12 @@ def main(argv: list[str] | None = None) -> None:
     preview.add_argument("link")
     preview.add_argument("--focus", help="what the clips should be about, in your words")
     preview.set_defaults(fn=cmd_preview)
+    score = sub.add_parser("score", help="score a video's moments (viral score, estimated CPM, expected revenue) with an explanation")
+    score.add_argument("link")
+    score.add_argument("--source", choices=["paste", "research", "campaign"], default="paste")
+    score.add_argument("--focus")
+    score.add_argument("--again", action="store_true", help="look at the video again instead of using the earlier preview")
+    score.set_defaults(fn=cmd_score)
     make = sub.add_parser("make", help="make only the chosen moments of a video you previewed")
     make.add_argument("link")
     make.add_argument("--moments", required=True, help="the moment numbers from 'preview', like 1,3")

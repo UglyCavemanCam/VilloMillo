@@ -1588,6 +1588,19 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         finally:
             d.close()
 
+    @app.get("/videos/{video_id}/preview")
+    def preview_for_video(video_id: str):
+        """What a preview found: the video's own details and its scored moments (with the words spoken in each)."""
+        d = db()
+        try:
+            row = d.conn.execute("SELECT title, channel_name, duration, status FROM videos WHERE video_id = ?",
+                                 (video_id,)).fetchone()
+            video = {"title": row["title"], "channel": row["channel_name"], "duration": row["duration"],
+                     "status": row["status"]} if row else None
+            return {"video": video, "moments": d.moments(video_id)}
+        finally:
+            d.close()
+
     @app.get("/videos/{video_id}/clips")
     def clips_for_video(video_id: str):
         d = db()

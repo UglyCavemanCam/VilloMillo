@@ -21,6 +21,7 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `config.py`, `db.py`, `store.py`, `tasks.py`, `runner.py`, `services.py`, `timefmt.py`, `secrets.py` | Settings, database, job queue, worker, keys | **Keep** |
 | `spend.py` | Spend breaker | **Keep** (new) |
 | `claude.py`, `jev.py` | Claude and Jev clients | **Keep** |
+| `scoring.py` | Viral score, estimated CPM, expected revenue, and the video's kind | **Keep** (new, Phase 4) |
 | `clipper.py`, `links.py` | Talks to the clipping engine (preview, make chosen moments), checks finished clips; recognises YouTube, Twitch and Kick links | **Keep.** Phase 3 added "preview" and "make chosen moments" |
 | `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the real campaign rules |
 | `formats/` | The on-screen look recipes (blueprints, text, render) | **Keep** |

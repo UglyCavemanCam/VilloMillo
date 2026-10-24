@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS channels (
     id TEXT PRIMARY KEY, data_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 
+-- What Jev said about a piece of text, kept so the same text always gets the same scores and is never paid for twice.
+CREATE TABLE IF NOT EXISTS readings (
+    key TEXT PRIMARY KEY, kind TEXT NOT NULL, answers_json TEXT NOT NULL, model TEXT, created_at TEXT NOT NULL
+);
+
 -- Every paid AI call with a time, so the spend breaker can count what was spent since your last approval.
 CREATE TABLE IF NOT EXISTS spend_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, engine TEXT NOT NULL, cost_usd REAL NOT NULL

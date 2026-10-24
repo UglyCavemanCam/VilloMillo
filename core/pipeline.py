@@ -557,7 +557,10 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         print(f"            ({breakdown})")
 
     if preview_only:
-        db.save_moments(video.video_id, candidates)
+        def _said(c) -> str:
+            return " ".join(s.text.strip() for s in segments if s.end > c.start and s.start < c.end)
+
+        db.save_moments(video.video_id, candidates, [_said(c) for c in candidates])
         print(f"      Preview: {len(candidates)} moment(s) kept, no clips made")
         progress.emit(stage="previewed", video_id=video.video_id, moments=len(candidates))
         return []

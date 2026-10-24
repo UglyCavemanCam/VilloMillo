@@ -67,6 +67,11 @@ class Engine:
             raise EngineUnavailable(f"engine has no job {job_id} (HTTP {r.status_code})")
         return r.json()
 
+    def preview(self, video_id: str) -> dict:
+        """What a preview found: {"video": {title, channel, duration, status} or None, "moments": [...with the words]}."""
+        r = self._call("GET", f"/videos/{video_id}/preview")
+        return r.json() if r.status_code == 200 else {"video": None, "moments": []}
+
     def moments(self, video_id: str) -> list[dict]:
         """The scored moments a preview found for this video, best first (empty until a preview has run)."""
         r = self._call("GET", f"/videos/{video_id}/moments")

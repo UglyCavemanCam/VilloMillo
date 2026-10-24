@@ -17,6 +17,18 @@ spend_breaker:
   claude_usd: 25.00
   jev_usd: 5.00
 
+# How clips are scored (see docs/AUTOPILOT-PLAN.md, section 6). Category factors stay at 1.0 until real results say otherwise.
+scoring:
+  viral_min: 75              # a clip needs at least this viral score
+  engine_weight: 0.6         # share of the viral score from the engine's rating; the rest is Jev's reading of the clip
+  cpm_base: 1.00             # estimated CPM at exactly the minimum viral score, in a factor-1 category
+  cpm_floor: 1.00            # a pasted clip needs at least this estimated CPM
+  predicted_views: 8000      # a rough guess per clip until real views come back
+  type_certainty_min: 0.75   # below this the video's kind is unsure, and the plain look is used
+  category_factors:
+    Podcasts: 1.0
+    Stream clips: 1.0
+
 # How often each job runs.
 schedule:
   post_every_minutes: 15         # send approved clips that are due (dry-run unless a channel turns it off)

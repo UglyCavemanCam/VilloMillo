@@ -65,7 +65,7 @@ def run(tmp_path, monkeypatch, db):
 
     def transcribe(*a, **k):
         calls.transcribed += 1
-        return [Segment(0, 5, "hello")]
+        return [Segment(95, 120, "hello there"), Segment(405, 420, "second point")]
 
     def render(video_path, candidate, segments, clip_dir, config, opts, lang):
         calls.render.append(candidate.start)
@@ -118,6 +118,12 @@ def test_a_preview_keeps_the_moments_and_makes_no_clips(run, db):
     assert [m["score"] for m in db.moments(VIDEO)] == [91, 78, 66]
     assert db.conn.execute("SELECT status FROM videos WHERE video_id=?", (VIDEO,)).fetchone()["status"] == "analyzed"
     assert not db.shorts_made(VIDEO)  # a preview is not "already processed"
+
+
+def test_a_preview_keeps_the_words_spoken_in_each_moment(run, db):
+    go, _ = run
+    go(preview_only=True, min_score=0)
+    assert [m["text"] for m in db.moments(VIDEO)] == ["hello there", "second point", ""]
 
 
 def test_a_preview_can_keep_the_moments_below_the_bar_too(run, db):
@@ -218,3 +224,32 @@ def test_the_moments_endpoint_lists_what_a_preview_kept(api, tmp_path):
     d.close()
     got = api.get(f"/videos/{VIDEO}/moments").json()
     assert [m["id"] for m in got] == [1, 2, 3] and got[0]["score"] == 91 and got[0]["hook"] == "hook 100"
+
+
+def test_the_preview_endpoint_has_the_video_and_its_moments_with_their_words(api, tmp_path):
+    from core.state import StateDB
+
+    assert api.get(f"/videos/{VIDEO}/preview").json() == {"video": None, "moments": []}
+    d = StateDB(tmp_path / "data" / "state.db")
+    d.upsert_video(VIDEO, title="Episode 12", channel_name="A Show", duration=3600)
+    d.save_moments(VIDEO, MOMENTS, ["one", "two", "three"])
+    d.close()
+    got = api.get(f"/videos/{VIDEO}/preview").json()
+    assert got["video"]["title"] == "Episode 12" and got["video"]["channel"] == "A Show"
+    assert [m["text"] for m in got["moments"]] == ["one", "two", "three"]
+
+
+def test_a_preview_database_from_before_the_words_were_kept_gains_the_column(tmp_path):
+    import sqlite3
+
+    from core.state import StateDB
+
+    path = tmp_path / "old.db"
+    StateDB(path).close()
+    raw = sqlite3.connect(path)
+    raw.execute("ALTER TABLE moments DROP COLUMN text")
+    raw.commit()
+    raw.close()
+    d = StateDB(path)
+    d.save_moments(VIDEO, MOMENTS, ["a", "b", "c"])
+    assert d.moments(VIDEO)[0]["text"] == "a"

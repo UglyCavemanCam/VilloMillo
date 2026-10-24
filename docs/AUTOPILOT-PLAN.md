@@ -147,6 +147,15 @@ and refuses live channels, Twitch clips and other sites with a plain reason. Try
 works out what kind of video it is (so it knows the category and the look). This is the formula in section 5.
 **After this:** any test video produces a clear, explainable list of scores.
 **Done when:** the same video always gives the same scores, and each score can be explained in a sentence.
+**Status: done, tested with a stand-in for Jev (not yet with the real service).** `villomillo/scoring.py` scores every previewed moment: **viral** =
+60% the engine's rating + 40% Jev's reading of the clip's words (hook, payoff, stands alone); **estimated CPM** = $1.00 x category factor x viral / 75;
+**expected revenue** = predicted views (a flat 8,000 guess for now) x CPM / 1,000. Each moment carries one plain sentence per number and the verdict
+("Will not be made: the viral score 60 is under 75 ..."). The video's **kind** (podcast or interview, livestream, talk, or something else) comes from Jev
+weighing each kind; the certainty is the winner's share, and under 75% the plain look is used. The kind sets the category (Podcasts, Stream clips,
+Talks, Other) and the look. Jev's answers are stored by the text they were about, so the same video always gives the same scores and nothing is paid for
+twice; a tripped spend breaker stops new readings. The floors differ by source (Paste $1.00, Research the rising bar, Campaign the campaign's own pay). Every
+number lives in `scoring:` in `app.yaml`. Try it: `python -m villomillo score <link>`. Not built yet: channel fit (4 of 5), which Phase 5 adds when it
+picks the channel; category factors are all 1.0 until real results exist (Phase 9).
 
 ### Phase 5: Paste works from start to finish (large) — the first thing you can use
 **In plain words:** Put it together for the Paste way in. The link bar on Home; a progress screen while it looks at the video; the

@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS moments (
     end_s       REAL NOT NULL,
     score       INTEGER NOT NULL,
     candidate   TEXT NOT NULL,          -- the whole candidate as JSON, so it comes back exactly as it was found
+    text        TEXT NOT NULL DEFAULT '',  -- the words spoken in the moment, for scoring it
     created_at  TEXT NOT NULL,
     PRIMARY KEY (video_id, idx)
 );
@@ -393,6 +394,9 @@ class StateDB:
                 " WHERE EXISTS (SELECT 1 FROM clip_feedback f"
                 " WHERE f.clip_id = clips.id AND f.action = 'exported')"
             )
+        moment_cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(moments)")}
+        if moment_cols and "text" not in moment_cols:
+            self.conn.execute("ALTER TABLE moments ADD COLUMN text TEXT NOT NULL DEFAULT ''")
         video_cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(videos)")}
         if "channel_name" not in video_cols:
             self.conn.execute("ALTER TABLE videos ADD COLUMN channel_name TEXT DEFAULT ''")
@@ -1038,15 +1042,17 @@ class StateDB:
 
     # ---- previewed moments -------------------------------------------------
 
-    def save_moments(self, video_id: str, candidates: list) -> None:
-        """Keep the moments a preview found, best first, numbered from 1. Replaces any earlier preview of this video."""
+    def save_moments(self, video_id: str, candidates: list, texts: list[str] | None = None) -> None:
+        """Keep the moments a preview found, best first, numbered from 1. Replaces any earlier preview of this video.
+        `texts` is what is said in each moment, in the same order."""
         from dataclasses import asdict
 
         self.conn.execute("DELETE FROM moments WHERE video_id = ?", (video_id,))
         for idx, c in enumerate(candidates, 1):
             self.conn.execute(
-                "INSERT INTO moments (video_id, idx, start_s, end_s, score, candidate, created_at) VALUES (?,?,?,?,?,?,?)",
-                (video_id, idx, round(c.start, 2), round(c.end, 2), int(c.score), json.dumps(asdict(c), default=str), _now()),
+                "INSERT INTO moments (video_id, idx, start_s, end_s, score, candidate, text, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (video_id, idx, round(c.start, 2), round(c.end, 2), int(c.score), json.dumps(asdict(c), default=str),
+                 (texts[idx - 1] if texts else "")[:4000], _now()),
             )
         self.conn.commit()
 
@@ -1057,7 +1063,7 @@ class StateDB:
             c = json.loads(r["candidate"])
             out.append({"id": r["idx"], "start": r["start_s"], "end": r["end_s"], "duration": round(r["end_s"] - r["start_s"], 2),
                         "score": r["score"], "hook": c.get("hook", ""), "reason": c.get("reason", ""),
-                        "source": c.get("source", ""), "trending": bool(c.get("trending")),
+                        "source": c.get("source", ""), "trending": bool(c.get("trending")), "text": r["text"],
                         "subscores": c.get("subscores") or {}})
         return out
 
