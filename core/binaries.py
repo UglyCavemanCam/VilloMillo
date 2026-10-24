@@ -1,0 +1,241 @@
+"""Where the bundled binaries and model weights live.
+
+The pipeline shells out to FFmpeg constantly. A developer running from the
+repo has it on PATH, so the code used to just say "ffmpeg" and hope — which
+is fine until someone installs the app. Creators do not have FFmpeg, and
+"download FFmpeg, unzip it, add it to your PATH, restart" is exactly the
+friction that makes them close the installer and never come back.
+
+So an installed copy ships its own and this module finds them. Resolution
+order, first hit wins:
+
+  1. CLIPS_STUDIO_FFMPEG / CLIPS_STUDIO_FFPROBE / CLIPS_STUDIO_OLLAMA —
+     explicit override, for debugging or pinning a custom build.
+  2. Next to the frozen executable — where the installer puts them.
+  3. PATH — the developer case, and any system-wide install.
+
+Falling back to the bare name (rather than raising) keeps the repo workflow
+working even if nothing is bundled: the OS resolves it, and if it genuinely
+isn't there the caller gets FileNotFoundError naming the binary, which is a
+clearer error than anything invented here.
+
+The same reasoning covers the Ollama runtime and the Whisper weights. Those
+are not binaries on a PATH, but they fail the same way — as an errand handed
+to someone who only wanted to clip a video — so they resolve through here too.
+"""
+
+import os
+import shutil
+import sys
+from functools import cache
+from pathlib import Path
+
+
+def _search_roots(folder: str) -> list[Path]:
+    """Directories a packaged build may keep a bundled tool's binaries in.
+
+    `folder` is the subdirectory the packaging step puts them in, which is not
+    always the binary's own name — ffprobe.exe lives in ffmpeg/ beside
+    ffmpeg.exe, because they arrive from upstream as one archive.
+
+    PyInstaller one-dir puts the executable beside its payload, and the
+    installer drops the tool either right there or in its subfolder; both
+    layouts are accepted so the packaging step can pick whichever is
+    convenient without a code change.
+    """
+    roots: list[Path] = []
+    if getattr(sys, "frozen", False):  # running from a PyInstaller build
+        exe_dir = Path(sys.executable).parent
+        roots += [exe_dir, exe_dir / folder, exe_dir / "_internal" / folder]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            roots += [Path(meipass), Path(meipass) / folder]
+    # A repo checkout may vendor binaries for testing a packaged layout.
+    repo_vendor = Path(__file__).resolve().parent.parent / "vendor" / folder
+    roots.append(repo_vendor)
+    return roots
+
+
+@cache
+def _resolve(name: str, folder: str) -> str:
+    override = os.environ.get(f"CLIPS_STUDIO_{name.upper()}")
+    if override and Path(override).exists():
+        return override
+
+    filename = f"{name}.exe" if os.name == "nt" else name
+    for root in _search_roots(folder):
+        candidate = root / filename
+        if candidate.exists():
+            return str(candidate)
+
+    return shutil.which(name) or name
+
+
+def ffmpeg() -> str:
+    """Path to the ffmpeg binary this install should use."""
+    return _resolve("ffmpeg", "ffmpeg")
+
+
+def ffprobe() -> str:
+    """Path to the ffprobe binary this install should use."""
+    return _resolve("ffprobe", "ffmpeg")
+
+
+def quickjs() -> str:
+    """Path to the QuickJS-ng runtime (scripts/fetch_quickjs.py) that the YouTube
+    cookies fallback hands yt-dlp: signed in, YouTube's players need their
+    JavaScript run, and a creator has no Node 22 or Deno. Only that request
+    uses it (sources/ytdlp_common.py)."""
+    return _resolve("qjs", "quickjs")
+
+
+def ollama() -> str:
+    """Path to the Ollama runtime this install should use.
+
+    Packaged builds ship their own, so a creator never installs it. A repo
+    checkout falls back to PATH, which is what a developer with a system-wide
+    Ollama already has running.
+    """
+    return _resolve("ollama", "ollama")
+
+
+def has_bundled_ollama() -> bool:
+    """Whether this install carries its own Ollama, rather than borrowing one.
+
+    The difference matters when reporting a failure: a bundled runtime that
+    won't start is a bug to report, while a missing system one is something
+    the creator can fix themselves.
+
+    Deliberately ignores PATH. "We found an ollama" and "we shipped an ollama"
+    are different facts, and only the second one makes a startup failure our
+    problem — a developer with Ollama installed must still be told to go and
+    start it.
+    """
+    filename = "ollama.exe" if os.name == "nt" else "ollama"
+    return any((root / filename).exists() for root in _search_roots("ollama"))
+
+
+# faster-whisper writes several files per model; this is the big one, and its
+# presence is what separates a finished download from an abandoned one.
+_WHISPER_MARKER = "model.bin"
+
+
+def whisper_model(size: str) -> str:
+    """A local directory holding the CTranslate2 weights for `size`, or `size`.
+
+    Returned unchanged when nothing is vendored, because faster-whisper reads
+    a bare size name as "fetch it from Hugging Face". That is the right
+    default in a checkout and the wrong one in an installed copy, where it
+    means a creator's first video stalls on a silent multi-gigabyte download
+    that looks exactly like a hang.
+    """
+    for root in _search_roots("whisper"):
+        candidate = root / size
+        if (candidate / _WHISPER_MARKER).exists():
+            return str(candidate)
+    return size
+
+
+def yolo_weights(name: str) -> str:
+    """An absolute path to bundled YOLO weights, or `name` unchanged.
+
+    Exactly the same reasoning as whisper_model(), and the same failure when
+    it is missing. Ultralytics reads a bare filename like "yolov8n-pose.pt"
+    as "look next to the working directory, and if it is not there, download
+    it from GitHub". The spec bundles these files precisely so nobody's first
+    video stalls on that download -- but bundling them achieves nothing while
+    the loader is still passed a bare name.
+
+    Electron spawns the engine without setting a working directory, so the
+    lookup resolves against somewhere arbitrary and misses the copy sitting in
+    _internal/. The download then happens anyway, and on a machine with no
+    route to GitHub the whole job fails:
+
+        Download failure for .../yolov8n-pose.pt. Retry limit reached.
+
+    Observed on a real Store build, which is exactly what a certification
+    tester on a restricted network would have seen.
+
+    A checkout with no bundled copy still gets the bare name back, so
+    ultralytics downloads once and caches it, which is the right behaviour
+    there.
+    """
+    filename = Path(name).name
+    # The repo root too: a checkout keeps these beside the code, and resolving
+    # them absolutely means `python main.py` works from any directory rather
+    # than only from the repo root.
+    repo = Path(__file__).resolve().parent.parent
+    # models/ too: weights a fetch script keeps there (scripts/fetch_basketball_model.py).
+    roots = [*_search_roots("weights"), repo, repo / "models"]
+    for root in roots:
+        candidate = root / filename
+        if candidate.exists():
+            return str(candidate)
+    return name
+
+
+def haar_cascade(filename: str) -> str | None:
+    """An absolute path to a bundled OpenCV Haar cascade, or None.
+
+    `cv2.data.haarcascades` points inside the installed opencv-python package.
+    That works in a checkout and NOT in a frozen build: the spec lists cv2 as a
+    hidden import, so the module ships and its data directory does not.
+
+    Nothing announces that. CascadeClassifier given a path that does not exist
+    returns an EMPTY classifier rather than raising, and the failure only
+    surfaces later inside detectMultiScale as:
+
+        (-215:Assertion failed) !empty() in function 'detectMultiScale'
+
+    which reads as a rendering bug. Issue #86 was exactly this: a job analysed
+    a video, picked a clip, and produced zero clips because the crop needed the
+    Haar fallback.
+
+    Returns None when the file cannot be found anywhere, so callers can skip
+    face refinement instead of crashing.
+    """
+    roots = [*_search_roots("cascades")]
+    try:
+        import cv2
+
+        roots.append(Path(cv2.data.haarcascades))
+    except Exception:
+        pass  # cv2 missing entirely is the caller's problem, not ours
+
+    for root in roots:
+        try:
+            candidate = Path(root) / filename
+            if candidate.is_file():
+                return str(candidate)
+        except Exception:
+            continue
+    return None
+
+
+def bundled_whisper_sizes() -> list[str]:
+    """Which Whisper sizes this install actually carries.
+
+    For the preflight: "no transcription weights" is worth saying up front
+    rather than twenty minutes into someone's first video.
+    """
+    found: list[str] = []
+    for root in _search_roots("whisper"):
+        if not root.is_dir():
+            continue
+        for child in root.iterdir():
+            if (child / _WHISPER_MARKER).exists() and child.name not in found:
+                found.append(child.name)
+    return found
+
+
+def missing() -> list[str]:
+    """Which required binaries can't be found — for the startup preflight.
+
+    Empty list means everything needed is present.
+    """
+    absent = []
+    for name, path in (("ffmpeg", ffmpeg()), ("ffprobe", ffprobe())):
+        # A bare name means nothing resolved it; anything else is a real path.
+        if path == name and shutil.which(name) is None:
+            absent.append(name)
+    return absent

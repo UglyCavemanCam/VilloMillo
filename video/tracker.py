@@ -1,0 +1,1811 @@
+"""YOLOv8 + OpenCV subject tracking (v2).
+
+Input:  a clip video file.
+Output: a tracking result dict the cropper renders from:
+
+  {"mode": "track", "path": [(t, center_x), ...]}
+      Follow-the-subject mode: a smoothed horizontal crop path
+      (center_x normalized 0..1).
+
+  {"mode": "split", "webcam_box": (x, y, w, h)}
+      Gameplay + facecam layout detected (all values normalized 0..1):
+      render the webcam region stacked on top of a centered gameplay crop.
+      Both regions are static, so this mode cannot jitter at all.
+
+v2 upgrades over v1:
+  - Identity tracking: detections are chained into tracks by IoU, so the
+    system follows *people*, not per-frame boxes.
+  - Target hysteresis: the camera switches subjects only when a challenger
+    clearly dominates for >= 1.5s — no ping-ponging mid-conversation.
+  - Two-person framing: when exactly two subjects persist close together,
+    the crop frames their midpoint.
+  - Pan-speed clamp: the window can never move faster than max_pan_speed
+    (fraction of frame width per second) — kills whip-pans on detector noise.
+  - Facecam layout detection for gameplay streams.
+
+v3 brings over what the Podcast rebuild proved out (see video/framing.py):
+  - Hold-then-move: the crop parks and only moves on genuine sustained
+    drift, instead of correcting every sample. The old chain oscillated
+    inside a narrow band — many small reversals that read as the camera
+    wandering and never committing to a face.
+  - A trailing-median target, so one bad detection box cannot yank framing.
+  - Commit to the speaker: two subjects share a midpoint crop only while
+    NOBODY is talking; once someone speaks the crop frames them, because a
+    midpoint between two faces frames neither.
+  - Cut awareness: cuts are detected every frame; the crop snaps across
+    them rather than panning, and mouth-motion state is dropped so the
+    talking detector doesn't score everyone a speaker after a cut. Single
+    continuous-camera footage never trips this and is unaffected.
+
+v4 follows whoever is SPEAKING, and there is exactly one thing that decides
+that: TalkNet (see video/asd.py). Mouth-region pixel movement is still
+measured, but only as a prominence tiebreak — it is not a speaker detector
+and must never be used as one again. It measures MOVEMENT, and two people in
+a lively room move about equally, so it reliably picks whoever is BIGGER.
+
+An earlier version kept it as a fallback for when TalkNet could not run. That
+was a mistake: it meant the wrong behaviour could still happen silently, on
+whichever clips took the other branch, with nothing in the output to say
+which detector had decided. The weights ship with the app, so there was
+nothing to fall back FOR. When TalkNet has no answer nobody is named and the
+crop simply stays put, which is the honest thing to do when it is not known
+who is talking.
+
+Changing subject is a CUT, never a pan (_SWITCH_CUT). Which subject, and
+when, is planned for the whole clip up front rather than decided sample by
+sample — see _shot_plan for why an online decision was always late.
+
+Fully decoupled from clip selection: this module knows nothing about
+transcripts, scores, or uploads.
+"""
+
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from video.capture import video_capture
+from video.cuts import ShotCuts
+
+# Shared framing components, factored out of the Podcast rebuild. Cut
+# detection, "commit to one subject", and hold-then-move all apply here too.
+from video.framing import HoldMove, is_cut, small_gray, stable_target
+
+# Cut threshold for SAMPLE-grid detection. Adjacent frames barely move so the
+# podcast path uses the shared default (~25); across a sample gap ordinary
+# motion is much larger (a fast stream pan peaks near 40), so streams need a
+# higher bar to avoid false cuts — only a genuine hard scene change (75+)
+# should snap the crop and reset the talking detector.
+_CUT_DIFF_SAMPLED = 55.0
+
+_model = None  # loaded once per process; YOLO init is expensive
+# The single YOLO instance is shared across parallel render threads, and
+# ultralytics inference is NOT thread-safe on one model. This serializes the
+# GPU inference (the GPU runs one at a time anyway) while FFmpeg encodes —
+# which release the GIL in subprocesses — still overlap.
+_infer_lock = threading.Lock()
+# OpenCV CascadeClassifier.detectMultiScale mutates internal scale state and
+# crashes when one instance is used from two threads at once. Give each
+# render thread its own cascades (cheap to construct) — full parallelism, safe.
+_thread_local = threading.local()
+
+
+def _get_model(model_name: str):
+    global _model
+    with _infer_lock:
+        if _model is None:
+            from ultralytics import YOLO  # lazy: heavy import, pulls in torch
+
+            from core.binaries import yolo_weights
+            from core.gpu import cuda_usable
+
+            # Absolute path, not the bare name: ultralytics resolves a bare
+            # name against the working directory and downloads it when that
+            # misses. The engine is spawned without a working directory, so
+            # that miss is guaranteed in a packaged build and the download
+            # fails outright on a machine with no route to GitHub.
+            _model = YOLO(yolo_weights(model_name))
+
+            usable, reason = cuda_usable()
+            if not usable:
+                print(f"  Tracking: using CPU — {reason}")
+            else:
+                _model.to("cuda")
+                # Prove the GPU before the whole job depends on it. Moving
+                # weights launches no kernel, so .to("cuda") succeeds even on a
+                # card this build has no code for, and the failure would
+                # otherwise surface at the first predict() — thousands of
+                # frames into someone's video, as a crash rather than a
+                # fallback. One throwaway inference buys that back.
+                #
+                # Calls predict directly rather than _detect, which would
+                # deadlock on the non-reentrant lock already held here.
+                try:
+                    _model.predict(np.zeros((32, 32, 3), np.uint8),
+                                   device="cuda", verbose=False)
+                except Exception as e:
+                    _model.to("cpu")
+                    print(f"  Tracking: GPU unusable ({str(e)[:90]}) — using CPU")
+                else:
+                    print(f"  Tracking: GPU (CUDA) active — {reason}")
+    return _model
+
+
+def _get_cascades():
+    """The two Haar cascades, or None when they are not on this machine.
+
+    Per-thread instances: detectMultiScale is not thread-safe on a shared one.
+
+    Returns None rather than an unusable classifier. cv2.CascadeClassifier
+    given a missing file does NOT raise — it hands back an empty classifier,
+    and the error only appears later inside detectMultiScale as
+    "(-215:Assertion failed) !empty()". That killed every render needing the
+    face fallback in installed builds (#86) while working perfectly from a
+    checkout, because the frozen app ships cv2 without its data directory.
+
+    Resolved through core.binaries so the bundled copy is found in a packaged
+    build, with cv2's own directory as the fallback for a checkout.
+    """
+    if getattr(_thread_local, "cascades_missing", False):
+        return None
+
+    cascades = getattr(_thread_local, "cascades", None)
+    if cascades is None:
+        from core.binaries import haar_cascade
+
+        paths = [
+            haar_cascade("haarcascade_frontalface_default.xml"),
+            haar_cascade("haarcascade_profileface.xml"),
+        ]
+        if not all(paths):
+            _thread_local.cascades_missing = True
+            print("      Face refinement unavailable (Haar cascades not found) "
+                  "— cropping from pose detection only")
+            return None
+
+        # Both failure modes, because they are different and neither is
+        # obvious: a MISSING file gives an empty classifier and no error, while
+        # a file that exists but is not a cascade raises SystemError out of the
+        # constructor. Checking .empty() alone still crashed on the second.
+        try:
+            loaded = tuple(cv2.CascadeClassifier(p) for p in paths)
+            unusable = any(c.empty() for c in loaded)
+        except Exception:
+            unusable = True
+
+        if unusable:
+            _thread_local.cascades_missing = True
+            print("      Face refinement unavailable (Haar cascades unreadable) "
+                  "— cropping from pose detection only")
+            return None
+
+        cascades = loaded
+        _thread_local.cascades = cascades
+    return cascades
+
+
+def _face_box(frame, box) -> tuple[int, int, int, int] | None:
+    """Find the face inside a person box. In close-ups the person box centers
+    on the torso, which can sit far from the face — the face box drives both
+    framing and the talking detector.
+
+    Detection order: frontal face -> left profile -> right profile (the
+    profile cascade only knows one side, so the mirrored image covers the
+    other). Returns the face box in absolute pixels, or None when no face is
+    visible at all (e.g. subject facing away) — the caller then falls back
+    to the person-box center, which is the best anyone can do without a face.
+    """
+    x1, y1, x2, y2 = (int(v) for v in box[:4])
+    rx, ry = max(0, x1), max(0, y1)
+    head_h = max((y2 - y1) // 2, 40)
+    roi = frame[ry : y1 + head_h, rx:x2]
+    if roi.size == 0:
+        return None
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    cascades = _get_cascades()
+    if cascades is None:
+        # No face refinement available. The caller already handles "no face
+        # found" — it falls back to the pose box — so this costs a little crop
+        # precision rather than the whole clip.
+        return None
+    frontal, profile = cascades
+
+    faces = frontal.detectMultiScale(gray, 1.15, 4, minSize=(36, 36))
+    if len(faces) == 0:
+        faces = profile.detectMultiScale(gray, 1.15, 4, minSize=(36, 36))
+    if len(faces) == 0:
+        flipped = profile.detectMultiScale(cv2.flip(gray, 1), 1.15, 4, minSize=(36, 36))
+        if len(flipped) > 0:
+            fx, fy, fw, fh = max(flipped, key=lambda f: f[2] * f[3])
+            fx = gray.shape[1] - (fx + fw)  # mirror x back to the original
+            faces = [(fx, fy, fw, fh)]
+    if len(faces) == 0:
+        return None
+    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])  # largest face
+    return (rx + fx, ry + fy, rx + fx + fw, ry + fy + fh)
+
+
+def head_box(head) -> tuple[int, int, int, int]:
+    """A face-shaped box around the head the POSE model found.
+
+    The pose model returns the head as (cx, cy, width) from the nose/eye/ear
+    keypoints. Everything downstream — the mouth region, the ASD crop — wants
+    a box, so this is the one place that conversion lives.
+
+    It exists so the Haar cascade can be skipped. Haar costs 79-124 ms per
+    call and was being run on every visible person on every sample, even when
+    pose had ALREADY located the head: 63% of tracking time and 81% of podcast
+    analysis, for a position that was then thrown away in favour of the pose
+    keypoints. Pose finds a head on ~78% of detections, so most of that work
+    was answering a question that was already answered.
+
+    A SQUARE on purpose, and it must stay one: video/asd.py::_mouth_patch
+    derives TalkNet's crop from this box's larger dimension, so changing the
+    proportions moves what the model sees. Measured, making it taller changed
+    the speaker verdicts on three of four bench clips. This is the shape the
+    ASD fallback has always used and the shape its results were measured with.
+
+    For mouth MOTION use mouth_region() instead — that needs a different shape,
+    and the two are separate for exactly this reason.
+    """
+    cx, cy, hw = head
+    half = hw / 2
+    return (int(cx - half), int(cy - half), int(cx + half), int(cy + half))
+
+
+def mouth_region(head) -> tuple[int, int, int, int]:
+    """A face-shaped box around a pose head, for _update_speaking only.
+
+    _update_speaking reads the lower 45% of whatever box it is given and calls
+    that the mouth. Haar returns forehead-to-chin, so its lower 45% lands on
+    the mouth. The pose keypoints are nose, eyes and ears, so their centroid
+    sits around EYE level — the lower 45% of a square centred there is the
+    nose, not the mouth.
+
+    That is not a cosmetic difference: feeding the wrong region shifted every
+    track's mouth-motion value, which changed which subject the prominence
+    tiebreak picked, and moved framing on two of four bench clips by up to
+    0.38 of a frame width. So this box is proportioned like a face — 1.3x
+    taller than wide, biased downward from the keypoints — putting its lower
+    45% where Haar's was.
+    """
+    cx, cy, hw = head
+    half = hw / 2
+    return (int(cx - half), int(cy - 0.5 * hw), int(cx + half), int(cy + 0.8 * hw))
+
+
+def _update_speaking(tr: "_Track", frame, face: tuple[int, int, int, int]) -> None:
+    """Talking proxy: motion energy in the mouth region (lower part of the
+    face box) between consecutive samples. A talking mouth changes shape
+    constantly; a listening one doesn't. Comparing tracks RELATIVELY makes
+    this robust to global camera motion, which inflates everyone equally."""
+    fx1, fy1, fx2, fy2 = face
+    my1 = fy1 + int((fy2 - fy1) * 0.55)
+    mouth = frame[my1:fy2, fx1:fx2]
+    if mouth.size == 0:
+        return
+    mouth = cv2.cvtColor(mouth, cv2.COLOR_BGR2GRAY)
+    mouth = cv2.resize(mouth, (48, 24)).astype(np.float32) / 255.0
+    if tr.prev_mouth is not None:
+        motion = float(np.abs(mouth - tr.prev_mouth).mean())
+        tr.speak = 0.65 * tr.speak + 0.35 * motion
+    tr.prev_mouth = mouth
+
+
+# ---- who is actually speaking -------------------------------------------------
+
+_SYNC_WINDOW = 16        # samples (2s at 8fps): long enough to correlate,
+                         # short enough to still be about *now*
+
+
+
+def speech_envelope(clip_path: Path, sample_fps: float) -> "np.ndarray | None":
+    """Loudness of the clip's audio, one value per video sample.
+
+    Mouth-region motion alone cannot tell talking from any other movement: in
+    a lively two-person shot both people score within a few percent of each
+    other, so whoever is bigger wins by default. The audio knows when speech
+    is actually happening, and only the person producing it moves their mouth
+    in time with it.
+
+    None when the clip has no audio, which is not an error — the caller falls
+    back to the visual-only behaviour.
+    """
+    sr = 16000
+    pcm = _clip_pcm(clip_path, sr)
+    if pcm is None:
+        return None
+    if pcm.size < sr // 4:
+        return None
+    per = max(1, int(sr / sample_fps))
+    bins = pcm.size // per
+    if bins < _SYNC_WINDOW:
+        return None
+    return np.sqrt(np.array([
+        np.mean(pcm[i * per:(i + 1) * per] ** 2) for i in range(bins)
+    ]))
+
+
+# ---- who is actually speaking, asked properly ---------------------------------
+#
+# Everything above is a correlation between pixel movement and loudness. It
+# was built because the alternative looked expensive, and it does work — but
+# it is a proxy, and it is only sure about a quarter of the time. TalkNet was
+# trained on labelled footage to answer this exact question, so where it can
+# answer, it answers, and the correlation above stays as the fallback for
+# clips with no audio or an unavailable model.
+
+_ASD_MIN_FACE_SAMPLES = 8    # a track needs this many face sightings to be
+                             # worth cropping 25fps frames for
+_ASD_MAX_TRACKS = 4          # crops are held in memory; four faces is already
+                             # more than any framing decision needs
+_ASD_MAX_GAP = 0.6           # seconds: past this, a face box is too stale to
+                             # interpolate through and the track counts absent
+_ASD_LEAD = 0.5              # the winner's logit must beat the runner-up by
+                             # this much before it counts as a verdict
+_ASD_SPEECH = 0.35           # ...and the clip must be this loud, relative to
+                             # its own 90th percentile, for anyone to BE
+                             # speaking. See _asd_verdict.
+
+# ---- how the camera behaves once it knows who is speaking ---------------------
+#
+# Knowing the speaker is only half of it; the other half is that a viewer
+# judges the RESULT, and the result was wrong in three ways that have nothing
+# to do with who was picked. Watched back on real two-person footage, the crop
+# slid between people instead of cutting, flicked back and forth during a
+# quick exchange, and sat between the two of them so that each face was
+# jammed against an edge with the floor filling the middle.
+#
+# The podcast path already solved all three, because it was rebuilt against
+# real footage: it cuts at shot boundaries, never pans, and frames ONE
+# person's face rather than the midpoint of two. These bring the same
+# behaviour to the ordinary tracker.
+_SWITCH_HOLD = 1.5      # seconds a subject keeps the camera before another
+                        # verdict can take it. A conversation trades the
+                        # verdict about once a second; honouring every trade
+                        # reads as flicking. An editor lets a shot sit.
+_SWITCH_CUT = True      # changing subject is a CUT, not a pan. Panning across
+                        # a room to find the next speaker takes the viewer with
+                        # it and arrives late; a cut is there on the first
+                        # frame. This is how the footage itself is edited.
+
+
+def _clip_pcm(clip_path: Path, sr: int) -> "np.ndarray | None":
+    """The clip's audio as mono float32. None when it has none."""
+    import subprocess
+
+    from core.binaries import ffmpeg
+
+    try:
+        out = subprocess.run(
+            [ffmpeg(), "-v", "error", "-i", str(clip_path),
+             "-vn", "-ac", "1", "-ar", str(sr), "-f", "s16le", "-"],
+            capture_output=True, timeout=300,
+        )
+        if out.returncode != 0 or not out.stdout:
+            return None
+        return np.frombuffer(out.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    except Exception as e:
+        print(f"      (clip audio unavailable: {e})")
+        return None
+
+
+def _interp_boxes(seen: list, times: "np.ndarray") -> "np.ndarray | None":
+    """A face box for every time in `times`, interpolated from the samples
+    where the face was actually detected.
+
+    `seen` is [(t, (x1, y1, x2, y2)), ...] in time order. Rows outside the
+    track's own span, or across a gap longer than _ASD_MAX_GAP, come back NaN:
+    the person is not there to be cropped, and a stale box would feed the
+    model somebody else's face.
+    """
+    ts = np.array([s[0] for s in seen], dtype=np.float64)
+    box = np.array([s[1] for s in seen], dtype=np.float64)
+    out = np.empty((len(times), 4), dtype=np.float64)
+    for k in range(4):
+        out[:, k] = np.interp(times, ts, box[:, k])
+    # np.interp clamps outside the range; NaN those, plus anything sitting in
+    # a long gap between two sightings.
+    nearest = np.abs(times[:, None] - ts[None, :]).min(axis=1)
+    out[(times < ts[0]) | (times > ts[-1]) | (nearest > _ASD_MAX_GAP)] = np.nan
+    return out
+
+
+def _mouth_patch(frame, box, size: int):
+    """The square TalkNet expects, cut from a COLOUR frame around `box`.
+
+    Not the face box. TalkNet's own pipeline takes a region about 0.7x the
+    face box, shifted DOWN so it is centred on the mouth rather than the eyes,
+    which is what a lip-sync model is looking at. Feeding it a plain face crop
+    is feeding it a different picture than it was trained on.
+
+    Out-of-frame edges are padded with mid-grey (110) exactly as upstream does
+    — clipping instead would squash the face when someone reaches the edge of
+    the shot, and a squashed face is a face the model has never seen.
+
+    It takes the COLOUR frame and converts only the slice it keeps. The caller
+    used to greyscale the whole 1920x1080 frame and hand that in, to read four
+    regions of about 150x150 out of it. Greyscale is per-pixel, so the patch is
+    bit-identical either way — but measured over 500 frames, converting the
+    frame costs 2.39 CPU-seconds against 0.05 for converting just the faces.
+    51x, and OpenCV spread it across 9.4 cores to do it. With three clips
+    rendering at once that was most of why the machine became unusable.
+    """
+    if np.isnan(box[0]):
+        return None
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    bs = max(box[2] - box[0], box[3] - box[1]) / 2
+    if bs < 6:
+        return None
+    half = 0.7 * bs
+    cy += 0.4 * bs           # down onto the mouth
+    x0, y0 = int(round(cx - half)), int(round(cy - half))
+    side = max(8, int(round(2 * half)))
+
+    h, w = frame.shape[:2]
+    patch = np.full((side, side), 110, dtype=np.uint8)
+    sx0, sy0 = max(0, x0), max(0, y0)
+    sx1, sy1 = min(w, x0 + side), min(h, y0 + side)
+    if sx1 - sx0 < 4 or sy1 - sy0 < 4:
+        return None
+    patch[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = cv2.cvtColor(
+        frame[sy0:sy1, sx0:sx1], cv2.COLOR_BGR2GRAY
+    )
+    return cv2.resize(patch, (size, size))
+
+
+def _contested_spans(mask, fps: int, n: int) -> list:
+    """The stretches worth scoring, as (start, end) frame indices.
+
+    `mask` marks frames where two or more people are on screen. Runs shorter
+    than a second are grown to a second and near neighbours are merged,
+    because the model's shortest window is a second and a run of six frames
+    would otherwise be scored on padding.
+    """
+    idx = np.flatnonzero(mask)
+    if idx.size == 0:
+        return []
+    gap = fps  # a second apart or less: one span, not two
+    breaks = np.flatnonzero(np.diff(idx) > gap)
+    starts = np.r_[idx[0], idx[breaks + 1]]
+    ends = np.r_[idx[breaks], idx[-1]] + 1
+
+    spans = []
+    for a, b in zip(starts, ends):
+        a, b = int(a), int(b)
+        if b - a < fps:
+            a = max(0, a - (fps - (b - a)) // 2)
+            b = min(n, a + fps)
+            a = max(0, b - fps)
+        if spans and a <= spans[-1][1]:      # grew into its neighbour
+            spans[-1] = (spans[-1][0], b)
+        else:
+            spans.append((a, b))
+    return [(a, b) for a, b in spans if b - a >= fps]
+
+
+def _asd_speakers(clip_path: Path, samples: list, video_fps: float) -> list | None:
+    """Per sample, how strongly each visible person is speaking, from TalkNet.
+
+    Returns a list parallel to `samples` of {track_id: logit}, or None when
+    the question does not arise or cannot be answered — no model, no audio, or
+    fewer than two faces on screen, which is the one skip worth having because
+    it is not a judgement: with one face there is nobody to choose between.
+
+    The cost is in getting frames to the model, not in the model. Reusing the
+    boxes tracking already found and interpolating them onto a 25fps grid adds
+    about 15% to a clip; re-running the detector at 25fps to get the same crops
+    adds 452%. Do not "simplify" this into a second detection pass.
+    """
+    from video import asd
+
+    if not asd.available() or not samples:
+        return None
+
+    seen_by_track: dict[int, list] = {}
+    for s in samples:
+        for tid, fb in s.faces.items():
+            seen_by_track.setdefault(tid, []).append((s.t, fb))
+    scored = score_faces(clip_path, seen_by_track, samples[-1].t, video_fps)
+    if scored is None:
+        return None
+    candidates, scores, n_frames = scored
+
+    # ---- back onto the caller's own sample grid ---------------------------
+    out = []
+    for s in samples:
+        j = min(n_frames - 1, int(round(s.t * asd.FPS)))
+        out.append({tid: float(scores[tid][j]) for tid in candidates
+                    if np.isfinite(scores[tid][j])})
+    return out
+
+
+def score_faces(clip_path: Path, seen_by_track: dict, duration: float,
+                video_fps: float):
+    """How strongly each tracked face is speaking, at 25fps, from TalkNet.
+
+    `seen_by_track` is {track_id: [(t, (x1, y1, x2, y2)), ...]} — where each
+    face was, whenever it was seen. Returns (candidates, scores, n_frames)
+    with `scores[tid]` an array over 25fps frames, -inf where that person was
+    not on screen, or None when the question does not arise: no model, no
+    audio, or fewer than two faces, which is the one skip worth having because
+    it is not a judgement — with one face there is nobody to choose between.
+
+    Shared by the stream tracker and the podcast path so there is ONE copy of
+    the parts that were hard to get right and are quiet when wrong: the square
+    ASD crop (proportioning it like a face changed verdicts on three of four
+    bench clips), the contested-span skip that keeps this at ~15%, and the
+    windowed scoring in asd.score_track — handed a whole clip at once the
+    model reports nobody speaking, for every frame.
+
+    The cost is getting frames to the model, not the model. Reusing boxes
+    already found and interpolating them onto a 25fps grid adds about 15% to a
+    clip; re-detecting at 25fps adds 452%. Do not "simplify" this into a
+    second detection pass.
+    """
+    from video import asd
+
+    if not asd.available() or not seen_by_track:
+        return None
+
+    candidates = [t for t, v in seen_by_track.items() if len(v) >= _ASD_MIN_FACE_SAMPLES]
+    if len(candidates) < 2:
+        return None
+    # Most-seen first, so a capped list keeps the people who are actually in
+    # the clip rather than whoever the tracker noticed first.
+    candidates.sort(key=lambda t: -len(seen_by_track[t]))
+    candidates = candidates[:_ASD_MAX_TRACKS]
+
+    pcm = _clip_pcm(clip_path, asd.AUDIO_SR)
+    if pcm is None or pcm.size < asd.AUDIO_SR // 4:
+        return None
+
+    n_frames = int(duration * asd.FPS)
+    if n_frames < asd.FPS:  # under a second of video: nothing to decide
+        return None
+    times = np.arange(n_frames, dtype=np.float64) / asd.FPS
+    boxes = {tid: _interp_boxes(seen_by_track[tid], times) for tid in candidates}
+    present = {tid: ~np.isnan(boxes[tid][:, 0]) for tid in candidates}
+
+    # ---- only where the answer can change anything ------------------------
+    # Reading frames and scoring them IS the cost, so both run only over the
+    # stretches where two or more candidates are on screen at the same time.
+    # Everywhere else there is one person to frame and the verdict changes
+    # nothing, so scoring it would be paying for an answer nobody reads. On a
+    # real 60s two-person clip this is about a quarter of the frames.
+    #
+    # This is the same skip as the "fewer than two faces" one above, measured
+    # per moment instead of per clip — not a guess about who is speaking.
+    together = np.sum(list(present.values()), axis=0) >= 2
+    spans = _contested_spans(together, asd.FPS, n_frames)
+    if not spans:
+        return None
+
+    # ---- one pass over the video, cropping every candidate per frame ------
+    size = asd.FACE_SIZE
+    crops = {tid: np.zeros((n_frames, size, size), dtype=np.uint8) for tid in candidates}
+    with video_capture(clip_path, required=False) as cap:
+        if cap is None:
+            return None
+        wanted = np.rint(times * video_fps).astype(np.int64)
+        needed = np.zeros(n_frames, dtype=bool)
+        for a, b in spans:
+            needed[a:b] = True
+        idx, j = 0, 0
+        while j < n_frames:
+            if not needed[j]:
+                # Skip forward without decoding: grab() alone does not
+                # reconstruct the picture, which is where the time goes.
+                while j < n_frames and not needed[j]:
+                    j += 1
+                if j >= n_frames:
+                    break
+            ok = cap.grab()
+            if not ok:
+                break
+            if idx == wanted[j]:
+                ok, frame = cap.retrieve()
+                if not ok:
+                    break
+                # Several 25fps slots can map to one source frame on low-fps
+                # video; fill all of them from this decode rather than
+                # re-reading it. The frame goes in as COLOUR — _mouth_patch
+                # greyscales only the region it keeps, which is 51x less CPU
+                # than converting all two megapixels to read four faces.
+                while j < n_frames and wanted[j] == idx:
+                    for tid in candidates:
+                        patch = _mouth_patch(frame, boxes[tid][j], size)
+                        if patch is not None:
+                            crops[tid][j] = patch
+                    j += 1
+            idx += 1
+
+    # ---- score each contested stretch, on its own slice of the audio ------
+    # -inf everywhere else: a frame nobody scored is not a quiet frame, it is
+    # a frame with no answer, and the two must not be confused.
+    scores = {tid: np.full(n_frames, -np.inf, dtype=np.float32) for tid in candidates}
+    per_frame = asd.AUDIO_SR / asd.FPS
+    for a, b in spans:
+        chunk = pcm[int(a * per_frame):int(b * per_frame)]
+        if chunk.size < asd.AUDIO_SR // 4:
+            continue
+        for tid in candidates:
+            try:
+                s = asd.score_track(crops[tid][a:b], chunk)
+            except Exception as e:  # a bad clip must not fail a render
+                print(f"      (speaker detection failed, using motion instead: {e})")
+                return None
+            s = np.asarray(s, dtype=np.float32)[: b - a]
+            s[~present[tid][a:a + len(s)]] = -np.inf
+            scores[tid][a:a + len(s)] = s
+
+    return candidates, scores, n_frames
+
+
+def _shot_plan(asd_scores: list, samples: list, env, floor: float,
+               min_shot: float) -> list:
+    """Who the camera should be on at each sample, decided for the WHOLE clip
+    at once. One entry per sample; None where nobody is known to be speaking.
+
+    This exists because the framing used to be decided online, sample by
+    sample, from a rolling vote — and an online decision is always late. The
+    clip opened on whoever was BIGGEST, because at sample zero no verdict had
+    arrived yet, and then corrected once enough votes accumulated. Watched
+    back, that is a shot that starts on the wrong person and switches
+    mid-sentence. The switch back was worse: the same lag plus a hold.
+
+    None of that latency is necessary. TalkNet has already scored every sample
+    before framing begins, so the whole timeline is known — the same thing an
+    editor has in front of them. They do not discover the speaker three beats
+    after the audience does.
+
+    Short runs are merged into their neighbour rather than being refused, so a
+    minimum shot length falls out of the plan instead of being enforced by
+    declining to switch. Refusing a switch keeps the camera on the wrong
+    person; merging moves the boundary.
+    """
+    n = len(samples)
+    if not asd_scores or n == 0:
+        return [None] * n
+
+    # 1. the raw per-sample opinion, where there is one
+    raw: list = []
+    for i, s in enumerate(samples):
+        loud = env is None or i >= len(env) or env[i] >= floor
+        raw.append(_asd_verdict(asd_scores[i], s.visible, loud))
+
+    # 2. hold the last speaker through gaps — silence between two sentences
+    #    from the same person is not a reason to go anywhere
+    held: list = []
+    current = None
+    for v in raw:
+        if v is not None:
+            current = v
+        held.append(current)
+    # and backfill the opening, so the clip starts on whoever speaks first
+    # rather than on whoever happens to be largest
+    first = next((v for v in held if v is not None), None)
+    held = [v if v is not None else first for v in held]
+    if first is None:
+        return [None] * n
+
+    # 3. merge runs shorter than a shot into whatever precedes them
+    dt = (samples[-1].t - samples[0].t) / max(1, n - 1)
+    min_len = max(1, int(round(min_shot / dt)) if dt > 0 else 1)
+    out = list(held)
+    i = 0
+    while i < n:
+        j = i
+        while j < n and out[j] == out[i]:
+            j += 1
+        if j - i < min_len and i > 0:
+            for k in range(i, j):
+                out[k] = out[i - 1]
+        i = j
+    return out
+
+
+def _asd_verdict(frame_scores: dict, visible, loud: bool) -> int | None:
+    """Who TalkNet says is speaking here, or None when it is not sure.
+
+    Same contract as _sync_leader: None is the common answer and means "no new
+    information", never "reframe". Only visible people can win, and only by a
+    clear margin — the logits of two quiet faces sit close together, and
+    following the marginally-less-quiet one is exactly the wandering this is
+    supposed to stop.
+
+    The margin is the whole test; there is deliberately no "is this above
+    zero" floor. The logit's absolute level moves with how well the crop
+    matches what the model was trained on, and these crops are built from
+    pose keypoints rather than the detector upstream used, so on real footage
+    the winning face sat around -0.8 while still beating the other person
+    consistently. A floor there rejected every verdict in a minute of
+    conversation. What the score IS good for is ranking faces against each
+    other at the same instant, which is exactly the question being asked.
+
+    `loud` is what replaces the floor, and it comes from the audio rather than
+    from the model: during silence nobody is speaking, so no margin between
+    two quiet faces means anything.
+    """
+    if not loud:
+        return None
+    ranked = sorted(
+        ((sc, tid) for tid, sc in frame_scores.items() if tid in visible),
+        reverse=True,
+    )
+    if not ranked:
+        return None
+    if len(ranked) == 1:
+        return ranked[0][1]
+    return ranked[0][1] if ranked[0][0] - ranked[1][0] > _ASD_LEAD else None
+
+
+@dataclass
+class _Sample:
+    """One processed frame, kept so the framing decision can be made after
+    TalkNet has run rather than before.
+
+    Tracking is a streaming pass, but "who is talking" cannot be answered
+    streaming: the model needs a whole face track and the audio beside it. So
+    the frame pass records what it saw, TalkNet answers, and the framing pass
+    replays these in order. Track state (box, dominance, speak) is snapshotted
+    per sample because it is a moving average — replaying against the final
+    value would frame the start of the clip using what was learned by the end.
+    """
+    t: float
+    frame_idx: int
+    w: int
+    h: int
+    at_cut: bool
+    visible: list
+    state: dict     # tid -> _Moment: everything the framing pass reads
+    faces: dict     # tid -> Haar face box, only where one was detected
+
+
+@dataclass
+class _Moment:
+    """One track's mutable state at one sample.
+
+    Every field here is either a moving average or the LENGTH of a growing
+    history, and every one of them is read by the framing pass. Leaving any
+    of them out does not fail — it silently replays the whole clip against
+    the values the track ended with. n_centers is the subtle one: the framing
+    target is a trailing median of the last few centers, so an untruncated
+    list makes every sample in the clip aim at where the subject finished.
+    """
+    box: tuple
+    dominance: float
+    speak: float
+    n_seen: int
+    head_rate: float
+    face_rate: float
+    head_offset: float
+    face_offset: float
+    face_w: float
+    n_centers: int
+    last_t: float      # when the track was last seen; the "subject gone" test reads it.
+    #                    Replayed only in shot-aware mode (tracking.shot_aware): restoring
+    #                    it changes when a subject counts as gone, so with the setting
+    #                    off the framing still reads the final value, exactly as before.
+
+
+@dataclass
+class _Track:
+    box: tuple                     # last (x1, y1, x2, y2, conf, head) in pixels
+    last_t: float
+    dominance: float = 0.0         # EMA of confidence x area
+    speak: float = 0.0             # EMA of mouth-region motion (talking proxy)
+    prev_mouth: object = None      # last mouth crop (np array) for motion diff
+    face_rate: float = 0.0         # EMA of "was a face detected this sample?"
+    face_offset: float = 0.0       # EMA of (face cx - body cx), normalized
+    face_w: float = 0.0            # EMA of face box width, normalized
+    head_rate: float = 0.0         # EMA of "pose head keypoints seen this sample?"
+    head_offset: float = 0.0       # EMA of (head cx - body cx), normalized
+    head_cys: list = field(default_factory=list)  # normalized head center-y history
+    n_seen: int = 0
+    centers: list = field(default_factory=list)   # normalized cx history
+    areas: list = field(default_factory=list)     # area fraction history
+    norm_boxes: list = field(default_factory=list)  # normalized (x1, y1, x2, y2)
+
+
+def compute_tracking(
+    clip_path: Path,
+    model_name: str = "yolov8n-pose.pt",
+    sample_fps: float = 8.0,
+    smoothing: float = 0.45,
+    dead_zone: float = 0.03,
+    max_pan_speed: float = 0.30,   # max window movement, frame-widths/second
+    min_confidence: float = 0.4,
+    switch_margin: float = 1.5,    # challenger must dominate by this factor...
+    switch_seconds: float = 1.5,   # ...for this long before the camera switches
+    fit_blur_fraction: float = 0.5,   # letterbox only when MOST of the clip
+                                      # genuinely can't fit a 9:16 crop
+    force_fit_blur: bool = False,     # user override: always letterbox, cropped
+                                      # tight to the subject like the automatic one
+    *,
+    shot_aware: bool = False,         # tracking.shot_aware: cuts found to the frame and
+                                      # the subject chosen afresh at each (_ShotReplay).
+                                      # The pipeline passes video/cuts.py's shot_aware_on:
+                                      # on unless the settings turn it off
+    no_subject: str = "center",       # tracking.shot_aware_no_subject: a new shot nobody
+                                      # is seen in opens on the centre, or "hold"s the old x
+    _cuts: ShotCuts | None = None,    # internal: the cut reader the wrapper below opens
+) -> dict:
+    if shot_aware and _cuts is None:
+        # Shot-aware mode reads the frames around each candidate cut with a
+        # capture of its own. Opening it here, around the whole pass, is what
+        # releases it on every way out, an exception included (#74).
+        with video_capture(clip_path, required=False) as cut_cap:
+            return compute_tracking(
+                clip_path, model_name=model_name, sample_fps=sample_fps, smoothing=smoothing,
+                dead_zone=dead_zone, max_pan_speed=max_pan_speed, min_confidence=min_confidence,
+                switch_margin=switch_margin, switch_seconds=switch_seconds,
+                fit_blur_fraction=fit_blur_fraction, force_fit_blur=force_fit_blur,
+                shot_aware=True, no_subject=no_subject,
+                _cuts=ShotCuts(cut_cap, fallback=_CUT_DIFF_SAMPLED),
+            )
+    with video_capture(clip_path) as cap:
+        video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        frame_step = max(1, round(video_fps / sample_fps))
+        model = _get_model(model_name)
+
+        tracks: dict[int, _Track] = {}
+        active_id: int | None = None
+        challenger_id: int | None = None
+        challenger_since = 0.0
+
+        # dead_zone becomes the distance the subject may drift before the camera
+        # bothers to move; settling well inside it is what makes a move look
+        # finished rather than endlessly corrected.
+        pan = HoldMove(
+            move_trigger=max(dead_zone, 0.05),
+            settle=dead_zone * 0.4,
+            smoothing=smoothing,
+            max_pan_speed=max_pan_speed,
+        )
+        # The audio, one value per sample. Mouth motion alone cannot separate a
+        # talker from a listener who is simply moving; matching each person's
+        # mouth against the sound can. None for a silent clip, which just means
+        # the visual-only behaviour below.
+        env = speech_envelope(clip_path, sample_fps)
+
+        # What each sample saw, so framing can be decided after TalkNet has had a
+        # look rather than guessed at during the frame pass. See _Sample.
+        samples: list[_Sample] = []
+
+        path: list[tuple[float, float]] = []
+        smoothed_x: float | None = None
+        prev_small = None            # previous frame's thumbnail, for cut detection
+        last_sample_t = 0.0          # real time of the last processed sample
+        n_samples = 0
+        wide_boxes: list[tuple[float, float, float, float]] = []  # subject bbox when a
+        #                                             9:16 crop can't hold it (normalized)
+        frame_idx = 0
+        if shot_aware:
+            cut_at: dict[int, int] = {}       # sample index -> first frame of the shot it opens
+            # Ids seen in the shot so far: from the clip's first sample, then from
+            # each cut, so a track's first sighting in any shot, the first one
+            # included, starts its averages (_seed_from_sighting).
+            seen_in_shot: set = set()
+
+        while True:
+            ok = cap.grab()
+            if not ok:
+                break
+            if frame_idx % frame_step != 0:
+                frame_idx += 1
+                continue
+            ok, frame = cap.retrieve()
+            if not ok:
+                break
+
+            t = frame_idx / video_fps
+            h, w = frame.shape[:2]
+            n_samples += 1
+
+            # ---- camera cuts, checked on the SAMPLE grid ---------------------
+            # Only sample frames are decoded. Decoding every frame just to spot
+            # the occasional cut doubled processing time on long streams — and
+            # streams are one continuous camera that almost never cuts. Between
+            # samples there is far more motion than between adjacent frames, so
+            # the threshold is raised well above that motion (a fast pan peaks
+            # around 40; a real hard cut is 75+): it fires only on an unmistakable
+            # scene change, so a continuous stream never trips it, while edited
+            # sources (talking heads, highlight reels) still snap at their cuts.
+            cur_small = small_gray(frame)
+            at_cut = is_cut(prev_small, cur_small, _CUT_DIFF_SAMPLED)
+            if shot_aware:
+                # Instead: a far lower bar makes a sample pair a candidate,
+                # and the frames between the two samples are decoded to
+                # confirm it and find the cut's own frame (video/cuts.py).
+                cut_frame = _cuts.check(prev_small, cur_small, frame_idx - frame_step, frame_idx)
+                at_cut = cut_frame is not None
+                if at_cut:
+                    cut_at[len(samples)] = cut_frame
+                    seen_in_shot = set()
+            prev_small = cur_small
+            if at_cut:
+                # Per-subject state belongs to the shot that just ended. Mouth
+                # motion especially: across a cut every mouth region changes at
+                # once, so the talking detector would score everyone a speaker.
+                for tr in tracks.values():
+                    tr.prev_mouth = None
+                    tr.speak = 0.0
+                # NB: dropping the challenger at a cut belongs to the framing
+                # pass, not here — see the loop below. Doing it in this pass sets
+                # a variable that pass never reads.
+
+            visible = _assign(tracks, _detect(model, frame, min_confidence), t)
+            faces_here: dict[int, tuple] = {}   # for TalkNet, after the pass
+            for tid in visible:
+                tr = tracks[tid]
+                x1, y1, x2, y2, conf = tr.box[:5]
+                area_frac = (x2 - x1) * (y2 - y1) / (w * h)
+                tr.dominance = 0.7 * tr.dominance + 0.3 * (conf * area_frac)
+                tr.n_seen += 1
+                # Anti-jitter center: the body box is always stable; the HEAD
+                # refines it as a SMOOTHED OFFSET from the body center. The head
+                # position comes from pose keypoints (nose/eyes/ears) — these
+                # work even when the face is wet, tilted, turned, or too small
+                # for the face detector (pool/beach/action shots), so the crop
+                # keeps priority on the head over the body. The Haar face box is
+                # the fallback signal and still drives the talking detector.
+                body_cx = ((x1 + x2) / 2) / w
+                head = tr.box[5] if len(tr.box) > 5 else None
+                if head is not None:
+                    head_cx, head_cy, head_w = head
+                    tr.head_rate = 0.8 * tr.head_rate + 0.2
+                    tr.head_offset = 0.7 * tr.head_offset + 0.3 * (head_cx / w - body_cx)
+                    tr.face_w = 0.7 * tr.face_w + 0.3 * (head_w / w)
+                    tr.head_cys.append(head_cy / h)
+                else:
+                    tr.head_rate = 0.8 * tr.head_rate
+                if head is not None:
+                    # Pose already told us where the head is. Running the Haar
+                    # cascade on top of that was 63% of all tracking time for a
+                    # position that is discarded three lines later in favour of
+                    # these very keypoints. Haar stays for the case it is actually
+                    # needed — below, when pose found nothing.
+                    #
+                    # face_rate/face_offset are deliberately NOT decayed here. They
+                    # mean "how reliable is the Haar fallback", and not looking is
+                    # not evidence of unreliability; decaying them would degrade
+                    # the fallback for the samples where pose later drops out.
+                    faces_here[tid] = head_box(head)          # square: ASD wants this
+                    _update_speaking(tr, frame, mouth_region(head))  # face-shaped
+                else:
+                    face = _face_box(frame, tr.box)
+                    if face is not None:
+                        faces_here[tid] = face
+                        fx1, fy1, fx2, fy2 = face
+                        face_cx = ((fx1 + fx2) / 2) / w
+                        tr.face_rate = 0.8 * tr.face_rate + 0.2
+                        tr.face_offset = 0.7 * tr.face_offset + 0.3 * (face_cx - body_cx)
+                        tr.face_w = 0.7 * tr.face_w + 0.3 * ((fx2 - fx1) / w)
+                        tr.head_cys.append(((fy1 + fy2) / 2) / h)
+                        _update_speaking(tr, frame, face)
+                    else:
+                        tr.face_rate = 0.8 * tr.face_rate  # detection unreliable
+                        tr.speak *= 0.9  # no visible face: talking evidence fades
+                if shot_aware and tid not in seen_in_shot:
+                    # This id's first sighting in the shot (the clip's first, or
+                    # the one after a cut): its averages start from what is in
+                    # front of the camera now (_seed_from_sighting).
+                    seen_in_shot.add(tid)
+                    _seed_from_sighting(tr, conf * area_frac, body_cx, head,
+                                        faces_here.get(tid) if head is None else None, w)
+                # Framing priority: pose head keypoints > face box > body center.
+                if tr.head_rate > 0.3:
+                    refine = tr.head_offset
+                elif tr.face_rate > 0.45:
+                    refine = tr.face_offset
+                else:
+                    refine = 0.0
+                tr.centers.append(body_cx + refine)
+                tr.areas.append(area_frac)
+                tr.norm_boxes.append((x1 / w, y1 / h, x2 / w, y2 / h))
+
+            samples.append(_Sample(
+                t=t, frame_idx=frame_idx, w=w, h=h, at_cut=at_cut,
+                visible=list(visible),
+                state={tid: _Moment(
+                    box=tracks[tid].box,
+                    dominance=tracks[tid].dominance,
+                    speak=tracks[tid].speak,
+                    n_seen=tracks[tid].n_seen,
+                    head_rate=tracks[tid].head_rate,
+                    face_rate=tracks[tid].face_rate,
+                    head_offset=tracks[tid].head_offset,
+                    face_offset=tracks[tid].face_offset,
+                    face_w=tracks[tid].face_w,
+                    n_centers=len(tracks[tid].centers),
+                    last_t=tracks[tid].last_t,
+                ) for tid in visible},
+                faces=faces_here,
+            ))
+            frame_idx += 1
+
+
+    # ---- who is speaking, before deciding where to point ------------------
+    # None when TalkNet cannot or need not answer (no model, no audio, fewer
+    # than two faces); the mouth-motion correlation below covers those.
+    asd_scores = _asd_speakers(clip_path, samples, video_fps)
+    # How loud this clip has to be for someone to be speaking, judged against
+    # its own level rather than an absolute one — a quiet phone recording and
+    # a studio mic are both fine, and room tone is well below either's speech.
+    speech_floor = (
+        _ASD_SPEECH * float(np.percentile(env, 90)) if env is not None else 0.0
+    )
+    # Who to be on, for every sample, decided up front. See _shot_plan.
+    shots = _shot_plan(asd_scores, samples, env, speech_floor, _SWITCH_HOLD)
+
+    # Track state is about to be rewound sample by sample. Everything after
+    # this loop — the letterbox decision, the facecam layout, face_y — reads
+    # the FINAL values, so they are put back at the end.
+    finals = {tid: _Moment(
+        box=tr.box, dominance=tr.dominance, speak=tr.speak, n_seen=tr.n_seen,
+        head_rate=tr.head_rate, face_rate=tr.face_rate,
+        head_offset=tr.head_offset, face_offset=tr.face_offset,
+        face_w=tr.face_w, n_centers=len(tr.centers), last_t=tr.last_t,
+    ) for tid, tr in tracks.items()}
+    all_centers = {tid: tr.centers for tid, tr in tracks.items()}
+
+    def rewind(tid: int, m: _Moment) -> None:
+        tr = tracks[tid]
+        (tr.box, tr.dominance, tr.speak, tr.n_seen, tr.head_rate, tr.face_rate,
+         tr.head_offset, tr.face_offset, tr.face_w) = (
+            m.box, m.dominance, m.speak, m.n_seen, m.head_rate, m.face_rate,
+            m.head_offset, m.face_offset, m.face_w)
+        # The list is truncated rather than the reads changed, because the
+        # framing helpers take a _Track and there is no honest way for them
+        # to know which sample is being replayed.
+        tr.centers = all_centers[tid][:m.n_centers]
+        if shot_aware:
+            # Left at its final value, as it is with the setting off, a subject
+            # who comes back later in the clip never counts as gone before
+            # then, and the framing waits on them instead of moving on.
+            tr.last_t = m.last_t
+
+    if shot_aware:
+        replay = _ShotReplay(samples, cut_at, all_centers, video_fps, no_subject)
+
+    for s_idx, s in enumerate(samples):
+        t, w, h, at_cut, visible = s.t, s.w, s.h, s.at_cut, s.visible
+        frame_idx = s.frame_idx
+        was_active = active_id
+        for tid, snap in s.state.items():
+            rewind(tid, snap)
+        if at_cut:
+            # A challenger was building a case about the shot that just
+            # ended; across a cut it means nothing.
+            challenger_id = None
+        if shot_aware:
+            at_cut, frame_idx, active_id, visible = replay.before(
+                s_idx, at_cut, frame_idx, active_id, tracks, pan, path, shots[s_idx])
+
+        if visible:
+            # ---- choose the target, with hysteresis ----------------------
+            # Who to follow = size/confidence dominance x WHO IS TALKING.
+            # Mouth-region motion is the talking proxy, so in group shots the
+            # camera prefers the speaker, not just the biggest person.
+            max_speak = max((tracks[tid].speak for tid in visible), default=0.0)
+
+            # max_speak is bound as a default so the closure cannot pick up a
+            # later iteration's value. It is consumed immediately below, so
+            # this is defensive rather than a fix — but the day someone stores
+            # this function instead of calling it, the bug would be subtle.
+            def _score(tid: int, max_speak: float = max_speak) -> float:
+                tr = tracks[tid]
+                if max_speak < 0.004:  # nobody visibly talking: size decides
+                    return tr.dominance
+                return tr.dominance * (0.35 + 0.65 * (tr.speak / max_speak))
+
+            # Who the shot plan says to be on here, if it says anything. The
+            # plan was built from the whole clip before this loop started, so
+            # there is no lag to make up and no opening guess to correct —
+            # see _shot_plan.
+            best_voice = shots[s_idx] if shots[s_idx] in visible else None
+
+            top = max(visible, key=_score)
+            # In shot-aware mode, the speaker the plan names here keeps the camera while
+            # out of sight for a moment: not gone, and not out-sized either (_ShotReplay.dropout).
+            dropout = (shot_aware and active_id in tracks and active_id not in visible
+                       and replay.dropout(s_idx, active_id, shots[s_idx], tracks[active_id].last_t))
+            active_gone = (
+                active_id is None
+                or active_id not in tracks
+                or (active_id not in visible and t - tracks[active_id].last_t > 1.0 and not dropout)
+            )
+            if active_gone:
+                # Nobody to keep. Prefer whoever the plan says is talking;
+                # otherwise the most prominent person, which is all there is
+                # to go on. On the first sample the plan already knows who
+                # speaks first, so this no longer opens on the biggest person.
+                active_id, challenger_id = (best_voice or top), None
+            elif best_voice is not None and best_voice != active_id:
+                # The speaker OVERRIDES size. The old rule multiplied talking
+                # BY prominence, so a person 1.4x wider on screen could not be
+                # interrupted however much the other one talked.
+                #
+                # No hold is needed here any more: the plan has already merged
+                # runs shorter than _SWITCH_HOLD, so a switch that reaches this
+                # point is one that lasts. Holding on top of that only kept the
+                # camera on the wrong person.
+                active_id, challenger_id = best_voice, None
+            elif best_voice is not None or dropout:
+                challenger_id = None  # the person we are on is the one talking
+            elif top != active_id and _score(top) > switch_margin * _score(active_id):
+                # No audio verdict from anyone. Fall back to the prominence
+                # contest, which is right when nobody is speaking (an action
+                # beat, a silent reaction) and unreachable when someone is.
+                if challenger_id != top:
+                    challenger_id, challenger_since = top, t
+                elif t - challenger_since >= switch_seconds:
+                    active_id, challenger_id = top, None  # sustained takeover
+            else:
+                challenger_id = None
+
+            crop_frac = (h * 9 / 16) / w  # crop width as fraction of frame width
+            raw_x = _target_x(
+                tracks, visible, active_id, crop_frac,
+                someone_talking=max_speak >= 0.004,
+            )
+
+            # ---- when is a plain 9:16 crop NOT enough? -------------------
+            # A single upright person is ALWAYS fine as a normal crop — we just
+            # center on their face/torso, even if their shoulders are wider
+            # than the narrow 9:16 window (that's normal for a talking-head
+            # Short). The letterbox is only for cases a vertical crop genuinely
+            # can't hold:
+            #   * TWO+ real people spread wider than the crop, or
+            #   * a SINGLE person lying down (box wider than tall).
+            # Minor/background/low-confidence detections are ignored so a
+            # motorcycle or a bystander never forces it.
+            if active_id in tracks:
+                # Measure co-subjects against the most prominent person on
+                # screen, NOT against whoever the camera happens to be on.
+                #
+                # This used to be the active subject's dominance, which was
+                # the same number back when the camera always sat on the
+                # biggest person. It is not the same number now that it
+                # follows the speaker: point at the smaller person and the
+                # yardstick shrinks, so "at least 0.75 of it" lets in people
+                # who were never near-equals, they read as two subjects
+                # spread wide, and the clip silently becomes a letterbox.
+                # Real footage flipped from track to fit_blur for exactly
+                # this reason, with nothing about the scene having changed.
+                #
+                # Whether a 9:16 crop can hold the scene is a fact about the
+                # scene. It must not move when the choice of subject moves.
+                active_dom = max(tracks[tid].dominance for tid in visible)
+                subjects = [
+                    tracks[tid].box
+                    for tid in visible
+                    # A co-subject must be a NEAR-EQUAL of the main subject —
+                    # prominent, persistent through the clip, and confidently
+                    # a person. Swimmers/bystanders drifting through a pool
+                    # shot must never drag a centered creator into letterbox.
+                    if (tracks[tid].box[2] - tracks[tid].box[0])
+                    * (tracks[tid].box[3] - tracks[tid].box[1])
+                    / (w * h)
+                    > 0.06
+                    and (
+                        tid == active_id
+                        or (
+                            tracks[tid].dominance >= 0.75 * active_dom
+                            # s_idx + 1 is how many samples have gone by at
+                            # this point, which is what this used to compare
+                            # against when it ran inside the frame loop.
+                            and tracks[tid].n_seen >= max(8, 0.3 * (s_idx + 1))
+                        )
+                    )
+                    and tracks[tid].box[4] >= 0.6  # confidently a person
+                ]
+                # Two people sitting apart is NOT a reason to letterbox.
+                #
+                # It used to be: if they were spread wider than a 9:16 window
+                # for most of the clip, the whole thing became a letterbox
+                # holding both. On real footage that meant a crop 72% of the
+                # source width, shown as a 1080x636 strip — 67% of the screen
+                # blurred, both people small, and the space between them
+                # occupying the middle of the shot. It framed neither of them.
+                #
+                # That rule was written when the camera could not tell who was
+                # talking, so showing everyone was the safe answer. It can tell
+                # now. Two people spread wide is the case for CUTTING between
+                # them, which is what the footage itself does and what the
+                # vertical format is for.
+                is_wide = False
+                if len(subjects) == 1:
+                    b = subjects[0]
+                    bw, bh = b[2] - b[0], b[3] - b[1]
+                    # Letterbox a SINGLE person only when they are clearly lying
+                    # FLAT (box 2x+ wider than tall) — a genuinely horizontal
+                    # head-to-toe pose a vertical crop would cut. Seated,
+                    # reclined, arms-out, or close-up people (box near square or
+                    # taller) are always a normal crop centered on the face.
+                    is_wide = bw > bh * 2.0 and bw / w > crop_frac * 1.4
+                if is_wide:
+                    wide_boxes.append((
+                        min(b[0] for b in subjects) / w,
+                        min(b[1] for b in subjects) / h,
+                        max(b[2] for b in subjects) / w,
+                        max(b[3] for b in subjects) / h,
+                    ))
+
+            # ---- hold still, or move deliberately ------------------------
+            # Previously this corrected toward the target on every sample, so
+            # the crop spent its life making small adjustments it immediately
+            # part-undid — an oscillation inside a narrow band that reads as
+            # drift. HoldMove keeps the frame parked until the subject has
+            # genuinely moved, then makes one purposeful move and settles.
+            changed_subject = _SWITCH_CUT and active_id != was_active and was_active is not None
+            if at_cut or changed_subject:
+                # Freeze the outgoing framing on the last frame of the old
+                # shot, then jump. Easing across a cut is never right — and
+                # changing who the camera is on IS a cut, even though the
+                # footage itself did not cut. Panning there instead sweeps the
+                # viewer across the room and arrives after the person has
+                # started talking; the whole reason to know who is speaking is
+                # to be on them from the first word.
+                if pan.x is not None and frame_idx > 0:
+                    path.append(((frame_idx - 1) / video_fps, float(pan.x)))
+                smoothed_x = pan.snap(raw_x)
+            else:
+                # Containment is a TRIGGER, not a position override. If the
+                # head is nearing the edge of the window, stop holding and
+                # move to re-center it. (Overriding the position after the
+                # fact instead meant the clamp and the controller fought each
+                # other every sample — the clamp nudged the crop back to the
+                # boundary, the controller tried to hold, and the crop
+                # chattered. Moving to the centered target resolves it once.)
+                if pan.x is not None and _head_escaping(
+                    tracks, active_id, pan.x, crop_frac, w
+                ):
+                    pan.moving = True
+                smoothed_x = pan.update(raw_x, max(t - last_sample_t, 1e-6))
+            last_sample_t = t
+
+            # ---- last-resort containment ---------------------------------
+            # The trigger above normally re-centers the subject long before
+            # this matters. This only catches the case where they outran the
+            # pan-speed clamp, and guarantees the face is never cut off.
+            if active_id in tracks and (
+                tracks[active_id].head_rate > 0.3 or tracks[active_id].face_rate > 0.45
+            ):
+                atr = tracks[active_id]
+                face_cx = _head_cx(atr, w)
+                tol = _contain_tolerance(atr, crop_frac)
+                if face_cx < smoothed_x - tol:
+                    smoothed_x = face_cx + tol
+                elif face_cx > smoothed_x + tol:
+                    smoothed_x = face_cx - tol
+                # The clamp is the real output, so the controller has to adopt
+                # it — otherwise it keeps holding against a position the crop
+                # no longer has and the next move starts from a stale place.
+                pan.x = float(smoothed_x)
+
+            path.append((t, float(smoothed_x)))
+        if shot_aware:
+            replay.after(path)
+
+    for tid, snap in finals.items():
+        rewind(tid, snap)
+
+    # User-forced letterbox: same tight subject-region crop the automatic
+    # letterbox uses (person large, minimal dead space) — just without the
+    # "won't fit a 9:16 crop" trigger. Falls back to the full frame only
+    # when no person was ever detected.
+    if force_fit_blur:
+        if active_id in tracks and tracks[active_id].norm_boxes:
+            boxes = np.array(tracks[active_id].norm_boxes)
+            # Horizontal: the subject's TYPICAL width centered where they
+            # usually are — NOT the union of every position. A person leaning
+            # around would otherwise stretch the region wide, and a wide
+            # region means a short (small) letterbox video.
+            widths = boxes[:, 2] - boxes[:, 0]
+            half = float(np.percentile(widths, 70)) / 2 + 0.05
+            cx = float(np.median((boxes[:, 0] + boxes[:, 2]) / 2))
+            return {
+                "mode": "fit_blur",
+                "region": (
+                    round(max(0.0, cx - half), 4),
+                    round(max(0.0, float(np.percentile(boxes[:, 1], 10)) - 0.06), 4),
+                    round(min(1.0, cx + half), 4),
+                    round(min(1.0, float(np.percentile(boxes[:, 3], 90)) + 0.06), 4),
+                ),
+            }
+        return {"mode": "fit_blur", "region": None}
+
+    # Blurred-letterbox only when the subject genuinely won't fit a 9:16 crop
+    # for a meaningful part of the clip. Crop TIGHTLY to the subject's bounding
+    # box (both axes, padded) so they fill the frame and there's minimal dead
+    # space — not the full frame height with the person small in the middle.
+    if n_samples > 0 and len(wide_boxes) / n_samples > fit_blur_fraction:
+        def _pct(vals: list[float], p: float) -> float:
+            vals = sorted(vals)
+            return vals[min(len(vals) - 1, max(0, int(p * len(vals))))]
+
+        pad_x, pad_y = 0.04, 0.06
+        x0 = max(0.0, _pct([b[0] for b in wide_boxes], 0.10) - pad_x)
+        y0 = max(0.0, _pct([b[1] for b in wide_boxes], 0.10) - pad_y)
+        x1 = min(1.0, _pct([b[2] for b in wide_boxes], 0.90) + pad_x)
+        y1 = min(1.0, _pct([b[3] for b in wide_boxes], 0.90) + pad_y)
+        return {
+            "mode": "fit_blur",
+            "region": (round(x0, 4), round(y0, 4), round(x1, 4), round(y1, 4)),
+        }
+
+    layout = _detect_facecam_layout(tracks, active_id, n_samples)
+    if layout is not None:
+        return layout
+    if not path:
+        return {"mode": "track", "path": [(0.0, 0.5)]}  # nothing detected: center
+    # Where the subject's face sits vertically (median, normalized 0..1).
+    # The renderer uses this to keep faces out of the zone TikTok/Instagram
+    # cover with their own UI at the top of the screen.
+    face_y = None
+    if active_id in tracks and tracks[active_id].head_cys:
+        face_y = round(float(np.median(tracks[active_id].head_cys)), 4)
+    return {"mode": "track", "path": path, "face_y": face_y}
+
+
+# ---- detection + identity assignment ----------------------------------------
+
+
+def _detect(model, frame, min_confidence) -> list[tuple]:
+    """Person detections as (x1, y1, x2, y2, conf, head). With a pose model,
+    head is (head_cx_px, head_cy_px, head_w_px) from the nose/eye/ear keypoints — the most
+    reliable "where is the head" signal there is (needs no visible face). With
+    a plain detection model, head is None and the Haar face box fills in."""
+    from core.gpu import torch_device
+
+    with _infer_lock:
+        # device= is not optional. Without it ultralytics calls
+        # select_device(''), which auto-selects the first available GPU and
+        # silently undoes the CPU decision _get_model just made.
+        results = model.predict(frame, classes=[0], conf=min_confidence,
+                                device=torch_device(), verbose=False)
+    out = []
+    for r in results:
+        kp = getattr(r, "keypoints", None)
+        kxy = kp.xy.tolist() if kp is not None and kp.xy is not None else None
+        kconf = kp.conf.tolist() if kp is not None and kp.conf is not None else None
+        for i, b in enumerate(r.boxes):
+            x1, y1, x2, y2 = b.xyxy[0].tolist()
+            head = None
+            if kxy is not None and kconf is not None and i < len(kxy):
+                # COCO keypoints 0-4: nose, eyes, ears.
+                pts = [kxy[i][j] for j in range(5) if kconf[i][j] > 0.5]
+                if pts:
+                    head_cx = sum(p[0] for p in pts) / len(pts)
+                    head_cy = sum(p[1] for p in pts) / len(pts)
+                    xs = [p[0] for p in pts]
+                    spread = max(xs) - min(xs)
+                    head_w = max(spread * 1.6, (y2 - y1) * 0.12)
+                    head = (head_cx, head_cy, head_w)
+            out.append((x1, y1, x2, y2, float(b.conf[0]), head))
+    return out
+
+
+def _assign(tracks: dict, detections: list, t: float) -> list[int]:
+    """Greedy IoU matching of detections to live tracks; unmatched detections
+    start new tracks. Returns the track ids visible in this frame."""
+    pairs = []
+    for tid, tr in tracks.items():
+        if t - tr.last_t > 2.0:
+            continue  # stale track — don't revive identities after long gaps
+        for i, d in enumerate(detections):
+            iou = _iou(tr.box[:4], d[:4])
+            if iou >= 0.25:
+                pairs.append((iou, tid, i))
+
+    visible, used_t, used_d = [], set(), set()
+    for _, tid, i in sorted(pairs, key=lambda p: p[0], reverse=True):
+        if tid in used_t or i in used_d:
+            continue
+        tracks[tid].box = detections[i]
+        tracks[tid].last_t = t
+        visible.append(tid)
+        used_t.add(tid)
+        used_d.add(i)
+
+    for i, d in enumerate(detections):
+        if i not in used_d:
+            tid = max(tracks, default=-1) + 1
+            tracks[tid] = _Track(box=d, last_t=t)
+            visible.append(tid)
+    return visible
+
+
+def _iou(a, b) -> float:
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    if inter == 0:
+        return 0.0
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    return inter / (area_a + area_b - inter)
+
+
+# ---- framing decisions --------------------------------------------------------
+
+
+def _contain_half(atr: "_Track", crop_frac: float) -> float:
+    """Half-width of the head region the crop tries to keep inside the window.
+
+    Capped well inside the crop's own half-width. In close-ups the head is
+    nearly as wide as the 9:16 window, and demanding the WHOLE head box stay
+    inside then collapses into "center exactly on the head, every sample":
+    the containment rule alone decides the framing, pinning the crop to the
+    raw per-sample head position and cancelling every bit of smoothing above
+    it. That is what made the camera micro-correct constantly instead of
+    holding. Keeping the head CENTER comfortably inside is the real goal.
+    """
+    return min(atr.face_w / 2 + 0.02, crop_frac * 0.35)
+
+
+def _contain_tolerance(atr: "_Track", crop_frac: float) -> float:
+    """How far the head center may sit from the crop center before we move."""
+    return max(0.03, crop_frac / 2 - _contain_half(atr, crop_frac))
+
+
+def _head_cx(atr: "_Track", w: int) -> float:
+    """Best estimate of the head center, normalized."""
+    x1, _, x2, _ = atr.box[:4]
+    off = atr.head_offset if atr.head_rate > 0.3 else atr.face_offset
+    return (x1 + x2) / 2 / w + off
+
+
+def _head_escaping(
+    tracks: dict,
+    active_id: int | None,
+    center_x: float,
+    crop_frac: float,
+    w: int,
+) -> bool:
+    """Has the active subject's head drifted far enough to be worth a move?
+
+    Judged on the head CENTER against a tolerance, so the camera starts
+    moving before the face is anywhere near clipped — the move reads as
+    anticipatory rather than as a save.
+    """
+    if active_id is None or active_id not in tracks:
+        return False
+    atr = tracks[active_id]
+    if not (atr.head_rate > 0.3 or atr.face_rate > 0.45):
+        return False
+    return abs(_head_cx(atr, w) - center_x) > _contain_tolerance(atr, crop_frac)
+
+
+def _target_x(
+    tracks: dict,
+    visible: list[int],
+    active_id: int,
+    crop_frac: float,
+    someone_talking: bool = False,
+) -> float:
+    """Where the crop wants to be centered.
+
+    Normally the active subject. Two persistent subjects that fit the window
+    together may share the frame on their midpoint — but ONLY while nobody is
+    talking: once someone speaks, sitting on the midpoint frames neither face,
+    so the crop commits to the speaker instead.
+
+    The center is a short trailing median rather than the newest sample, so a
+    single bad detection box cannot yank the framing.
+    """
+    if not someone_talking:
+        strong = [
+            tid for tid in visible
+            if tracks[tid].n_seen >= 8
+            and tracks[tid].dominance > 0.2 * max(tracks[active_id].dominance, 1e-9)
+        ]
+        if len(strong) == 2:
+            xa = stable_target(tracks[strong[0]].centers)
+            xb = stable_target(tracks[strong[1]].centers)
+            if abs(xa - xb) < crop_frac * 0.7:  # both fit in the 9:16 window
+                return (xa + xb) / 2
+    return stable_target(tracks[active_id].centers)
+
+
+def _detect_facecam_layout(tracks: dict, active_id: int | None, n_samples: int) -> dict | None:
+    """Gameplay + facecam streams: the streamer's face sits inside a small,
+    static webcam overlay. If the dominant subject barely moves, is small,
+    and is present in >=70% of samples -> stacked split layout."""
+    if active_id is None or active_id not in tracks or n_samples == 0:
+        return None
+    tr = tracks[active_id]
+    if tr.n_seen < 10 or tr.n_seen < 0.7 * n_samples:
+        return None
+
+    # A gameplay facecam overlay contains ONE streamer. If somebody else is on
+    # screen for a good share of the clip this is a conversation, and stacking
+    # it into a webcam/gameplay split frames neither person.
+    #
+    # This guard was not needed while the camera always followed the LARGEST
+    # subject, because that person was too big to look like an overlay. Once
+    # the crop began following the speaker, a smaller seated person could
+    # become active and satisfy every test below — small, still, present
+    # throughout — so two-person footage started rendering as a split.
+    companions = [
+        other for tid, other in tracks.items()
+        if tid != active_id and other.n_seen >= 0.5 * n_samples
+    ]
+    if companions:
+        return None
+
+    centers = np.array(tr.centers)
+    if centers.std() > 0.025 or float(np.mean(tr.areas)) > 0.12:
+        return None
+
+    # Median normalized face box, padded 35% to capture the webcam frame.
+    boxes = np.array(tr.norm_boxes)
+    x1, y1, x2, y2 = np.median(boxes, axis=0)
+    pw, ph = (x2 - x1) * 0.35, (y2 - y1) * 0.35
+    x = max(0.0, float(x1 - pw))
+    y = max(0.0, float(y1 - ph))
+    bw = min(1.0 - x, float(x2 - x1 + 2 * pw))
+    bh = min(1.0 - y, float(y2 - y1 + 2 * ph))
+    return {"mode": "split", "webcam_box": (x, y, bw, bh)}
+
+
+# ---- shot-aware framing (tracking.shot_aware, on by default) -------------------
+
+_OPENING = 0.5   # seconds: a new shot is framed on the median of where its subject is over this long
+_OPEN_CONF = 0.6  # a shot that opened with nobody in it cuts to a newcomer only this confidently a
+#                   person (the bar a co-subject clears for the letterbox)...
+_OPEN_BODY = 0.5  # ...who has a pose head, or a box at least this share of the frame's height
+_DROPOUT = 2.0    # seconds: the speaker the shot plan names keeps the camera while unseen when they
+#                   are seen again within this long (_assign keeps a track's id across such a gap)
+
+
+def _seed_from_sighting(tr: _Track, strength: float, body_cx: float, head, face, w: int) -> None:
+    """Start a track's averages from one sighting: its first in the shot,
+    from the clip's first sample on, and again after each cut.
+
+    They are moving averages, so left alone they start from zero (a new id)
+    or from the person in the shot before (an id _assign carried across the
+    cut because the new person's box overlapped the old one). Either way the
+    shot's first centres come out wrong. From zero, the head offset is 30% of
+    the real one and the head counts as found only from the second sighting,
+    so the first centre is the body's: with the setting off, a clip opens on
+    the body box and eases to the head over about a second. Carried over,
+    they are another person's head offset and width, which took about 0.67 s
+    to wash out, and the crop snapped up to 0.1 of a frame off the new face.
+
+    A pose head is trusted from that one sighting. A Haar face is not: the
+    cascade also fires on hands, bottles and whoever stands behind, and on
+    road-trip footage one such hit, trusted at once, put the crop 0.15 of the
+    frame width off the body. So its offset and width start from the
+    sighting, but its rate counts the one hit it is, as on a brand-new track:
+    the face steers the crop from its third hit in a row (face_rate over
+    0.45).
+
+    That is a deliberate trade-off against single false faces, and a real
+    face that only the cascade finds pays for it: the shot opens between the
+    body and the face (the median of its first 0.5 s), eases back toward the
+    body while the trailing median is still the body's, and reaches the face
+    about a second after the cut (or the clip's start). With the body at 0.60
+    and the face at 0.72: 0.66 on the cut, 0.62 two samples on, within 0.01
+    of the face 28 frames on (tests/test_tracker_cuts.py).
+
+    `strength` is confidence x area, `head` the pose head (or None), `face`
+    the Haar face box when pose found no head (or None).
+    """
+    tr.dominance = strength
+    if head is not None:
+        tr.head_rate, tr.head_offset, tr.face_w = 1.0, head[0] / w - body_cx, head[2] / w
+        # Nothing is known about the Haar fallback for this person yet.
+        tr.face_rate, tr.face_offset = 0.0, 0.0
+        return
+    tr.head_rate, tr.head_offset = 0.0, 0.0
+    if face is not None:
+        fx1, _, fx2, _ = face
+        # 0.2 is one hit from nothing: 0.8 x 0 + 0.2, the frame pass's own step.
+        tr.face_rate, tr.face_offset, tr.face_w = 0.2, (fx1 + fx2) / 2 / w - body_cx, (fx2 - fx1) / w
+    else:
+        tr.face_rate, tr.face_offset, tr.face_w = 0.0, 0.0, 0.0
+
+
+def _credible(s: _Sample, tid: int) -> bool:
+    """Whether a detection on sample s is somebody a shot that opened with
+    nobody in it may cut to: confidently a person (_OPEN_CONF), with a pose
+    head or a box tall enough to be a body filling the shot (_OPEN_BODY).
+    A shape far off, a hand or part of a car leaves the shot as it opened."""
+    box = s.state[tid].box
+    head = box[5] if len(box) > 5 else None
+    return box[4] >= _OPEN_CONF and (head is not None or (box[3] - box[1]) / s.h >= _OPEN_BODY)
+
+
+class _ShotReplay:
+    """What the framing pass knows about shots, in shot-aware mode.
+
+    With the setting off, a cut only resets the challenger. The subject on
+    camera stays on camera even when the new shot does not show them: they
+    count as gone a second after they were last seen, and until then the
+    target is the median of where they were in the shot before. On road-trip
+    footage that held the old framing over the new shot for 28-31 frames at
+    15 cuts. And the freeze and snap keys at a cut were only written when
+    somebody was visible on the first sample after it, so the crop could
+    ease across it.
+
+    Here, at each cut:
+      * every track's centres are cut back to the shot it is in, so no target
+        is taken from the shot before, an id _assign carried across included;
+      * the subject is chosen afresh when the one on camera is not on screen,
+        by the rule the pass already uses for a subject who is gone (who the
+        shot plan says is talking, else the most prominent), and kept when
+        they are, so a false cut on a handheld stream changes nothing;
+      * the framing is the median of the subject's centres over the shot's
+        first _OPENING seconds, which the replay already knows;
+      * the old framing is held to the frame before the cut's own frame and
+        the new one starts on it, so nothing eases across it;
+      * a shot nobody is seen in at first opens on the centre (or keeps the
+        old framing: no_subject "hold") and cuts to the first credible
+        person who appears (_credible), and a shot before the first cut with
+        nobody in it keeps the centre. Nobody else seen in such a shot is
+        framed while it waits; on road-trip footage such shots had cut to a
+        burning car, a cartoon, a dashboard and a rear-view mirror (detector
+        confidence 0.42-0.57), once two frames before the shot ended. And
+        while the shot plan's speaker is on screen below the bar, the shot
+        keeps waiting even when somebody credible appears: opened on them,
+        it would go to the plan's speaker on the next sample (best_voice), a
+        shot one sample long. Letting the plan's speaker through the bar
+        instead would have opened two of those shots on the cartoon and the
+        dashboard: across the cut, _assign had handed each the id of
+        somebody the plan names. A third opens on a tray of food under
+        either rule: the tray clears the bar on the next sample, so waiting
+        only puts that opening off by one sample. The price: a real speaker
+        the detector only finds faintly leaves the shot on the centre (or
+        the old framing) until they clear the bar or leave. And the rule
+        only sees the plan's speaker on the sample being framed: should the
+        detector miss a faint speaker the plan names on exactly the sample
+        where somebody credible first appears, the shot opens on that
+        person, and the plan's speaker can take the camera on the next
+        sample, a shot one sample long after all. That never happened on
+        the footage the mode was validated on. A shot that shows somebody
+        on its first sample still opens on them, credible or not, as
+        before: on the same footage those included real people below the
+        bar, a driver among them.
+
+    The clip's opening gets the same median. On the first sample anyone is
+    seen on, while nothing has been framed yet, each track there is aimed at
+    the median of its centres over the next _OPENING seconds, with no freeze
+    or snap key: there is no framing before it to hold. First sightings are
+    seeded from the clip's first sample too, not only after a cut
+    (_seed_from_sighting). Until then a clip opened on its first sample's
+    centre: the body box, easing to the head over about a second as the
+    averages grew, or wherever a first detection off its subject put it. A
+    first shot with nobody in it keeps the centre up to the cut, as above.
+
+    And within a shot, the speaker the shot plan names keeps the camera
+    while out of sight for a moment (dropout): when their track is seen
+    again before the next cut, within _DROPOUT seconds of when it was last
+    seen, they neither count as gone after a second nor lose the camera to
+    someone more prominent meanwhile. A faint speaker drops out of detection
+    like that on handheld footage. Once they counted as gone, the camera
+    went to whoever else was there and the plan took it back as soon as they
+    were seen again: 0.33 -> 0.72 -> 0.33 of the frame inside 16 frames on
+    one stream. A sighting after the next cut does not count: by then the id
+    can be someone else's. Everyone else, and a speaker whose track is not
+    seen again that soon in the same shot, still counts as gone a second
+    after they were last seen as of the sample being framed (_Moment.last_t),
+    whether or not they come back later.
+    """
+
+    def __init__(self, samples: list, cut_at: dict, all_centers: dict, fps: float,
+                 no_subject: str) -> None:
+        self.samples, self.cut_at, self.all_centers = samples, cut_at, all_centers
+        self.fps, self.hold = fps, no_subject == "hold"
+        self.start: dict[int, int] = {}   # track -> where its centres in this shot begin
+        self.waiting = False              # a shot nobody has been seen in yet
+        self.key: int | None = None       # a cut frame still owed its snap key
+
+    def before(self, s_idx: int, at_cut: bool, frame_idx: int, active_id, tracks: dict,
+               pan: HoldMove, path: list, named=None) -> tuple:
+        """Before sample s_idx is framed. Each visible track's centres are cut
+        back to its shot, and on the sample a shot opens on (a cut, a waiting
+        shot's first credible sighting, or the clip's first sample with anyone
+        on it) set to the median over the shot's first _OPENING seconds.
+
+        Returns (at_cut, frame_idx, active_id, visible) for the framing below:
+        at_cut is also true on the sample where a shot that was waiting first
+        shows somebody credible, frame_idx is the frame the freeze key goes
+        before, active_id is None where the subject has to be chosen afresh,
+        and visible is who may be framed: everyone on the sample, except in a
+        shot that is waiting, where it is only the credible, so nobody until
+        one appears, and nobody at all while the shot plan's speaker here
+        (named) is on the sample below the bar."""
+        s = self.samples[s_idx]
+        self.key = None
+        if at_cut:
+            self.start = {}
+        for tid in s.visible:
+            m = s.state[tid]
+            first = self.start.setdefault(tid, m.n_centers - 1)
+            tracks[tid].centers = self.all_centers[tid][first:m.n_centers]
+        visible = s.visible
+        if self.waiting and not at_cut:
+            visible = [tid for tid in s.visible if _credible(s, tid)]
+            if named in s.visible and named not in visible:
+                # Opened on anyone else, the shot would go to the plan's speaker
+                # on the very next sample (best_voice), a shot one sample long.
+                visible = []
+        if pan.x is None and visible and not at_cut:
+            # The clip's opening: nothing framed yet, so nothing to hold and no
+            # key to write. Aimed at the median of the first _OPENING seconds,
+            # like a shot after a cut, not at this one sample's centre.
+            for tid in visible:
+                tracks[tid].centers = [self._opening(tid, s_idx, s.t)]
+            return at_cut, frame_idx, active_id, visible
+        if not (at_cut or (self.waiting and visible)):
+            return at_cut, frame_idx, active_id, visible
+
+        cut = self.cut_at[s_idx] if at_cut else None
+        if not visible:
+            # Nobody to frame: the cut still gets its freeze and snap keys,
+            # so the crop cannot ease from the old shot into this one.
+            if pan.x is not None:
+                path.append(((cut - 1) / self.fps, float(pan.x)))
+            x = pan.x if self.hold and pan.x is not None else 0.5
+            path.append((cut / self.fps, float(pan.snap(x))))
+            self.waiting = True
+            return at_cut, frame_idx, active_id, visible
+
+        self.waiting = False
+        t0 = cut / self.fps if cut is not None else s.t
+        for tid in visible:
+            tracks[tid].centers = [self._opening(tid, s_idx, t0)]
+        if active_id not in visible:
+            active_id = None
+        if cut is None:
+            return True, frame_idx, active_id, visible
+        if pan.x is None:
+            # Nobody was framed before this cut, so the shot before it gets
+            # the centre, as a clip with nobody in it does, rather than the
+            # framing of the shot after it.
+            path.append(((cut - 1) / self.fps, 0.5))
+        if cut < s.frame_idx:
+            self.key = cut
+        return True, cut, active_id, visible
+
+    def dropout(self, s_idx: int, tid: int, named, last_t: float) -> bool:
+        """Whether tid, the subject on camera, unseen at sample s_idx since
+        last_t, is only out of sight for a moment: the shot plan names them
+        here (named), and their track is seen again in this shot, before the
+        next cut, within _DROPOUT seconds of last_t. Until then they keep the
+        camera. A sighting after the next cut does not count: by then the id
+        can be someone else's (_assign hands it across a cut to whoever's box
+        overlaps the old one), and the cut chooses the subject afresh (before)."""
+        if named != tid:
+            return False
+        for j in range(s_idx + 1, len(self.samples)):
+            s = self.samples[j]
+            if s.t - last_t > _DROPOUT or j in self.cut_at:
+                return False
+            if tid in s.visible:
+                return True
+        return False
+
+    def after(self, path: list) -> None:
+        """After the sample is framed: the snap key on the cut's own frame,
+        when that came before the sample."""
+        if self.key is not None:
+            path.insert(len(path) - 1, (self.key / self.fps, path[-1][1]))
+            self.key = None
+
+    def _opening(self, tid: int, s_idx: int, t0: float) -> float:
+        """The median of a track's centres from t0 to _OPENING seconds on, in this shot."""
+        values = []
+        for j in range(s_idx, len(self.samples)):
+            s = self.samples[j]
+            if j > s_idx and (j in self.cut_at or s.t > t0 + _OPENING):
+                break
+            m = s.state.get(tid)
+            if m is not None:
+                values.append(self.all_centers[tid][m.n_centers - 1])
+        return float(np.median(values))

@@ -1,0 +1,172 @@
+"""Source dispatcher: route any pasted URL to the right platform module.
+
+Adding a platform means one new source module and one branch here — nothing
+downstream changes, because every source returns the same DownloadedVideo
+and uses ids that can't collide (YouTube: 11-char, Twitch: tw_, Kick: kick_).
+"""
+
+from pathlib import Path
+
+from core.models import DownloadedVideo
+from sources import kick, twitch, youtube, ytdlp_common
+
+
+def identify(url: str) -> tuple[str, str | None]:
+    """(source_name, video_id) — video_id is None when the URL doesn't
+    contain a recognizable video (e.g. a live-channel page)."""
+    if url.startswith("local:"):
+        # Uploaded file: "local:<video_id>". The file was already placed in
+        # downloads/ by the upload endpoint — there is nothing to fetch.
+        return "local", url.split(":", 1)[1]
+    if twitch.is_twitch_url(url):
+        return "twitch", twitch.extract_vod_id(url)
+    if kick.is_kick_url(url):
+        return "kick", kick.extract_vod_id(url)
+    return "youtube", youtube.extract_video_id(url)
+
+
+# Hosts of the platforms a downloaded live's original link can point to. Only
+# for recording where a file came from; nothing is fetched from them.
+_PLATFORM_HOSTS = (
+    ("youtube", ("youtube.com", "youtu.be")),
+    ("twitch", ("twitch.tv",)),
+    ("kick", ("kick.com",)),
+    ("instagram", ("instagram.com",)),
+    ("tiktok", ("tiktok.com",)),
+)
+
+
+def platform_of_link(url: str) -> str:
+    """The platform an original link belongs to: youtube, twitch, kick,
+    instagram, tiktok, or "other". Blank for anything that isn't a web link."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit((url or "").strip())
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return ""
+    host = parts.hostname.lower()
+    for platform, domains in _PLATFORM_HOSTS:
+        if any(host == d or host.endswith("." + d) for d in domains):
+            return platform
+    return "other"
+
+
+def _clear_stale_partials(output_dir: Path, video_id: str | None) -> None:
+    """Remove leftover .part fragments from an earlier failed download of this
+    video before starting a new one.
+
+    A download that dies partway (a 403, a dropped connection) leaves yt-dlp
+    .part / .part-Frag files — the 900 MB video stream can be most of the way
+    done. yt-dlp cannot resume them: the platform's fragment URLs expire in
+    hours, so the next attempt restarts from zero regardless and just orphans
+    the old partial, which then sits on disk until a manual cleanup. Clearing
+    them here means a re-download reclaims that space instead of doubling it.
+    """
+    if not video_id or not output_dir.is_dir():
+        return
+    for f in output_dir.iterdir():
+        if not f.is_file() or not f.name.startswith(video_id):
+            continue
+        if f.suffix in (".part", ".ytdl") or ".part-Frag" in f.name:
+            try:
+                f.unlink()
+            except OSError:
+                pass  # locked or already gone — never block the download
+
+
+def game_info(url: str) -> list[dict]:
+    """The game(s) a video shows, from the platform, without downloading it
+    (sources.ytdlp_common.games_from_info). For a cached file from before the
+    games were recorded; empty for a local upload or on any failure."""
+    source, _ = identify(url)
+    if source == "local":
+        return []
+    try:
+        from sources.ytdlp_common import extract_info, games_from_info
+
+        info = extract_info(url, {"quiet": True, "no_warnings": True, "skip_download": True})
+        return games_from_info(info, source)
+    except Exception as e:
+        print(f"      (could not ask the platform which game it is: {e})")
+        return []
+
+
+def description(url: str) -> str:
+    """The video's own description, without downloading it, or "" (a local
+    upload, offline, rate-limited). Only a download brings it
+    (sources/youtube.py), so a job whose file was already on disk asks for it
+    here when its sport reads it (basketball: the players' names, and who
+    won)."""
+    source, _ = identify(url)
+    if source == "local":
+        return ""
+    try:
+        from sources.ytdlp_common import extract_info
+
+        info = extract_info(url, {"quiet": True, "no_warnings": True, "skip_download": True})
+        return str(info.get("description") or "")
+    except Exception as e:
+        print(f"      (could not fetch the video's description: {e})")
+        return ""
+
+
+def metadata(url: str) -> tuple[str, str]:
+    """(title, channel) for a URL, without downloading the video.
+
+    For the case where the source file is already on disk but nothing is known
+    about it — a database that was reset or moved, or a file copied into
+    downloads/ by hand. Without this the title falls back to the raw video ID
+    and the channel to an empty string, and an empty channel means the video is
+    attached to no creator, so catchphrase learning and preference history
+    never run on it.
+
+    One metadata request rather than re-fetching several GB. Raises on failure
+    rather than returning empty strings, so the caller can decide whether being
+    offline is fatal — in the cached path it is not, and the ID is still a
+    usable fallback.
+    """
+    source, _ = identify(url)
+    if source == "local":
+        # An imported file has no platform to ask; whatever the user typed at
+        # import is all there ever was.
+        raise ValueError("local uploads carry no remote metadata")
+
+    from sources.ytdlp_common import extract_info
+
+    info = extract_info(url, {"quiet": True, "no_warnings": True, "skip_download": True})
+
+    return (
+        info.get("title") or "",
+        info.get("channel") or info.get("uploader") or "",
+    )
+
+
+def download(url: str, output_dir: Path, vertical: bool = False) -> DownloadedVideo:
+    """`vertical`: the vertical version only, for Vertical Live. Files are
+    imported as they are, so it makes no difference to them."""
+    source, video_id = identify(url)
+    if source == "local":
+        # Only reachable if the imported copy in downloads/ was deleted.
+        raise ValueError(
+            "The uploaded video's imported copy is gone — upload the file again."
+        )
+    _clear_stale_partials(output_dir, video_id)
+    try:
+        if source == "twitch":
+            return twitch.download(url, output_dir, vertical=vertical)
+        if source == "kick":
+            return kick.download(url, output_dir, vertical=vertical)
+        return youtube.download(url, output_dir, vertical=vertical)
+    except Exception as e:
+        # Every platform's download passes through here, so the yt-dlp version
+        # travels with the failure from one place rather than three.
+        # `ytdlp_common.failure_note` decides when it belongs (it is left off
+        # cancellations and off the failures the sources already explain).
+        #
+        # The exception is re-raised, not replaced: only its message grows, so
+        # callers catching DownloadError, ValueError or Exception still do, and
+        # the traceback still points at the platform that failed.
+        note = ytdlp_common.failure_note(e)
+        if note:
+            e.args = (f"{e}\n\n{note}",)
+        raise

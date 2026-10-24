@@ -1,0 +1,292 @@
+import { useEffect, useState } from 'react'
+import { api } from '../lib/api'
+import { getExportFolder, pickExportFolder, setExportFolder } from '../lib/exportFolder'
+import { Folder, Scissors } from './icons'
+import type { Clip, PluginNote } from '../lib/types'
+import { sportMoment } from '../lib/sports'
+import { suggestionLine } from '../lib/editSuggestions'
+
+const CHANNELS = ['text', 'audio', 'visual', 'reaction', 'engagement'] as const
+
+/** A clip's plugin notes, one line per plugin (and version), in the order they came. */
+function pluginNotes(notes: PluginNote[] | undefined): { key: string; who: string; texts: string[] }[] {
+  const out: { key: string; who: string; texts: string[] }[] = []
+  for (const n of notes ?? []) {
+    if (!n?.text) continue
+    const key = `${n.plugin}@${n.version ?? ''}`
+    const line = out.find((l) => l.key === key)
+    if (line) line.texts.push(n.text)
+    else out.push({ key, who: `${n.name || n.plugin}${n.version ? ` ${n.version}` : ''}`, texts: [n.text] })
+  }
+  return out
+}
+
+export default function ClipEditor({
+  clip,
+  onChanged,
+  onOpenEditor,
+  onPublish
+}: {
+  clip: Clip
+  onChanged: () => void
+  onOpenEditor: () => void
+  /** Publish this one clip. Absent when no provider is set up, which hides
+   *  the button rather than showing one that can only apologise. */
+  onPublish?: () => void
+}): JSX.Element {
+  const [title, setTitle] = useState(clip.title)
+  const [description, setDescription] = useState(clip.description)
+  const [hashtags, setHashtags] = useState(clip.hashtags.join(' '))
+  const [start, setStart] = useState(clip.start_s)
+  const [end, setEnd] = useState(clip.end_s)
+  const [folder, setFolder] = useState('')
+
+  // Default the export destination to the remembered folder / OS Downloads.
+  useEffect(() => {
+    getExportFolder().then(setFolder)
+  }, [])
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTitle(clip.title)
+    setDescription(clip.description)
+    setHashtags(clip.hashtags.join(' '))
+    setStart(clip.start_s)
+    setEnd(clip.end_s)
+    setNotice(null)
+  }, [clip.id])
+
+  const flash = (msg: string): void => {
+    setNotice(msg)
+    setTimeout(() => setNotice(null), 4000)
+  }
+
+  const run = async (label: string, fn: () => Promise<void>): Promise<void> => {
+    setBusy(label)
+    try {
+      await fn()
+    } catch (e) {
+      flash(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const saveMetadata = (): Promise<void> =>
+    run('save', async () => {
+      await api.patchClip(clip.id, {
+        title,
+        description,
+        hashtags: hashtags.split(/\s+/).filter(Boolean)
+      })
+      flash('Saved')
+      onChanged()
+    })
+
+  const rerender = (): Promise<void> =>
+    run('render', async () => {
+      const range = start !== clip.start_s || end !== clip.end_s ? { start, end } : undefined
+      await api.rerenderClip(clip.id, range)
+      flash('Re-render queued — watch the Dashboard activity feed')
+    })
+
+  const exportOne = (): Promise<void> =>
+    run('export', async () => {
+      const res = await api.exportClip(clip.id, folder)
+      flash(res.exported.length ? `Exported: ${res.exported[0]}` : 'Nothing exported')
+      onChanged() // exporting stars the clip; show it on its card
+    })
+
+  return (
+    <div className="card space-y-4">
+      <video
+        key={clip.id}
+        src={api.mediaUrl(clip.id)}
+        controls
+        aria-label={`Preview of clip: ${clip.title || clip.hook || 'untitled'}. Captions are burned into the video.`}
+        className="w-full rounded-lg bg-base max-h-96"
+      />
+
+      <button
+        onClick={onOpenEditor}
+        className="btn-accent w-full !py-3 text-base font-semibold"
+        title="Open the editor: trim, cut, mute words, censor, color, captions, AI edit"
+      >
+        <span className="inline-flex items-center gap-2 justify-center">
+          <Scissors size={16} /> Edit this clip
+        </span>
+      </button>
+
+      <div className="flex gap-2 flex-wrap text-xs items-center">
+        {CHANNELS.map((ch) => (
+          <span key={ch} className="bg-raised px-2 py-1 rounded-md text-muted">
+            {ch} <span className="text-ink font-semibold">{clip.scores[ch] ?? '–'}</span>
+          </span>
+        ))}
+        {clip.scores.game != null && (
+          // A match is scored with the same evidence a gaming stream gets.
+          <span
+            className="bg-raised px-2 py-1 rounded-md text-muted"
+            title={clip.render_opts?.sport ? 'What the crowd and the whistle marked' : 'Scored as a gaming stream'}
+          >
+            {clip.render_opts?.sport ? 'match' : 'game'}{' '}
+            <span className="text-ink font-semibold">{clip.scores.game}</span>
+            {clip.scores.game_bonus ? <span className="text-accent"> +{clip.scores.game_bonus}</span> : null}
+          </span>
+        )}
+        {clip.scores.sport_label && (
+          <span className="bg-raised px-2 py-1 rounded-md text-ink" title="The match moment this clip is">
+            {sportMoment(clip.scores)}
+            {clip.scores.sport_bonus ? <span className="text-accent"> +{clip.scores.sport_bonus}</span> : null}
+          </span>
+        )}
+      </div>
+      {clip.scores.game_why && <p className="text-xs text-muted -mt-2">{clip.scores.game_why}</p>}
+      {clip.scores.sport_why && (
+        <p className="text-xs text-muted -mt-2" title="What marked this moment">
+          {clip.scores.sport_why}
+        </p>
+      )}
+      {clip.scores.plugin && (
+        <p className="text-xs text-muted -mt-2" title="The Marketplace pipeline that found this moment, in its own words">
+          Found by {clip.scores.plugin} {clip.scores.plugin_version}
+          {clip.scores.plugin_label ? `: ${clip.scores.plugin_label}` : ''}
+          {clip.scores.plugin_why ? ` · ${clip.scores.plugin_why}` : ''}
+        </p>
+      )}
+      {/* Rate & understand (plugins/steps.py): each rating in the order it was
+          applied (the last one counts), the score before any, and the notes. */}
+      {(clip.scores.plugin_ratings ?? []).map((r, i) => (
+        <p
+          key={`rating-${i}`}
+          className="text-xs text-muted -mt-2"
+          title="A Marketplace plugin’s score for this moment, in its own words"
+        >
+          Rated {r.score} by {r.name || r.plugin}
+          {r.version ? ` ${r.version}` : ''}
+          {r.reason ? ` · ${r.reason}` : ''}
+        </p>
+      ))}
+      {clip.scores.found_score != null && (
+        <p className="text-xs text-muted -mt-2" title="The score this moment had before any plugin rated it">
+          Score when found: {clip.scores.found_score}
+        </p>
+      )}
+      {pluginNotes(clip.scores.plugin_notes).map((n) => (
+        <p
+          key={n.key}
+          className="text-xs text-muted -mt-2"
+          title="What a Marketplace plugin said happens in this moment. Clips Kitty gives notes like this to the AI when it writes a new clip’s title, description and hashtags."
+        >
+          Notes from {n.who}: {n.texts.join(' · ')}
+        </p>
+      ))}
+      {/* Suggest edits (plugins/steps.py suggest_edits): what each plugin
+          suggested, and what came of it. They are used in the editor. */}
+      {(clip.scores.plugin_edits ?? [])
+        .filter((e) => e && typeof e.id === 'string' && e.edit)
+        .map((e) => (
+          <p
+            key={`edit-${e.id}`}
+            className="text-xs text-muted -mt-2"
+            title="An edit a Marketplace plugin suggested for this clip. Open the editor to use it or hide it."
+          >
+            {suggestionLine(e, { start: clip.start_s, end: clip.end_s })}
+          </p>
+        ))}
+      {clip.scores.intent_why && (
+        <p className="text-xs text-muted -mt-2" title="Points from the clip direction given with this video">
+          Direction +{clip.scores.intent}: {clip.scores.intent_why}
+          {clip.scores.required ? ` · kept as asked (${clip.scores.required})` : ''}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        <div>
+          <label className="label">Title</label>
+          <input className="input mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Description</label>
+          <textarea
+            className="input mt-1 h-20 resize-none"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">Hashtags (space-separated)</label>
+          <input className="input mt-1" value={hashtags} onChange={(e) => setHashtags(e.target.value)} />
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="label">Start (s)</label>
+            <input
+              type="number"
+              className="input mt-1"
+              value={start}
+              step={0.5}
+              onChange={(e) => setStart(Number(e.target.value))}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="label">End (s)</label>
+            <input
+              type="number"
+              className="input mt-1"
+              value={end}
+              step={0.5}
+              onChange={(e) => setEnd(Number(e.target.value))}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap items-center">
+        <button className="btn-accent" onClick={saveMetadata} disabled={busy !== null}>
+          {busy === 'save' ? 'Saving…' : 'Save metadata'}
+        </button>
+        <button className="btn-ghost" onClick={rerender} disabled={busy !== null}>
+          {busy === 'render' ? 'Queueing…' : 'Re-render'}
+        </button>
+        <input
+          className="input !w-44"
+          value={folder}
+          onChange={(e) => {
+            setFolder(e.target.value)
+            setExportFolder(e.target.value)
+          }}
+          placeholder="export folder"
+          title={folder}
+        />
+        <button
+          className="btn-ghost"
+          onClick={async () => {
+            const chosen = await pickExportFolder()
+            if (chosen) setFolder(chosen)
+          }}
+          title="Choose where exported clips are saved"
+          aria-label="Choose export folder"
+        >
+          <Folder />
+        </button>
+        <button className="btn-ghost" onClick={exportOne} disabled={busy !== null}>
+          {busy === 'export' ? 'Exporting…' : 'Export'}
+        </button>
+        {/* Beside Export rather than only on the card in the grid: Export
+            writes this one clip to a folder, and Publish is the same scope
+            for the other destination. Only shown once a provider is set up,
+            so the row does not carry a button that can only explain itself.
+            Posting is not undoable, so it opens the confirm dialog rather
+            than acting on the click, exactly like Publish all. */}
+        {onPublish && (
+          <button className="btn-ghost" onClick={onPublish} disabled={busy !== null}>
+            Publish ↗
+          </button>
+        )}
+      </div>
+      {notice && <p className="text-sm text-accent">{notice}</p>}
+    </div>
+  )
+}

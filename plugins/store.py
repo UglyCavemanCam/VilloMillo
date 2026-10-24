@@ -1,0 +1,209 @@
+"""Installed plugins, as the plugin manager leaves them on disk.
+
+    <data_dir>/plugins/
+        installed.json                               what is installed, active and enabled
+        installed/<publisher>/<name>/<version>/      one folder per installed version
+        envs/<publisher>/<name>/<version>/           a version's own Python packages (planned)
+        staging/                                     files fetched for an install plan, until installed
+        runs/                                        the job folders of recent runs
+        cache/                                       the last good copy of each registry index
+        session.secret                               the plugin-manager routes' session secret
+
+installed.json:
+
+    {"format": 1,
+     "plugins": {"example-dev/example-pipeline": {
+         "active": "1.0.0", "previous": "0.9.0", "enabled": true, "pinned": false,
+         "versions": {"1.0.0": {"folder": "installed/example-dev/example-pipeline/1.0.0",
+                                "source": {"kind": "git", "url": "...", "commit": "..."},
+                                "tier": "listed", "installed_at": "...", "python": null},
+                      "0.9.0": {...}}}}}
+
+`previous` is the version Roll back returns to; only the active and previous
+versions are kept.
+
+This module only reads. Installing, updating and removing are the plugin
+manager's (plugins/manager.py), which writes the file atomically.
+
+`requires.clips_kitty` is checked here as well as at install, so a plugin an
+app update leaves behind is refused with a reason instead of failing oddly;
+so is the registry's block list (plugins/registry.py), so a blocked version
+is refused when a job names it and when it runs. installed_choice also
+checks that the plugin's manifest can do the step it is named for (find,
+understand or rate).
+"""
+
+from __future__ import annotations
+
+import functools
+import importlib
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from plugins._sdk import host, manifest
+
+STATE_FILE = "installed.json"
+MANIFEST = manifest.MANIFEST_FILE
+ID_RE = manifest.ID_RE
+VERSION_RE = manifest.VERSION_RE
+
+
+def root(data_dir) -> Path:
+    return Path(data_dir) / "plugins"
+
+
+def load(data_dir) -> dict:
+    """installed.json, or an empty store when there is none (or it is unreadable)."""
+    try:
+        data = json.loads((root(data_dir) / STATE_FILE).read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("plugins"), dict):
+            return data
+    except (OSError, ValueError):
+        pass  # missing or unreadable: an empty store, as the docstring says
+    return {"format": 1, "plugins": {}}
+
+
+@functools.lru_cache(maxsize=1)
+def app_version() -> str:
+    """This Clips Kitty's version (ui/package.json, as GET /health reports it), or "?"."""
+    from server.feedback import _app_version
+
+    return str(_app_version().get("app") or "?")
+
+
+def compatibility_problem(manifest_data: dict, version: str | None = None) -> str | None:
+    """Why a plugin can't run on this Clips Kitty, or None. An unknown app
+    version is not held against the plugin."""
+    spec = (manifest_data.get("requires") or {}).get("clips_kitty")
+    version = version or app_version()
+    if not isinstance(spec, str) or not VERSION_RE.match(version):
+        return None
+    try:
+        ok = manifest.version_satisfies(version, spec)
+    except ValueError:
+        return f"its Clips Kitty version range {spec!r} can't be read"
+    return None if ok else f"it needs Clips Kitty {spec}, and this is {version}"
+
+
+def read_manifest(folder: Path) -> dict:
+    """An installed version's manifest (validated when it was installed)."""
+    return manifest.load(folder)
+
+
+@dataclass
+class Installed:
+    id: str
+    version: str
+    folder: Path
+    manifest: dict
+    enabled: bool = True
+    tier: str = "link"
+    source: dict = field(default_factory=dict)
+    python: str | None = None  # the version's own interpreter, when it has packages
+
+    @property
+    def name(self) -> str:
+        return str(self.manifest.get("name") or self.id)
+
+
+def get(data_dir, plugin_id: str, version: str | None = None) -> Installed | None:
+    """One installed plugin: the version asked for, else the active one."""
+    entry = load(data_dir)["plugins"].get(plugin_id)
+    if not entry:
+        return None
+    version = version or entry.get("active")
+    info = (entry.get("versions") or {}).get(version)
+    if not info:
+        return None
+    base = root(data_dir)
+    folder = base / info["folder"]
+    try:
+        manifest = read_manifest(folder)
+    except (OSError, ValueError, ImportError):
+        return None
+    python = info.get("python")
+    return Installed(
+        id=plugin_id, version=version, folder=folder, manifest=manifest,
+        enabled=bool(entry.get("enabled", True)), tier=info.get("tier", "link"),
+        source=dict(info.get("source") or {}), python=str(base / python) if python else None,
+    )
+
+
+def clean_choice(value, *, what: str = "pipeline") -> dict:
+    """A job's plugin choice, checked for shape: {id, version?, settings?}.
+
+    `what` names the field in the messages: the `pipeline` option by default,
+    or one item of a step's list, such as `rate[1]`. A plain string is taken
+    as the id. Whether the plugin is installed is checked separately, against
+    a data folder (see installed_choice).
+    """
+    if isinstance(value, str):
+        value = {"id": value}
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be an object: {{\"id\": \"publisher/name\"}}")
+    unknown = set(value) - {"id", "version", "settings"}
+    if unknown:
+        raise ValueError(f"{what} has unknown fields: {', '.join(sorted(unknown))}")
+    pid = value.get("id")
+    if not isinstance(pid, str) or not ID_RE.match(pid):
+        raise ValueError(f"{what}.id must look like publisher/name (lower case, digits and hyphens)")
+    out = {"id": pid}
+    version = value.get("version")
+    if version is not None:
+        if not isinstance(version, str) or not VERSION_RE.match(version):
+            raise ValueError(f"{what}.version must be a version like 1.2.0")
+        out["version"] = version
+    settings = value.get("settings")
+    if settings is not None:
+        if not isinstance(settings, dict):
+            raise ValueError(f"{what}.settings must be an object")
+        if len(json.dumps(settings)) > 16_000:
+            raise ValueError(f"{what}.settings is too large")
+        out["settings"] = settings
+    return out
+
+
+class ChoiceProblem(ValueError):
+    """Why a job can't use the plugin it names (installed_choice). The message
+    is the one the API and the job log show; `code` says which check failed:
+    "missing", "off", "incompatible", "blocked", "step" or "settings".
+    `detail` is the block list's reason, or what is wrong with a setting, for
+    a sentence of the caller's own (plugins/runner.answer_moments)."""
+
+    def __init__(self, message: str, code: str, detail: str = ""):
+        super().__init__(message)
+        self.code = code
+        self.detail = detail
+
+
+def installed_choice(data_dir, choice: dict, step: str = "find") -> Installed:
+    """The installed, enabled plugin a cleaned choice names, able to do `step`
+    (find, understand, rate or edit), or ChoiceProblem saying why not."""
+    plugin = get(data_dir, choice["id"], choice.get("version"))
+    if plugin is None:
+        wanted = choice["id"] + (f" {choice['version']}" if choice.get("version") else "")
+        raise ChoiceProblem(f"the pipeline {wanted} isn't installed", "missing")
+    if not plugin.enabled:
+        raise ChoiceProblem(f"the pipeline {plugin.name} is turned off; turn it on in Marketplace › Installed first",
+                            "off")
+    problem = compatibility_problem(plugin.manifest)
+    if problem:
+        raise ChoiceProblem(f"the pipeline {plugin.name} can't run here: {problem}", "incompatible")
+    # registry imports this module, so it is looked up here, when a choice is checked.
+    registry = importlib.import_module("plugins.registry")
+    hit = registry.blocked_check(data_dir)(plugin.id, plugin.version)
+    if hit and hit.get("severity") == "blocked":
+        reason = hit.get("reason")
+        raise ChoiceProblem(f"the pipeline {plugin.name} {plugin.version} is blocked: {reason}. "
+                            "Remove it in Marketplace › Installed.", "blocked", str(reason or ""))
+    # A job's pipeline is asked to find, which needs `ranges` in the outputs:
+    # every plugin that finds moments has it, so none is refused for it here.
+    problem = manifest.step_problem(plugin.manifest, step)
+    if problem:
+        raise ChoiceProblem(f"the pipeline {plugin.name} {problem}", "step")
+    try:
+        host.job_settings(plugin.manifest, choice.get("settings"))  # refuses unknown or ill-typed settings now
+    except ValueError as e:
+        raise ChoiceProblem(str(e), "settings", str(e)) from e
+    return plugin

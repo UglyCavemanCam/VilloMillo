@@ -1,0 +1,192 @@
+import { useEffect, useRef, useState } from 'react'
+import { api } from '../lib/api'
+import type { Clip } from '../lib/types'
+import { sportMoment } from '../lib/sports'
+import { hasNewSuggestion } from '../lib/editSuggestions'
+import ScoreBadge from './ScoreBadge'
+import { Star, Trash } from './icons'
+
+const PROFILE_BADGE: Record<string, string> = {
+  short_clips: '▭ 16:9',
+  clips_140: '▭ 16:9',
+  highlights: '▭ Highlights',
+  edited_stream: '▭ Edited stream'
+}
+
+export default function ClipCard({
+  clip,
+  selected,
+  onClick,
+  onDelete,
+  onToggleExported,
+  onPublish
+}: {
+  clip: Clip
+  selected: boolean
+  onClick: () => void
+  /** Cull this clip straight from the grid, without opening it. */
+  onDelete?: () => void
+  /** Star or unstar the clip as exported, without opening it. */
+  onToggleExported?: () => void
+  /** Publish this one clip, without opening the editor first. */
+  onPublish?: () => void
+}): JSX.Element {
+  const duration = Math.round(clip.end_s - clip.start_s)
+  const name = clip.title || clip.hook || 'Untitled clip'
+  const profile = clip.render_opts?.profile
+  const badge = profile ? (PROFILE_BADGE[profile] ?? '▭ 16:9') : null
+  const exported = !!clip.exported_at
+  // A Sports job's clip: the moment it is ("Goal · 18' · HOM").
+  const moment = sportMoment(clip.scores)
+  // A Marketplace plugin suggested an edit the creator hasn't used or hidden yet.
+  const suggested = hasNewSuggestion(clip.scores?.plugin_edits)
+
+  // Lazy-load the thumbnail. Chromium allows only ~6 connections per host, so
+  // a grid of 100+ <video> elements pointed at the local server starves its
+  // own connection pool — thumbnails stay blank AND the editor's own video
+  // can't get a connection to play. Load a clip's video only once its card
+  // nears the viewport, capping concurrent loads to what's on screen.
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el || show) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShow(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin: '300px' } // start loading just before it scrolls in
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [show])
+  // Wrapper (not a button): the card is a button, and the trash must be a
+  // SEPARATE button, not nested inside it — nested buttons are invalid and
+  // the inner click would be swallowed.
+  return (
+    <div className="relative group">
+      <button
+        onClick={onClick}
+        aria-label={`${name}${moment ? `, ${moment}` : ''}, ${duration} seconds, score ${clip.score}${
+          badge ? ', horizontal longform' : ', vertical Short'
+        }${suggested ? ', suggested edit' : ''}${exported ? ', exported' : ''}${selected ? ', selected' : ''}`}
+        aria-pressed={selected}
+        className={`w-full text-left rounded-xl overflow-hidden bg-surface border transition-colors ${
+          selected ? 'border-accent' : 'border-raised/60 hover:border-raised'
+        }`}
+      >
+        <div ref={boxRef} className="aspect-[9/16] bg-base relative">
+          {show ? (
+            <video
+              src={api.mediaUrl(clip.id)}
+              preload="metadata"
+              muted
+              className={`w-full h-full ${badge ? 'object-contain' : 'object-cover'}`}
+            />
+          ) : (
+            // Placeholder until the card scrolls into view — no network load.
+            <div className="w-full h-full bg-base flex items-center justify-center text-muted/30 text-2xl">
+              ▶
+            </div>
+          )}
+          <span className="absolute top-2 left-2">
+            <ScoreBadge score={clip.score} />
+          </span>
+          {badge && (
+            <span
+              className={`absolute ${onDelete ? 'top-9' : 'top-2'} right-2 bg-amber-500/90 text-black px-1.5 py-0.5 rounded text-[10px] font-bold`}
+            >
+              {badge}
+            </span>
+          )}
+          {/* Under the score badge: Publish takes the bottom left on hover. */}
+          {suggested && (
+            <span
+              className="absolute top-9 left-2 bg-accent/90 text-black px-1.5 py-0.5 rounded text-[10px] font-bold"
+              title="A Marketplace plugin suggested an edit for this clip. Open it in the editor to see it."
+            >
+              Suggested edit
+            </span>
+          )}
+          <span className="absolute bottom-2 right-2 bg-base/80 px-1.5 py-0.5 rounded text-xs tabular-nums">
+            {duration}s
+          </span>
+        </div>
+        <div className="p-2.5">
+          <p className="text-sm font-medium line-clamp-2">
+            {clip.title || clip.hook || 'Untitled clip'}
+          </p>
+          {moment && (
+            <p className="text-xs text-accent mt-1 truncate" title={clip.scores.sport_why}>
+              {moment}
+            </p>
+          )}
+        </div>
+      </button>
+      {onToggleExported && (
+        <button
+          aria-label={exported ? `Unstar ${name} (not exported)` : `Star ${name} as exported`}
+          aria-pressed={exported}
+          title={
+            exported
+              ? 'Exported. Click to unstar.'
+              : 'Star as exported. Export all skips starred clips.'
+          }
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleExported()
+          }}
+          // Starred, the star sits in the corner on its own. On hover the trash
+          // takes the corner, so the star steps in beside it. Unstarred, the
+          // star only appears then, in that same spot beside the trash.
+          className={`absolute top-2 z-10 p-1.5 rounded-md bg-black/60 transition-all ${
+            exported
+              ? `text-amber-400 opacity-100 ${
+                  onDelete ? 'right-2 group-hover:right-10 group-focus-within:right-10' : 'right-2'
+                }`
+              : `text-white/80 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-amber-400 ${
+                  onDelete ? 'right-10' : 'right-2'
+                }`
+          }`}
+        >
+          <Star className={exported ? 'fill-current' : ''} />
+        </button>
+      )}
+      {onDelete && (
+        <button
+          aria-label={`Delete ${name}`}
+          title="Delete this clip and its file. The video and other clips stay."
+          onClick={(e) => {
+            e.stopPropagation()
+            if (window.confirm(`Delete this clip and its file?\n\n"${name}"\n\nOnly this clip is removed — the video and your other clips stay. Can't be undone.`)) {
+              onDelete()
+            }
+          }}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-black/60 text-white/80 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-red-500 hover:text-white transition"
+        >
+          <Trash />
+        </button>
+      )}
+      {/* Publishing one clip meant opening the editor and finding the Publish
+          tab, three steps in. Bottom left: the score badge owns the top left,
+          the star and trash the top right, and the duration the bottom right,
+          so this is the one free corner. */}
+      {onPublish && (
+        <button
+          aria-label={`Publish ${name}`}
+          title="Publish just this clip"
+          onClick={(e) => {
+            e.stopPropagation()
+            onPublish()
+          }}
+          className="absolute bottom-14 left-2 z-10 px-2 py-1 rounded-md bg-black/70 text-white/90 text-[10px] font-semibold opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-accent hover:text-black transition"
+        >
+          Publish ↗
+        </button>
+      )}
+    </div>
+  )
+}

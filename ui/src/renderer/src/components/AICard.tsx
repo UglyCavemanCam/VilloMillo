@@ -1,0 +1,1306 @@
+import { useEffect, useRef, useState } from 'react'
+import { api, errorText } from '../lib/api'
+import { clearAISetupHint, peekAISetupHint } from '../lib/aiSetup'
+import { t } from '../lib/i18n'
+import type { AIModel, AIProvider, AISignIn, AIStatus } from '../lib/types'
+import { forgetAIStatus } from '../lib/useAIStatus'
+
+/** Settings → AI: where the AI work and the transcription run.
+ *
+ *  Local first, cloud when you need it, and OpenRouter the easiest cloud path:
+ *
+ *    1. This PC (Ollama, Whisper): the default. No key, nothing sent.
+ *    2. OpenRouter: the recommended cloud option. One key reaches many models
+ *       and providers, so switching models needs no new account.
+ *    3. A direct provider API (OpenAI, Claude, Gemini, Grok, Meta, DeepSeek,
+ *       Qwen): always available, offered as the advanced option. Where the
+ *       provider allows a plan the user already pays for (ChatGPT, through
+ *       OpenAI's Codex), its entry offers signing in to the plan beside the
+ *       key. Claude and Gemini say why their plans can't be used.
+ *
+ *  Every cloud option is bring-your-own-key: the user's key and account, the
+ *  provider's bill. Clips Kitty has no key of its own and proxies nothing.
+ *  Nothing switches on until the user has pasted their own key and picked a
+ *  model. The tiers come from the engine (GET /ai), so a new provider lands
+ *  in the right place without touching this file. The key is write-only: the
+ *  card only learns whether one is saved and its last four characters.
+ */
+
+type Job = 'ai' | 'stt'
+type Tier = 'local' | 'recommended' | 'direct'
+type Run = (fn: () => Promise<AIStatus | null>, done?: string) => Promise<boolean>
+
+const LOCAL_ID: Record<Job, string> = { ai: 'ollama', stt: 'local' }
+
+export default function AICard({ onOpenModels }: { onOpenModels?: () => void }): JSX.Element {
+  const [status, setStatus] = useState<AIStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+  const [hint] = useState(peekAISetupHint)
+  const cardRef = useRef<HTMLDivElement>(null)
+  useEffect(clearAISetupHint, [])
+
+  useEffect(() => {
+    api
+      .ai()
+      .then(setStatus)
+      .catch(() => {
+        /* engine not up yet */
+      })
+  }, [])
+
+  // Arriving from "Set up OpenRouter" elsewhere in the app: bring the card
+  // into view. It opens on that setup; nothing is switched on.
+  useEffect(() => {
+    if (hint && status) cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [hint, status])
+
+  const run: Run = async (fn, done = '') => {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const next = await fn()
+      if (next) setStatus(next)
+      if (done) setNotice(done)
+      forgetAIStatus() // the OpenRouter suggestions elsewhere follow the new choice
+      return true
+    } catch (e) {
+      setError(errorText(e))
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!status) {
+    return (
+      <div className="card text-sm text-muted" aria-label="AI">
+        {t('Loading…')}
+      </div>
+    )
+  }
+
+  return (
+    <div ref={cardRef} className="card space-y-5" aria-label="AI">
+      <div>
+        <h3 className="font-semibold">{t('AI')}</h3>
+        <p className="text-xs text-muted mt-0.5">
+          {t('Local first. Cloud when you need it, on your own API key. OpenRouter is the easiest cloud path.')}
+        </p>
+      </div>
+
+      <JobChoice
+        job="ai"
+        title={t('Clip picking, titles and the assistant')}
+        status={status}
+        hint={hint}
+        busy={busy}
+        run={run}
+        onOpenModels={onOpenModels}
+      />
+      <div className="border-t border-raised/60" />
+      <JobChoice job="stt" title={t('Transcription')} status={status} hint={hint} busy={busy} run={run} />
+
+      {notice && <p className="text-xs text-success">{notice}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
+    </div>
+  )
+}
+
+/** One job's three tiers. Only the selected one opens up. */
+function JobChoice({
+  job,
+  title,
+  status,
+  hint,
+  busy,
+  run,
+  onOpenModels
+}: {
+  job: Job
+  title: string
+  status: AIStatus
+  hint: string
+  busy: boolean
+  run: Run
+  onOpenModels?: () => void
+}): JSX.Element {
+  const usable = status.providers.filter((p) => !p.local && (job === 'ai' || p.stt))
+  const recommended = usable.filter((p) => p.tier === 2)
+  const direct = usable.filter((p) => p.tier === 3)
+  const activeId = job === 'ai' ? status.active.provider : status.transcription.backend
+  const activeModel = job === 'ai' ? status.active.model : status.transcription.model
+  // Plans signed in to instead of a key sit under their provider's entry.
+  const plans = job === 'ai' ? (status.signin ?? []).filter((s) => s.available) : []
+  const planFor = (id: string): AISignIn | undefined => plans.find((s) => s.group === id)
+  const activePlan = plans.find((s) => s.id === activeId)
+
+  const initial = (): { tier: Tier; direct: string } => {
+    const wanted = job === 'ai' ? hint : ''
+    if (!wanted && activePlan) return { tier: 'direct', direct: activePlan.group }
+    const pick = usable.find((p) => p.id === (wanted || activeId))
+    if (!pick) return { tier: 'local', direct: direct[0]?.id ?? '' }
+    return pick.tier === 2
+      ? { tier: 'recommended', direct: direct[0]?.id ?? '' }
+      : { tier: 'direct', direct: pick.id }
+  }
+  const [tier, setTier] = useState<Tier>(() => initial().tier)
+  const [recommendedId, setRecommendedId] = useState(() => {
+    const pick = recommended.find((p) => p.id === (hint || activeId))
+    return pick?.id ?? recommended[0]?.id ?? ''
+  })
+  const [directId, setDirectId] = useState(() => initial().direct)
+  const [usePlan, setUsePlan] = useState(() => !!activePlan)
+
+  const chooseLocal = (): void => {
+    setTier('local')
+    if (activeId !== LOCAL_ID[job]) {
+      void (job === 'ai'
+        ? run(() => api.activateAI(LOCAL_ID.ai), t('AI runs on this PC again.'))
+        : run(() => api.setTranscription(LOCAL_ID.stt), t('Transcription runs on this PC again.')))
+    }
+  }
+
+  const provider = (id: string): AIProvider | undefined => usable.find((p) => p.id === id)
+  const inUse = (id: string): string => (activeId === id ? activeModel : '')
+
+  return (
+    <div className="space-y-2" role="radiogroup" aria-label={title}>
+      <p className="label">{title}</p>
+
+      <TierRow
+        name={`${job}-tier`}
+        checked={tier === 'local'}
+        onSelect={chooseLocal}
+        busy={busy}
+        title={job === 'ai' ? `⭐ ${t('Ollama')}` : `⭐ ${t('Whisper')}`}
+        badge={t('Local AI · recommended')}
+        tone="local"
+        tagline={
+          job === 'ai'
+            ? t('Runs AI on your computer. No API key needed, nothing sent anywhere. The first choice for Clips Kitty.')
+            : t('Transcribes on your computer. No API key needed, nothing sent anywhere.')
+        }
+      >
+        {job === 'ai' && onOpenModels && (
+          <button className="text-xs text-accent hover:underline" onClick={onOpenModels}>
+            {t('Manage local models')} →
+          </button>
+        )}
+      </TierRow>
+
+      {recommended.map((p) => (
+        <TierRow
+          key={p.id}
+          name={`${job}-tier`}
+          checked={tier === 'recommended' && recommendedId === p.id}
+          onSelect={() => {
+            setTier('recommended')
+            setRecommendedId(p.id)
+          }}
+          busy={busy}
+          title={`🚀 ${p.label}`}
+          badge={t('Recommended cloud AI')}
+          tone="recommended"
+          tagline={p.tagline}
+        >
+          <ProviderPanel provider={p} job={job} inUse={inUse(p.id)} busy={busy} run={run} recommended />
+        </TierRow>
+      ))}
+
+      {direct.length > 0 && (
+        <TierRow
+          name={`${job}-tier`}
+          checked={tier === 'direct'}
+          onSelect={() => setTier('direct')}
+          busy={busy}
+          title={t('Direct provider API')}
+          badge={t('Advanced')}
+          tone="direct"
+          tagline={t('Connect straight to one provider with your own key.')}
+        >
+          <select
+            className="input !py-1 text-sm mb-2"
+            value={directId}
+            onChange={(e) => setDirectId(e.target.value)}
+            aria-label={t('Provider')}
+          >
+            {direct.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+                {planFor(p.id) ? ` / ${planFor(p.id)?.label}` : ''}
+                {activeId === p.id || activePlan?.group === p.id ? ` · ${t('in use')}` : ''}
+              </option>
+            ))}
+          </select>
+          {planFor(directId) && (
+            <div className="flex gap-1 mb-2" role="radiogroup" aria-label={t('How to connect')}>
+              {[true, false].map((plan) => (
+                <button
+                  key={String(plan)}
+                  role="radio"
+                  aria-checked={usePlan === plan}
+                  className={`rounded px-2.5 py-1 text-xs border ${
+                    usePlan === plan ? 'border-accent/60 bg-accent/10 text-ink' : 'border-raised/60 text-muted'
+                  }`}
+                  onClick={() => setUsePlan(plan)}
+                >
+                  {plan ? planFor(directId)?.label : `${provider(directId)?.label ?? ''} ${t('API key')}`}
+                </button>
+              ))}
+            </div>
+          )}
+          {planFor(directId) && usePlan ? (
+            <SignInPanel
+              key={`plan-${directId}`}
+              plan={planFor(directId) as AISignIn}
+              inUse={activeId === planFor(directId)?.id ? activeModel : ''}
+              busy={busy}
+              run={run}
+            />
+          ) : provider(directId) && (
+            <ProviderPanel
+              key={directId}
+              provider={provider(directId) as AIProvider}
+              job={job}
+              inUse={inUse(directId)}
+              busy={busy}
+              run={run}
+            />
+          )}
+        </TierRow>
+      )}
+    </div>
+  )
+}
+
+function TierRow({
+  name,
+  checked,
+  onSelect,
+  busy,
+  title,
+  badge,
+  tone,
+  tagline,
+  children
+}: {
+  name: string
+  checked: boolean
+  onSelect: () => void
+  busy: boolean
+  title: string
+  badge: string
+  tone: 'local' | 'recommended' | 'direct'
+  tagline: string
+  children?: React.ReactNode
+}): JSX.Element {
+  const badgeTone = {
+    local: 'bg-success/15 text-success',
+    recommended: 'bg-accent/20 text-accent',
+    direct: 'bg-raised text-muted'
+  }[tone]
+  return (
+    <div
+      className={`rounded-lg border p-3 transition-colors ${
+        checked ? 'border-accent/60 bg-accent/5' : 'border-raised/60 hover:border-raised'
+      }`}
+    >
+      <label className="flex gap-3 cursor-pointer">
+        <input
+          type="radio"
+          name={name}
+          checked={checked}
+          disabled={busy}
+          onChange={onSelect}
+          className="mt-1 size-4 accent-[#38BDF8] shrink-0"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold">{title}</span>
+            <span className={`text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 ${badgeTone}`}>
+              {badge}
+            </span>
+          </span>
+          <span className="block text-xs text-muted mt-0.5">{tagline}</span>
+        </span>
+      </label>
+      {checked && children && <div className="mt-3 pl-7 space-y-2">{children}</div>}
+    </div>
+  )
+}
+
+/** One provider's setup for one job: key, model, connection test, and what
+ *  it costs and sends. OpenRouter also gets its three steps and the "why".
+ *
+ *  The model lists and their prices come from the provider, with the user's
+ *  key, every time the card is opened (cached a few hours by the engine) and
+ *  on Refresh. Nothing here knows a price; if the list cannot be fetched, no
+ *  prices are shown rather than old ones. */
+function ProviderPanel({
+  provider,
+  job,
+  inUse,
+  busy,
+  run,
+  recommended = false
+}: {
+  provider: AIProvider
+  job: Job
+  inUse: string
+  busy: boolean
+  run: Run
+  recommended?: boolean
+}): JSX.Element {
+  const kind = job === 'ai' ? 'text' : 'stt'
+  const [models, setModels] = useState<AIModel[]>([])
+  const [fetchedAt, setFetchedAt] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [checking, setChecking] = useState('')
+  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null)
+
+  const load = (refresh = false): void => {
+    if (!provider.has_key) return
+    setLoading(true)
+    setLoadError('')
+    api
+      .aiModels(provider.id, refresh, kind)
+      .then((got) => {
+        setModels(got.models)
+        setFetchedAt(got.fetched_at)
+      })
+      .catch((e) => {
+        setModels([])
+        setLoadError(errorText(e))
+      })
+      .finally(() => setLoading(false))
+  }
+
+  // key_tail too: a replaced key is a new account, whose models and prices
+  // may differ, so the list is fetched again rather than kept.
+  useEffect(() => load(), [provider.id, provider.has_key, provider.key_tail, kind]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const choose = (model: string): void => {
+    if (!model) return
+    if (job === 'ai') {
+      void run(() => api.activateAI(provider.id, model), `${t('Now using')} ${provider.label} · ${model}.`)
+      return
+    }
+    // A voice model is only saved once it has shown it returns word timings.
+    const known = models.find((m) => m.id === model)?.verified
+    setChecking(known ? '' : model)
+    void run(async () => {
+      const got = await api.checkVoiceModel(provider.id, model)
+      setChecking('')
+      if (!got.ok) throw new Error(got.message)
+      return got
+    }, `${t('Transcribing online with')} ${model}.`).finally(() => setChecking(''))
+  }
+
+  // Signing in with the provider in the user's own browser: the engine gets
+  // the key back itself, and this waits for it to appear.
+  const [waiting, setWaiting] = useState(false)
+  // The sign-in page's address, for another browser or a private window:
+  // it signs in whichever OpenRouter account that browser is signed in to.
+  const [signInUrl, setSignInUrl] = useState('')
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!waiting) return
+    const started = Date.now()
+    const timer = setInterval(() => {
+      if (Date.now() - started > 15 * 60 * 1000) {
+        setWaiting(false)
+        return
+      }
+      api
+        .ai()
+        .then((s) => {
+          if (s.providers.find((p) => p.id === provider.id)?.has_key) {
+            setWaiting(false)
+            void run(async () => s, `${t('Connected to')} ${provider.label}. ${t('Now choose a model.')}`)
+          }
+        })
+        .catch(() => undefined)
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [waiting]) // eslint-disable-line react-hooks/exhaustive-deps
+  const signIn = (): void => {
+    void run(async () => {
+      const { url } = await api.connectAI(provider.id)
+      setSignInUrl(url)
+      setCopied(false)
+      void window.studio.openExternal(url)
+      setWaiting(true)
+      return null
+    })
+  }
+
+  const current = models.find((m) => m.id === inUse)
+  const missing = !!inUse && !loading && !loadError && models.length > 0 && !current
+  // The cheapest that does this job well, first in the list and one click away.
+  const preferred = models.find((m) => m.id === provider.preferred?.[kind])
+  // A free version's limits stop a long video: its paid version, one click away.
+  const paid = inUse.endsWith(':free') ? models.find((m) => m.id === inUse.slice(0, -':free'.length)) : undefined
+
+  return (
+    <div className="space-y-2">
+      {!recommended && (
+        <p className="text-xs text-muted">
+          {t('Direct provider integration: connect straight to')} {provider.label}{' '}
+          {t('with your own API key. Useful if you want your')} {provider.label}{' '}
+          {t('account, limits and billing.')}
+        </p>
+      )}
+
+      {provider.oauth && !provider.has_key && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted">
+            {t('Sign in with your')} {provider.label} {t('account and approve Clips Kitty. It gets a key of your own, on your')}{' '}
+            {provider.label} {t('credits: nothing to copy or paste. Add credit on')} {provider.label}{' '}
+            {t('first, or start with its free models.')}
+          </p>
+          {waiting ? (
+            <div className="space-y-1">
+              <p className="text-xs text-accent">
+                {t('Waiting for you to approve Clips Kitty in your browser…')}{' '}
+                <button className="text-muted hover:underline" onClick={() => setWaiting(false)}>
+                  {t('Cancel')}
+                </button>
+              </p>
+              <p className="text-[11px] text-muted">
+                {t('It connects whichever')} {provider.label}{' '}
+                {t('account that browser is signed in to. For a different account, open the link in a private window or another browser:')}{' '}
+                <button
+                  className="text-accent hover:underline"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(signInUrl).then(
+                      () => setCopied(true),
+                      () => setCopied(false)
+                    )
+                  }
+                >
+                  {copied ? t('Link copied') : t('Copy sign-in link')}
+                </button>
+              </p>
+            </div>
+          ) : (
+            <button className="btn-accent !py-1.5 !px-4 text-sm" disabled={busy} onClick={signIn}>
+              {t('Sign in with')} {provider.label}
+            </button>
+          )}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted hover:text-ink">
+              {t('Advanced: paste your own API key instead')}
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-muted">
+                <button
+                  className="text-accent hover:underline"
+                  onClick={() => void window.studio.openExternal(provider.key_url)}
+                >
+                  {t('Create a key on')} {provider.label} ↗
+                </button>{' '}
+                {t('and paste it here. Clips Kitty checks it before keeping it.')}
+              </p>
+              <KeyField provider={provider} busy={busy} run={run} />
+            </div>
+          </details>
+        </div>
+      )}
+
+      {recommended && !provider.oauth && !provider.has_key && (
+        <ol className="text-xs text-muted list-decimal pl-4 space-y-0.5">
+          <li>
+            <button
+              className="text-accent hover:underline"
+              onClick={() => void window.studio.openExternal(provider.key_url)}
+            >
+              {t('Open')} {provider.label} ↗
+            </button>{' '}
+            {t('and sign in or create an account.')}
+          </li>
+          <li>{t('Create an API key. Add credit, or start with the free models.')}</li>
+          <li>{t('Paste the key below.')}</li>
+        </ol>
+      )}
+
+      {job === 'ai' && provider.plan_note && (
+        <p className="text-[11px] text-muted leading-snug">
+          {provider.plan_note}{' '}
+          {provider.plan_note_url && (
+            <button
+              className="text-accent hover:underline"
+              onClick={() => void window.studio.openExternal(provider.plan_note_url as string)}
+            >
+              {t('Why?')} ↗
+            </button>
+          )}
+        </p>
+      )}
+
+      {(!provider.oauth || provider.has_key) && <KeyField provider={provider} busy={busy} run={run} />}
+
+      {provider.has_key && (
+        <div className="space-y-1.5">
+          <p className="label !normal-case !tracking-normal text-[11px]">
+            {job === 'ai' ? t('Text model') : t('Voice model')}
+          </p>
+          {loadError ? (
+            <p className="text-xs text-red-400">
+              {t("Couldn't load the models and prices:")} {loadError}{' '}
+              <button className="text-accent hover:underline" onClick={() => load(true)}>
+                {t('Retry')}
+              </button>
+            </p>
+          ) : job === 'ai' ? (
+            <ModelPicker
+              models={models}
+              loading={loading}
+              inUse={inUse}
+              busy={busy}
+              onChoose={choose}
+              preferred={preferred}
+              family={provider.preferred?.text_family}
+            />
+          ) : (
+            <VoicePicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} preferred={preferred} />
+          )}
+          {preferred && inUse !== preferred.id && (
+            <p className="text-[11px] text-muted">
+              ★ {t('Preferred')}: <span className="text-ink">{preferred.name}</span> · {shortPrice(preferred)} ·{' '}
+              {job === 'ai' ? t('the cheapest for text') : t('the cheapest with word timings')}{' '}
+              <button className="text-accent hover:underline" disabled={busy} onClick={() => choose(preferred.id)}>
+                {t('Use it')}
+              </button>
+            </p>
+          )}
+
+          {checking && (
+            <p className="text-[11px] text-muted">
+              {t('Checking')} {checking} {t('with a 3-second test clip (a tiny fraction of a cent on your key)…')}
+            </p>
+          )}
+          {missing && (
+            <p className="text-[11px] text-amber-400">
+              ⚠ {inUse} {t("isn't offered to your key any more. Jobs will stop until you choose another.")}
+            </p>
+          )}
+          {current && <ModelDetail model={current} voice={job === 'stt'} />}
+
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className={inUse ? 'text-success' : 'text-muted'}>
+              {inUse ? `● ${t('In use')}: ${inUse}` : t('Not in use yet: choose a model.')}
+            </span>
+            <span className="ml-auto flex gap-1.5">
+              <button
+                className="btn-ghost !py-0.5 !px-2 text-xs"
+                disabled={busy || loading}
+                onClick={() => load(true)}
+                title={t('Fetch the models and their prices again')}
+              >
+                ↻ {t('Refresh models')}
+              </button>
+              <button
+                className="btn-ghost !py-0.5 !px-2 text-xs"
+                disabled={busy}
+                onClick={() =>
+                  void api
+                    .testAI(provider.id, job === 'ai' ? inUse : '')
+                    .then(setTest)
+                    .catch((e) => setTest({ ok: false, message: errorText(e) }))
+                }
+              >
+                {t('Test connection')}
+              </button>
+            </span>
+          </div>
+          {fetchedAt > 0 && !loadError && (
+            <p className="text-[11px] text-muted">
+              {t('Prices from')} {provider.label} · {t('updated')} {ago(fetchedAt)}
+            </p>
+          )}
+          {current?.note && (
+            <p className="text-[11px] text-amber-400">
+              {current.note}
+              {paid && (
+                <>
+                  {' '}
+                  {t('When it stops a job with "rate limiting", that is this limit.')}{' '}
+                  <button className="text-accent hover:underline" disabled={busy} onClick={() => choose(paid.id)}>
+                    {t('Use the paid version')} ({shortPrice(paid)})
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+          {test && (
+            <p className={`text-[11px] ${test.ok ? 'text-success' : 'text-red-400'}`}>
+              {test.ok ? '✓ ' : ''}
+              {test.message}
+            </p>
+          )}
+        </div>
+      )}
+
+      {recommended && job === 'ai' && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-accent">{t('Why OpenRouter?')}</summary>
+          <ul className="mt-1.5 list-disc pl-4 space-y-1 text-muted">
+            <li>
+              {t(
+                'One cloud connection to many AI models and providers: Claude, GPT, Gemini, Muse Spark, Qwen and more, without a separate account and key for each.'
+              )}
+            </li>
+            <li>{t('Switch models here at any time. You are not locked into one.')}</li>
+            <li>
+              {t(
+                'If a provider serving your model is down, OpenRouter can send the request to another provider of the same model.'
+              )}
+            </li>
+            <li>
+              {t(
+                "Compare models and prices in one place. OpenRouter charges the providers' own prices and a fee when you buy credits."
+              )}
+            </li>
+            <li>
+              {t(
+                'Good for a low-spec PC or an always-on mini PC running Watched channels: the AI runs in the cloud while this PC does the rest.'
+              )}
+            </li>
+          </ul>
+        </details>
+      )}
+
+      <p className="text-[11px] text-muted leading-snug">
+        {provider.id === 'openrouter' ? (
+          <>
+            {t("Prices shown are OpenRouter's current listed prices. API usage is charged to your OpenRouter account; Clips Kitty doesn't provide or pay for it.")}{' '}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => void window.studio.openExternal('https://openrouter.ai/docs/faq')}
+            >
+              {t("OpenRouter's fees")} ↗
+            </button>
+          </>
+        ) : (
+          <>
+            {t('Billed by')} {provider.label} {t("to your account. Clips Kitty doesn't provide or pay for API use.")}{' '}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => void window.studio.openExternal(provider.pricing_url)}
+            >
+              {t('Pricing')} ↗
+            </button>
+          </>
+        )}
+        <br />
+        {provider.privacy}
+      </p>
+    </div>
+  )
+}
+
+/** A plan the user already pays for, signed in to instead of a key: sign in
+ *  (their own browser, or a code), the plan's models and usage as the
+ *  provider reports them, whether Watched channels may use it, and sign out.
+ *  Everything it says about the plan comes from the engine (llm/signin/), so
+ *  another plan needs nothing here. It never sees a token. */
+function SignInPanel({
+  plan: given,
+  inUse,
+  busy,
+  run
+}: {
+  plan: AISignIn
+  inUse: string
+  busy: boolean
+  run: Run
+}): JSX.Element {
+  const [plan, setPlan] = useState<AISignIn>(given)
+  const [models, setModels] = useState<AIModel[]>([])
+  const [loadError, setLoadError] = useState('')
+  const [error, setError] = useState('')
+  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null)
+  const [testing, setTesting] = useState(false)
+  useEffect(() => setPlan(given), [given])
+  const waiting = plan.flow.state === 'waiting'
+
+  // While the sign-in page is open in the browser, ask how it is going.
+  useEffect(() => {
+    if (!waiting) return
+    const timer = window.setInterval(() => {
+      api
+        .signIn(plan.id)
+        .then((next) => {
+          setPlan(next)
+          if (next.flow.state !== 'waiting') {
+            void run(() => api.ai(), next.signed_in ? `${t('Signed in to your')} ${next.label}.` : '')
+          }
+        })
+        .catch(() => {
+          /* the next tick tries again */
+        })
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [waiting, plan.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!plan.signed_in) return
+    setLoadError('')
+    api
+      .signInModels(plan.id)
+      .then((got) => setModels(got.models))
+      .catch((e) => setLoadError(errorText(e)))
+  }, [plan.id, plan.signed_in])
+
+  const start = async (device: boolean): Promise<void> => {
+    setError('')
+    try {
+      const got = await api.startSignIn(plan.id, device)
+      if (got.auth_url && !(await window.studio.openExternal(got.auth_url))) {
+        setError(t("Couldn't open your browser. Use a code instead."))
+      }
+      setPlan(await api.signIn(plan.id))
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+
+  const cancel = (): void => {
+    void api
+      .cancelSignIn(plan.id)
+      .then(setPlan)
+      .catch((e) => setError(errorText(e)))
+  }
+
+  const setAutomation = (allowed: boolean): void => {
+    void api
+      .setPlanAutomation(plan.id, allowed)
+      .then((next) => {
+        setPlan(next)
+        forgetAIStatus()
+      })
+      .catch((e) => setError(errorText(e)))
+  }
+
+  const link = (url: string, label: string): JSX.Element => (
+    <button className="text-accent hover:underline" onClick={() => void window.studio.openExternal(url)}>
+      {label} ↗
+    </button>
+  )
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted">{plan.tagline}</p>
+      {plan.experimental && (
+        <p className="text-[11px] text-amber-400">
+          {t('Experimental: not yet tested on a paid plan with a full clip job.')}
+        </p>
+      )}
+
+      {!plan.signed_in && !waiting && (
+        <div className="flex gap-2 flex-wrap items-center">
+          <button className="btn-accent !py-1 text-sm" disabled={busy} onClick={() => void start(false)}>
+            {plan.signin_label}
+          </button>
+          <button className="btn-ghost !py-0.5 !px-2 text-xs" disabled={busy} onClick={() => void start(true)}>
+            {t('Use a code instead')}
+          </button>
+        </div>
+      )}
+
+      {waiting && (
+        <div className="space-y-1.5 text-xs">
+          {plan.flow.device && plan.flow.verification_url ? (
+            <p>
+              {link(plan.flow.verification_url, t('Open the sign-in page'))} {t('and enter')}{' '}
+              <span className="font-mono text-sm text-ink select-all">{plan.flow.user_code}</span>
+            </p>
+          ) : (
+            <p className="text-muted">{t('Finish signing in in your browser…')}</p>
+          )}
+          <button className="btn-ghost !py-0.5 !px-2 text-xs" onClick={cancel}>
+            {t('Cancel')}
+          </button>
+        </div>
+      )}
+
+      {plan.flow.state === 'error' && !waiting && <p className="text-xs text-red-400">{plan.flow.error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
+
+      {plan.signed_in && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <span className="text-success">
+              ● {t('Signed in')}
+              {plan.plan && ` · ${plan.plan.charAt(0).toUpperCase()}${plan.plan.slice(1)}`}
+              {plan.email && <span className="text-muted"> · {plan.email}</span>}
+            </span>
+            <button
+              className="btn-ghost !py-0.5 !px-2 text-xs ml-auto"
+              disabled={busy}
+              onClick={() => void run(() => api.signOut(plan.id), t('Signed out.'))}
+            >
+              {t('Sign out')}
+            </button>
+          </div>
+
+          <p className="label !normal-case !tracking-normal text-[11px]">{t('Model')}</p>
+          {loadError ? (
+            <p className="text-xs text-red-400">{loadError}</p>
+          ) : (
+            <select
+              className="input !py-1 text-sm"
+              value={inUse}
+              disabled={busy || models.length === 0}
+              onChange={(e) =>
+                e.target.value &&
+                void run(
+                  () => api.activateAI(plan.id, e.target.value),
+                  `${t('Now using')} ${plan.label} · ${e.target.value}.`
+                )
+              }
+              aria-label={t('Model')}
+            >
+              <option value="" disabled>
+                {models.length ? t('Choose a model…') : t('Loading…')}
+              </option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.verified ? ` · ${t('default')}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className={`text-xs ${inUse ? 'text-success' : 'text-muted'}`}>
+            {inUse ? `● ${t('In use')}: ${inUse}` : t('Not in use yet: choose a model.')}{' '}
+            <span className="text-muted">{t("Uses your plan's limits, not per-token prices.")}</span>
+          </p>
+
+          <div className="space-y-1">
+            {plan.limits.known ? (
+              plan.limits.windows.map((w) => (
+                <div key={`${w.label}-${w.minutes}`} className="text-[11px] text-muted">
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      {w.label}: {Math.round(w.used_percent)}% {t('used')}
+                    </span>
+                    {w.resets_at && (
+                      <span>
+                        {t('resets')}{' '}
+                        {new Date(w.resets_at * 1000).toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-1.5 rounded bg-raised overflow-hidden">
+                    <div
+                      className={`h-full ${
+                        w.used_percent >= 100 ? 'bg-red-400' : w.used_percent >= 80 ? 'bg-amber-400' : 'bg-accent'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, w.used_percent))}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-[11px] text-muted">{t('Usage: managed by the provider.')}</p>
+            )}
+            <p className="text-[11px] text-muted">
+              {plan.limit_note} {link(plan.usage_url, t('View usage'))}
+            </p>
+          </div>
+
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={plan.automation_allowed}
+              disabled={busy}
+              onChange={(e) => setAutomation(e.target.checked)}
+            />
+            <span>
+              {t('Let Watched channels use this plan')}
+              <span className="block text-[11px] text-muted">{plan.automation_note}</span>
+            </span>
+          </label>
+
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <button
+              className="btn-ghost !py-0.5 !px-2 text-xs"
+              disabled={busy || testing}
+              onClick={() => {
+                setTesting(true)
+                setTest(null)
+                void api
+                  .testSignIn(plan.id, inUse)
+                  .then(setTest)
+                  .catch((e) => setTest({ ok: false, message: errorText(e) }))
+                  .finally(() => setTesting(false))
+              }}
+            >
+              {testing ? t('Testing…') : t('Test (uses a little of your plan)')}
+            </button>
+          </div>
+          {test && (
+            <p className={`text-[11px] ${test.ok ? 'text-success' : 'text-red-400'}`}>
+              {test.ok ? '✓ ' : ''}
+              {test.message}
+            </p>
+          )}
+          <p className="text-[11px] text-muted">{plan.sign_out_note}</p>
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted leading-snug">
+        {plan.privacy} {link(plan.terms_url, t('What the plan includes'))}
+        <br />
+        {plan.disclaimer}
+      </p>
+    </div>
+  )
+}
+
+function ago(unixSeconds: number): string {
+  const minutes = Math.round((Date.now() / 1000 - unixSeconds) / 60)
+  if (minutes < 1) return t('just now')
+  if (minutes < 90) return `${minutes} ${t('min ago')}`
+  return `${Math.round(minutes / 60)} ${t('h ago')}`
+}
+
+// OpenRouter's list, grouped by who makes each model. Matched by the id's
+// prefix, so no model names are written down here to go stale.
+const VENDOR_GROUPS: [string, string[]][] = [
+  ['Claude (Anthropic)', ['anthropic']],
+  ['GPT (OpenAI)', ['openai']],
+  ['Gemini (Google)', ['google']],
+  ['Muse Spark and Llama (Meta)', ['meta', 'meta-llama']],
+  ['Qwen', ['qwen']],
+  ['Grok (xAI)', ['x-ai']],
+  ['DeepSeek', ['deepseek']],
+  ['Mistral', ['mistralai']]
+]
+
+// Who made a model, for "by …": the company, not the dropdown group. Anything
+// not listed shows OpenRouter's own id prefix, which names the maker too.
+const COMPANY: Record<string, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google',
+  meta: 'Meta',
+  'meta-llama': 'Meta',
+  qwen: 'Qwen',
+  'x-ai': 'xAI',
+  deepseek: 'DeepSeek',
+  mistralai: 'Mistral AI',
+  microsoft: 'Microsoft',
+  nvidia: 'NVIDIA'
+}
+
+function makerOf(vendor: string): string {
+  return COMPANY[vendor] ?? vendor
+}
+
+function contextLabel(tokens: number): string {
+  if (!tokens) return ''
+  return tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}K`
+}
+
+/** A price as listed: no rounding away of small figures, no invented units. */
+function money(n: number): string {
+  if (n === 0) return '$0'
+  return `$${Number(n.toPrecision(3))}`
+}
+
+/** The short price for a dropdown line: what the provider lists, or free. */
+function shortPrice(m: AIModel): string {
+  if (m.free) return t('free')
+  if (m.price) return `${money(m.price.input)} / ${money(m.price.output)} ${t('per 1M')}`
+  const estimate = m.pricing.find((p) => p.estimate)
+  if (estimate) return `≈ ${money(estimate.amount)}/${t('hr audio (est.)')}`
+  const rate = m.pricing[0]
+  return rate ? `${t('rate')} ${money(rate.amount)} (${t('unit not stated')})` : ''
+}
+
+function optionLabel(m: AIModel): string {
+  return [m.name, contextLabel(m.context), shortPrice(m)].filter(Boolean).join(' · ')
+}
+
+/** Everything known about the model in use: who makes it, its size, every
+ *  price the provider lists (estimates marked), what it can do, and a link
+ *  to the provider's page for the exact current price. */
+function ModelDetail({ model, voice }: { model: AIModel; voice: boolean }): JSX.Element {
+  return (
+    <div className="rounded-md bg-raised/40 px-2.5 py-2 text-[11px] space-y-1">
+      <p>
+        <span className="text-ink font-medium">{model.name}</span>
+        {model.vendor && <span className="text-muted"> · {t('by')} {makerOf(model.vendor)}</span>}
+        {model.context > 0 && <span className="text-muted"> · {contextLabel(model.context)} {t('context')}</span>}
+      </p>
+      {model.free ? (
+        <p className="text-success">{t('Listed as free on OpenRouter today.')}</p>
+      ) : (
+        model.pricing.length > 0 && (
+          <p className="text-muted">
+            {model.pricing.map((p, i) => (
+              <span key={p.label}>
+                {i > 0 && ' · '}
+                {p.label} <span className="text-ink">{p.estimate ? '≈ ' : ''}{money(p.amount)}</span>{' '}
+                {p.unit === 'estimate' ? `(${t('estimate')})` : p.unit}
+              </span>
+            ))}
+          </p>
+        )
+      )}
+      <p className="text-muted">
+        {voice
+          ? model.verified
+            ? `✓ ${t('Returns word timings')}`
+            : t('Checked with a test clip when chosen')
+          : [model.json_schema && `✓ ${t('Strict JSON')}`, model.tools && `✓ ${t('Tools (assistant)')}`]
+              .filter(Boolean)
+              .join('  ')}
+        {model.page_url && (
+          <>
+            {'  '}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => void window.studio.openExternal(model.page_url)}
+            >
+              {t('View current pricing')} ↗
+            </button>
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
+function ModelPicker({
+  models,
+  loading,
+  inUse,
+  busy,
+  onChoose,
+  preferred,
+  family
+}: {
+  models: AIModel[]
+  loading: boolean
+  inUse: string
+  busy: boolean
+  onChoose: (id: string) => void
+  preferred?: AIModel
+  /** Models whose id starts with this come next, under the preferred one. */
+  family?: string
+}): JSX.Element {
+  const [filter, setFilter] = useState('')
+  const [sort, setSort] = useState<'maker' | 'price'>('maker')
+  const grouped = sort === 'maker' && models.some((m) => m.vendor)
+  const needle = filter.trim().toLowerCase()
+  const matches = (m: AIModel): boolean => !needle || `${m.id} ${m.name}`.toLowerCase().includes(needle)
+  // The preferred model heads the list, once; then its family (Gemma),
+  // cheapest first; then everything else.
+  const top = preferred && matches(preferred) ? preferred : undefined
+  const cheapest = (a: AIModel, b: AIModel): number => (a.price?.input ?? 1e9) - (b.price?.input ?? 1e9)
+  const kin = family
+    ? models.filter((m) => matches(m) && m.id !== top?.id && m.id.startsWith(family)).sort(cheapest)
+    : []
+  const shown = models.filter((m) => matches(m) && m.id !== top?.id && !kin.includes(m))
+  // Cheapest first by input price, as the website sorts; "varies" last.
+  const byPrice = [...shown].sort(cheapest)
+
+  const groups: [string, AIModel[]][] = []
+  if (top) groups.push([t('★ Preferred: the cheapest for text'), [top]])
+  if (kin.length) groups.push([t('Gemma, the family local AI uses'), kin])
+  if (grouped) {
+    const claimed = new Set<string>()
+    for (const [label, prefixes] of VENDOR_GROUPS) {
+      const inGroup = shown.filter((m) => prefixes.includes(m.vendor))
+      inGroup.forEach((m) => claimed.add(m.id))
+      if (inGroup.length) groups.push([label, inGroup])
+    }
+    const rest = shown.filter((m) => !claimed.has(m.id))
+    if (rest.length) groups.push([t('Other models'), rest])
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2 flex-wrap">
+        <input
+          className="input !py-1 text-sm flex-1 min-w-32"
+          placeholder={loading ? t('Loading models…') : t('Search models')}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          spellCheck={false}
+        />
+        {models.some((m) => m.vendor) && (
+          <select
+            className="input !py-1 text-sm !w-auto"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as 'maker' | 'price')}
+            aria-label={t('Sort')}
+          >
+            <option value="maker">{t('By maker')}</option>
+            <option value="price">{t('Lowest price')}</option>
+          </select>
+        )}
+      </div>
+      <select
+        className="input !py-1 text-sm"
+        value={inUse}
+        disabled={busy || loading}
+        onChange={(e) => onChoose(e.target.value)}
+        aria-label={t('Text model')}
+      >
+        <option value="">{inUse || t('Choose a model')}</option>
+        {grouped
+          ? groups.map(([label, list]) => (
+              <optgroup key={label} label={label}>
+                {list.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {optionLabel(m)}
+                  </option>
+                ))}
+              </optgroup>
+            ))
+          : [...(top ? [top] : []), ...kin, ...(sort === 'price' ? byPrice : shown).slice(0, 400)].map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id === top?.id ? `★ ${optionLabel(m)}` : optionLabel(m)}
+              </option>
+            ))}
+      </select>
+      {models.length > 0 && (
+        <p className="text-[11px] text-muted">
+          {models.length} {t('models that can do this job. You can switch models here at any time.')}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Voice (transcription) models: the ones known to return word timings
+ *  first; any other is checked with a short test clip when chosen. */
+function VoicePicker({
+  models,
+  loading,
+  inUse,
+  busy,
+  onChoose,
+  preferred
+}: {
+  models: AIModel[]
+  loading: boolean
+  inUse: string
+  busy: boolean
+  onChoose: (id: string) => void
+  preferred?: AIModel
+}): JSX.Element {
+  const rest = models.filter((m) => m.id !== preferred?.id)
+  const known = rest.filter((m) => m.verified)
+  const others = rest.filter((m) => !m.verified)
+  const option = (m: AIModel): JSX.Element => (
+    <option key={m.id} value={m.id}>
+      {[m.name, shortPrice(m)].filter(Boolean).join(' · ')}
+    </option>
+  )
+  return (
+    <select
+      className="input !py-1 text-sm"
+      value={inUse}
+      disabled={busy || loading}
+      onChange={(e) => onChoose(e.target.value)}
+      aria-label={t('Voice model')}
+    >
+      <option value="">{loading ? t('Loading models…') : inUse || t('Choose a voice model')}</option>
+      {preferred && <optgroup label={t('★ Preferred: the cheapest with word timings')}>{option(preferred)}</optgroup>}
+      {known.length > 0 && <optgroup label={t('✓ Returns word timings')}>{known.map(option)}</optgroup>}
+      {others.length > 0 && (
+        <optgroup label={t('Other voice models (checked with a test clip when chosen)')}>
+          {others.map(option)}
+        </optgroup>
+      )}
+    </select>
+  )
+}
+
+/** The provider's key: saved (last four only), or a box to paste one into.
+ *  Checked with the provider before it is kept. */
+function KeyField({ provider, busy, run }: { provider: AIProvider; busy: boolean; run: Run }): JSX.Element {
+  const [draft, setDraft] = useState('')
+  const [show, setShow] = useState(false)
+  const [replacing, setReplacing] = useState(false)
+
+  if (provider.has_key && !replacing) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap text-sm">
+        <span className="text-success">
+          ● {t('Key saved')} <span className="text-muted">····{provider.key_tail}</span>
+          {provider.key_region && <span className="text-muted"> · {provider.key_region}</span>}
+        </span>
+        <button className="btn-ghost !py-0.5 !px-2 text-xs" onClick={() => setReplacing(true)}>
+          {t('Replace')}
+        </button>
+        <button
+          className="btn-ghost !py-0.5 !px-2 text-xs"
+          disabled={busy}
+          onClick={() => void run(() => api.deleteAIKey(provider.id), t('Key removed.'))}
+        >
+          {t('Remove')}
+        </button>
+      </div>
+    )
+  }
+
+  const save = async (): Promise<void> => {
+    const key = draft.trim()
+    if (!key) return
+    const ok = await run(() => api.putAIKey(provider.id, key), `${provider.label} ${t('accepted your key.')}`)
+    if (ok) {
+      setDraft('')
+      setShow(false)
+      setReplacing(false)
+    }
+  }
+
+  return (
+    <div className="flex gap-2 flex-wrap items-center">
+      <input
+        className="input flex-1 !py-1 text-sm min-w-48"
+        type={show ? 'text' : 'password'}
+        value={draft}
+        placeholder={`${t('Paste your')} ${provider.key_label}`}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void save()}
+        autoComplete="off"
+        spellCheck={false}
+        aria-label={provider.key_label}
+      />
+      <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setShow((v) => !v)}>
+        {show ? t('Hide') : t('Show')}
+      </button>
+      <button className="btn-accent !py-1 !px-3 text-xs" disabled={busy || !draft.trim()} onClick={() => void save()}>
+        {t('Save')}
+      </button>
+      <button
+        className="text-xs text-accent hover:underline"
+        onClick={() => void window.studio.openExternal(provider.key_url)}
+      >
+        {t('Get a key')} ↗
+      </button>
+      {replacing && (
+        <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setReplacing(false)}>
+          {t('Cancel')}
+        </button>
+      )}
+    </div>
+  )
+}

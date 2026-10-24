@@ -1,0 +1,78 @@
+# Floors AND ceilings, on purpose.
+#
+# These were all bare `>=` once, which quietly means "whatever is newest on
+# the day someone installs". That is not a stable base for a release: at the
+# time of writing a fresh install pulled opencv-python 5.x and psutil 7.x,
+# two major versions nobody had ever run the app against.
+#
+# The upper bounds pin the MAJOR only. Patches and minors still flow in, so
+# real fixes are not blocked; a new major is a deliberate decision with a
+# real video tested afterwards, not something a new contributor discovers by
+# accident.
+#
+# Raising one of these ceilings is a normal thing to do. Do it on purpose,
+# and process an actual video before merging it.
+
+# Extractors break whenever a site changes, so this is the one dependency
+# you always want newest. No ceiling.
+yt-dlp>=2026.8.19
+# YouTube's player JavaScript solver scripts for the YouTube cookies fallback
+# (run by the bundled QuickJS, scripts/fetch_quickjs.py). Bump with yt-dlp: it
+# expects the version in yt_dlp/extractor/youtube/jsc/_builtin/vendor/_info.py.
+yt-dlp-ejs==0.8.0
+
+# ---- transcription and vision --------------------------------------------
+# MFCC features for the active-speaker model. Tiny and pure Python; the
+# model was trained against this library's defaults, so it is not
+# interchangeable with another MFCC implementation.
+python_speech_features>=0.6,<1
+faster-whisper>=1.2.1,<2
+# faster-whisper's engine (CTranslate2) is a CUDA 12 build and needs cuBLAS 12
+# on an NVIDIA GPU; PyTorch's CUDA 13 build only has cuBLAS 13. Without this,
+# Whisper falls back to the CPU (issue #111). Windows only: that's where the
+# app ships, and the Linux image runs on the CPU.
+nvidia-cublas-cu12>=12.4,<13 ; sys_platform == "win32"
+ultralytics>=8.4.116,<9
+# <5 matters. opencv-python 5.0 is out and pip takes it without this.
+opencv-python>=4.14.0.94,<5
+# On-screen text in a gaming stream (analysis/game_text.py): PaddleOCR's
+# models on the onnxruntime Piper already brings. 1.4 carries its models in
+# the wheel; the later "rapidocr" package downloads them at first use, which
+# an installed copy must never do.
+rapidocr-onnxruntime>=1.4.4,<1.5
+# Runs the two voice models behind the second speaker's caption colour
+# (analysis/voice_turns.py). Already installed as a dependency of
+# faster-whisper and Piper; pinned now that it is used directly.
+onnxruntime>=1.26,<2
+
+# ---- API server ------------------------------------------------------------
+fastapi>=0.141.1,<1
+uvicorn[standard]>=0.52.4,<1
+
+# ---- everything else -------------------------------------------------------
+requests>=2.34.2,<3
+# Remote rendering's gateway makes its own HTTPS certificate (remote_render/tls.py).
+# Already installed as a dependency of google-auth; pinned now that it is used directly.
+cryptography>=48,<49
+# Parses YouTube's RSS feed without expanding entity declarations.
+defusedxml>=0.7.1,<1
+PyYAML>=6.0.3,<7
+google-api-python-client>=2.198.0,<3
+google-auth-oauthlib>=1.4.0,<2
+# 0.x: a minor bump here can break, so the ceiling is tighter than the rest.
+curl_cffi>=0.15.0,<0.16
+# <6, not <8: 6 and 7 exist but have never run here. Same rule as the rest —
+# the ceiling sits at the major that is actually tested.
+psutil>=5.9.8,<6
+nvidia-ml-py>=12.575.51,<14
+
+# ---- AI dubbing --------------------------------------------------------
+# Bundled since 1.1.3. It was previously left out on purpose so an installed
+# copy simply reported dubbing unavailable, because the code shelled out to
+# `sys.executable -m piper` — which is api.exe in a frozen build and cannot
+# run `-m module`. multilingual/dub.py now calls Piper's Python API
+# in-process, so it can ship.
+#
+# Voices are NOT bundled: ~60 MB each across 15 languages, downloaded on
+# demand into data/voices/ the first time a language is dubbed.
+piper-tts>=1.5.0,<2

@@ -1,0 +1,1000 @@
+"""Single background worker processing the SQLite job queue.
+
+One worker, sequential jobs: video processing saturates the GPU/CPU anyway,
+so parallel jobs on consumer hardware only make everything slower. The queue
+lives in SQLite, so it survives restarts; jobs left 'running' by a crash are
+re-queued at startup, and the pipeline resumes from its last completed stage.
+
+Job types:
+  process - {"url": ...}                       full pipeline for one video
+  render  - {"clip_id", "start"?, "end"?}      re-render one clip (edited
+                                               timestamps and/or captions)
+"""
+
+import copy
+import json
+import threading
+import time
+import traceback
+from pathlib import Path
+
+from core import cancel, progress, queue
+from core.cancel import CancelledError
+from core.paths import discard
+from core.prefetch import Prefetcher
+from core.state import StateDB
+from server import feedback
+from server.events import broadcaster
+
+# Per-job logs kept on disk. Enough to cover a long overnight batch and its
+# retries; older ones are pruned so the folder can't grow without limit.
+_KEEP_LOGS = 50
+
+# (base, weight, label) per pipeline stage, folded into one overall progress
+# figure. Kept identical to the UI's STAGES in ui/src/renderer/src/lib/
+# jobProgress.ts, so the app and an integration's dock never show different
+# percentages for the same job.
+_STAGES = {
+    "download": (0.0, 0.15, "Downloading video"),
+    "downloaded": (0.15, 0.0, "Downloaded"),
+    "transcribe": (0.15, 0.25, "Transcribing speech"),
+    "signals": (0.40, 0.05, "Analyzing audio & visuals"),
+    "analyze": (0.45, 0.20, "Finding the best moments"),
+    "ranking": (0.65, 0.05, "Ranking the best moments"),
+    # A Marketplace plugin saying what happens in the moments (plugins/steps.py).
+    "understand": (0.65, 0.05, "Understanding the moments"),
+    "reactions": (0.70, 0.08, "Scoring on-screen reactions"),
+    # A Marketplace plugin suggesting edits for the clips (plugins/steps.py).
+    "edit": (0.70, 0.08, "Suggesting edits"),
+    "render": (0.78, 0.22, "Rendering clips"),
+}
+
+
+class Worker(threading.Thread):
+    def __init__(self, config: dict):
+        super().__init__(daemon=True, name="pipeline-worker")
+        self.config = config
+        self.db_path = Path(config["paths"]["data_dir"]) / "state.db"
+        self.logs_dir = Path(config["paths"]["data_dir"]) / "logs"
+        self.prefetch = Prefetcher(
+            self.db_path, Path(config["paths"]["data_dir"]) / "downloads"
+        )
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        # Latest progress per running job, for a client that was not connected
+        # to /ws when the events went out, such as a dock opened mid-run.
+        self._progress: dict[int, dict] = {}
+        self._progress_lock = threading.Lock()
+
+    def notify(self) -> None:
+        """Called by the API when a job is enqueued, or when the queue is
+        resumed — so resuming starts the next video at once instead of waiting
+        out the idle poll."""
+        self._wake.set()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._wake.set()
+
+    def _prune_logs(self) -> None:
+        try:
+            logs = sorted(
+                self.logs_dir.glob("job_*.log"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            for old in logs[_KEEP_LOGS:]:
+                old.unlink(missing_ok=True)
+        except Exception:
+            pass  # housekeeping must never take down the worker
+
+    def run(self) -> None:
+        db = StateDB(self.db_path)  # sqlite: one connection per thread
+        requeued = db.recover_interrupted_jobs()
+        if requeued:
+            print(f"Re-queued {requeued} interrupted job(s)")
+        # Videos orphaned mid-pipeline by a crash/force-close get marked failed
+        # so they're never permanently "stuck" and can be deleted or retried.
+        recovered = db.recover_stuck_videos()
+        if recovered:
+            print(f"Recovered {recovered} interrupted video(s) (marked failed)")
+        # One-time catch-up: organize the existing library into creator
+        # profiles (no-op once every video is tagged).
+        try:
+            from creator import identity
+
+            tagged = identity.backfill(db)
+            if tagged:
+                print(f"Creator profiles: organized {tagged} existing video(s)")
+        except Exception as e:
+            print(f"Creator backfill failed (non-fatal): {e}")
+
+        # Pipeline progress events get tagged with the active job and fanned
+        # out to UI clients.
+        current_job_id: list[int | None] = [None]
+
+        def on_progress(event: dict) -> None:
+            # Prefetch downloads belong to a FUTURE job, not the one running
+            # now — never attribute them to it.
+            job_id = None if event.get("prefetch") else current_job_id[0]
+            if job_id is not None:
+                span = self._span(job_id)
+                if span is not None:
+                    # A job making both formats: the app draws this pass on
+                    # its part of the bar, as the worker's own figure does.
+                    event = {**event, "span": list(span)}
+                self._record_progress(job_id, event)
+            broadcaster.publish({"type": "progress", "job_id": job_id, **event})
+
+        progress.set_handler(on_progress)
+
+        while not self._stop.is_set():
+            # Paused means "claim nothing new". The video already running is
+            # left alone — throwing away an hour of finished GPU work because
+            # someone wants the queue to stop after this one would be its own
+            # kind of broken.
+            if queue.is_paused(db):
+                self._wake.wait(timeout=2.0)
+                self._wake.clear()
+                continue
+            job = db.claim_next_job()
+            if job is None:
+                self._wake.wait(timeout=2.0)
+                self._wake.clear()
+                continue
+
+            current_job_id[0] = job["id"]
+            with self._progress_lock:
+                self._progress[job["id"]] = {
+                    "started": time.time(), "fraction": 0.0, "stage": "", "label": "Starting",
+                }
+            payload = json.loads(job["payload"])
+            # One log file per job, so a batch that ran overnight is still
+            # diagnosable in the morning: the 400-line in-memory ring holds
+            # minutes, and a failure six videos ago scrolled away long before
+            # anyone came back to look at it.
+            log_path = self.logs_dir / f"job_{job['id']}.log"
+            if feedback.open_job_log(log_path):
+                db.set_job(job["id"], log_path=str(log_path))
+            broadcaster.publish({"type": "job", "job_id": job["id"], "status": "running"})
+            broadcaster.publish({"type": "queue"})
+            if job["type"] == "process":
+                from sources.dispatch import identify
+
+                _, vid = identify(payload["url"])
+                # Recorded on the job so the queue can name and de-duplicate it
+                # without every reader re-parsing payload JSON.
+                if vid and not job["video_id"]:
+                    db.set_job(job["id"], video_id=vid)
+                cancel.set_active(vid)  # mark which video is genuinely running
+                # Start every run from a clean slate. A cancel flag is sticky
+                # (deleting a video, or an actual cancel, calls request_cancel
+                # and nothing clears it), so a stale flag would make THIS fresh
+                # job abort at the download's first progress callback — the
+                # video "keeps getting cancelled" though nobody pressed cancel.
+                # Any real cancel of this run re-sets the flag after this point.
+                cancel.clear(vid)
+            else:
+                # A render or a translation downloads nothing, so the next
+                # queued video's download starts beside it at once. A process
+                # job starts it only once it has passed its checks (below).
+                self.prefetch.maybe_start(db)
+            try:
+                if job["type"] == "process":
+                    from core.pipeline import process_video
+
+                    # ALWAYS a private copy. The worker holds one config dict
+                    # for the life of the process, so any mutation below would
+                    # outlive the job that made it: with a queue of
+                    # differently-configured videos, job 2's caption style
+                    # silently lands on job 5. The guard that used to skip this
+                    # copy was only correct while every mutation below stayed
+                    # listed in it — a condition no one can keep true by hand
+                    # across future edits. Copying a settings dict costs
+                    # microseconds against an hour of video work.
+                    cfg = copy.deepcopy(self.config)
+                    # Checked before anything is downloaded, the next queued
+                    # video included. A job failing here used to start that
+                    # download on its way out, and the next job waited for the
+                    # whole video only to fail the same check: a batch with no
+                    # model downloaded every video in it.
+                    self._check_plan(db, cfg, payload)
+                    self._check_local_model(db, vid, cfg["llm"], payload)
+                    # Never race a half-written prefetch of THIS video; once it's
+                    # settled, kick off the download of the NEXT queued video so
+                    # it overlaps this job's GPU work.
+                    self.prefetch.wait_for(vid)
+                    self.prefetch.maybe_start(db)
+                    if payload.get("podcast"):
+                        # Multi-cam podcast: letterbox every clip, no tracking.
+                        cfg["clips"]["podcast"] = True
+                    if payload.get("vertical_live"):
+                        # An already-composed 9:16 live (core/modes.py): keep
+                        # its layout, skip face tracking and reframing.
+                        cfg["clips"]["vertical_live"] = True
+                    if payload.get("gaming_scoring"):
+                        # Scored as a gaming stream (analysis/gaming.py):
+                        # in-game moments count, even with little said.
+                        cfg["clips"]["gaming_scoring"] = True
+                    if payload.get("gaming"):
+                        # Gaming / Reaction (gaming/): the streamer's webcam
+                        # over the game, or the game alone; the split set up
+                        # before processing, when there was one.
+                        cfg["clips"]["gaming"] = True
+                        if payload.get("gaming_layout"):
+                            cfg["clips"]["gaming_layout"] = payload["gaming_layout"]
+                        if payload.get("gaming_remember"):
+                            cfg["clips"]["gaming_remember"] = True
+                    if "captions" in payload:
+                        cfg["clips"]["captions"] = bool(payload["captions"])
+                    if payload.get("min_score") is not None:
+                        cfg["clips"]["min_score"] = int(payload["min_score"])
+                    if payload.get("sport"):
+                        # The Sports toggle (sports/): the match's moments,
+                        # found and clipped by the sport's profile.
+                        cfg["clips"]["sport"] = payload["sport"]
+                    if payload.get("focus"):
+                        # The person's direction (analysis/intent.py): adds
+                        # points to what they asked for, and nothing else.
+                        cfg["clips"]["focus"] = str(payload["focus"])
+                    if payload.get("pipeline"):
+                        # A plugin pipeline (plugins/): it picks the moments,
+                        # and everything after that is made as usual.
+                        cfg["clips"]["pipeline"] = payload["pipeline"]
+                    for step in ("rate", "understand", "edit"):
+                        # Rate & understand and Suggest edits (plugins/steps.py):
+                        # plugins that look at the moments once they're found,
+                        # and at the clips once they're chosen, in order.
+                        chosen = payload.get(step)
+                        if chosen:
+                            cfg["clips"][step] = list(chosen) if isinstance(chosen, list) else [chosen]
+                    if isinstance(payload.get("sport"), dict):
+                        # The Sports toggle's Teams / players, and Custom's own
+                        # words: directions too, so clips whose commentary
+                        # names them get the points. Never guessed onto a clip
+                        # that doesn't.
+                        from sports import direction
+
+                        wanted = direction(payload["sport"])
+                        if wanted:
+                            asked = cfg["clips"].get("focus") or ""
+                            cfg["clips"]["focus"] = f"{asked} {wanted}".strip()
+                    if payload.get("long_clips"):
+                        # TikTok monetization requires >60s: target 61-180s clips.
+                        cfg["clips"]["min_duration"] = 61
+                        cfg["clips"]["max_duration"] = 180
+                    if payload.get("filter"):
+                        cfg["clips"]["filter"] = payload["filter"]
+                    if payload.get("hashtags"):
+                        # Tags the request insisted on: every clip of this job
+                        # carries them, on top of whatever the model writes.
+                        cfg["clips"]["required_hashtags"] = list(payload["hashtags"])
+                    if payload.get("max_clips"):
+                        n = int(payload["max_clips"])
+                        cfg["clips"]["max_clips_per_video"] = n
+                        # The rerank pool must be at least as big as the ask.
+                        pool = cfg.setdefault("scoring", {}).get("rerank_pool", 8)
+                        cfg["scoring"]["rerank_pool"] = max(pool, n)
+                    if payload.get("caption_style"):
+                        # Style chosen in the Generate bar: applied to every
+                        # clip of this job (and persisted per clip).
+                        cfg["clips"]["caption_style"] = payload["caption_style"]
+                    if payload.get("watermark_profile_id"):
+                        # Branding chosen in the Generate bar: resolve the
+                        # profile to its config and apply it to every clip.
+                        row = db.get_branding(int(payload["watermark_profile_id"]))
+                        if row:
+                            cfg["clips"]["watermark"] = json.loads(row["config"])
+                    if (payload.get("longform") or {}).get("shorts"):
+                        # "Also make 9:16 Shorts": both formats in one job.
+                        self._both_formats(db, job["id"], vid, payload, cfg)
+                    elif payload.get("longform"):
+                        # Separate longform system (1920x1080 horizontal),
+                        # built on the same stages — Shorts path untouched.
+                        from longform.process import process_longform
+
+                        process_longform(payload["url"], cfg, db, payload["longform"])
+                    else:
+                        process_video(payload["url"], cfg, db, force=payload.get("force", False))
+                elif job["type"] == "render":
+                    self._rerender_clip(db, payload)
+                elif job["type"] == "translate":
+                    self._translate_clips(db, payload)
+                else:
+                    raise ValueError(f"Unknown job type {job['type']!r}")
+                db.finish_job(job["id"], "done")
+                self._run_follow_up(db, job, payload)
+                self._announce(db, job, "done")
+            except CancelledError:
+                db.finish_job(job["id"], "cancelled", "Cancelled by user")
+                self._announce(db, job, "cancelled")
+                print(f"Job {job['id']} cancelled by user")
+            except Exception as e:
+                # Contained to this job on purpose: the video is marked failed
+                # with its error, and the loop moves on to the next one. A
+                # batch left running overnight must not stop at the first bad
+                # URL and waste the remaining hours.
+                traceback.print_exc()
+                # Stored and shown, so anything key-shaped is taken out first.
+                # A cloud provider's error is already written without the key;
+                # this is the net for anything else that might echo one.
+                from core.scrub import scrub_secrets
+                from llm.providers.base import LLMError
+
+                # An AI failure is already in words a creator can act on, so
+                # its message is stored as it is, as /agent/chat shows it.
+                message = scrub_secrets(e.message if isinstance(e, LLMError) else str(e))
+                db.finish_job(job["id"], "failed", message[:2000])
+                self._announce(db, job, "failed", message[:500])
+            finally:
+                current_job_id[0] = None
+                with self._progress_lock:
+                    self._progress.pop(job["id"], None)
+                cancel.set_active(None)
+                feedback.close_job_log()
+                self._prune_logs()
+
+    def _record_progress(self, job_id: int, event: dict) -> None:
+        stage = _STAGES.get(event.get("stage") or "")
+        if stage is None:
+            return  # 'done', 'publish' and unknown stages do not move the figure
+        base, weight, label = stage
+        within = 0.5
+        if isinstance(event.get("fraction"), (int, float)):
+            within = float(event["fraction"])
+        elif isinstance(event.get("clip"), int) and event.get("total"):
+            within = (event["clip"] - 1) / event["total"]
+        elif isinstance(event.get("current"), int) and event.get("total"):
+            within = max(0, event["current"] - 1) / event["total"]
+        fraction = base + weight * min(1.0, max(0.0, within))
+        if event.get("stage") == "render" and event.get("clip") and event.get("total"):
+            label = f"Rendering clip {event['clip']}/{event['total']}"
+        if event.get("plugin") and event.get("stage") in ("ranking", "understand", "edit"):
+            # A Marketplace plugin rating or understanding the moments, or
+            # suggesting edits for the clips: the bar may not move (it never
+            # goes back), so the label says who is working.
+            label = {"ranking": f"Rating moments with {event['plugin']}",
+                     "understand": f"Understanding moments with {event['plugin']}",
+                     "edit": f"Suggesting edits with {event['plugin']}"}[event["stage"]]
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            if entry is None:
+                return
+            # The part of the bar this pass owns: all of it, except in a job
+            # that makes both formats (_both_formats).
+            lo, hi = entry.get("span", (0.0, 1.0))
+            fraction = min(0.99, lo + (hi - lo) * fraction)
+            entry["fraction"] = max(entry["fraction"], fraction)  # never moves backwards
+            entry["stage"] = event.get("stage") or ""
+            entry["label"] = label
+
+    def progress_snapshot(self, job_id: int) -> dict | None:
+        """Where a running job is, in the same terms the app shows, or None if
+        it is not running."""
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            if entry is None:
+                return None
+            entry = dict(entry)
+        elapsed = max(0.0, time.time() - entry["started"])
+        fraction = entry["fraction"]
+        eta = None
+        if fraction >= 0.06:  # below this an estimate is noise; the UI waits too
+            eta = round(elapsed * (1 - fraction) / fraction)
+        return {
+            "stage": entry["stage"],
+            "label": entry["label"],
+            "percent": round(fraction * 100),
+            "eta_seconds": eta,
+            "elapsed_seconds": round(elapsed),
+        }
+
+    def _announce(self, db: StateDB, job, status: str, error: str = "") -> None:
+        """Tell the UI a job ended, and how much queue is left.
+
+        `remaining` rides along so the renderer can put "2 videos remaining" in
+        a desktop notification without a round trip — the user is not looking
+        at the app when it matters."""
+        remaining = len(db.queued_jobs())
+        event = {
+            "type": "job",
+            "job_id": job["id"],
+            "job_type": job["type"],
+            "status": status,
+            "title": job["title"] or "",
+            "remaining": remaining,
+        }
+        # For integrations: which video this was and what it produced. A run
+        # that found nothing, or a video already processed, emits no 'done'
+        # progress event, so this is the one place a clip count always arrives.
+        # Re-read the row: the video id is filled in after the job is claimed.
+        row = db.get_job(job["id"])
+        video_id = (row["video_id"] if row else "") or ""
+        if video_id:
+            event["video_id"] = video_id
+            event["clips"] = db.conn.execute(
+                "SELECT COUNT(*) FROM clips WHERE video_id = ?", (video_id,)
+            ).fetchone()[0]
+        if error:
+            event["error"] = error
+        broadcaster.publish(event)
+        broadcaster.publish({"type": "queue"})
+
+        # And tell whatever asked to be told. Only jobs submitted with a
+        # webhook_url cost anything here, this is the one place every terminal
+        # state passes through, and a delivery that fails is logged inside
+        # deliver() rather than raised: the job is already finished either way.
+        try:
+            payload = json.loads(job["payload"] or "{}")
+        except (TypeError, ValueError):
+            payload = {}
+        if payload.get("webhook_url"):
+            from server import webhooks
+
+            webhooks.deliver(
+                payload["webhook_url"],
+                webhooks.body_for(event),
+                payload.get("webhook_secret") or "",
+            )
+
+    def _translate_clips(self, db: StateDB, payload: dict) -> None:
+        """Multilingual publishing: subtitle tracks for finished clips.
+
+        Runs in two stages. `translate` produces the text and stores it for
+        the creator to read and correct; `export` writes the files using
+        that approved text. Splitting them means a mistranslation is caught
+        before it is burned permanently into a video.
+
+        Entirely separate from clip generation — it reads finished clips and
+        writes new files. A failure here can never damage a clip."""
+        import json as _json
+
+        from core.pipeline import _safe_name, _with_usable_model
+        from llm.registry import create_backend
+        from multilingual import glossary, publish
+
+        data_dir = Path(self.config["paths"]["data_dir"])
+        stage = payload.get("stage", "export")
+        folder = Path(payload.get("folder") or data_dir)
+        languages = payload["languages"]
+        # Translation may run on its own local model (see llm.translation_model).
+        # With a cloud model chosen, translation uses it too: everything the
+        # local model would have done runs on the user's own key instead.
+        from llm.spec import is_local
+
+        llm_cfg = dict(self.config["llm"])
+        tm = str(llm_cfg.get("translation_model") or "").strip()
+        if tm and is_local(llm_cfg.get("backend") or ""):
+            llm_cfg["backend"] = tm if "/" in tm else f"ollama/{tm}"
+            print(f"      Translating with {tm}")
+        llm = create_backend(_with_usable_model(llm_cfg))  # one that's installed (#118)
+        written: list[str] = []
+
+        n_clips = len(payload["clip_ids"])
+
+        def reporter(index: int):
+            """Per-clip progress folded into one 0..1 bar across the batch, so
+            the UI can show a real percentage and a time estimate instead of
+            just locking the buttons."""
+
+            def report(label: str, done: int, total: int) -> None:
+                within = (done / total) if total else 0.0
+                progress.emit(
+                    stage="multilingual",
+                    message=label if n_clips == 1 else f"{label} · clip {index}/{n_clips}",
+                    fraction=min(0.999, (index - 1 + within) / max(1, n_clips)),
+                    clip=index,
+                    total=n_clips,
+                )
+
+            return report
+
+        for n, clip_id in enumerate(payload["clip_ids"], 1):
+            clip = db.get_clip(int(clip_id))
+            if clip is None:
+                continue
+            on_progress = reporter(n)
+            on_progress("Reading the clip", 0, 1)
+            opts = _json.loads(clip["render_opts"]) if clip["render_opts"] else {}
+            lines = opts.get("caption_lines")
+            if not lines:
+                lines = self._caption_lines_for(db, clip, data_dir)
+            if not lines:
+                print(f"      (clip {clip_id} has no captions to translate)")
+                continue
+            vrow = db.conn.execute(
+                "SELECT creator_id, title FROM videos WHERE video_id = ?",
+                (clip["video_id"],),
+            ).fetchone()
+            terms = glossary.build(
+                db,
+                vrow["creator_id"] if vrow else None,
+                vrow["title"] if vrow else "",
+            )
+            clip_path = Path(clip["path"]) if clip["path"] else None
+            stem = _safe_name(clip["title"] or clip["hook"] or "", f"clip_{clip_id}")
+            src_lang = self._source_language(clip["video_id"], data_dir)
+            post = {
+                "title": clip["title"] or "",
+                "description": clip["description"] or "",
+                "hashtags": _json.loads(clip["hashtags"]) if clip["hashtags"] else [],
+            } if payload.get("translate_post", True) else None
+
+            if stage == "translate":
+                # Review pass: produce the text, write no files. Languages the
+                # creator has already corrected are left exactly as they are.
+                keep = {r["language"] for r in db.translations_for(int(clip_id)) if r["edited"]}
+                if keep:
+                    print(f"      Keeping your corrected text for: {', '.join(sorted(keep))}")
+                results = publish.translate_only(
+                    lines, languages, llm,
+                    terms=terms, source_language=src_lang, post=post, keep=keep,
+                    on_progress=on_progress,
+                )
+                for code, entry in results.items():
+                    db.save_translation(
+                        int(clip_id), code,
+                        _json.dumps(entry["lines"], ensure_ascii=False),
+                        _json.dumps(entry.get("post") or {}, ensure_ascii=False),
+                    )
+                print(f"      Translated clip {clip_id} into {len(results)} language(s) — ready to review")
+                continue
+
+            # Export pass: reuse the reviewed text, so nothing is re-translated
+            # and no correction is lost. A language with no saved translation
+            # (batch runs, or one that failed) still translates on the fly.
+            pre = {
+                r["language"]: {
+                    "lines": _json.loads(r["lines"]),
+                    "post": _json.loads(r["post"] or "{}"),
+                }
+                for r in db.translations_for(int(clip_id))
+            }
+            written += publish.publish(
+                lines, languages, folder, stem, llm,
+                terms=terms,
+                clip_path=clip_path if payload.get("include_video", True) else None,
+                source_language=src_lang,
+                burn=bool(payload.get("burn")),
+                dub=bool(payload.get("dub")),
+                want_subtitles=bool(payload.get("subtitles")),
+                want_post=bool(payload.get("post_text")),
+                voices_dir=data_dir / "voices",
+                voice_choice=payload.get("voices") or {},
+                post=post,
+                clip_row=clip,
+                config=self.config,
+                data_dir=data_dir,
+                pre_translated=pre,
+                style=payload.get("style") or None,
+                on_progress=on_progress,
+            )
+        if stage != "translate":
+            print(f"      Multilingual publish complete: {len(written)} file(s) in {folder}")
+
+    def _source_language(self, video_id: str, data_dir: Path) -> str:
+        try:
+            from transcription.transcriber import detected_language
+
+            return detected_language(video_id, data_dir / "transcripts")
+        except Exception:
+            return "en"
+
+    def _caption_lines_for(self, db: StateDB, clip, data_dir: Path) -> list[dict]:
+        """Caption lines rebuilt from the cached transcript when the clip
+        didn't store edited ones."""
+        try:
+            import json as _json
+
+            from core.models import ClipCandidate, Segment
+            from video.captions import DEFAULT_STYLE, build_caption_lines
+
+            tpath = data_dir / "transcripts" / f"{clip['video_id']}.json"
+            if not tpath.exists():
+                return []
+            data = _json.loads(tpath.read_text(encoding="utf-8"))
+            segments = [Segment(**s) for s in data["segments"]]
+            opts = _json.loads(clip["render_opts"]) if clip["render_opts"] else {}
+            wpc = {**DEFAULT_STYLE, **(opts.get("caption_style") or {})}["words_per_caption"]
+            cand = ClipCandidate(
+                start=clip["start_s"], end=clip["end_s"], score=clip["score"] or 0
+            )
+            return build_caption_lines(segments, cand, wpc)
+        except Exception as e:
+            print(f"      (could not rebuild captions: {e})")
+            return []
+
+    def _run_follow_up(self, db: StateDB, job, payload: dict) -> None:
+        """Do what the request asked for AFTER the clips exist.
+
+        "Process this video and publish them all" cannot be one step: queueing
+        returns in a second and the clips appear an hour later. Asked from the
+        chat box, the second half used to be dropped in silence — the video
+        processed and nothing was ever published. The job carries the
+        intention instead, and it is honoured here.
+
+        Contained like the job itself: a publish that fails marks nothing
+        failed, because the clips were still produced and that is what the job
+        was. The reason goes in the log and the per-platform rows.
+        """
+        then = payload.get("then") or {}
+        if then.get("action") != "publish":
+            return
+        video_id = job["video_id"] if "video_id" in job.keys() else ""
+        if not video_id:
+            return
+        try:
+            from server import woopsocial_service as woop
+
+            if not woop.is_enabled(db) or not woop.has_key(
+                Path(self.config["paths"]["data_dir"])
+            ):
+                print("  Publish skipped: WoopSocial is not set up.")
+                return
+            clip_ids = [int(c["id"]) for c in db.clips_for_video(video_id)]
+            if not clip_ids:
+                print("  Publish skipped: the run produced no clips.")
+                return
+            if payload.get("rate") or payload.get("understand"):
+                # This job named plugins to rate or understand its moments:
+                # if one didn't run, the clips wait for the person instead.
+                # A job without them never reads the outcome for this.
+                from core.outcome import failed_steps
+
+                names = failed_steps(db.get_outcome(video_id))
+                if names:
+                    print(f"  Publish skipped: Clips Kitty made these clips without {', '.join(names)}, "
+                          "so they wait for you to publish them.")
+                    return
+            platforms = list(then.get("platforms") or [])
+            every_hours = float(then.get("every_hours") or 0)
+            per_day = int(then.get("per_day") or 0)
+            if not every_hours and not per_day:
+                # Asked to publish, not told how fast. Everything at once is
+                # the one answer that is always wrong: WoopSocial takes five
+                # YouTube posts a day and rejects the rest.
+                per_day = woop.DEFAULT_PER_DAY
+            print(f"  Publishing {len(clip_ids)} clip(s) to {', '.join(platforms)}...")
+            out = woop.publish_clips(
+                db,
+                Path(self.config["paths"]["data_dir"]),
+                clip_ids=clip_ids,
+                platforms=platforms,
+                every_hours=every_hours,
+                per_day=per_day,
+                gap_hours=float(then.get("gap_hours") or 1),
+                # Nobody is watching this one either, so a clip already sent
+                # stays sent, and the publish dialog's platforms stay put.
+                once=True,
+                remember=False,
+            )
+            print(
+                f"  Published {len(out['started'])}, skipped {len(out['skipped'])}."
+            )
+        except Exception as e:
+            print(f"  Publish after processing failed: {e}")
+
+    @staticmethod
+    def _check_plan(db: StateDB, cfg: dict, payload: dict) -> None:
+        """A job on a signed-in AI plan (llm/signin/) is checked before
+        anything is downloaded: signed in, the plan's limit not used up, and,
+        for a video a watch or a stream queued by itself, the user's say-so
+        for unattended use. Raises LLMError in plain words otherwise."""
+        from llm.signin import catalog as signin
+
+        if payload.get("origin") in ("watch", "stream"):
+            cfg["llm"]["unattended"] = True
+        plan = signin.for_backend(cfg["llm"])
+        if plan is None:
+            return
+        cfg["llm"]["plan_automation"] = db.get_flag(signin.AUTOMATION_FLAG + plan.id) == "1"
+        plan.check_job(cfg["llm"])
+
+    @staticmethod
+    def _check_local_model(db: StateDB, vid: str | None, llm_cfg: dict, payload: dict) -> None:
+        """A job on a local model is checked before anything is downloaded:
+        if Ollama answers and has no model at all to run it on, the job ends
+        now, saying so, rather than after the download and the transcription
+        with Ollama's bare 404 (#149). Raises LLMError in plain words then.
+
+        Nothing else stops a job here. Ollama not answering (or still
+        starting) is reported where it always was, a configured model that's
+        missing while another is installed is swapped for that one by
+        core.pipeline._with_usable_model, as it always was, and so is one
+        still downloading by the time the job needs it."""
+        from llm import pulls
+        from llm.manager import installed_models, missing_model, usable_model_in
+        from llm.spec import is_local
+
+        if payload.get("pipeline") and not payload.get("longform"):
+            # A plugin pipeline finds the Shorts' moments itself. The AI only
+            # writes their titles, and those fall back to plain ones without
+            # it: such a job finishes with no model at all.
+            return
+        spec = llm_cfg.get("backend") or ""
+        if not is_local(spec):
+            return
+        longform = payload.get("longform") or {}
+        if longform.get("mode") == "edited_stream":
+            # Edited Stream only cuts the silence and the AFK stretches, with a
+            # fixed title (longform/process.py): no AI at all. Only its "also
+            # make 9:16 Shorts" needs one, and not when they were made before.
+            made = vid and not payload.get("force") and db.shorts_made(vid)
+            if not longform.get("shorts") or made:
+                return
+        if (vid and not payload.get("longform") and not payload.get("force")
+                and db.shorts_made(vid)):
+            # Its Shorts were made before and nobody asked for them again:
+            # process_video stops before the AI is needed, and the job ends
+            # as done with no model at all, as it always did.
+            return
+        try:
+            installed = [m["name"] for m in installed_models(
+                llm_cfg.get("ollama_host", "http://localhost:11434"), timeout=5)]
+        except Exception:
+            return
+        configured = spec.split("/")[-1]
+        if usable_model_in(configured, installed) is not None:
+            return
+        if pulls.running():
+            # Ollama lists nothing until a download is complete, and setup
+            # tells a new user to carry on while the recommended model
+            # downloads. The job goes ahead: by the time it needs the AI,
+            # after its own download and the transcription,
+            # _with_usable_model finds the model that arrived meanwhile.
+            return
+        raise missing_model(configured)
+
+    def _span(self, job_id: int) -> tuple[float, float] | None:
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            return entry.get("span") if entry is not None else None
+
+    def _progress_span(self, job_id: int, lo: float, hi: float) -> None:
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            if entry is not None:
+                entry["span"] = (lo, hi)
+
+    def _both_formats(self, db: StateDB, job_id: int, vid: str, payload: dict, cfg: dict) -> None:
+        """9:16 Shorts, then the 16:9 output, of one video in one job (#98).
+
+        The Shorts come first, made exactly as a Shorts-only job makes them;
+        ones already made skip themselves in seconds. Each pass gets half the
+        progress bar, which never moves back and would otherwise sit at 99%
+        through the whole second pass. If the 16:9 pass fails, the Shorts are
+        kept, the video stays processed, and the job says which part failed."""
+        from core.pipeline import process_video
+        from longform.process import process_longform
+
+        self._progress_span(job_id, 0.0, 0.5)
+        process_video(payload["url"], copy.deepcopy(cfg), db, force=payload.get("force", False))
+        self._progress_span(job_id, 0.5, 1.0)
+        try:
+            process_longform(payload["url"], cfg, db, payload["longform"])
+        except CancelledError:
+            raise
+        except Exception as e:
+            if vid:
+                db.set_video_status(vid, "done")  # the Shorts pass finished
+            raise RuntimeError(f"The 9:16 Shorts were made; the 16:9 pass failed: {e}") from e
+
+    def _rerender_clip(self, db: StateDB, payload: dict) -> None:
+        """Re-render one clip from the original source video, with optionally
+        edited timestamps and/or render options (crop mode, caption style).
+        The clip's user-visible metadata survives the re-render."""
+        import json as _json
+        from types import SimpleNamespace
+
+        from analysis.metadata import ClipMetadata
+        from core.models import ClipCandidate, Segment
+        from core.pipeline import (
+            _drop_post_style,
+            _register_clip,
+            _render_files,
+            _safe_name,
+            _shift_sport_moment,
+            _sport_moment,
+            _stop_by,
+        )
+
+        clip = db.get_clip(payload["clip_id"])
+        if clip is None:
+            raise ValueError(f"No clip with id {payload['clip_id']}")
+
+        video_id = clip["video_id"]
+        data_dir = Path(self.config["paths"]["data_dir"])
+        source = data_dir / "downloads" / f"{video_id}.mp4"
+        if not source.exists():
+            raise FileNotFoundError(f"Source video missing: {source}")
+
+        transcript = _json.loads((data_dir / "transcripts" / f"{video_id}.json").read_text(encoding="utf-8"))
+        segments = [Segment(**s) for s in transcript["segments"]]
+
+        start = float(payload.get("start", clip["start_s"]))
+        end = float(payload.get("end", clip["end_s"]))
+        candidate = ClipCandidate(
+            start=start, end=end, score=clip["score"], hook=clip["hook"] or "",
+            subscores=_json.loads(clip["scores"]) if clip["scores"] else None,
+        )
+
+        # Persisted render options, overlaid with this edit's changes.
+        render_opts = _json.loads(clip["render_opts"]) if clip["render_opts"] else {}
+        # As saved, for what this render changed in a suggested edit (below).
+        saved_opts = copy.deepcopy(render_opts)
+        incoming = payload.get("render_opts") or {}
+        if "caption_style" in incoming:
+            merged_style = {**render_opts.get("caption_style", {}), **(incoming["caption_style"] or {})}
+            render_opts["caption_style"] = merged_style
+        render_opts.update({k: v for k, v in incoming.items() if k != "caption_style"})
+        # A clip saved with the removed Highlights post style is made, and
+        # saved, without it.
+        render_opts = _drop_post_style(render_opts)
+        if render_opts.get("caption_lines"):
+            # Saved caption text is timed for the clip as it was saved: carried
+            # to the clip as it is now, and the seconds it gained captioned (#120).
+            from video.captions import DEFAULT_STYLE, refit_caption_lines
+
+            style = render_opts.get("caption_style") or (self.config.get("clips") or {}).get("caption_style")
+            render_opts["caption_lines"] = refit_caption_lines(
+                render_opts["caption_lines"], segments, float(clip["start_s"]), start, end,
+                {**DEFAULT_STYLE, **(style or {})}["words_per_caption"],
+            )
+        if render_opts.get("speaker_edits"):
+            # Who a person said is talking where (the editor's Fix speakers) is
+            # timed from the clip's start too: carried to wherever it is now,
+            # with the caption option on or off. Never cut to the clip, so a
+            # fix beyond the new end is back when the clip grows again.
+            from video.captions import shift_edits
+
+            render_opts["speaker_edits"] = shift_edits(
+                render_opts["speaker_edits"], float(clip["start_s"]), round(start, 2)
+            )
+        if not render_opts.get("speaker_edits"):
+            render_opts.pop("speaker_edits", None)     # an empty list is "none"
+        # A basketball clip's play, which its framing plans around: worked out
+        # again for the clip as it is now from its scores (the play's second
+        # of the video), so a trim that left it out and a clip grown back over
+        # it find it again; else the saved one, carried to where the start is
+        # now. Dropped while the play is outside the clip.
+        moment = (_sport_moment(candidate, SimpleNamespace(name="basketball"))
+                  if render_opts.get("sport") == "basketball" else None)
+        if moment is None and "sport_moment" in render_opts:
+            moment = _shift_sport_moment(render_opts["sport_moment"], float(clip["start_s"]), start, end - start)
+        if moment is None:
+            render_opts.pop("sport_moment", None)
+        else:
+            render_opts["sport_moment"] = moment
+        # Where the next shot starts after a sport clip's end (its scores),
+        # for the render's pad to stop at: from the clip as it is now.
+        stop = _stop_by(candidate)
+        if stop is None:
+            render_opts.pop("stop_by", None)
+        else:
+            render_opts["stop_by"] = stop
+        if render_opts.get("reel"):
+            # A match's story reel is joined from its clips (sports/core/reels.py),
+            # not cut from one stretch of the video: rendering it from the
+            # source would make a different video.
+            raise ValueError("A reel is joined from the match's clips, so it can't be re-rendered: "
+                             "change the clips, then process the video again for a new reel.")
+
+        vrow = db.conn.execute(
+            "SELECT title, channel_name FROM videos WHERE video_id = ?", (video_id,)
+        ).fetchone()
+        video_title = vrow["title"] if vrow else video_id
+        channel = vrow["channel_name"] if vrow else ""
+
+        clip_dir = (
+            data_dir / "clips"
+            / _safe_name(channel, "unknown-channel")
+            / f"{_safe_name(video_title, video_id)} [{video_id}]"
+        )
+
+        # Keep the user-facing metadata across the re-render — a re-render
+        # never needs a fresh LLM metadata call.
+        keep = {
+            "title": clip["title"],
+            "description": clip["description"],
+            "hashtags": clip["hashtags"],
+            "status": clip["status"],
+        }
+        old_path = Path(clip["path"]) if clip["path"] else None
+
+        from transcription.transcriber import detected_language
+
+        # Rendered BEFORE the row is touched. A render that fails, or an app
+        # closed halfway through one, used to leave the clip deleted with
+        # nothing put back: the next start re-ran the job on a clip that was
+        # no longer there. The render itself never reads the database.
+        content_lang = detected_language(video_id, data_dir / "transcripts")
+        final_path, rendered_opts = _render_files(
+            source, candidate, segments, clip_dir, self.config, render_opts, content_lang
+        )
+        if render_opts.get("gaming") and rendered_opts:
+            # Gaming / Reaction: keep what the render decided (the webcam it
+            # used, split or game-only), so the editor can show it next time.
+            kept = _json.loads(rendered_opts).get("gaming")
+            if kept:
+                render_opts["gaming"] = kept
+        # The other speaker's turns (analysis/voice_turns.py) are heard at
+        # render: the clip keeps the ones this file was burned with, or none.
+        heard = _json.loads(rendered_opts).get("speaker_turns") if rendered_opts else None
+        if heard:
+            render_opts["speaker_turns"] = heard
+        else:
+            render_opts.pop("speaker_turns", None)
+        # How sure a sport's framing of this file was: this render's, or none.
+        framing = _json.loads(rendered_opts).get("framing") if rendered_opts else None
+        if framing:
+            render_opts["framing"] = framing
+        else:
+            render_opts.pop("framing", None)
+        _mark_suggestions(candidate, payload, saved_opts, render_opts,
+                          (float(clip["start_s"]), float(clip["end_s"])), (start, end))
+
+        # Translations, uploads and feedback REFERENCE this clip, and
+        # foreign_keys is ON, so they have to be lifted out before the row can
+        # go — otherwise this DELETE raises "FOREIGN KEY constraint failed" and
+        # the render fails for anyone who had translated or published the clip.
+        detached = db.detach_clip_rows(clip["id"])
+        db.conn.execute("DELETE FROM clips WHERE id = ?", (clip["id"],))  # avoid UNIQUE clash
+        db.conn.commit()
+        meta = ClipMetadata(
+            title=clip["title"] or "",
+            description=clip["description"] or "",
+            hashtags=_json.loads(clip["hashtags"]) if clip["hashtags"] else [],
+        )
+        rendered = _register_clip(db, video_id, candidate, final_path, meta,
+                                  _json.dumps(render_opts), self.config)
+
+        new_row = db.conn.execute(
+            "SELECT id FROM clips WHERE video_id = ? AND start_s = ? AND end_s = ?",
+            (video_id, round(start, 2), round(end, 2)),
+        ).fetchone()
+        if new_row:
+            restore = {k: v for k, v in keep.items() if v}
+            restore["render_opts"] = _json.dumps(render_opts)
+            db.set_clip(new_row["id"], **restore)
+            db.reattach_clip_rows(new_row["id"], detached)
+            # A watched video's first publish kept the windows it chose
+            # (server/automation.py publish): a trimmed clip is still one of them.
+            db.follow_chosen_clip(video_id, (clip["start_s"], clip["end_s"]), (start, end))
+        elif detached:
+            # The re-render produced no row to hang them off. Say so rather
+            # than dropping a translation or an upload record in silence.
+            print(f"Re-render left no clip row; discarded {sum(len(v) for v in detached.values())} "
+                  "dependent row(s)")
+        if rendered and old_path and old_path.exists() and old_path != rendered.path:
+            discard(old_path)
+        # The editor's draft of the clip (POST /clips/{id}/preview) is filed
+        # under the old id, which nothing will ask for again.
+        discard(data_dir / "previews" / f"clip_{int(clip['id'])}.mp4")
+        if new_row:
+            # The editor has the clip open by its old id; told the new one, it
+            # follows the clip instead of losing it (#147).
+            broadcaster.publish({"type": "clip_replaced", "old": clip["id"], "new": new_row["id"],
+                                 "video_id": video_id})
+
+
+def _mark_suggestions(candidate, payload: dict, saved: dict, rendered: dict, window: tuple,
+                      new_window: tuple) -> None:
+    """After a render the creator asked for, what each edit a plugin
+    suggested for the clip now is (plugins/edit_marks.py): used, with what
+    this render really put in the clip, or no longer. Written into the
+    clip's subscores, which the new row is registered with, so a render that
+    failed records nothing. `saved` are the clip's options as they were at
+    `window`, `rendered` the ones it was just rendered with at `new_window`;
+    the payload's `suggestions.used` says what each Use in the editor added."""
+    scores = candidate.subscores if isinstance(candidate.subscores, dict) else {}
+    sent = payload.get("suggestions")
+    used = sent.get("used") if isinstance(sent, dict) else None
+    used = used if isinstance(used, list) else []
+    if not scores.get("plugin_edits"):
+        if used:
+            print(f"Not marked as used: {len(used)} suggested edit(s) named, but this clip has none")
+        return
+    from plugins import edit_marks
+
+    entries, lines = edit_marks.after_render(scores["plugin_edits"], used, saved, rendered, window, new_window)
+    for line in lines:
+        print(line)
+    candidate.subscores = {**scores, "plugin_edits": entries}

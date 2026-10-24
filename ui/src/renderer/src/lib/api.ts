@@ -1,0 +1,977 @@
+import type {
+  AIModelList,
+  AISignIn,
+  AIStatus,
+  AutomationActivity,
+  AutomationStatus,
+  BrandingProfile,
+  CaptionLine,
+  CaptionStyle,
+  Clip,
+  CreatorDetail,
+  CreatorSuggestion,
+  CreatorSummary,
+  FilterName,
+  FrameBox,
+  GamingSettings,
+  Job,
+  JobOptions,
+  ModelPull,
+  ModelsInfo,
+  Preflight,
+  PublishPlanItem,
+  QueueSnapshot,
+  RenderOpts,
+  Settings,
+  SpeakerTurn,
+  SportChoice,
+  SystemStats,
+  Translation,
+  UsedSuggestions,
+  Video,
+  Watch,
+  WatchItem,
+  WatchPlatform,
+  WatchPublish,
+  WatermarkConfig,
+  Word
+} from './types'
+import type {
+  Playlist,
+  PublishJobRow,
+  PublishRecord,
+  VideoCategory,
+  YouTubeChannel,
+  YouTubeSettings,
+  YouTubeStatus
+} from './youtube'
+import type { Capabilities, FanOut, PlatformRow, UploadPostStatus } from './uploadpost'
+import type { RemoteRenderState } from './remoteRender'
+
+export const API_BASE = 'http://127.0.0.1:8765'
+
+/** What the Gaming / Reaction layout editor shows frames of. */
+export type LayoutSource = { clipId: number } | { url?: string; path?: string }
+
+/** Everyone on one frame (normalized): box [x, y, w, h], head [cx, top, chin]. */
+export interface FramePeople {
+  size: [number, number]
+  people: { box: FrameBox; head: [number, number, number] | null; confidence: number }[]
+}
+
+function layoutQuery(source: { url?: string; path?: string }): string {
+  return source.path ? `&path=${encodeURIComponent(source.path)}` : `&url=${encodeURIComponent(source.url ?? '')}`
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`${res.status} ${path}: ${body.slice(0, 200)}`)
+  }
+  return res.json() as Promise<T>
+}
+
+export const api = {
+  health: () => request<{ ok: boolean }>('/health'),
+  /** Can this install actually make a clip? FFmpeg, Ollama, model, GPU, disk. */
+  preflight: () => request<Preflight>('/health/preflight'),
+  systemStats: () => request<SystemStats>('/system/stats'),
+
+  feedbackDiagnostics: (videoId?: string) =>
+    request<Record<string, unknown>>(
+      `/feedback/diagnostics${videoId ? `?video_id=${encodeURIComponent(videoId)}` : ''}`
+    ),
+  feedbackSubmit: (payload: {
+    kind: 'bug' | 'feature' | 'improvement'
+    title: string
+    answers: Record<string, string>
+    areas: string[]
+    severity: string
+    include_diagnostics: boolean
+    images: { path: string }[]
+  }) =>
+    request<{ ok: boolean; url?: string; markdown: string; error?: string }>('/feedback/submit', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  createJob: (
+    url: string,
+    opts?: {
+      force?: boolean
+      captionStyle?: CaptionStyle
+      captions?: boolean
+      longClips?: boolean
+      filter?: FilterName
+      longform?: { mode: string; shorts?: boolean } | null
+      watermarkProfileId?: number | null
+      podcast?: boolean
+      verticalLive?: boolean
+      gaming?: boolean
+    }
+  ) =>
+    request<{ job_id: number | null; already_processed?: boolean; video_id?: string }>('/jobs', {
+      method: 'POST',
+      body: JSON.stringify({
+        url,
+        force: opts?.force ?? false,
+        caption_style: opts?.captionStyle ?? null,
+        captions: opts?.captions ?? null,
+        long_clips: opts?.longClips ?? null,
+        filter: opts?.filter && opts.filter !== 'none' ? opts.filter : null,
+        longform: opts?.longform ?? null,
+        watermark_profile_id: opts?.watermarkProfileId ?? null,
+        podcast: opts?.podcast ?? null,
+        vertical_live: opts?.verticalLive ?? null,
+        gaming: opts?.gaming ?? null
+      })
+    }),
+  /** Import a file from this computer and queue it. Takes the same options as
+   *  a pasted link, so an upload can be set up exactly like a download. */
+  addLocalVideo: (
+    opts: { path: string; title?: string; channel?: string; platform?: string; source_url?: string } & JobOptions
+  ) =>
+    request<{ job_id: number | null; video_id: string; already_processed?: boolean }>('/videos/local', {
+      method: 'POST',
+      body: JSON.stringify({
+        path: opts.path,
+        title: opts.title ?? '',
+        channel: opts.channel ?? '',
+        platform: opts.platform ?? 'youtube',
+        captions: opts.captions ?? null,
+        caption_style: opts.caption_style ?? null,
+        long_clips: opts.long_clips ?? null,
+        podcast: opts.podcast ?? null,
+        vertical_live: opts.vertical_live ?? null,
+        gaming: opts.gaming ?? null,
+        gaming_layout: opts.gaming_layout ?? null,
+        gaming_remember: opts.gaming_remember ?? null,
+        source_url: opts.source_url ?? '',
+        longform: opts.longform ?? null,
+        watermark_profile_id: opts.watermark_profile_id ?? null,
+        filter: opts.filter ?? null,
+        min_score: opts.min_score ?? null,
+        max_clips: opts.max_clips ?? null,
+        force: opts.force ?? false
+      })
+    }),
+  /** A picked file's size and shape, before it is added (for the Vertical
+   *  Live suggestion). */
+  localVideoShape: (path: string) =>
+    request<{ width: number; height: number; orientation: 'vertical' | 'horizontal' | 'other' }>(
+      `/videos/local/shape?path=${encodeURIComponent(path)}`
+    ),
+  jobs: () => request<Job[]>('/jobs'),
+  /** The sports the Sports toggle offers, with their menus (sports/ on the
+   *  engine). Empty when it has none. */
+  sports: () => request<SportChoice[]>('/sports'),
+
+  // ---- processing queue ----
+  queue: () => request<QueueSnapshot>('/queue'),
+  pauseQueue: () => request<{ paused: boolean }>('/queue/pause', { method: 'POST' }),
+  resumeQueue: () => request<{ paused: boolean }>('/queue/resume', { method: 'POST' }),
+  /** delta -1/+1 steps one place; `to` jumps to either end. */
+  moveJob: (jobId: number, move: { delta?: number; to?: 'top' | 'bottom' }) =>
+    request<{ moved: boolean }>(`/jobs/${jobId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ delta: move.delta ?? 0, to: move.to ?? null })
+    }),
+  /** `standard`: run it again without Vertical Live (for a video it refused
+   *  as not 9:16). */
+  retryJob: (jobId: number, standard = false) =>
+    request<{ job_id: number }>(`/jobs/${jobId}/retry${standard ? '?standard=true' : ''}`, {
+      method: 'POST'
+    }),
+  deleteJob: (jobId: number) =>
+    request<{ deleted: number }>(`/jobs/${jobId}`, { method: 'DELETE' }),
+  clearQueue: (what: 'completed' | 'failed' | 'queued' | 'all') =>
+    request<{ deleted: number }>('/queue/clear', {
+      method: 'POST',
+      body: JSON.stringify({ what })
+    }),
+  /** Change ONE queued video's settings. Only fields present are changed;
+   *  `clear` puts an option back to the app-wide default. */
+  patchJob: (jobId: number, patch: Partial<JobOptions> & { clear?: string[] }) =>
+    request<{ ok: boolean }>(`/jobs/${jobId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  /** Queue a staged list. Each item carries its OWN settings — that is the
+   *  point of staging, so there is no batch-wide option set here. */
+  createJobsBatch: (items: ({ url: string } & JobOptions)[]) =>
+    request<{
+      created: { url: string; job_id: number; video_id: string }[]
+      skipped: { url: string; reason: string; detail?: string; video_id?: string }[]
+    }>('/jobs/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    }),
+  jobLog: (jobId: number, tail = 300) =>
+    request<{ log: string; missing: boolean }>(`/jobs/${jobId}/log?tail=${tail}`),
+
+  cancelProcessing: (videoId: string) =>
+    request<{ cancelling: string }>('/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ video_id: videoId })
+    }),
+  storage: () =>
+    request<{
+      reclaimable: Record<string, { files: number; bytes: number }>
+      reclaimable_bytes: number
+      sources: { files: number; bytes: number }
+    }>('/storage'),
+  storageVideos: () =>
+    request<{
+      videos: {
+        video_id: string
+        title: string
+        channel: string
+        clips: number
+        source_bytes: number
+        transcript_bytes: number
+        clip_bytes: number
+        total_bytes: number
+      }[]
+      total_bytes: number
+    }>('/storage/videos'),
+
+  storageCleanup: () =>
+    request<{ files_removed: number; bytes_freed: number }>('/storage/cleanup', {
+      method: 'POST'
+    }),
+  deleteVideo: (videoId: string) =>
+    request<{ deleted: string }>(`/videos/${videoId}`, { method: 'DELETE' }),
+  deleteClip: (clipId: number) =>
+    request<{ deleted: number; bytes_freed: number }>(`/clips/${clipId}`, { method: 'DELETE' }),
+
+  videos: () => request<Video[]>('/videos'),
+  clips: (videoId: string) => request<Clip[]>(`/videos/${videoId}/clips`),
+  patchClip: (
+    id: number,
+    patch: {
+      title?: string
+      description?: string
+      hashtags?: string[]
+      exported?: boolean
+      /** Hide or show an edit a plugin suggested. A suggestion is used by
+       *  applying it, never here (plugins/edit_marks.py). */
+      suggestion?: { id: string; state: 'hidden' | 'new' }
+    }
+  ) =>
+    request<Clip>(`/clips/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  captions: (id: number) => request<{ lines: CaptionLine[] }>(`/clips/${id}/captions`),
+  saveCaptions: (id: number, lines: CaptionLine[]) =>
+    request<{ job_id: number }>(`/clips/${id}/captions`, {
+      method: 'PUT',
+      body: JSON.stringify({ lines })
+    }),
+  tightenClip: (id: number, opts?: { silence?: boolean; fillers?: boolean }) =>
+    request<{
+      keep: [number, number][]
+      removed_seconds: number
+      cuts: number
+      new_duration: number
+    }>(`/clips/${id}/tighten`, {
+      method: 'POST',
+      body: JSON.stringify({ silence: opts?.silence ?? true, fillers: opts?.fillers ?? true })
+    }),
+  /** Whether the assistant can run, and which model it would use. The app's
+   *  default scoring model cannot call tools, so this is a real question.
+   *  `install` is the Gemma 4 build to offer when no installed model can. */
+  agentStatus: () =>
+    request<{
+      ready: boolean
+      model: string
+      configured: string
+      reason: string
+      install?: { model: string; size_gb: number } | null
+    }>('/agent/status'),
+  /** One exchange with the assistant. `steps` is what it actually did, `plan`
+   *  is a proposed batch of uploads that NOTHING has acted on yet. */
+  agentChat: (
+    message: string,
+    history: { role: string; content: string }[],
+    /** The Generate bar's current toggles, so a job the assistant queues
+     *  behaves like one started by hand. */
+    defaults?: JobOptions
+  ) =>
+    request<{
+      reply: string
+      model: string
+      steps: { tool: string; arguments: Record<string, unknown>; result: string }[]
+      plan: { items: PublishPlanItem[]; warnings: string[] } | null
+    }>('/agent/chat', { method: 'POST', body: JSON.stringify({ message, history, defaults }) }),
+  /** Carry out a plan the person has agreed to. Only a click reaches this. */
+  executePublishPlan: (items: PublishPlanItem[]) =>
+    request<{
+      started: { clip_id: number; publish_job_id: number }[]
+      skipped: { clip_id: number; reason: string }[]
+    }>('/publish/plan/execute', { method: 'POST', body: JSON.stringify({ items }) }),
+  aiEdit: (id: number, message: string) =>
+    request<{ reply: string; job_id: number | null }>(`/clips/${id}/ai-edit`, {
+      method: 'POST',
+      body: JSON.stringify({ message })
+    }),
+  /** `suggestions`: the edits plugins suggested that the creator used in
+   *  this render, as the editor recorded each Use. */
+  rerenderClip: (
+    id: number,
+    range?: { start?: number; end?: number },
+    renderOpts?: RenderOpts,
+    suggestions?: UsedSuggestions
+  ) =>
+    request<{ job_id: number }>(`/clips/${id}/render`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(range ?? {}),
+        render_opts: renderOpts ?? null,
+        ...(suggestions ? { suggestions } : {})
+      })
+    }),
+  exportClip: (id: number, folder: string) =>
+    request<{ exported: string[] }>(`/clips/${id}/export`, {
+      method: 'POST',
+      body: JSON.stringify({ folder })
+    }),
+  exportBatch: (clipIds: number[], folder: string) =>
+    request<{ exported: string[] }>('/export/batch', {
+      method: 'POST',
+      body: JSON.stringify({ clip_ids: clipIds, folder })
+    }),
+  mediaUrl: (clipId: number) => `${API_BASE}/media/${clipId}`,
+  clipWords: (clipId: number) => request<{ words: Word[] }>(`/clips/${clipId}/words`),
+  previewClip: (
+    clipId: number,
+    edit: unknown,
+    captionLines?: unknown,
+    crop?: string | null,
+    captionStyle?: CaptionStyle | null,
+    watermark?: WatermarkConfig | Record<string, never>,
+    gaming?: GamingSettings | null,
+    /** Pending hand fixes of who is talking; undefined = the clip's saved
+     *  ones, an empty list = none. */
+    speakerEdits?: SpeakerTurn[],
+    /** The pending Captions switch; undefined = the clip's saved choice. */
+    captions?: boolean
+  ) =>
+    request<{ url: string }>(`/clips/${clipId}/preview`, {
+      method: 'POST',
+      body: JSON.stringify({
+        edit,
+        caption_lines: captionLines ?? null,
+        crop: crop ?? null,
+        caption_style: captionStyle ?? null,
+        watermark: watermark === undefined ? null : watermark,
+        // undefined = unchanged, null = preview without the split
+        gaming: gaming ?? null,
+        gaming_off: gaming === null,
+        speaker_edits: speakerEdits ?? null,
+        captions: captions ?? null
+      })
+    }),
+  /** A frame of the clip's SOURCE video, `at` (0-1) of the way through, to
+   *  draw the Gaming / Reaction webcam and game area on. */
+  sourceFrameUrl: (clipId: number, at = 0.5) => `${API_BASE}/clips/${clipId}/source-frame?at=${at}`,
+  /** A frame of a video that hasn't been processed yet (a link or a file on
+   *  this computer), for setting up a Gaming / Reaction split before processing. */
+  videoFrameUrl: (source: { url?: string; path?: string }, at = 0.5) =>
+    `${API_BASE}/sources/frame?at=${at}` +
+    (source.path ? `&path=${encodeURIComponent(source.path)}` : `&url=${encodeURIComponent(source.url ?? '')}`),
+  /** The layout editor's view of a video: its frames, who is on them, a
+   *  suggested webcam and border snapping, for a video not processed yet (a
+   *  link or file) or for one clip. */
+  layoutFrameUrl: (source: LayoutSource, at: number) =>
+    'clipId' in source
+      ? `${API_BASE}/clips/${source.clipId}/source-frame?at=${at}`
+      : `${API_BASE}/sources/frame?at=${at}${layoutQuery(source)}`,
+  layoutPeople: (source: LayoutSource, at: number) =>
+    request<FramePeople>(
+      'clipId' in source ? `/clips/${source.clipId}/people?at=${at}` : `/sources/people?at=${at}${layoutQuery(source)}`
+    ),
+  layoutSuggest: (source: { url?: string; path?: string }) =>
+    request<{ cam: FrameBox | null; panels?: FrameBox[] }>(`/sources/suggest?${layoutQuery(source).slice(1)}`),
+  layoutPanels: (clipId: number) => request<{ panels: FrameBox[] }>(`/clips/${clipId}/panels`),
+  layoutSnap: (source: LayoutSource, box: FrameBox) =>
+    request<{ box: FrameBox; bordered: boolean[] }>(
+      'clipId' in source
+        ? `/clips/${source.clipId}/snap?box=${box.join(',')}`
+        : `/sources/snap?box=${box.join(',')}${layoutQuery(source)}`
+    ),
+  creatorGamingLayout: (clipId: number) =>
+    request<{ creator_id: number | null; layout: GamingSettings | null }>(
+      `/clips/${clipId}/creator-gaming-layout`
+    ),
+  /** Remember a layout for this clip's creator (null forgets it). */
+  saveCreatorGamingLayout: (clipId: number, layout: GamingSettings | null) =>
+    request<{ creator_id: number; layout: GamingSettings | null }>(
+      `/clips/${clipId}/creator-gaming-layout`,
+      { method: 'PUT', body: JSON.stringify({ layout }) }
+    ),
+
+  languages: () =>
+    request<{
+      languages: {
+        code: string
+        name: string
+        native: string
+        can_dub: boolean
+        caption_font: string | null
+      }[]
+      dubbing_available: boolean
+    }>('/languages'),
+  translateClips: (body: {
+    clip_ids: number[]
+    languages: string[]
+    stage?: 'translate' | 'export'
+    folder?: string
+    include_video?: boolean
+    burn?: boolean
+    dub?: boolean
+    subtitles?: boolean
+    post_text?: boolean
+    voices?: Record<string, string>
+    style?: CaptionStyle
+  }) =>
+    request<{ job_id: number; languages: string[]; clips: number }>('/translate', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }),
+  translations: (clipId: number) =>
+    request<{ source: CaptionLine[]; translations: Translation[] }>(
+      `/clips/${clipId}/translations`
+    ),
+  saveTranslation: (clipId: number, language: string, lines: CaptionLine[]) =>
+    request<{ saved: string; lines: number }>(`/clips/${clipId}/translations/${language}`, {
+      method: 'PUT',
+      body: JSON.stringify({ lines })
+    }),
+  glossary: (clipId: number) =>
+    request<{ protected: string[]; ignored: string[]; mine: string[] }>(
+      `/clips/${clipId}/glossary`
+    ),
+  ruleTerm: (clipId: number, term: string, rule: 'protect' | 'ignore' | 'auto') =>
+    request<{ term: string; rule: string }>(`/clips/${clipId}/glossary`, {
+      method: 'POST',
+      body: JSON.stringify({ term, rule })
+    }),
+  discardTranslation: (clipId: number, language: string) =>
+    request<{ discarded: string }>(`/clips/${clipId}/translations/${language}`, {
+      method: 'DELETE'
+    }),
+
+  voicesFor: (language: string) =>
+    request<{
+      voices: { id: string; name: string; country: string; quality: string }[]
+      default: string | null
+    }>(`/voices?language=${encodeURIComponent(language)}`),
+  // A plain URL, not a blob: the app's CSP allows media from the API only.
+  voicePreviewUrl: (language: string, voice?: string) =>
+    `${API_BASE}/voices/preview?language=${encodeURIComponent(language)}` +
+    (voice ? `&voice=${encodeURIComponent(voice)}` : ''),
+
+  models: () => request<ModelsInfo>('/models'),
+  // Settings → AI: local first, or a cloud provider on the user's own key.
+  ai: () => request<AIStatus>('/ai'),
+  putAIKey: (provider: string, apiKey: string) =>
+    request<AIStatus & { message: string }>(`/ai/providers/${provider}/key`, {
+      method: 'PUT',
+      body: JSON.stringify({ api_key: apiKey })
+    }),
+  deleteAIKey: (provider: string) =>
+    request<AIStatus>(`/ai/providers/${provider}/key`, { method: 'DELETE' }),
+  aiModels: (provider: string, refresh = false, kind: 'text' | 'stt' = 'text') =>
+    request<AIModelList>(
+      `/ai/providers/${provider}/models?kind=${kind}${refresh ? '&refresh=true' : ''}`
+    ),
+  /** Choose a voice model; one not known to return word timings is checked
+   *  with a short test clip first, and only saved if it does. */
+  /** Begin "Sign in with OpenRouter": the page for the user's own browser.
+   *  It comes back to the engine, which keeps the key; poll ai() for it. */
+  connectAI: (provider: string) =>
+    request<{ url: string }>(`/ai/providers/${provider}/connect`, { method: 'POST' }),
+  checkVoiceModel: (provider: string, model: string) =>
+    request<AIStatus & { ok: boolean; message: string }>(`/ai/providers/${provider}/stt-check`, {
+      method: 'POST',
+      body: JSON.stringify({ model })
+    }),
+  testAI: (provider: string, model: string) =>
+    request<{ ok: boolean; kind?: string; message: string }>(`/ai/providers/${provider}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ model })
+    }),
+  // A plan the user already pays for, signed in to instead of a key.
+  signIn: (provider: string) => request<AISignIn>(`/ai/signin/${provider}`),
+  startSignIn: (provider: string, device = false) =>
+    request<{ auth_url?: string; verification_url?: string; user_code?: string }>(
+      `/ai/signin/${provider}/start`,
+      { method: 'POST', body: JSON.stringify({ device }) }
+    ),
+  cancelSignIn: (provider: string) =>
+    request<AISignIn>(`/ai/signin/${provider}/cancel`, { method: 'POST' }),
+  signOut: (provider: string) =>
+    request<AIStatus & { message: string }>(`/ai/signin/${provider}/sign-out`, { method: 'POST' }),
+  signInModels: (provider: string) => request<AIModelList>(`/ai/signin/${provider}/models`),
+  setPlanAutomation: (provider: string, allowed: boolean) =>
+    request<AISignIn>(`/ai/signin/${provider}/automation`, {
+      method: 'POST',
+      body: JSON.stringify({ allowed })
+    }),
+  testSignIn: (provider: string, model: string) =>
+    request<{ ok: boolean; kind?: string; message: string }>(`/ai/signin/${provider}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ model })
+    }),
+  activateAI: (provider: string, model = '') =>
+    request<AIStatus>('/ai/activate', {
+      method: 'POST',
+      body: JSON.stringify({ provider, model })
+    }),
+  setTranscription: (backend: string, model = '') =>
+    request<AIStatus>('/ai/transcription', {
+      method: 'POST',
+      body: JSON.stringify({ backend, model })
+    }),
+  activateModel: (tag: string) =>
+    request<{ active: string }>('/models/activate', { method: 'POST', body: JSON.stringify({ tag }) }),
+  /** `already` when that tag was downloading anyway: nothing new is started. */
+  pullModel: (tag: string) =>
+    request<{ started: string; already?: boolean }>('/models/pull', { method: 'POST', body: JSON.stringify({ tag }) }),
+  /** Downloads running now and how the recent ones ended, to catch up on
+   *  model_pull events a window missed. */
+  pullStatus: () => request<{ pulls: ModelPull[] }>('/models/pulls'),
+  deleteModel: (tag: string) => request<{ deleted: string }>(`/models/${tag}`, { method: 'DELETE' }),
+
+  creators: () =>
+    request<{ creators: CreatorSummary[]; suggestions: CreatorSuggestion[] }>('/creators'),
+  creatorDetail: (id: number) => request<CreatorDetail>(`/creators/${id}`),
+  mergeCreators: (fromId: number, intoId: number) =>
+    request<{ merged: number; into: number }>('/creators/merge', {
+      method: 'POST',
+      body: JSON.stringify({ from_id: fromId, into_id: intoId })
+    }),
+  splitCreatorAccount: (accountId: number) =>
+    request<{ new_creator_id: number }>(`/creators/split/${accountId}`, { method: 'POST' }),
+  addCreatorAccount: (creatorId: number, platform: string, channel: string) =>
+    request<{ account_id: number }>(`/creators/${creatorId}/accounts`, {
+      method: 'POST',
+      body: JSON.stringify({ platform, channel })
+    }),
+  deleteCreatorKnowledge: (creatorId: number, knowledgeId: number) =>
+    request<{ deleted: number }>(`/creators/${creatorId}/knowledge/${knowledgeId}`, {
+      method: 'DELETE'
+    }),
+  /** Forget the unconfirmed catchphrases and dormant facts in one go. */
+  clearUnusedKnowledge: (creatorId: number) =>
+    request<{ deleted: number }>(`/creators/${creatorId}/knowledge`, { method: 'DELETE' }),
+  setCreatorLearning: (creatorId: number, enabled: boolean) =>
+    request<{ learning_enabled: boolean }>(`/creators/${creatorId}/learning`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled })
+    }),
+  setCreatorBranding: (creatorId: number, brandingId: number | null) =>
+    request<{ default_branding_id: number | null }>(`/creators/${creatorId}/branding`, {
+      method: 'POST',
+      body: JSON.stringify({ branding_id: brandingId })
+    }),
+  deleteCreator: (creatorId: number) =>
+    request<{ deleted: number; name: string; videos_unlinked: number }>(
+      `/creators/${creatorId}`,
+      { method: 'DELETE' }
+    ),
+  wipeCreatorMemory: (creatorId: number) =>
+    request<{ wiped: number }>(`/creators/${creatorId}/memory`, { method: 'DELETE' }),
+
+  branding: () => request<BrandingProfile[]>('/branding'),
+  createBranding: (name: string, config: WatermarkConfig) =>
+    request<{ id: number }>('/branding', {
+      method: 'POST',
+      body: JSON.stringify({ name, config })
+    }),
+  updateBranding: (id: number, name: string, config: WatermarkConfig) =>
+    request<{ id: number }>(`/branding/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, config })
+    }),
+  deleteBranding: (id: number) =>
+    request<{ deleted: number }>(`/branding/${id}`, { method: 'DELETE' }),
+  uploadBrandingAsset: (path: string) =>
+    request<{ asset: string }>('/branding/asset', {
+      method: 'POST',
+      body: JSON.stringify({ path })
+    }),
+  brandingAssetUrl: (name: string) => `${API_BASE}/branding/asset/${name}`,
+
+  settings: () => request<Settings>('/settings'),
+  // youtube_cookies_text: a cookies.txt's contents, kept by the engine in the data folder (#136)
+  patchSettings: (patch: Partial<Settings> & { youtube_cookies_text?: string }) =>
+    request<{ ok: boolean }>('/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  // ---- YouTube publishing ----
+  // Every route here 404s while the feature is disabled, which is why callers
+  // check youtubeStatus() first rather than treating an error as a fault.
+
+  youtubeStatus: () => request<YouTubeStatus>('/youtube/status'),
+  patchYoutubeSettings: (patch: Partial<YouTubeSettings>) =>
+    request<{ settings: YouTubeSettings; status: YouTubeStatus }>('/youtube/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  /** Bring your own Google Cloud project. The secret goes straight into the
+   *  encrypted store and is never returned by any route. */
+  putYoutubeCredentials: (clientId: string, clientSecret: string) =>
+    request<{ ok: boolean; client_id_tail: string }>('/youtube/credentials', {
+      method: 'PUT',
+      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret })
+    }),
+  deleteYoutubeCredentials: () =>
+    request<{ cleared: boolean }>('/youtube/credentials', { method: 'DELETE' }),
+  /** Starts the browser consent on a background thread; poll pollYoutubeConnect. */
+  /** Each consent ADDS a channel. To publish to a second channel, run this
+   *  again and pick the other one on Google's channel chooser. */
+  startYoutubeConnect: (playlists: boolean, add = false) =>
+    request<{ state: string }>('/youtube/connect', {
+      method: 'POST',
+      body: JSON.stringify({ playlists, add })
+    }),
+  pollYoutubeConnect: () =>
+    request<{
+      state: string
+      channel?: YouTubeChannel | null
+      error?: string
+      status?: YouTubeStatus
+    }>('/youtube/connect'),
+  /** Omit channelId to disconnect every channel. */
+  youtubeDisconnect: (channelId?: string) =>
+    request<{ disconnected: boolean; status?: YouTubeStatus }>('/youtube/disconnect', {
+      method: 'POST',
+      body: JSON.stringify({ channel_id: channelId ?? null })
+    }),
+  setDefaultYoutubeAccount: (channelId: string) =>
+    request<{ status: YouTubeStatus }>('/youtube/default-account', {
+      method: 'PATCH',
+      body: JSON.stringify({ channel_id: channelId })
+    }),
+
+  youtubeCategories: (region: string) =>
+    request<{ categories: VideoCategory[] }>(`/youtube/categories?region=${region}`),
+  youtubePlaylists: () => request<{ playlists: Playlist[] }>('/youtube/playlists'),
+  youtubeUploads: (limit = 20) =>
+    request<{ uploads: PublishRecord[] }>(`/youtube/uploads?limit=${limit}`),
+
+  clipPublishStatus: (clipId: number) =>
+    request<{ upload: PublishRecord | null; job: PublishJobRow | null }>(
+      `/clips/${clipId}/publish`
+    ),
+  publishClip: (clipId: number, body: Record<string, unknown>) =>
+    request<{ publish_job_id: number; render_job_id: number | null }>(
+      `/clips/${clipId}/publish`,
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
+  cancelPublish: (jobId: number) =>
+    request<{ cancelled?: boolean; cancelling?: boolean }>(`/publish/${jobId}/cancel`, {
+      method: 'POST'
+    }),
+
+  /** A frame from the clip, for the thumbnail picker. Needs img-src in the CSP. */
+  clipFrameUrl: (clipId: number, t: number) =>
+    `${API_BASE}/clips/${clipId}/frame?t=${t.toFixed(3)}`,
+  /** `image` is base64 data, not a path: the backend never receives a filename
+   *  for the thumbnail, so it never has to trust one. */
+  chooseThumbnail: (clipId: number, body: { image?: string; t?: number; generated?: number }) =>
+    request<{ thumbnail: string }>(`/clips/${clipId}/thumbnail`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }),
+  /** Make thumbnail candidates from the clip itself, on this machine: a frame
+   *  with a face in it, cropped to 16:9, with the hook burned across it.
+   *  Returns how many were made; zero is a normal answer for a clip with no
+   *  readable frames, and the fixed suggestions are still there. */
+  generateThumbnails: (clipId: number, count = 3) =>
+    request<{ generated: number }>(`/clips/${clipId}/thumbnail/generate?count=${count}`, {
+      method: 'POST'
+    }),
+  generatedThumbnailUrl: (clipId: number, index: number) =>
+    `${API_BASE}/clips/${clipId}/thumbnail/generated/${index}`,
+
+  // ---- Upload-Post: publishing to several platforms at once ----
+  // Same rule as the YouTube routes: everything except /status 404s while the
+  // feature is off, so callers check uploadPostStatus() first rather than
+  // treating an error as a fault. The API key is never returned by any of
+  // these — the status carries has_key and a four-character tail instead.
+
+  uploadPostStatus: () => request<UploadPostStatus>('/uploadpost/status'),
+  patchUploadPostSettings: (patch: Record<string, unknown>) =>
+    request<UploadPostStatus>('/uploadpost/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  /** Stores the key, then proves it works before reporting success. A key
+   *  that fails validation is discarded rather than left looking connected. */
+  putUploadPostKey: (apiKey: string) =>
+    request<UploadPostStatus & { plan: string; email: string }>('/uploadpost/key', {
+      method: 'PUT',
+      body: JSON.stringify({ api_key: apiKey })
+    }),
+  deleteUploadPostKey: () =>
+    request<UploadPostStatus & { removed: boolean }>('/uploadpost/key', { method: 'DELETE' }),
+  /** A hosted Upload-Post page for linking social accounts, good for 48 hours.
+   *  Opened in the real browser — Clips Kitty never sees a social password. */
+  uploadPostConnect: (username?: string) =>
+    request<{ url: string; expires_hours: number; profile: string }>('/uploadpost/connect', {
+      method: 'POST',
+      body: JSON.stringify({ username: username ?? '' })
+    }),
+  uploadPostProfiles: () =>
+    request<{ profiles: { username: string }[] }>('/uploadpost/profiles'),
+  /** Which platforms are linked. Polled after sending someone to the
+   *  connection page, so setup finishes on its own. */
+  uploadPostConnections: () =>
+    request<{ profile: string; connected: string[] }>('/uploadpost/connections'),
+  /** One upload, several platforms. Returns straight away with a request_id;
+   *  poll refreshUploadPost until `done`. */
+  uploadPostPublish: (
+    clipId: number,
+    body: {
+      platforms: string[]
+      title: string
+      description?: string
+      tags?: string[]
+      first_comment?: string
+      thumbnail?: boolean
+      overrides?: Record<string, Record<string, string>>
+      scheduled_date?: string
+      timezone?: string
+      add_to_queue?: boolean
+    }
+  ) =>
+    request<FanOut>(`/uploadpost/clips/${clipId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }),
+  refreshUploadPost: (requestId: string) =>
+    request<FanOut>(`/uploadpost/refresh/${encodeURIComponent(requestId)}`, { method: 'POST' }),
+  /** Re-runs only the platforms that failed, reusing the media already
+   *  uploaded — never a second upload, which would duplicate the successes. */
+  retryUploadPost: (requestId: string) =>
+    request<FanOut>(`/uploadpost/retry/${encodeURIComponent(requestId)}`, { method: 'POST' }),
+  uploadPostCapabilities: () =>
+    request<{ platforms: Capabilities }>('/uploadpost/capabilities'),
+  /** Several clips, each uploaded once and fanned out. `every_hours` spaces
+   *  them through Upload-Post's scheduler rather than firing a burst. */
+  uploadPostBatch: (body: {
+    clip_ids: number[]
+    platforms: string[]
+    every_hours?: number
+    start_at?: string
+    timezone?: string
+    add_to_queue?: boolean
+  }) =>
+    request<{
+      started: { clip_id: number; request_id: string }[]
+      skipped: { clip_id: number; reason: string }[]
+    }>('/uploadpost/batch', { method: 'POST', body: JSON.stringify(body) }),
+  clipUploadPostRows: (clipId: number) =>
+    request<{ platforms: PlatformRow[] }>(`/uploadpost/clips/${clipId}`),
+
+  // ---- WoopSocial: the second provider ----
+  // Same job as Upload-Post, different account. Routes mirror each other so
+  // the panel can drive either without special-casing.
+
+  woopSocialStatus: () => request<UploadPostStatus>('/woopsocial/status'),
+  patchWoopSocialSettings: (patch: Record<string, unknown>) =>
+    request<UploadPostStatus>('/woopsocial/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  putWoopSocialKey: (apiKey: string) =>
+    request<UploadPostStatus & { projects: number }>('/woopsocial/key', {
+      method: 'PUT',
+      body: JSON.stringify({ api_key: apiKey })
+    }),
+  deleteWoopSocialKey: () =>
+    request<UploadPostStatus & { removed: boolean }>('/woopsocial/key', { method: 'DELETE' }),
+  woopSocialConnections: () => request<{ connected: string[] }>('/woopsocial/connections'),
+  /** WoopSocial authorises one platform at a time, so the caller names it. */
+  woopSocialConnect: (platform: string) =>
+    request<{ url: string; platform: string }>('/woopsocial/connect', {
+      method: 'POST',
+      body: JSON.stringify({ platform })
+    }),
+  woopSocialPublish: (
+    clipId: number,
+    body: {
+      platforms: string[]
+      title: string
+      description?: string
+      tags?: string[]
+      overrides?: Record<string, Record<string, string>>
+      scheduled_date?: string
+    }
+  ) =>
+    request<FanOut>(`/woopsocial/clips/${clipId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }),
+  refreshWoopSocial: (postId: string) =>
+    request<FanOut>(`/woopsocial/refresh/${encodeURIComponent(postId)}`, { method: 'POST' }),
+  /** Several clips through WoopSocial, spaced by their own scheduler so a
+   *  run lasting days survives the app being closed. */
+  woopSocialBatch: (body: {
+    clip_ids: number[]
+    platforms: string[]
+    every_hours?: number
+    start_at?: string
+    /** A daily budget, which is the shape posting limits actually take:
+     *  WoopSocial allows five YouTube posts a day. Sending 37 at once
+     *  failed 32 of them. */
+    per_day?: number
+    gap_hours?: number
+    /** Clip id to the platforms it should skip, for the handful a stricter
+     *  platform should not get. */
+    exclude?: Record<string, string[]>
+    /** Added to every clip in the run, on top of each clip's own. */
+    hashtags?: string[]
+  }) =>
+    request<{
+      started: { clip_id: number; request_id: string; scheduled_for: string }[]
+      skipped: { clip_id: number; reason: string }[]
+    }>('/woopsocial/batch', { method: 'POST', body: JSON.stringify(body) }),
+
+  /** What is due, soonest first. Only rows that were given a time. */
+  woopSocialSchedule: () =>
+    request<{
+      posts: {
+        clip_id: number
+        platform: string
+        state: string
+        scheduled_for: string
+        post_url: string
+        error: string
+        title: string
+      }[]
+    }>('/woopsocial/schedule'),
+
+  /** Ask WoopSocial what became of everything still in the air. Without it
+   *  rows sit at "processing" forever and a slow queue is indistinguishable
+   *  from a batch that failed. */
+  woopSocialRefresh: () =>
+    request<{ checked: number; updated: number; still_waiting: number; failed: number }>(
+      '/woopsocial/refresh',
+      { method: 'POST' }
+    ),
+
+  // ---- watched channels ----
+  // A channel posts, its video is queued once, and its clips are published,
+  // asked about, or left alone. Off until switched on.
+
+  automation: () => request<AutomationStatus>('/automation'),
+  setAutomation: (patch: { enabled?: boolean; delete_sources?: boolean }) =>
+    request<AutomationStatus>('/automation', {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  watches: () => request<Watch[]>('/automation/watches'),
+  /** What the watcher is doing right now, and its last few steps. */
+  automationActivity: () => request<AutomationActivity>('/automation/activity'),
+  /** When the next posts would go out with these settings. Reserves nothing. */
+  automationSlots: (perDay: number, gapHours: number, dayStart: string, count = 3) =>
+    request<{ times: string[]; already_scheduled: number }>(
+      `/automation/slots?per_day=${perDay}&gap_hours=${gapHours}&day_start=${encodeURIComponent(
+        dayStart
+      )}&count=${count}`
+    ),
+  /** `publish` sets what happens to its clips in the same step, so a
+   *  hands-off channel is set up once. */
+  addWatch: (
+    platform: WatchPlatform,
+    channel: string,
+    publish?: Partial<WatchPublish>,
+    options?: Partial<JobOptions>
+  ) =>
+    request<Watch & { created: boolean }>('/automation/watches', {
+      method: 'POST',
+      body: JSON.stringify({
+        platform,
+        channel,
+        ...(publish ? { publish } : {}),
+        ...(options ? { options } : {})
+      })
+    }),
+  patchWatch: (
+    id: number,
+    patch: {
+      enabled?: boolean
+      preset?: string
+      options?: Partial<JobOptions> & { clear?: string[] }
+      publish?: WatchPublish
+      backlog?: Watch['backlog']
+      min_minutes?: number
+    }
+  ) =>
+    request<Watch>(`/automation/watches/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
+  deleteWatch: (id: number) =>
+    request<{ deleted: boolean }>(`/automation/watches/${id}`, { method: 'DELETE' }),
+  checkWatch: (id: number) =>
+    request<{ checking: boolean }>(`/automation/watches/${id}/check`, { method: 'POST' }),
+  watchItems: (watchId: number, limit = 100) =>
+    request<WatchItem[]>(`/automation/items?watch_id=${watchId}&limit=${limit}`),
+  /** Clip a video the watch set aside (back catalogue, missed, too short). */
+  clipWatchItem: (id: number) =>
+    request<WatchItem>(`/automation/items/${id}/queue`, { method: 'POST' }),
+  /** Publish with the watch's settings. Also the retry: only what is not
+   *  already sent, or on its way, goes out. */
+  publishWatchItem: (id: number) =>
+    request<WatchItem>(`/automation/items/${id}/publish`, { method: 'POST' }),
+  skipWatchItem: (id: number) =>
+    request<WatchItem>(`/automation/items/${id}/skip`, { method: 'POST' }),
+
+  // ---- Remote rendering (Settings -> Advanced settings) ----
+  remoteRender: () => request<RemoteRenderState>('/remote-render'),
+  setRemoteRender: (patch: { enabled?: boolean; mode?: string; port?: number }) =>
+    request<RemoteRenderState>('/remote-render', { method: 'PUT', body: JSON.stringify(patch) }),
+  renderPairingCode: () =>
+    request<{ code: string; expires_in: number; addresses: string[]; port: number; fingerprint: string }>(
+      '/remote-render/pairing-code',
+      { method: 'POST' }
+    ),
+  removeRenderWorker: (id: string) =>
+    request<RemoteRenderState>(`/remote-render/workers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  holdRenderWorker: (id: string, held: boolean) =>
+    request<RemoteRenderState>(`/remote-render/workers/${encodeURIComponent(id)}/hold`, {
+      method: 'POST',
+      body: JSON.stringify({ held })
+    }),
+  setThisPcWorker: (patch: {
+    enabled?: boolean
+    main?: string
+    code?: string
+    max_jobs?: number
+    draining?: boolean
+  }) => request<RemoteRenderState>('/remote-render/this-pc', { method: 'PUT', body: JSON.stringify(patch) }),
+  unpairThisPc: () => request<RemoteRenderState>('/remote-render/this-pc/unpair', { method: 'POST' }),
+  renderLocally: (videoId: string) =>
+    request<{ released: number }>(`/remote-render/videos/${encodeURIComponent(videoId)}/render-locally`, {
+      method: 'POST'
+    })
+}
+
+/** The server's own words from a failed request, for showing to a person.
+ *  request() throws "400 /path: {"detail":"..."}"; this returns the detail. */
+export function errorText(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e)
+  const body = raw.slice(raw.indexOf(': ') + 2)
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown }
+    if (typeof parsed.detail === 'string') return parsed.detail
+  } catch {
+    // not JSON: fall through to the raw text
+  }
+  return raw
+}

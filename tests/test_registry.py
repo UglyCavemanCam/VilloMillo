@@ -1,0 +1,1004 @@
+"""The plugin registry: the index build, the app's offline client, search,
+installing from a listing, and the block list reaching installed copies.
+
+The registry here is made from a table in a temporary folder: one listing
+per plugin and each manifest at a fake commit in a folder laid out like
+GitHub's raw file addresses, so the build reads it without the network.
+Every id and address is a placeholder.
+"""
+
+import io
+import json
+import re
+import subprocess
+import tarfile
+from pathlib import Path
+from urllib.parse import urlsplit
+
+import pytest
+
+yaml = pytest.importorskip("yaml")
+
+from plugins import catalog, manager, registry, sources, store  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+APP = "2.0.0"
+OWNER = "example-dev"
+
+
+def _commit(n: int) -> str:
+    return f"{n:040x}"
+
+
+# (name, display name, category, tags, games, events, description)
+CATALOGUE = [
+    ("marvel-rivals-highlights", "Marvel Rivals Highlights", "gaming", ["team-fights"], ["marvel-rivals"],
+     ["team_wipe", "multi_kill"], "Finds team wipes and multi-kills from the kill feed."),
+    ("wow-pvp-highlights", "WoW Arena PvP Highlights", "gaming", ["pvp", "arena"], ["world-of-warcraft"],
+     ["kill"], "Arena kills and clutch defensives."),
+    ("wow-mythic-plus", "Mythic+ Dungeon Moments", "gaming", ["mythic-plus", "pve"], ["world-of-warcraft"],
+     ["boss_kill", "wipe"], "Boss kills, wipes and timed keys."),
+    ("minecraft-survival", "Minecraft Survival Moments", "gaming", ["survival"], ["minecraft"], ["death"],
+     "Deaths, close calls and big finds."),
+    ("rocket-league-goals", "Rocket League Goals and Saves", "gaming", ["goals", "saves"], ["rocket-league"],
+     ["goal", "save"], "Every goal and save, from the score display."),
+    ("soccer-goals", "Soccer Goals", "sports", ["goals"], ["soccer"], ["goal"], "Goals from match broadcasts."),
+    ("nhl-goals", "NHL Goals", "sports", ["hockey"], ["nhl"], ["goal"], "Goals from NHL broadcasts."),
+    ("sports-highlights", "Sports Highlights", "sports", ["highlights"], ["soccer", "nhl", "basketball"],
+     ["goal"], "Big moments from many sports."),
+    ("podcast-shorts", "Podcast Shorts", "podcasting", ["shorts", "interviews"], [], [],
+     "Self-contained answers from long conversations."),
+    ("twitch-stream-highlights", "Stream Highlights", "streaming", ["twitch", "chat-spikes"], [], ["hype"],
+     "Moments chat went wild, from a Twitch VOD."),
+    ("karaoke-moments", "Caption-Ready Moments", "captions", ["karaoke", "captions"], [], [],
+     "Picks moments with clear speech for big captions."),
+    ("gaming-highlights", "Gaming Highlights", "gaming", ["highlights"], [], ["kill"],
+     "Highlights from any game: World of Warcraft, Minecraft and more."),
+]
+
+
+def _manifest(name, title, category, tags, games, events, description, version="1.0.0", **extra):
+    data = {"manifest_version": 1, "id": f"{OWNER}/{name}", "name": title, "version": version, "kind": "pipeline",
+            "capability": "highlight_detection", "description": description, "license": "MIT",
+            "repository": f"https://github.com/{OWNER}/{name}", "requires": {"clips_kitty": ">=2.0", "plugin_api": 1},
+            "run": {"command": ["{python}", "src/main.py"]}, "execution": "local", "inputs": ["video"],
+            "outputs": ["ranges"], "permissions": ["video.read"], "category": category, "tags": tags,
+            "games": games, "events": events}
+    data.update(extra)
+    return data
+
+
+class Registry:
+    """A catalog folder laid out like awesome-clips-kitty/, with listings only."""
+
+    def __init__(self, base: Path):
+        self.root = base / "catalog"
+        self.dir = self.root / "registry"
+        self.sources = base / "raw"
+        (self.dir / "pipelines").mkdir(parents=True)
+        (self.dir / "blocklist.yaml").write_text("[]\n")
+        self.n = 0
+
+    def manifest_at(self, name, commit, data, path="."):
+        folder = self.sources / OWNER / name / commit
+        if path != ".":
+            folder = folder / path
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "clipskitty.yaml").write_text(yaml.safe_dump(data))
+
+    def listing(self, name, versions, *, raw=None, file=None, **extra):
+        """versions: [(version, manifest or None)] - None writes no manifest."""
+        entries = []
+        for version, data in versions:
+            self.n += 1
+            commit = _commit(self.n)
+            entries.append({"version": version, "commit": commit})
+            if data is not None:
+                self.manifest_at(name, commit, data, extra.get("path", "."))
+        listing = raw or {"id": f"{OWNER}/{name}", "repository": f"https://github.com/{OWNER}/{name}",
+                          "versions": entries, **extra}
+        target = self.dir / "pipelines" / (file or f"{OWNER}/{name}.yaml")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(yaml.safe_dump(listing))
+        return entries
+
+    def block(self, entries):
+        (self.dir / "blocklist.yaml").write_text(yaml.safe_dump(entries))
+
+    def build(self, **kw):
+        from scripts.build_registry_index import fixture_reader
+
+        return registry.build_index(self.root, fetch=fixture_reader(self.sources), **kw)
+
+
+@pytest.fixture
+def reg(tmp_path):
+    return Registry(tmp_path)
+
+
+@pytest.fixture
+def catalogue(reg, tmp_path):
+    for row in CATALOGUE:
+        reg.listing(row[0], [("1.0.0", _manifest(*row))])
+    index, problems = reg.build()
+    assert problems == []
+    path = tmp_path / "index.json"
+    path.write_text(registry.index_text(index))
+    return path
+
+
+# ---- the build ------------------------------------------------------------------------------
+
+
+def test_a_commit_must_be_on_a_branch_of_the_listed_repository(reg):
+    # GitHub serves a fork's commits under the parent's address too, so a hash alone
+    # doesn't say whose code it is: the build asks where each commit is.
+    row = CATALOGUE[0]
+    (entry,) = reg.listing(row[0], [("1.0.0", _manifest(*row))])
+    asked = []
+
+    def on_branch(owner, repo, commit):
+        asked.append((owner, repo, commit))
+        return False
+
+    index, problems = reg.build(on_branch=on_branch)
+    assert index["plugins"] == [] and asked == [(OWNER, row[0], entry["commit"])]
+    assert problems == [(f"pipelines/{OWNER}/{row[0]}.yaml: 1.0.0: commit {entry['commit'][:7]} is not on a branch "
+                         f"or tag of {OWNER}/{row[0]} (it may be from a fork)")]
+
+    def offline(owner, repo, commit):
+        raise OSError("no network")
+
+    index, problems = reg.build(on_branch=offline)
+    assert index["plugins"] == [] and "couldn't check where commit" in problems[0] and "no network" in problems[0]
+    index, problems = reg.build(on_branch=lambda *a: True)
+    assert problems == [] and index["plugins"][0]["checks"]["commit_on_branch"] is True
+    assert "commit_on_branch" not in reg.build()[0]["plugins"][0]["checks"]  # not checked, not claimed
+
+
+def test_only_the_bundled_index_installs_as_official():
+    official = {"repository": "https://github.com/ColinGPT9/clips-studio"}
+    assert registry.listing_tier({**official, "index": "bundled"}) == "listed-official"
+    assert registry.listing_tier({**official, "index": "https://example.org/index.json"}) == "listed"
+    assert registry.listing_tier({"repository": "https://github.com/example-dev/x", "index": "bundled"}) == "listed"
+
+
+def test_the_build_lists_each_plugin_with_what_the_marketplace_shows(reg):
+    row = CATALOGUE[0]
+    reg.listing(row[0], [("1.0.0", _manifest(*row)), ("1.1.0", _manifest(*row, version="1.1.0",
+                                                                          requirements={"gpu": "recommended"}))],
+                aliases=["rivals"])
+    index, problems = reg.build()
+    assert problems == []
+    (p,) = index["plugins"]
+    assert p["id"] == "example-dev/marvel-rivals-highlights" and p["publisher"] == "example-dev"
+    assert p["latest"] == "1.1.0" and [v["version"] for v in p["versions"]] == ["1.1.0", "1.0.0"]
+    assert p["versions"][0]["commit"] == _commit(2) and p["versions"][0]["requires"]["clips_kitty"] == ">=2.0"
+    assert p["requirements"] == {"gpu": "recommended"}  # the latest version's manifest
+    assert p["games"] == ["marvel-rivals"] and p["aliases"] == ["rivals"] and p["license"] == "MIT"
+    assert p["checks"] == {"manifest_valid": True, "publisher_is_repository_owner": True, "commit_pinned": True,
+                           "public_at_commit": True}
+    assert registry.index_text(index) == registry.index_text(reg.build()[0])  # the same every time
+
+
+@pytest.mark.parametrize("case, fragment", [
+    ("wrong-file", "the file must be pipelines/example-dev/wrong-file.yaml"),
+    ("wrong-owner", "the publisher 'example-dev' must be the repository's GitHub owner, 'someone-else'"),
+    ("reserved", "the publisher 'clipskitty' is reserved"),
+    ("not-github", "repository: must be https://github.com/<owner>/<repo>"),
+    ("short-commit", "versions[0].commit: must be the full 40-character commit hash"),
+    ("twice", "versions[1].version: 1.0.0 is listed twice"),
+    ("unknown-field", "stars: unknown field"),
+    ("id-mismatch", "the manifest's id is 'example-dev/something-else', the listing says 'example-dev/id-mismatch'"),
+    ("version-mismatch", "the manifest's version is '9.9.9', the listing says '1.0.0'"),
+    ("invalid-manifest", "clipskitty.yaml: license: is required"),
+    ("no-manifest", "the manifest at commit"),
+    ("reserved-folder", "path: must be a folder inside the repository that Windows can create"),
+])
+def test_the_build_refuses_a_bad_listing_and_says_why(reg, case, fragment):
+    good = ("good", "Good", "utilities", [], [], [], "A good one.")
+    reg.listing(good[0], [("1.0.0", _manifest(*good))])
+    name = case
+    m = _manifest(name, "X", "utilities", [], [], [], "x")
+    repo = f"https://github.com/{OWNER}/{name}"
+    commit = _commit(99)
+    if case == "wrong-file":
+        reg.listing(name, [("1.0.0", m)], file=f"{OWNER}/elsewhere.yaml")
+    elif case == "wrong-owner":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": f"https://github.com/someone-else/{name}",
+                                   "versions": [{"version": "1.0.0", "commit": commit}]})
+    elif case == "reserved":
+        reg.listing(name, [], raw={"id": f"clipskitty/{name}", "repository": f"https://github.com/clipskitty/{name}",
+                                   "versions": [{"version": "1.0.0", "commit": commit}]}, file=f"clipskitty/{name}.yaml")
+    elif case == "not-github":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": f"https://example.com/{OWNER}/{name}",
+                                   "versions": [{"version": "1.0.0", "commit": commit}]})
+    elif case == "short-commit":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": repo,
+                                   "versions": [{"version": "1.0.0", "commit": "0123abc"}]})
+    elif case == "twice":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": repo,
+                                   "versions": [{"version": "1.0.0", "commit": commit}] * 2})
+    elif case == "unknown-field":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": repo, "stars": 5,
+                                   "versions": [{"version": "1.0.0", "commit": commit}]})
+    elif case == "id-mismatch":
+        reg.listing(name, [("1.0.0", {**m, "id": f"{OWNER}/something-else"})])
+    elif case == "version-mismatch":
+        reg.listing(name, [("1.0.0", {**m, "version": "9.9.9"})])
+    elif case == "invalid-manifest":
+        reg.listing(name, [("1.0.0", {k: v for k, v in m.items() if k != "license"})])
+    elif case == "no-manifest":
+        reg.listing(name, [("1.0.0", None)])
+    elif case == "reserved-folder":
+        reg.listing(name, [], raw={"id": f"{OWNER}/{name}", "repository": repo, "path": "plugins/aux",
+                                   "versions": [{"version": "1.0.0", "commit": commit}]})
+    index, problems = reg.build()
+    assert any(fragment in p for p in problems), problems
+    assert [p["id"] for p in index["plugins"]] == ["example-dev/good"]  # the rest still builds
+
+
+def test_a_listing_that_rates_needs_no_extra_rule(reg):
+    """A plugin that rates moments (Rate & understand) is a pipeline like a
+    finder: listed in pipelines/, built the same way, its inputs and outputs
+    carried to the Marketplace, which reads its steps from them."""
+    from plugins import permissions
+
+    finder = ("quarkbloom-finder", "Quarkbloom Finder", "gaming", [], [], [],
+              "Finds the quark bursts in Quarkbloom Arena (a made-up game).")
+    rater = ("quarkbloom-rater", "Quarkbloom Rater", "gaming", [], [], [],
+             "Rates moments of Quarkbloom Arena (a made-up game) by what the caster calls out.")
+    reg.listing(finder[0], [("1.0.0", _manifest(*finder))])
+    reg.listing(rater[0], [("1.0.0", _manifest(*rater, inputs=["moments", "transcript"], outputs=["ratings"],
+                                               permissions=["transcript.read"],
+                                               run={"command": ["{python}", "src/main.py"], "timeout_minutes": 5}))])
+    index, problems = reg.build()
+    assert problems == []
+    by_id = {p["id"]: p for p in index["plugins"]}
+    found, rates = by_id[f"{OWNER}/quarkbloom-finder"], by_id[f"{OWNER}/quarkbloom-rater"]
+    assert set(rates) == set(found) and rates["kind"] == found["kind"] == "pipeline"
+    assert rates["checks"] == found["checks"] and rates["badges"] == found["badges"]
+    assert (rates["inputs"], rates["outputs"]) == (["moments", "transcript"], ["ratings"])
+    details = permissions.describe(rates, tier=registry.listing_tier(rates))
+    assert details["steps"] == ["Rates moments"]
+    assert details["time_limit"] == ("Clips Kitty stops it after 5 minutes when it rates or understands a "
+                                     "video’s moments.")
+    assert permissions.describe(found, tier=registry.listing_tier(found))["steps"] == ["Finds moments"]
+
+
+def test_blocked_and_delisted_versions_leave_the_index_and_the_list_goes_in(reg):
+    row = CATALOGUE[5]
+    reg.listing(row[0], [("1.0.0", _manifest(*row)), ("1.1.0", _manifest(*row, version="1.1.0"))])
+    reg.block([{"id": f"{OWNER}/{row[0]}", "versions": ["1.1.0"], "severity": "blocked",
+                "reason": "Uploads videos it does not declare", "date": "2026-10-07"}])
+    index, problems = reg.build()
+    assert problems == []
+    (p,) = index["plugins"]
+    assert p["latest"] == "1.0.0" and [v["version"] for v in p["versions"]] == ["1.0.0"]
+    assert index["blocklist"] == [{"id": f"{OWNER}/{row[0]}", "versions": ["1.1.0"], "severity": "blocked",
+                                   "reason": "Uploads videos it does not declare", "date": "2026-10-07"}]
+    reg.block([{"id": f"{OWNER}/{row[0]}", "versions": "*", "severity": "delisted", "reason": "Abandoned",
+                "date": "2026-10-07"}])
+    assert reg.build()[0]["plugins"] == []
+
+
+def test_a_bad_block_list_is_refused(reg):
+    reg.block([{"id": "nope", "versions": [], "severity": "maybe", "reason": "", "date": "yesterday"}])
+    problems = reg.build()[1]
+    for fragment in ("id: must look like", "versions:", "severity: blocked or delisted", "reason:", "date:"):
+        assert any(fragment in p for p in problems), (fragment, problems)
+
+
+def test_the_script_writes_and_checks_the_index(reg, tmp_path, capsys):
+    from scripts.build_registry_index import main
+
+    row = CATALOGUE[3]
+    reg.listing(row[0], [("1.0.0", _manifest(*row))])
+    out = tmp_path / "out.json"
+    args = ["--catalog", str(reg.root), "--sources", str(reg.sources), "--out", str(out)]
+    assert main([*args, "--check"]) == 1  # not written yet
+    assert main(args) == 0 and json.loads(out.read_text())["plugins"][0]["id"] == f"{OWNER}/{row[0]}"
+    assert main([*args, "--check"]) == 0
+    reg.listing("unowned", [], raw={"id": f"{OWNER}/unowned", "repository": "https://github.com/other/unowned",
+                                    "versions": [{"version": "1.0.0", "commit": _commit(7)}]})
+    assert main([*args, "--check"]) == 1
+    assert "refused: pipelines/example-dev/unowned.yaml" in capsys.readouterr().out
+
+
+def test_an_sdk_listing_passes_check_listing(tmp_path, monkeypatch):
+    """The listing the SDK's `listing` command writes, and the version its
+    --to adds, pass the registry's own checks, and the build lists both
+    versions from the plugin's repository. The repository's remote is named
+    as on GitHub, its pushes go to a bare repository here, and the build
+    reads the manifests from that bare repository, so nothing reaches the
+    network."""
+    import importlib
+    import shutil
+
+    from plugins._sdk import clipskitty_sdk  # the SDK, on the path the engine puts it on
+
+    listing = importlib.import_module(clipskitty_sdk.__name__ + ".listing")
+    git = shutil.which("git")
+    if not git:
+        pytest.skip("needs git")
+    config = tmp_path / "gitconfig"
+    config.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for key, value in (("GIT_AUTHOR_NAME", "Test Owner"), ("GIT_COMMITTER_NAME", "Test Owner"),
+                       ("GIT_AUTHOR_EMAIL", "test-owner@example.com"),
+                       ("GIT_COMMITTER_EMAIL", "test-owner@example.com")):
+        monkeypatch.setenv(key, value)
+    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        monkeypatch.delenv(key, raising=False)
+
+    def run(cwd, *args):
+        return subprocess.run([git, *args], cwd=str(cwd), check=True, capture_output=True, text=True).stdout
+
+    owner, name, path = "test-owner", "word-moments", "plugins/word-moments"
+    root, bare = tmp_path / "work" / name, tmp_path / "remote.git"
+    folder = root / path
+    (folder / "src").mkdir(parents=True)
+    (folder / "src" / "main.py").write_text("from clipskitty_sdk import run\n\n\ndef main(job):\n    job.finish()\n\n\n"
+                                            "if __name__ == \"__main__\":\n    run(main)\n")
+
+    def write_manifest(version):
+        data = {"manifest_version": 1, "id": f"{owner}/{name}", "name": "Word Moments", "version": version,
+                "kind": "pipeline", "capability": "highlight_detection", "license": "MIT",
+                "description": "Finds the moments when the commentary says one of your words.",
+                "repository": f"https://github.com/{owner}/{name}",
+                "requires": {"clips_kitty": ">=2.0", "plugin_api": 1},
+                "run": {"command": ["{python}", "src/main.py"]}, "execution": "local", "inputs": ["transcript"],
+                "outputs": ["ranges"], "permissions": ["transcript.read"], "category": "gaming"}
+        (folder / "clipskitty.yaml").write_text(yaml.safe_dump(data, sort_keys=False))
+
+    write_manifest("1.0.0")
+    run(tmp_path, "init", "-q", "--bare", str(bare))
+    run(root, "init", "-q")
+    run(root, "checkout", "-q", "-b", "main")
+    run(root, "remote", "add", "origin", f"https://github.com/{owner}/{name}")
+    run(root, "config", "remote.origin.pushurl", str(bare))
+    run(root, "add", "-A")
+    run(root, "commit", "-q", "-m", "1.0.0")
+    run(root, "push", "-q", "-u", "origin", "main")
+    out = tmp_path / "work" / f"{name}.yaml"
+    quiet = {"stdout": io.StringIO(), "stderr": io.StringIO()}
+    assert listing.run(folder, section="gaming/generic", aliases=["word moments"], out=out, today="2026-10-07",
+                       **quiet) == 0, quiet["stderr"].getvalue()
+    write_manifest("1.1.0")
+    run(root, "commit", "-q", "-am", "1.1.0")
+    run(root, "tag", "v1.1.0")
+    run(root, "push", "-q", "--tags", "origin", "main")
+    assert listing.run(folder, to=out, **quiet) == 0, quiet["stderr"].getvalue()
+
+    data = yaml.safe_load(out.read_text(encoding="utf-8"))
+    sections = json.loads(registry.bundled_path().read_text(encoding="utf-8"))["sections"]
+    assert catalog.check_sections(sections) == []
+    assert registry.check_listing(data, f"{owner}/{name}.yaml", folder="pipelines", sections=sections) == []
+    assert [v["version"] for v in data["versions"]] == ["1.0.0", "1.1.0"] and data["path"] == path
+
+    # The build, with the manifests read from the bare repository at each commit.
+    catalog_dir = tmp_path / "catalog"
+    (catalog_dir / "registry" / "pipelines" / owner).mkdir(parents=True)
+    (catalog_dir / "registry" / "blocklist.yaml").write_text("[]\n")
+    (catalog_dir / "registry" / "sections.yaml").write_text(yaml.safe_dump(sections), encoding="utf-8")
+    shutil.copy(out, catalog_dir / "registry" / "pipelines" / owner / f"{name}.yaml")
+
+    def fetch(url):
+        m = re.match(rf"https://raw\.githubusercontent\.com/{owner}/{name}/([0-9a-f]{{40}})/(.+)$", url)
+        assert m, url
+        return run(bare, "show", f"{m.group(1)}:{m.group(2)}")
+
+    def on_branch(o, r, commit):
+        assert (o, r) == (owner, name)
+        return bool(run(bare, "branch", "--contains", commit).strip())
+
+    index, problems = registry.build_index(catalog_dir, fetch=fetch, on_branch=on_branch)
+    assert problems == []
+    (plugin,) = index["plugins"]
+    assert (plugin["id"], plugin["section"], plugin["path"], plugin["aliases"]) == (
+        f"{owner}/{name}", "gaming/generic", path, ["word moments"])
+    newest_first = [(v["version"], v["commit"], v.get("tag")) for v in reversed(data["versions"])]
+    assert [(v["version"], v["commit"], v.get("tag")) for v in plugin["versions"]] == newest_first
+    assert newest_first[0][2] == "v1.1.0" and newest_first[1][2] is None
+
+    # The SDK's copies of the catalog's rules are the catalog's.
+    assert listing.SECTION_PATTERN == catalog.SECTION_RE.pattern
+    assert listing.OFFICIAL_OWNERS == catalog.OFFICIAL_OWNERS
+    longest = [f"{i}".rjust(listing.MAX_ALIAS_LENGTH, "x") for i in range(listing.MAX_ALIASES)]
+    assert registry.check_listing({**data, "aliases": longest}, f"{owner}/{name}.yaml") == []
+    for aliases in ([*longest, "one more"], ["x" * (listing.MAX_ALIAS_LENGTH + 1)]):
+        assert registry.check_listing({**data, "aliases": aliases}, f"{owner}/{name}.yaml") == [
+            "aliases: at most 10 words or short phrases"]
+
+
+def test_the_list_that_ships_with_the_app_is_one_the_app_reads_whole():
+    """The catalog is its own repository (github.com/ColinGPT9/awesome-clips-kitty),
+    which checks and builds itself. What stays here is the copy of its index
+    the app ships with (scripts/sync_catalog_index.py fetches it): the app
+    must keep all of it, and it must be the build's own text."""
+    text = registry.bundled_path().read_text(encoding="utf-8")
+    raw = json.loads(text)
+    assert registry.index_text(raw) == text, "run python scripts/sync_catalog_index.py"
+    kept = registry.check_index(raw, ours=True)
+    assert [p["id"] for p in kept["plugins"]] == [p["id"] for p in raw["plugins"]] != []
+    assert [e["id"] for e in kept["catalog"]] == [e["id"] for e in raw["catalog"]] != []
+    assert catalog.check_sections(raw["sections"]) == []
+    # Only what is built with Clips Kitty (D35).
+    assert {e["relationship"] for e in raw["catalog"]} == {"built-with"}
+
+
+# ---- search --------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("query, first", [
+    ("Marvel Rivals", "marvel-rivals-highlights"),
+    ("World of Warcraft PvP", "wow-pvp-highlights"),
+    ("wow pvp", "wow-pvp-highlights"),
+    ("Minecraft", "minecraft-survival"),
+    ("Rocket League", "rocket-league-goals"),
+    ("Soccer goals", "soccer-goals"),
+    ("football", "soccer-goals"),
+    ("NHL", "nhl-goals"),
+    ("podcast", "podcast-shorts"),
+    ("Podcast shorts", "podcast-shorts"),
+    ("Twitch", "twitch-stream-highlights"),
+    ("captions", "karaoke-moments"),
+])
+def test_specific_searches_find_the_specialised_listing_first(catalogue, tmp_path, query, first):
+    found = registry.search(registry.listings(tmp_path / "data", [], bundled=catalogue), query)
+    assert found and found[0]["id"] == f"{OWNER}/{first}", [p["id"] for p in found]
+
+
+def test_wow_finds_both_wow_pipelines_before_anything_broad(catalogue, tmp_path):
+    found = [p["id"].split("/")[1] for p in registry.search(registry.listings(tmp_path, [], bundled=catalogue), "WoW")]
+    assert set(found[:2]) == {"wow-pvp-highlights", "wow-mythic-plus"}
+    assert "soccer-goals" not in found
+
+
+def test_highlights_and_filters(catalogue, tmp_path):
+    every = registry.listings(tmp_path, [], bundled=catalogue)
+    names = [p["id"].split("/")[1] for p in registry.search(every, "highlights")]
+    assert {"marvel-rivals-highlights", "wow-pvp-highlights", "sports-highlights", "gaming-highlights",
+            "twitch-stream-highlights"} <= set(names)
+    assert {p["id"].split("/")[1] for p in registry.search(every, category="sports")} == {
+        "soccer-goals", "nhl-goals", "sports-highlights"}
+    assert [p["id"].split("/")[1] for p in registry.search(every, tag="twitch")] == ["twitch-stream-highlights"]
+    assert registry.search(every, kind="caption-style") == []
+    assert len(registry.search(every, "")) == len(CATALOGUE)
+    assert registry.search(every, "zzz nothing") == []
+
+
+# ---- the client: addresses, cache, offline ------------------------------------------------------
+
+
+def test_index_addresses_come_from_settings_and_must_be_https():
+    assert registry.index_urls({}) == []
+    config = {"plugins": {"registry_urls": ["https://example.com/index.json", "http://example.com/x", 5]}}
+    assert registry.index_urls(config) == ["https://example.com/index.json"]
+
+
+def test_refresh_caches_the_last_good_copy_and_works_offline(catalogue, tmp_path):
+    data = tmp_path / "data"
+    url = "https://example.com/clips-kitty/index.json"
+    empty = tmp_path / "bundled.json"
+    empty.write_text('{"format": 1, "plugins": [], "blocklist": []}')
+
+    def fetch_ok(u, path):
+        Path(path).write_bytes(catalogue.read_bytes())
+
+    assert registry.refresh(data, [url], fetcher=fetch_ok) == [{"url": url, "ok": True, "error": None}]
+    assert len(registry.listings(data, [url], bundled=empty)) == len(CATALOGUE)
+
+    def offline(u, path):
+        raise sources.SourceError("the download failed (no network)") from OSError("no network")
+
+    def broken(u, path):
+        Path(path).write_text('{"format": 99}')
+
+    for fetcher, why in ((offline, registry.WHY_OFFLINE), (broken, registry.WHY_UNREADABLE)):
+        (status,) = registry.refresh(data, [url], fetcher=fetcher)
+        assert status == {"url": url, "ok": False, "error": why}
+        assert len(registry.listings(data, [url], bundled=empty)) == len(CATALOGUE)  # last good copy
+    kinds = [(i["url"], i["index"] is not None) for i in registry.indexes(data, [url, "https://example.com/never"],
+                                                                         bundled=empty)]
+    assert kinds == [("bundled", True), (registry.ONLINE_URL, False), (url, True), ("https://example.com/never", False)]
+
+
+def test_a_plugin_in_two_indexes_comes_from_the_first(catalogue, tmp_path):
+    data = tmp_path / "data"
+    other = json.loads(catalogue.read_text())
+    other["plugins"] = [{**other["plugins"][0], "name": "Imposter"}]
+    url = "https://example.com/other.json"
+    registry.refresh(data, [url], fetcher=lambda u, p: Path(p).write_text(json.dumps(other)))
+    found = {p["id"]: p for p in registry.listings(data, [url], bundled=catalogue)}
+    assert found[other["plugins"][0]["id"]]["name"] != "Imposter" and found[other["plugins"][0]["id"]]["index"] == "bundled"
+
+
+# ---- Clips Kitty's online list ---------------------------------------------------------------------
+
+
+def _listing(name, *versions, owner=OWNER, **extra):
+    """An index's listing: versions as (version, commit number), newest first."""
+    return {"id": f"{owner.lower()}/{name}", "name": name.replace("-", " ").title(), "publisher": owner.lower(),
+            "repository": f"https://github.com/{owner}/{name}", "path": ".",
+            "versions": [{"version": v, "commit": _commit(n)} for v, n in versions], **extra}
+
+
+def _index(plugins=(), *, catalog=(), blocklist=(), metrics_at="2026-10-05", **extra):
+    return {"format": 1, "plugins": list(plugins), "catalog": list(catalog), "blocklist": list(blocklist),
+            "metrics_at": metrics_at, **extra}
+
+
+def _online(data, index):
+    """Put `index` in the cache as Clips Kitty's online list, the way the app fetches it."""
+    status = registry.refresh_online(data, fetcher=lambda u, p: Path(p).write_text(json.dumps(index)))
+    assert status == {"url": registry.ONLINE_URL, "ok": True, "error": None}
+
+
+LABELLED = {"badges": ["community", "compatible", "featured"], "featured": {"reason": "notable"},
+            "metrics": {"installs": 120, "github": {"stars": 5}}}
+
+
+def test_the_online_list_brings_new_pipelines_as_community_and_never_counts_them(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index([_listing("kept", ("1.0.0", 1), **LABELLED)], counter={
+        "install": "https://github.com/ColinGPT9/awesome-clips-kitty/releases/download/installs/{asset}"})))
+    _online(data, _index([
+        _listing("kept", ("1.0.0", 1)),  # the same version: the bundled listing stays, labels and all
+        _listing("brand-new", ("0.1.0", 2), **LABELLED, checks={"manifest_valid": True, "official_repository": True}),
+        _listing("clips-studio", ("9.0.0", 3), owner="ColinGPT9"),  # the project's own: only with the app
+    ], counter={"install": "https://github.com/ColinGPT9/awesome-clips-kitty/releases/download/x/{asset}"}))
+
+    found = {p["id"]: p for p in registry.listings(data, [], bundled=bundled)}
+    assert list(found) == [f"{OWNER}/kept", f"{OWNER}/brand-new"]
+    kept, new = found[f"{OWNER}/kept"], found[f"{OWNER}/brand-new"]
+    assert kept["index"] == "bundled" and kept["badges"] == ["community", "compatible", "featured"]
+    assert kept["metrics"]["installs"] == 120
+    assert new["index"] == registry.ONLINE_URL and new["badges"] == ["community"]
+    assert "featured" not in new and "installs" not in new["metrics"] and new["metrics"]["github"] == {"stars": 5}
+    assert new["checks"] == {"manifest_valid": True}
+    assert registry.listing_tier(new) == "listed"
+    assert registry.counter_for(data, [], registry.ONLINE_URL, bundled=bundled) is None
+    assert registry.counter_for(data, [], "bundled", bundled=bundled)
+    # what the Marketplace lists, in the order the lists count
+    kinds = [(i["kind"], i["url"], i["index"] is not None) for i in registry.indexes(data, [], bundled=bundled)]
+    assert kinds == [("bundled", "bundled", True), ("online", registry.ONLINE_URL, True)]
+
+
+@pytest.mark.parametrize("online_version, from_online", [("1.1.0", True), ("1.0.0", False), ("0.9.0", False),
+                                                       ("1.0.1-rc.1", True)])
+def test_a_newer_version_online_is_added_and_shows_as_community_until_a_release(tmp_path, online_version, from_online):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index([_listing("tool", ("1.0.0", 1), **LABELLED)])))
+    _online(data, _index([{**_listing("tool", (online_version, 2), ("1.0.0", 1)), "name": "Tool Two"}]))
+    (listing,) = registry.listings(data, [], bundled=bundled)
+    assert listing["index"] == "bundled"
+    assert listing["latest"] == (online_version if from_online else "1.0.0")
+    assert listing["badges"] == (["community", "featured"] if from_online else ["community", "compatible", "featured"])
+    assert listing["name"] == ("Tool Two" if from_online else "Tool")  # what the newest version says it is
+    assert listing["metrics"]["installs"] == 120
+    _, newest = registry.find(data, [], f"{OWNER}/tool", bundled=bundled)
+    assert newest["version"] == listing["latest"]
+    assert newest["index"] == (registry.ONLINE_URL if from_online else "bundled")
+    assert registry.listing_tier(listing, newest) == "listed"
+
+
+def test_a_version_the_bundled_list_has_stays_the_bundled_one(tmp_path):
+    """D29: the online list adds versions; it never changes or removes one the
+    release's list checked, so its commit, compatibility record and counting stay."""
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    passed = {"passed": True, "plugin_api": 1, "app_version": "2.0.0", "date": "2026-10-05"}
+    bundled.write_text(json.dumps(_index([{**_listing("tool", ("1.0.0", 1)), "versions": [
+        {"version": "1.0.0", "commit": _commit(1), "compatibility": passed}]}], counter={
+        "install": "https://github.com/ColinGPT9/awesome-clips-kitty/releases/download/installs/{asset}"})))
+    for online in ([("1.1.0", 3), ("1.0.0", 2)], [("1.1.0", 3)]):  # a different commit, or none at all
+        _online(data, _index([_listing("tool", *online)]))
+        listing, kept = registry.find(data, [], f"{OWNER}/tool", "1.0.0", bundled=bundled)
+        assert kept["commit"] == _commit(1) and kept["compatibility"] == passed and kept["index"] == "bundled"
+        assert [v["version"] for v in listing["versions"]] == ["1.1.0", "1.0.0"]
+        assert registry.counter_for(data, [], kept["index"], bundled=bundled)
+        _, added = registry.find(data, [], f"{OWNER}/tool", "1.1.0", bundled=bundled)
+        assert added["index"] == registry.ONLINE_URL and "compatibility" not in added
+        assert registry.counter_for(data, [], added["index"], bundled=bundled) is None
+
+
+def test_the_online_list_never_changes_the_projects_own_listing_or_one_whose_code_moved(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    own = _listing("scene-cut-highlights", ("1.0.0", 1), owner="clips-kitty-examples",
+                   repository="https://github.com/ColinGPT9/clips-studio", path="examples/scene-cut")
+    other = _listing("tool", ("1.0.0", 2))
+    bundled.write_text(json.dumps(_index([own, other])))
+    _online(data, _index([
+        _listing("scene-cut-highlights", ("1.0.1", 3), owner="clips-kitty-examples"),  # now someone else's repository
+        {**_listing("tool", ("2.0.0", 4)), "repository": "https://github.com/someone-else/tool"},
+    ]))
+    found = {p["id"]: p for p in registry.listings(data, [], bundled=bundled)}
+    assert found["clips-kitty-examples/scene-cut-highlights"]["latest"] == "1.0.0"
+    assert registry.listing_tier(found["clips-kitty-examples/scene-cut-highlights"]) == "listed-official"
+    assert found[f"{OWNER}/tool"]["latest"] == "1.0.0"
+    assert found[f"{OWNER}/tool"]["repository"] == f"https://github.com/{OWNER}/tool"
+
+
+@pytest.mark.parametrize("older, newer", [("1.2.0-rc.1", "1.2.0"), ("1.2.0-rc.2", "1.2.0-rc.10"),
+                                          ("1.2.0-alpha", "1.2.0-alpha.1"), ("1.2.0-9", "1.2.0-alpha"),
+                                          ("1.2.0", "1.2.1"), ("1.9.0", "1.10.0")])
+def test_versions_are_ordered_the_semantic_versioning_way(older, newer):
+    from plugins._sdk import manifest
+
+    assert manifest.version_key(older) < manifest.version_key(newer)
+    assert manifest.version_key("1.2.0+build.5") == manifest.version_key("1.2.0")
+    assert manager._version_order(newer, older) == 1
+
+
+def test_a_broken_sections_value_online_is_dropped_not_a_crash(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index(sections={"pipeline": {"sections": [{"id": "gaming", "title": "Gaming"}]}})))
+    _online(data, _index(sections={"pipeline": {"sections": 5, "wanted": "x"},
+                                   "app": {"sections": [{"id": "editing", "title": "Editing"}, "junk", {"id": 3}]},
+                                   "model": 7}))
+    sections = registry.sections_of(registry.indexes(data, [], bundled=bundled))
+    assert sections["pipeline"]["sections"] == [{"id": "gaming", "title": "Gaming"}]
+    assert sections["app"]["sections"] == [{"id": "editing", "title": "Editing"}] and "model" not in sections
+
+
+def test_two_checks_at_once_fetch_the_online_list_once(tmp_path):
+    """The Marketplace opening and the button can ask together; the second
+    waits for the first and finds the list already fresh."""
+    import threading
+    import time as clock
+
+    data = tmp_path / "data"
+    calls = []
+
+    def slow(u, p):
+        calls.append(u)
+        clock.sleep(0.3)
+        Path(p).write_text(json.dumps(_index()))
+
+    threads = [threading.Thread(target=registry.refresh_online_if_due, args=(data,), kwargs={"fetcher": slow})
+               for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert calls == [registry.ONLINE_URL]
+    bundled = tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index(metrics_at="2026-10-01")))
+    view = registry.online_status(data, bundled=bundled)
+    assert view["error"] is None and view["fetched_at"] and view["in_use"]
+    assert not list(registry._cache_dir(data).glob("*.part"))
+    bundled.write_text(json.dumps(_index(metrics_at="2026-10-09")))  # a newer release: that copy is set aside
+    assert registry.online_status(data, bundled=bundled)["in_use"] is False
+
+
+def test_a_list_that_isnt_there_waits_a_day_not_an_hour(tmp_path):
+    data, now = tmp_path / "data", 1_800_000_000.0
+    registry.refresh_online(data, fetcher=lambda u, p: Path(p).write_text("not json"), now=now)
+    assert registry.online_status(data)["error"] == registry.WHY_UNREADABLE
+    assert not registry.online_due(data, now=now + 2 * 3600)
+    assert registry.online_due(data, now=now + 25 * 3600)
+
+
+def test_an_online_block_applies_and_cant_lift_a_bundled_one(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    block = {"id": f"{OWNER}/a", "versions": ["1.0.0"], "severity": "blocked", "reason": "steals keys", "date": "2026-10-07"}
+    bundled.write_text(json.dumps(_index([_listing("a", ("1.0.0", 1)), _listing("b", ("1.0.0", 2))], blocklist=[block])))
+    _online(data, _index([_listing("a", ("1.0.0", 1)), _listing("b", ("1.0.0", 2))],
+                         blocklist=[{**block, "id": f"{OWNER}/b"}]))
+    assert registry.listings(data, [], bundled=bundled) == []
+    assert registry.blocked_check(data, bundled=bundled)(f"{OWNER}/b", "1.0.0")["reason"] == "steals keys"
+
+
+def test_an_online_copy_older_than_this_release_adds_nothing_but_its_blocks(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index([_listing("a", ("2.0.0", 1))], metrics_at="2026-10-12")))
+    block = {"id": f"{OWNER}/a", "versions": "*", "severity": "delisted", "reason": "gone", "date": "2026-10-01"}
+    _online(data, _index([_listing("a", ("3.0.0", 2)), _listing("removed-since", ("1.0.0", 3))],
+                         blocklist=[{**block, "id": f"{OWNER}/old"}], metrics_at="2026-10-05"))
+    assert [p["id"] for p in registry.listings(data, [], bundled=bundled)] == [f"{OWNER}/a"]
+    assert registry.listings(data, [], bundled=bundled)[0]["latest"] == "2.0.0"
+    online = registry.indexes(data, [], bundled=bundled)[1]
+    assert online["kind"] == "online" and online["index"] is None
+    assert registry.blocked_check(data, bundled=bundled)(f"{OWNER}/old", "1.0.0")  # blocks are never set aside
+
+
+def _entry(slug, *, owner="someone", kind="app", **extra):
+    return {"id": f"{catalog.FOLDER_OF_KIND[kind]}/{slug}", "kind": kind, "name": slug.title(), "license": "MIT",
+            "relationship": "built-with", "source": {"github": f"https://github.com/{owner}/{slug}"}, **extra}
+
+
+def test_a_fetched_list_cant_bring_a_bad_download_link_or_website():
+    """The app checks an entry's download page and website again, the way
+    the catalog build does (plugins/catalog.py), and drops a bad one."""
+    code = "https://github.com/someone/clipper"
+    good = {"github": code, "homepage": "https://clipper.example.org/",
+            "download": "https://www.clipper.example.org/windows"}
+    bad = [
+        {"download": code + "/releases/download/v1.0/clipper.exe"},  # a file, not a page
+        {"homepage": "https://clipper.example.org/", "download": "https://elsewhere.example.net/clipper"},
+        {"download": "https://github.com/someone-else/clipper/releases"},  # another repository's
+        {"homepage": "https://me:secret@clipper.example.org/", "download": "https://clipper.example.org/get"},
+        {"homepage": "http://clipper.example.org/"},
+        {"homepage": "https://github.com/someone-else"},
+        {"download": ["https://clipper.example.org/get"]},
+    ]
+    entries = [_entry("good", source=good, setup="installer"),
+               *(_entry(f"bad-{i}", source={"github": code, **s}, setup="easy") for i, s in enumerate(bad))]
+    by_id = {e["id"]: e for e in registry.check_index(_index(catalog=entries))["catalog"]}
+    assert by_id["apps/good"]["source"] == good and by_id["apps/good"]["setup"] == "installer"
+    for i in range(len(bad)):
+        got = by_id[f"apps/bad-{i}"]
+        assert got["source"] == {"github": code, **({"homepage": "https://clipper.example.org/"} if i == 1 else {})}
+        assert "setup" not in got
+
+
+def test_a_fetched_list_cant_vouch_for_a_download_on_someone_elses_site():
+    """A download on the homepage's site must be on exactly its name or its
+    www twin: a homepage on www.com, www.co.uk or github.io would otherwise
+    vouch for other people's sites, and the app would say the link is in
+    Clips Kitty's list."""
+    code = "https://github.com/someone/clipper"
+    cases = [
+        ("https://www.com/", "https://evil-site.com/get", False),
+        ("https://www.co.uk/", "https://someone-else.co.uk/get", True),
+        ("https://github.io/", "https://someone-else.github.io/get", True),
+        ("https://www.github.io/", "https://someone-else.github.io/get", True),
+        ("https://clipper.example.org/", "https://get.clipper.example.org/windows", True),
+    ]
+    entries = [_entry(f"case-{i}", source={"github": code, "homepage": h, "download": d})
+               for i, (h, d, _) in enumerate(cases)]
+    by_id = {e["id"]: e for e in registry.check_index(_index(catalog=entries))["catalog"]}
+    for i, (homepage, _, homepage_kept) in enumerate(cases):
+        assert by_id[f"apps/case-{i}"]["source"] == {"github": code, **({"homepage": homepage} if homepage_kept else {})}
+
+
+def test_a_fetched_list_cant_make_a_file_look_like_a_page():
+    """source.url gets the same file check as the download link: the card
+    would label a file on GitHub "Code page on GitHub", or elsewhere "Website"."""
+    code = "https://github.com/someone/clipper"
+    files = [code + f"/releases/download/v1/tool{e}" for e in (".exe", ".hta", ".js", ".msu", ".application",
+                                                                 ".vhdx", ".img", ".cab", ".tar")]
+    files += [code + "/releases/download/v1/tool", code + "/releases/latest/download/tool", code + "/raw/main/tool",
+              code + "/archive/refs/tags/v1", code + "/blob/main/tool?raw=true",
+              "https://raw.githubusercontent.com/someone/clipper/main/tool"]
+    entries = [
+        *(_entry(f"on-github-{i}", source={"github": code, "url": url}) for i, url in enumerate(files)),
+        _entry("only-a-file", source={"url": "https://example.com/setup.exe"}),
+        _entry("disguised", source={"github": code, "url": "https://example.com/app.exe%00"}),
+        _entry("a-page", source={"github": code, "url": code + "#how-to-use-it"}),
+    ]
+    by_id = {e["id"]: e for e in registry.check_index(_index(catalog=entries))["catalog"]}
+    for i in range(len(files)):
+        assert by_id[f"apps/on-github-{i}"]["source"] == {"github": code}, files[i]
+    assert "apps/only-a-file" not in by_id  # nothing left to open
+    assert by_id["apps/disguised"]["source"] == {"github": code}
+    assert by_id["apps/a-page"]["source"] == {"github": code, "url": code + "#how-to-use-it"}
+
+
+def test_a_fetched_list_cant_vouch_with_a_homepage_on_a_site_many_people_share():
+    """On GitLab, Codeberg, SourceForge, Google Sites and the like, strangers'
+    pages share one website name: a homepage there is dropped, and so is a
+    download that only the homepage would allow."""
+    code = "https://github.com/someone/clipper"
+    cases = [
+        ("https://gitlab.com/someone/clipper", "https://gitlab.com/someone-else/tool/-/releases"),
+        ("https://codeberg.org/someone/clipper", "https://codeberg.org/someone-else/tool/releases"),
+        ("https://bitbucket.org/someone/clipper", "https://bitbucket.org/someone-else/tool/downloads/"),
+        ("https://sourceforge.net/projects/clipper/", "https://sourceforge.net/projects/someone-else/files/"),
+        ("https://sites.google.com/view/clipper", "https://sites.google.com/view/someone-else"),
+        ("https://www.dropbox.com/sh/clipper", "https://www.dropbox.com/sh/someone-else"),
+    ]
+    entries = [_entry(f"case-{i}", source={"github": code, "homepage": h, "download": d})
+               for i, (h, d) in enumerate(cases)]
+    by_id = {e["id"]: e for e in registry.check_index(_index(catalog=entries))["catalog"]}
+    for i in range(len(cases)):
+        assert by_id[f"apps/case-{i}"]["source"] == {"github": code}
+
+
+def test_the_online_list_adds_directory_entries_and_sections_but_not_the_projects_own(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    sections = {"app": {"sections": [{"id": "editors", "title": "Editors"}], "wanted": []}}
+    bundled.write_text(json.dumps(_index(catalog=[_entry("cutter", featured={"reason": "x"}, badges=["featured"],
+                                                         metrics={"installs": 3})], sections=sections)))
+    _online(data, _index(catalog=[_entry("cutter", name="Changed"), _entry("newcomer", section="games",
+                                                                         badges=["official", "featured"],
+                                                                         metrics={"installs": 9}),
+                                  _entry("clips-studio", owner="ColinGPT9")],
+                         sections={"app": {"sections": [{"id": "editors", "title": "Renamed"},
+                                                        {"id": "games", "title": "Games"}]},
+                                   "tool": {"sections": [{"id": "cli", "title": "Command line"}]}}))
+    entries, merged = registry.catalog_entries(data, [], bundled=bundled)
+    by_id = {e["id"]: e for e in entries}
+    assert list(by_id) == ["apps/cutter", "apps/newcomer"]
+    assert by_id["apps/cutter"]["name"] == "Cutter" and by_id["apps/cutter"]["badges"] == ["community", "featured"]
+    newcomer = by_id["apps/newcomer"]
+    assert newcomer["index"] == registry.ONLINE_URL and newcomer["badges"] == ["community"]
+    assert "featured" not in newcomer and "installs" not in newcomer["metrics"]
+    assert merged["app"]["sections"] == [{"id": "editors", "title": "Editors"}, {"id": "games", "title": "Games"}]
+    assert merged["tool"] == {"sections": [{"id": "cli", "title": "Command line"}]}
+
+
+def test_the_online_list_is_checked_once_a_day_retried_hourly_and_can_be_switched_off(tmp_path):
+    data, bundled = tmp_path / "data", tmp_path / "index.json"
+    bundled.write_text(json.dumps(_index()))
+    now = 1_800_000_000.0
+    assert registry.online_checks_on(data) and registry.online_due(data, now=now)  # never fetched
+
+    def offline(u, p):
+        raise sources.SourceError("the download failed (no network)") from OSError("no network")
+
+    status = registry.refresh_online(data, fetcher=offline, now=now)
+    assert status["ok"] is False
+    view = registry.online_status(data)
+    assert view["fetched_at"] is None and view["error"] == registry.WHY_OFFLINE and view["automatic"] is True
+    assert not registry.online_due(data, now=now + 30 * 60)  # offline: not again on every open
+    assert registry.online_due(data, now=now + 2 * 3600)
+
+    _online(data, _index())  # fetched now (the real clock)
+    assert registry.online_status(data)["error"] is None and registry.online_status(data)["fetched_at"]
+    real = registry._seconds(registry.online_status(data)["fetched_at"])
+    assert not registry.online_due(data, now=real + 23 * 3600)
+    assert registry.online_due(data, now=real + 25 * 3600)
+    assert registry.online_due(data, now=real - 3600)  # a clock set back doesn't stop the checks
+
+    registry.set_online_checks(data, False)
+    assert not registry.online_checks_on(data) and not registry.online_due(data, now=real + 30 * 86400)
+    assert registry.online_status(data)["automatic"] is False
+    registry.set_online_checks(data, True)
+    assert registry.online_due(data, now=real + 30 * 86400)
+
+
+def test_the_online_list_is_the_catalogs_index_on_the_main_branch():
+    """The address is the index's own place on the main branch of the
+    catalog's repository, so what it serves is exactly what was merged there
+    (D29, D36). The copy the app ships with is a file of this repository."""
+    assert registry.ONLINE_URL == f"https://raw.githubusercontent.com/{registry.CATALOG_REPOSITORY}/main/index.json"
+    import importlib
+
+    from plugins._sdk import clipskitty_sdk  # the SDK, on the path the engine puts it on
+
+    listing = importlib.import_module(clipskitty_sdk.__name__ + ".listing")
+    assert registry.CATALOG_REPOSITORY == listing.CATALOG_REPOSITORY == "ColinGPT9/awesome-clips-kitty"
+    assert registry.bundled_path().relative_to(ROOT).as_posix() == "plugins/catalog_index.json"
+    assert registry.index_urls({"plugins": {"registry_urls": [registry.ONLINE_URL]}}) == []
+
+
+def test_the_privacy_policy_tells_people_about_the_list_check():
+    text = (ROOT / "site" / "privacy.html").read_text(encoding="utf-8")
+    host = urlsplit(registry.ONLINE_URL).hostname  # the website the app actually contacts
+    assert "Checking for new pipelines" in text and text.count(host) >= 1
+
+
+def test_a_failed_check_says_why_in_plain_words_and_keeps_details_out(tmp_path):
+    """The Marketplace shows a fixed sentence; the error's own text (paths,
+    library internals) goes to the engine's log only."""
+    import urllib.error
+
+    def raising(error):
+        def fetch(u, p):
+            raise error
+        return fetch
+
+    def huge(u, p):
+        raise sources.TooLarge("the download is larger than 20 MB")
+
+    def missing(u, p):  # as sources.download reports it
+        raise sources.SourceError("the download failed (HTTP Error 404)") from urllib.error.HTTPError(
+            u, 404, "Not Found", {}, None)
+
+    def not_json(u, p):
+        Path(p).write_text("<html>secret C:/Users/someone/path</html>")
+
+    url = "https://example.com/list.json"
+    cases = [
+        (missing, registry.WHY_NOT_FOUND),
+        (raising(urllib.error.HTTPError(url, 500, "Server Error", {}, None)), registry.WHY_SERVER),
+        (raising(TimeoutError("timed out")), registry.WHY_OFFLINE),
+        (huge, registry.WHY_TOO_LARGE),
+        (not_json, registry.WHY_UNREADABLE),
+        # as sources.download reports a connection that broke off, a full disk and a file it couldn't write
+        (raising(sources.FetchFailed("the download failed", sources.OFFLINE)), registry.WHY_OFFLINE),
+        (raising(sources.FetchFailed("the download failed", sources.DISK)), registry.WHY_NOT_SAVED),
+        (raising(sources.FetchFailed("the download failed", sources.OTHER)), registry.WHY_NOT_SAVED),
+    ]
+    for fetcher, why in cases:
+        (status,) = registry.refresh(tmp_path / "data", [url], fetcher=fetcher)
+        assert status == {"url": url, "ok": False, "error": why}
+    (status,) = registry.refresh(tmp_path / "data", ["http://example.com/list.json"], fetcher=pytest.fail)
+    assert status["error"] == registry.WHY_NOT_HTTPS
+
+
+# ---- installing from a listing, and the block list reaching installed copies --------------------------
+
+
+def _archive_fetcher(files: dict, commit: str, top: str):
+    def fetcher(url, path):
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz", format=tarfile.PAX_FORMAT, pax_headers={"comment": commit}) as tar:
+            for name, text in files.items():
+                data = text.encode()
+                info = tarfile.TarInfo(f"{top}-{commit}/{name}")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        Path(path).write_bytes(buf.getvalue())
+    return fetcher
+
+
+def test_install_from_a_listing_is_listed_and_checked_against_it(reg, tmp_path, monkeypatch):
+    row = CATALOGUE[6]
+    m = _manifest(*row)
+    (entry,) = reg.listing(row[0], [("1.0.0", m)], path="plugin")
+    index, _ = reg.build()
+    bundled = tmp_path / "index.json"
+    bundled.write_text(registry.index_text(index))
+    data = tmp_path / "data"
+    listing, version = registry.find(data, [], f"{OWNER}/{row[0]}", bundled=bundled)
+    source = registry.source_for(listing, version)
+    assert source == {"kind": "git", "url": f"https://github.com/{OWNER}/{row[0]}", "commit": entry["commit"],
+                      "path": "plugin"}
+    monkeypatch.setattr(sources, "find_git", lambda: None)  # GitHub's archive, from a fake fetcher
+    files = {"plugin/clipskitty.yaml": yaml.safe_dump(m), "plugin/src/main.py": "print()\n", "README.md": "repo\n"}
+    fetcher = _archive_fetcher(files, entry["commit"], row[0])
+    plan = manager.plan(data, source, app_version=APP, tier="listed", fetcher=fetcher, listed_in=listing["index"],
+                        expect={"id": listing["id"], "version": version["version"]})
+    assert plan["ok"], plan["errors"]
+    assert plan["details"]["tier_text"] == "Community · not reviewed by a person"
+    view = manager.install(data, plan["plan_id"], app_version=APP)
+    assert view["details"]["tier"] == "listed" and view["source"]["listed_in"] == "bundled"
+    folder = store.get(data, listing["id"]).folder
+    assert sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()) == [
+        "clipskitty.yaml", "src/main.py"]
+    # The files must be the ones listed.
+    plan = manager.plan(data, source, app_version=APP, fetcher=fetcher, expect={"id": listing["id"], "version": "2.0.0"})
+    assert plan["errors"] == ["the listing says version 2.0.0, the files say 1.0.0"]
+
+
+def test_a_plugin_in_a_folder_of_its_repository_installs_from_git(tmp_path, plugin_source):
+    repo = plugin_source.repo()
+    plugin_source.write(repo / "plugins" / "one", plugin_source.manifest(), {"src/main.py": "print(1)\n"})
+    plugin_source.write(repo, None, {"README.md": "a repository of several plugins\n"})
+    plugin_source.git(repo, "add", "-A")
+    plugin_source.git(repo, "commit", "-q", "-m", "two plugins")
+    commit = plugin_source.git(repo, "rev-parse", "HEAD")
+    data = tmp_path / "data"
+    source = {"kind": "git", "url": repo.resolve().as_uri(), "commit": commit, "path": "plugins/one"}
+    plan = manager.plan(data, source, app_version=APP)
+    assert plan["ok"], plan["errors"]
+    assert plan["source_text"].endswith(f" · plugins/one · commit {commit[:7]}")
+    manager.install(data, plan["plan_id"], app_version=APP)
+    folder = store.get(data, "fixture-dev/manager-test").folder
+    assert sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()) == [
+        "clipskitty.yaml", "src/main.py"]
+    with pytest.raises(manager.ManagerError, match=r"points to a folder \(plugins/two\) that isn't in its files"):
+        manager.plan(data, {**source, "path": "plugins/two"}, app_version=APP)
+    with pytest.raises(manager.ManagerError, match=r"names a folder \('\.\./elsewhere'\) outside its own files"):
+        manager.plan(data, {**source, "path": "../elsewhere"}, app_version=APP)
+
+
+def test_a_block_reaches_an_installed_copy_without_deleting_it(tmp_path, plugin_source):
+    data = tmp_path / "data"
+    folder = plugin_source.folder()
+    plan = manager.plan(data, {"kind": "folder", "path": str(folder)}, app_version=APP)
+    manager.install(data, plan["plan_id"], app_version=APP)
+    pid = "fixture-dev/manager-test"
+    url = "https://example.com/index.json"
+
+    def publish(severity):
+        index = {"format": 1, "plugins": [], "blocklist": [
+            {"id": pid, "versions": ["1.0.0"], "severity": severity, "reason": "Sends videos it does not declare",
+             "date": "2026-10-07"}]}
+        registry.refresh(data, [url], fetcher=lambda u, p: Path(p).write_text(json.dumps(index)))
+
+    publish("delisted")
+    assert manager.view(data, pid, app_version=APP, blocked=registry.blocked_check(data))["flag"] == {
+        "severity": "delisted", "reason": "Sends videos it does not declare"}
+    assert store.installed_choice(data, {"id": pid}).id == pid  # delisted still runs
+    publish("blocked")
+    view = manager.view(data, pid, app_version=APP, blocked=registry.blocked_check(data))
+    assert view["flag"]["severity"] == "blocked"
+    with pytest.raises(ValueError, match=r"is blocked: Sends videos it does not declare\. Remove it in Marketplace › Installed\."):
+        store.installed_choice(data, {"id": pid})
+    assert store.get(data, pid).folder.is_dir()  # flagged and refused, never deleted
+    # The block keeps applying after the address is removed from settings.
+    assert registry.blocked_check(data)(pid, "1.0.0")["severity"] == "blocked"

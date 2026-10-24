@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kick clip generator: turn Kick VODs into vertical clips locally | Clips Kitty</title>
+    <meta
+      name="description"
+      content="A free, open-source Kick clip generator: turn Kick VODs into TikTok clips, Shorts and Reels on your own PC. No upload, no subscription, no Kick account."
+    />
+    <link rel="canonical" href="https://colingpt9.github.io/clips-studio/kick.html" />
+    <link rel="icon" href="assets/mascot.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Clips Kitty" />
+    <meta property="og:url" content="https://colingpt9.github.io/clips-studio/kick.html" />
+    <meta property="og:title" content="Turn Kick VODs into TikTok clips, Shorts and Reels on your own PC" />
+    <meta
+      property="og:description"
+      content="Clip Kick VODs locally. Free, open source, processed on your own PC, with no Kick account needed."
+    />
+    <meta property="og:image" content="https://colingpt9.github.io/clips-studio/assets/mascot.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "name": "Turn Kick VODs into TikTok clips, Shorts and Reels on your own PC",
+            "url": "https://colingpt9.github.io/clips-studio/kick.html",
+            "description": "A free, open-source Kick clip generator: turn Kick VODs into TikTok clips, Shorts and Reels on your own PC. No upload, no subscription, no Kick account.",
+            "inLanguage": "en",
+            "datePublished": "2026-07-26",
+            "dateModified": "2026-10-03",
+            "about": {
+              "@type": "SoftwareApplication",
+              "name": "Clips Kitty",
+              "applicationCategory": "MultimediaApplication",
+              "operatingSystem": "Windows 10, Windows 11",
+              "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+              "isAccessibleForFree": true,
+              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Clips Kitty",
+                "item": "https://colingpt9.github.io/clips-studio/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Kick clip generator",
+                "item": "https://colingpt9.github.io/clips-studio/kick.html"
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "How do I turn a Kick VOD into TikTok clips?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Copy the VOD's kick.com/video link into Clips Kitty and press Generate clips. The VOD is downloaded to your PC, the moments worth posting are picked out, and each comes back as a 9:16 clip with the speaker in frame and captions burned in. Upload them to TikTok, YouTube Shorts and Instagram Reels by hand, or turn on publishing."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a free Kick clip generator?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Clips Kitty is free and open source under AGPL-3.0. There is no paid tier, no watermark and no cap on clips, and it runs on your own Windows PC."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Kick has no chat replay. Does that hurt the clips?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Kick keeps no chat once a stream ends, so there is nothing to read, but chat was only ever a small capped bonus. The clips are picked from the video itself: what was said, how it sounded and how it looked."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it need my Kick account?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. There is no login and no API key."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can it clip a Kick stream while it is live?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. It works on finished VODs only, by design."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it work for game streams on Kick?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Tick Gaming / Reaction: Kick gives the stream's category, the webcam and the game share the clip in one of eleven layouts, and in-game moments count when the clips are picked."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What PC do I need to clip Kick VODs?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "A Windows 10 or 11 PC with 16 GB of RAM, ideally with an NVIDIA graphics card. On a PC too old to run the AI, the clip scoring and transcription can run through your own OpenRouter account instead: in our test, a 2-hour stream cost about 11 cents."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/mascot.png" alt="" />
+          <span>
+            <span class="name">Clips <span>Kitty</span></span>
+            <span class="tagline">local-first AI clipping</span>
+          </span>
+        </a>
+        <nav class="site" aria-label="Main">
+          <a href="index.html">Home</a>
+          <a href="twitch.html">Twitch</a>
+          <a href="kick.html" aria-current="page">Kick</a>
+          <a href="youtube.html">YouTube</a>
+          <a href="gaming.html">Gaming</a>
+          <a href="sports.html">Sports</a>
+          <a href="local-vs-cloud.html">Local vs cloud</a>
+          <a href="alternatives.html">Compare</a>
+          <a href="opus-clip-alternative.html">vs Opus Clip</a>
+          <a href="descript-alternative.html">vs Descript</a>
+          <a href="roadmap.html">Roadmap</a>
+          <a href="changelog.html">Changelog</a>
+          <a href="developers.html">Developers</a>
+          <a href="https://github.com/ColinGPT9/clips-studio" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a class="donate" href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div class="wrap">
+          <span class="eyebrow">Free Kick clip generator</span>
+          <h1>Turn Kick VODs into TikTok clips, Shorts and Reels on your own PC</h1>
+          <p class="lead">
+            Paste a <code>kick.com/video/…</code> link. Clippy downloads it, studies it locally
+            and returns vertical clips with captions and titles, ready for TikTok, YouTube
+            Shorts and Instagram Reels. No account, no cloud, no per-clip fee.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-accent" href="https://github.com/ColinGPT9/clips-studio/releases/download/v2.1.0/ClipsKitty-Web-Setup-2.1.0.exe" target="_blank" rel="noopener noreferrer">Download for Windows</a
+            >
+            <a class="btn btn-ghost" href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ" target="_blank" rel="noopener noreferrer">Get it from Microsoft Store</a
+            >
+            <span class="cta-note">VODs, not live streams</span>
+          </div>
+        </div>
+      </div>
+
+      <section id="support">
+        <div class="wrap">
+          <div class="support">
+            <div class="body">
+              <p class="title">Clips Kitty is free &amp; open source ❤️</p>
+              <p>
+                It runs entirely on your PC with no fees. Please consider donating to help
+                cover development costs and keep it free for everyone.
+              </p>
+            </div>
+            <a class="btn btn-accent" href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate to Clips Kitty</a>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>From a Kick VOD to clips, step by step</h2>
+          <ol class="pipeline">
+            <li>
+              <strong>Copy the VOD's link</strong>
+              <span
+                >A <code>kick.com/video/…</code> link, or a recording on your PC. No Kick
+                account is needed.</span
+              >
+            </li>
+            <li>
+              <strong>Press Generate clips</strong>
+              <span
+                >The VOD is downloaded and transcribed on your machine, and every stretch of it
+                is scored on what was said, how it sounded and how it looked.</span
+              >
+            </li>
+            <li>
+              <strong>Pick what goes out</strong>
+              <span
+                >Everything that cleared the bar comes back as a 9:16 clip with captions and a
+                title, not a fixed handful. Trim, restyle or drop clips in the editor.</span
+              >
+            </li>
+            <li>
+              <strong>Upload, or let it post</strong>
+              <span
+                >The clips are files on your PC. Put them on TikTok, YouTube Shorts and
+                Instagram Reels by hand, or turn on publishing.</span
+              >
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Kick throws its chat away, so the video has to speak</h2>
+          <p class="section-lead">
+            Kick keeps no chat replay once a stream ends. On Twitch, chat is a useful hint
+            about which moments landed. On Kick there is nothing to read, so a clipper that
+            leans on audience reaction has nothing to lean on.
+          </p>
+          <p class="section-lead">
+            That is fine here, because audience data was only ever a small capped bonus.
+            Everything that does the real work is measured from the video itself:
+          </p>
+          <div class="grid">
+            <div class="card">
+              <h3>What was said</h3>
+              <p>
+                A local language model reads the transcript for hooks, revelations, strong
+                opinions and quotable lines.
+              </p>
+            </div>
+            <div class="card">
+              <h3>What it sounded like</h3>
+              <p>
+                Loudness spikes against a rolling median, laughter-shaped bursts, and the
+                silence-then-explosion shape that marks a payoff.
+              </p>
+            </div>
+            <div class="card">
+              <h3>What it looked like</h3>
+              <p>
+                Scene cuts, motion, and sudden changes in how much of the frame a face fills:
+                a lean into the camera is someone reacting.
+              </p>
+            </div>
+          </div>
+          <p class="section-lead" style="margin-top: 26px">
+            Each signal is normalised <em>within your own video</em>, so a calm chat stream and
+            a shouting one both produce meaningful peaks. Nothing is scored against some
+            average of other people's content.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Whatever the stream looks like</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>Talking and IRL</h3>
+              <p>
+                This is what it is tuned for. The crop holds on whoever is speaking, and when
+                the speaker changes it cuts to them instead of panning across.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Game streams</h3>
+              <p>
+                Kick gives the stream's category, so with Gaming / Reaction ticked a highlight
+                is judged for that kind of game, and the webcam and the game share the clip in
+                one of eleven layouts. <a href="gaming.html">Game stream clips</a>.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Already vertical</h3>
+              <p>
+                A vertical recording of your stream already has its phone layout. Add it as a
+                file with Vertical Live on and the layout is kept.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>A free Opus Clip alternative for Kick</h2>
+          <p class="section-lead">
+            Cloud clippers are metered: their plans count minutes, credits or clips a month, and
+            Kick streams run for hours. Clips Kitty does the work on your PC, so the length of
+            the stream stops mattering.
+          </p>
+          <ul class="ticks">
+            <li>
+              <strong>Free, with no paid tier.</strong> Open source under AGPL-3.0. No
+              subscription and no per-clip fee.
+            </li>
+            <li>
+              <strong>No limits to run into.</strong> No watermark, no clip cap, and exports
+              that never expire.
+            </li>
+            <li>
+              <strong>Local.</strong> The VOD is downloaded to your PC and stays there.
+            </li>
+            <li class="weak">
+              <strong>The catch.</strong> You need a Windows PC with 16 GB of RAM, and an NVIDIA
+              graphics card makes it far faster. A cloud tool runs in a browser on anything,
+              a phone included, and suits you better if you clip only now and then.
+            </li>
+          </ul>
+          <p class="section-lead" style="margin-top: 26px">
+            <a href="alternatives.html">How it compares with Opus Clip, Klap, Vizard and CapCut</a>,
+            with current prices.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Hands-off: watch a Kick channel</h2>
+          <p class="section-lead">
+            Add a Kick channel to the channels Clips Kitty watches, and each new VOD is clipped
+            by itself. With publishing on, the clips are posted too, from a spare PC or a mini
+            PC that is left running.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Good to know</h2>
+          <ul class="ticks">
+            <li><strong>Finished VODs only.</strong> Live streams are deliberately not supported.</li>
+            <li>
+              <strong>Kick VODs download as H.264</strong>, which decodes fast in hardware. Long
+              Kick streams process at roughly the same speed as Twitch ones.
+            </li>
+            <li>
+              <strong>No Kick account needed.</strong> No login, no API key, no rate limit to
+              worry about.
+            </li>
+            <li>
+              <strong>Posting is optional.</strong> Clips are yours to upload by hand, or you
+              can turn on publishing and send them to YouTube, TikTok, Instagram and six more
+              at once through <a href="https://woopsocial.com/?via=clipskitty" target="_blank" rel="noopener noreferrer sponsored">WoopSocial</a> or Upload-Post on your own account. This is the one part that
+              is not local.
+            </li>
+          </ul>
+          <p class="note">Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Questions</h2>
+
+          <h3>How do I turn a Kick VOD into TikTok clips?</h3>
+          <p>
+            Copy the VOD's kick.com/video link into Clips Kitty and press Generate clips. The
+            VOD is downloaded to your PC, the moments worth posting are picked out, and each
+            comes back as a 9:16 clip with the speaker in frame and captions burned in. Upload
+            them to TikTok, YouTube Shorts and Instagram Reels by hand, or turn on publishing.
+          </p>
+
+          <h3>Is there a free Kick clip generator?</h3>
+          <p>
+            Yes. Clips Kitty is free and open source under AGPL-3.0. There is no paid tier, no
+            watermark and no cap on clips, and it runs on your own Windows PC.
+          </p>
+
+          <h3>Kick has no chat replay. Does that hurt the clips?</h3>
+          <p>
+            No. Kick keeps no chat once a stream ends, so there is nothing to read, but chat
+            was only ever a small capped bonus. The clips are picked from the video itself:
+            what was said, how it sounded and how it looked.
+          </p>
+
+          <h3>Does it need my Kick account?</h3>
+          <p>No. There is no login and no API key.</p>
+
+          <h3>Can it clip a Kick stream while it is live?</h3>
+          <p>No. It works on finished VODs only, by design.</p>
+
+          <h3>Does it work for game streams on Kick?</h3>
+          <p>
+            Yes. Tick Gaming / Reaction: Kick gives the stream's category, the webcam and the
+            game share the clip in one of eleven layouts, and in-game moments count when the
+            clips are picked.
+          </p>
+
+          <h3>What PC do I need to clip Kick VODs?</h3>
+          <p>
+            A Windows 10 or 11 PC with 16 GB of RAM, ideally with an NVIDIA graphics card. On a
+            PC too old to run the AI, the clip scoring and transcription can run through your
+            own OpenRouter account instead: in our test, a 2-hour stream cost about 11 cents.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Start clipping</h2>
+          <div class="cta-row">
+            <a class="btn btn-accent" href="https://github.com/ColinGPT9/clips-studio/releases/download/v2.1.0/ClipsKitty-Web-Setup-2.1.0.exe" target="_blank" rel="noopener noreferrer">Download for Windows</a
+            >
+            <a class="btn btn-ghost" href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ" target="_blank" rel="noopener noreferrer">Get it from Microsoft Store</a
+            >
+            <a class="btn btn-ghost" href="twitch.html">Clipping Twitch too?</a>
+            <a class="btn btn-ghost" href="gaming.html">Game stream clips</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site">
+      <div class="wrap cols">
+        <span>Free and open source.</span>
+        <nav aria-label="Footer">
+          <a href="index.html">Home</a>
+          <a href="roadmap.html">Roadmap</a>
+          <a href="changelog.html">Changelog</a>
+          <a href="developers.html">Build a plugin</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="https://github.com/ColinGPT9/clips-studio" target="_blank" rel="noopener noreferrer">★ Star it</a>
+          <a href="https://github.com/ColinGPT9/clips-studio/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute</a>
+          <a href="https://github.com/ColinGPT9/clips-studio/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+          <a href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate</a>
+        </nav>
+      </div>
+    </footer>
+    <script src="analytics.js"></script>
+    <script src="donate.js"></script>
+  </body>
+</html>

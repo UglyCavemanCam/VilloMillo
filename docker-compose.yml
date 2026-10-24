@@ -1,0 +1,91 @@
+# Contributor environment: the Clips Kitty engine plus Ollama.
+#
+#   docker compose up --build        engine on http://localhost:8765
+#   docker compose run --rm engine pytest
+#
+# Not an installation route — creators use the Windows installer. See
+# docs/DOCKER.md for what this can and cannot do.
+
+services:
+  engine:
+    # Named for GHCR so `docker compose pull` fetches the prebuilt image
+    # (~2 min) instead of building it (~10). `build:` stays as the fallback:
+    # with no image present locally, `up` builds rather than failing, so a
+    # fork with nothing published still works.
+    image: ghcr.io/colingpt9/clips-studio-engine:latest
+    build: .
+    ports:
+      # Host-only. Publishing to 0.0.0.0 would put an unauthenticated API
+      # that reads and writes video files onto the local network.
+      - '127.0.0.1:8765:8765'
+    volumes:
+      # Source is mounted so edits are live without rebuilding. The image
+      # already contains a copy, so it still runs standalone.
+      - .:/app
+      # Downloads, clips and the database persist in a named volume rather
+      # than the container, which is thrown away on every rebuild.
+      - clips-data:/data
+    environment:
+      # Inside the compose network Ollama is a service name, not localhost.
+      CLIPS_STUDIO_OLLAMA_HOST: http://ollama:11434
+      CLIPS_STUDIO_DATA_DIR: /data
+      # Windows-locale encoding is not a container problem, but the engine
+      # prints titles containing emoji and the default here is ASCII.
+      PYTHONIOENCODING: utf-8
+      PYTHONUNBUFFERED: '1'
+    depends_on:
+      - ollama
+
+  # The front-end toolchain: Vite, React, TypeScript. Open
+  # http://localhost:5173 in a browser to work on the interface without
+  # installing Node.
+  #
+  # This serves the RENDERER, not Electron. Electron needs a display, so the
+  # desktop shell still runs on your host — see docs/DOCKER.md. In a browser
+  # the interface works and talks to the engine; only the native bits
+  # (file pickers, the donate window, external links) are unavailable,
+  # because those live in Electron's preload.
+  ui:
+    image: node:20-slim
+    working_dir: /app/ui
+    ports:
+      - '127.0.0.1:5173:5173'
+    volumes:
+      - .:/app
+      # Anonymous volume so the container keeps its OWN node_modules. Without
+      # this the host's are mounted over the top, and esbuild/rollup ship
+      # platform-specific binaries — Windows ones do not run on Linux, and
+      # the failure is a confusing "cannot find module" for a package that
+      # is plainly installed.
+      - ui-node-modules:/app/ui/node_modules
+    # dev:web serves the renderer alone, via ui/vite.config.mts. Plain
+    # `vite` would find no config: the app is built by electron-vite, whose
+    # config describes three bundles and cannot serve one of them on its own.
+    command: >
+      sh -c "npm install && npm run dev:web"
+    environment:
+      # Vite needs polling to see edits made on a Windows or macOS host
+      # through a bind mount; inotify does not cross that boundary.
+      CHOKIDAR_USEPOLLING: 'true'
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - '127.0.0.1:11434:11434'
+    volumes:
+      # Models are gigabytes. Losing them on a rebuild would be painful.
+      - ollama-models:/root/.ollama
+    # GPU: uncomment with the NVIDIA Container Toolkit installed. Without it
+    # Ollama runs on CPU, which works and is slow. See docs/DOCKER.md.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  clips-data:
+  ollama-models:
+  ui-node-modules:

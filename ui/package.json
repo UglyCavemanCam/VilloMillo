@@ -1,0 +1,37 @@
+{
+  "name": "clips-studio",
+  "version": "2.1.0",
+  "description": "VilloMillo: local-first AI clipping studio (desktop app). A fork of Clips Kitty (AGPL-3.0).",
+  "author": "ColinGPT9",
+  "homepage": "https://github.com/ColinGPT9/clips-studio",
+  "license": "AGPL-3.0-or-later",
+  "main": "./out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "dev:web": "vite",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "package": "electron-vite build && electron-builder --win"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.3"
+  },
+  "overrides": {
+    "tar": "^7.5.22"
+  }
+}

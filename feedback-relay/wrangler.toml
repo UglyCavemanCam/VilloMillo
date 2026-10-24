@@ -1,0 +1,16 @@
+name = "clips-studio-feedback"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Free Workers Logs — see live traffic/abuse with `npx wrangler tail`
+# or the Cloudflare dashboard.
+[observability]
+enabled = true
+
+[vars]
+REPO = "ColinGPT9/clips-studio"
+
+# Created with: npx wrangler kv namespace create FEEDBACK_KV
+[[kv_namespaces]]
+binding = "FEEDBACK_KV"
+id = "2badab8e24c94791b0474d208952b27e"

@@ -1,0 +1,254 @@
+"""YouTube source: RSS channel polling + yt-dlp downloads.
+
+RSS is used for new-upload detection because it's free and unauthenticated —
+zero YouTube API quota spent on watching. The Data API is reserved for
+uploads only.
+"""
+
+import re
+from contextlib import contextmanager
+from pathlib import Path
+
+import requests
+import yt_dlp
+
+# The feed comes off the network, so it is parsed with entity declarations
+# refused: a crafted DOCTYPE ("billion laughs") would otherwise expand into
+# gigabytes. Same Element API as xml.etree.
+from defusedxml import ElementTree as ET
+
+from core.models import DownloadedVideo
+from sources.ytdlp_common import cookies, extract_info, games_from_info, is_bot_check, progress_opts
+
+RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
+_ATOM_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "yt": "http://www.youtube.com/xml/schemas/2015",
+}
+
+
+def watch_url(video_id: str) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def extract_video_id(url: str) -> str | None:
+    """Pull the video id out of any common YouTube URL shape, without
+    touching the network."""
+    m = re.search(r"(?:v=|youtu\.be/|/shorts/|/live/)([0-9A-Za-z_-]{11})", url)
+    return m.group(1) if m else None
+
+
+def resolve_channel(query: str) -> dict:
+    """Turn anything a YouTuber would paste — @handle, channel URL, video URL,
+    or a raw UC... id — into {"channel_id", "name"}.
+
+    Raises ValueError if nothing resolvable is found.
+    """
+    q = query.strip().strip('"')
+
+    if re.fullmatch(r"UC[0-9A-Za-z_-]{22}", q):
+        return {"channel_id": q, "name": _channel_name_from_rss(q)}
+
+    if q.startswith("@"):
+        url = f"https://www.youtube.com/{q}"
+    elif q.startswith(("http://", "https://")):
+        url = q
+    elif re.fullmatch(r"[\w.-]+", q):
+        url = f"https://www.youtube.com/@{q}"  # bare handle without the @
+    else:
+        raise ValueError(f"Can't interpret {query!r} as a channel handle, URL, or ID")
+
+    # yt-dlp resolves any YouTube page to its channel without the Data API.
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "playlist_items": "1"}
+    info = extract_info(url, opts)
+
+    channel_id = info.get("channel_id") or info.get("uploader_id") or ""
+    if not channel_id.startswith("UC"):
+        raise ValueError(f"Could not resolve a channel ID from {query!r}")
+    name = info.get("channel") or info.get("uploader") or info.get("title") or channel_id
+    return {"channel_id": channel_id, "name": name}
+
+
+def _channel_name_from_rss(channel_id: str) -> str:
+    try:
+        response = requests.get(RSS_URL.format(channel_id), timeout=15)
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+        return root.findtext("atom:title", default=channel_id, namespaces=_ATOM_NS)
+    except Exception:
+        return channel_id
+
+
+def poll_channel(channel_id: str, timeout: int = 30) -> list[dict]:
+    """Fetch a channel's RSS feed. Returns newest-first entries:
+    [{"video_id", "title", "url", "published", "short"}]. The feed carries the
+    channel's ~15 most recent uploads; `short` is True for a YouTube Short,
+    which the feed links as /shorts/<id> rather than /watch?v=<id>."""
+    response = requests.get(RSS_URL.format(channel_id), timeout=timeout)
+    response.raise_for_status()
+    root = ET.fromstring(response.content)
+
+    entries = []
+    for entry in root.findall("atom:entry", _ATOM_NS):
+        video_id = entry.findtext("yt:videoId", default="", namespaces=_ATOM_NS)
+        if not video_id:
+            continue
+        link = entry.find("atom:link", _ATOM_NS)
+        href = link.get("href", "") if link is not None else ""
+        entries.append(
+            {
+                "video_id": video_id,
+                "title": entry.findtext("atom:title", default="", namespaces=_ATOM_NS),
+                "url": watch_url(video_id),
+                "published": entry.findtext("atom:published", default="", namespaces=_ATOM_NS),
+                "short": "/shorts/" in href,
+            }
+        )
+    return entries
+
+
+def _friendly_message(error: str) -> str | None:
+    """Plain English for the yt-dlp failures a creator can actually act on.
+
+    Returns None for anything unrecognised, so unknown errors keep their
+    original text rather than being flattened into a vague apology.
+    """
+    # Extraction already succeeded by the time this fires — the page was read
+    # and the formats listed — and Google then refused to hand over the bytes.
+    # That makes it a property of the network, not of the link, so the obvious
+    # advice ("try another video") sends people in circles. Retrying harder
+    # does not help either: ytdlp_common already spends ten backed-off retries
+    # before giving up.
+    if "403" in error or "Forbidden" in error:
+        return (
+            "YouTube refused to send this video's data to your network. The "
+            "link is fine — Google rate-limits the connection itself, and it "
+            "usually clears on its own. Wait an hour and try again, switch "
+            "off a VPN if you have one on, or try a different network. "
+            "Twitch, Kick and local files are not affected."
+        )
+
+    # Age-gated videos need a signed-in session, which Clips Kitty does not
+    # have: it downloads anonymously on purpose. yt-dlp's own text points at
+    # two wiki pages about exporting cookies, which reads like a crash rather
+    # than like a video YouTube will not hand over. Retrying never helps.
+    if "confirm your age" in error or "age-restricted" in error.lower():
+        return (
+            "YouTube will not serve this video to anyone who is not signed "
+            "in, because it is age-restricted. Clips Kitty downloads without "
+            "an account, so it cannot fetch this one. The same stream on "
+            "Twitch or Kick will work, as will a local file."
+        )
+
+    # YouTube takes a connection for a bot by the address it comes from, and
+    # words it as a request to sign in. By the time this is shown the request
+    # has been made both ways the PC has (ytdlp_common.extract_info: IPv4 as
+    # well as IPv6) and refused both, so it is the network as a whole. A
+    # signed-in session would get through; Clips Kitty does not have one.
+    if is_bot_check(error):
+        if cookies():
+            return (
+                "YouTube is treating this network as a bot and refused the "
+                "video even with the YouTube cookies set in Settings. Export "
+                "a fresh cookies.txt while signed in to YouTube, or wait an "
+                "hour and try again. Twitch, Kick and local files are not "
+                "affected."
+            )
+        return (
+            "YouTube is treating this network as a bot and will not serve the "
+            "video to it. The link is fine, and Clips Kitty has already asked "
+            "a second way. It usually clears on its own: wait an hour and try "
+            "again, switch off a VPN if you have one on, or try a different "
+            "network. If it keeps happening, set YouTube cookies under "
+            "Settings → Advanced settings. Twitch, Kick and local files are "
+            "not affected."
+        )
+    return None
+
+
+@contextmanager
+def _friendly_errors():
+    """Swap yt-dlp's text for advice, wherever in a download it is raised.
+
+    The probe below is the first network call and so the likeliest to fail,
+    which made it the one place the mapping did not reach.
+    """
+    try:
+        yield
+    except yt_dlp.utils.DownloadError as e:
+        friendly = _friendly_message(str(e))
+        if friendly:
+            raise ValueError(friendly) from e
+        raise
+
+
+def download(url: str, output_dir: Path, vertical: bool = False) -> DownloadedVideo:
+    """`vertical`: the vertical version only, for Vertical Live (sources/vertical.py)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Refuse live streams BEFORE downloading: a live URL would start an
+    # open-ended real-time capture instead of fetching a finished file.
+    with _friendly_errors():
+        probe_info = extract_info(url, {"quiet": True, "no_warnings": True})
+    if probe_info.get("is_live"):
+        raise ValueError(
+            "This is a live stream — live processing isn't supported. "
+            "Wait until the stream ends and the video/VOD is available."
+        )
+
+    opts = {
+        # H.264 (avc1) up to 1080p + m4a audio, explicitly. "ext=mp4" alone
+        # also matches YouTube's AV1 streams, and every later stage decodes
+        # the source repeatedly (tracking + one decode per clip render) —
+        # software AV1 decoding made a 25-min video take longer than a 2-hour
+        # H.264 Twitch VOD. Twitch/Kick only serve H.264, so only YouTube
+        # needs this. Fallbacks still avoid AV1 before giving up.
+        "format": (
+            "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]"
+            "/bv*[height<=1080][ext=mp4][vcodec!^=av01]+ba[ext=m4a]"
+            "/b[ext=mp4]/b"
+        ),
+        "merge_output_format": "mp4",
+        "outtmpl": str(output_dir / "%(id)s.%(ext)s"),
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "progress": True,
+        **progress_opts(extract_video_id(url)),
+    }
+    stem = "%(id)s"
+    if vertical:
+        from sources import vertical as vertical_src
+
+        stem = f"%(id)s{vertical_src.SUFFIX}"
+        opts["format"] = vertical_src.YOUTUBE_FORMAT
+        opts["format_sort"] = vertical_src.FORMAT_SORT
+        opts["outtmpl"] = str(output_dir / f"{stem}.%(ext)s")
+
+    try:
+        with _friendly_errors():
+            info = extract_info(url, opts, download=True)
+    except yt_dlp.utils.DownloadError as e:
+        if vertical and vertical_src.is_missing_format(str(e)):
+            raise ValueError(vertical_src.no_vertical_version("youtube")) from e
+        raise
+
+    video_id = info["id"]
+    name = stem.replace("%(id)s", video_id)
+    path = output_dir / f"{name}.mp4"
+    if not path.exists():
+        # Fallback for formats that didn't remux to mp4
+        matches = list(output_dir.glob(f"{name}.*"))
+        if not matches:
+            raise FileNotFoundError(f"yt-dlp finished but no file found for {video_id}")
+        path = matches[0]
+
+    return DownloadedVideo(
+        video_id=video_id,
+        title=info.get("title", video_id),
+        path=path,
+        duration=float(info.get("duration") or 0),
+        channel=info.get("channel") or info.get("uploader") or "",
+        games=games_from_info(info, "youtube"),
+        description=str(info.get("description") or ""),
+    )

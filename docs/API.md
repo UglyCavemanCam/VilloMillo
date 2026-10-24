@@ -1,0 +1,1670 @@
+# The local API
+
+Clips Kitty is a desktop app on top of a **local HTTP service**. The desktop
+window is one client of it. Anything else can be another: a Discord bot that
+clips a stream on command, a batch runner, a web front end, an OBS integration,
+a script that queues last night's VOD every morning.
+
+Nothing needs to be added to the app for that to work. The service is already
+running whenever Clips Kitty is open, on `127.0.0.1:8765`.
+
+The service has about 175 HTTP routes and a WebSocket. This document covers the
+subset meant to be built against. Most of the rest are the desktop UI talking
+to itself, and are listed as internal below. Every route, with its stability
+label (stable, experimental or internal), is in the generated
+[API reference](developers/api-reference.md).
+
+> **Every example here was run against a live instance**, and the responses are
+> real (with the video titles swapped for made-up ones). If something in this
+> file does not work, that is a bug worth reporting.
+
+---
+
+## Contents
+
+- [Start it](#start-it)
+- [Security: read this before binding anything](#security-read-this-before-binding-anything)
+- [Which data directory you are talking to](#which-data-directory-you-are-talking-to)
+- [Supported and internal](#supported-and-internal)
+- [Conventions](#conventions)
+- [Readiness](#readiness)
+- [Submitting work](#submitting-work)
+- [Watching progress](#watching-progress)
+- [The queue](#the-queue)
+- [Results](#results)
+- [Models](#models)
+- [Languages and export](#languages-and-export)
+- [Publishing to YouTube](#publishing-to-youtube)
+- [Streamer integrations](#streamer-integrations)
+- [Watched channels](#watched-channels)
+- [MCP: let an AI agent drive it](#mcp-let-an-ai-agent-drive-it)
+- [WebSocket events](#websocket-events)
+- [A complete example](#a-complete-example)
+- [Gotchas](#gotchas)
+
+---
+
+## Start it
+
+If the desktop app is open, the API is already up. It is the same process
+tree, and the app is just a window onto it.
+
+Headless, which is usually what an integrator wants:
+
+```bash
+python main.py serve --port 8765
+```
+
+Confirm it is alive:
+
+```bash
+curl http://127.0.0.1:8765/health
+# {"ok":true}
+```
+
+**FastAPI's interactive docs are served too**, and they are generated from the
+running code rather than written by hand, so they never drift:
+
+| | |
+|---|---|
+| `http://127.0.0.1:8765/docs` | Swagger UI. Every endpoint, try them in the browser |
+| `http://127.0.0.1:8765/redoc` | the same thing, easier to read |
+| `http://127.0.0.1:8765/openapi.json` | the schema, for generating a client |
+
+Use those for the full list. Use this document for which ones to build on and
+what actually happens when you call them.
+
+## Security: read this before binding anything
+
+**There is no authentication. None.** Not a token, not a password, not an
+origin check.
+
+That is a deliberate trade for a single-user desktop app on loopback, and it
+means anything that can reach the port can:
+
+- read every video title, transcript and clip on the machine
+- stream the video files themselves out of `/media/{clip_id}`
+- queue downloads, delete clips, delete videos, change settings
+
+`main.py` binds `127.0.0.1` by default and prints a warning if you change it:
+
+```
+WARNING: binding 0.0.0.0 — this API has no authentication.
+```
+
+**Requests must be addressed to `127.0.0.1` or `localhost`.**
+- **Other hosts are refused.** A request whose `Host` header names anything else
+  gets a 400. That stops a web page from reaching the API through DNS rebinding,
+  where its own domain is pointed at this computer.
+- **This is not authentication.** Any program running on this computer can still
+  call the API.
+
+**Exposing this to a network is not a supported configuration.** If you need
+remote access, put your own authenticated service in front of it and keep the
+API itself on loopback. `--host 0.0.0.0` exists for containers, where
+"localhost" means the container and nothing on the host can reach in anyway.
+
+## Which data directory you are talking to
+
+Easy to lose an hour to, so it is near the top:
+
+| How it is running | Where its database and videos live |
+|---|---|
+| Installed build | `%LOCALAPPDATA%\Clips Studio\data` |
+| A source checkout | `<repo>/data` |
+
+These are **separate libraries with separate databases**. A checkout resolves
+the relative `paths.data_dir` against the repo, not the working directory, so a
+dev instance and an installed instance disagree about which videos exist even
+though they serve identical routes on the same machine, and will happily fight
+over the same port.
+
+Two consequences worth knowing before you debug something confusing:
+
+- A video that is `done` in the installed app is unknown to a source run, so
+  the "already processed" guard does not fire and it downloads again.
+- If you run a second instance for development, give it `--port 8766`. It still
+  runs its own worker thread and will claim jobs from *its* queue.
+
+## Supported and internal
+
+The endpoints in this document are the ones intended to be built on. They will
+not change shape without a note in [CHANGELOG.md](../CHANGELOG.md).
+
+These are the routes labelled **stable** in
+[`server/api_stability.py`](../server/api_stability.py), and
+`tests/test_api_contract.py` fails if one stops accepting what it accepted.
+A few routes this document only mentions in passing are **experimental**: meant
+for outside use, but not yet promised. The [API reference](developers/api-reference.md)
+lists every route with its label.
+
+**Everything else is internal**: branding assets, creator memory, caption
+editing, the AI edit endpoints, feedback submission. They exist to serve one
+specific screen and they change when that screen changes. They are visible in
+`/docs`, they work, and depending on them is at your own risk.
+
+That line is drawn now because it cannot be drawn retroactively. If something
+internal is genuinely useful to you, open an issue asking for it to be
+promoted, rather than pinning yourself to a version.
+
+This is alpha software. The line above is a commitment to *tell you*, not a
+guarantee of never changing.
+
+## Conventions
+
+- **JSON in, JSON out.** `Content-Type: application/json` on anything with a body.
+- **Job IDs are integers.** `149`. Passing a non-integer gets a 422, not a 404.
+- **Video IDs are strings with a platform prefix.** YouTube uses its own
+  11-character ID (`aB3dEfGhIjK`), Twitch prefixes `tw_`, Kick prefixes `kick_`,
+  an imported file gets `local_`. They cannot collide, which is the point.
+- **Clip IDs are integers**, unique across all videos.
+- **Errors** are `{"detail": "..."}` with 400 (bad request), 404 (no such
+  thing), or 409 (queue full). Validation failures are FastAPI's standard 422
+  with a list of field errors.
+- **No pagination anywhere.** `GET /videos` returns every video, `GET /jobs`
+  every job. Fine for a personal library; know it before you point this at
+  10,000 rows.
+- **Times are seconds as floats.** Timestamps are naive local ISO-8601
+  (`2026-08-15T13:56:15`), not UTC, with no timezone marker.
+
+---
+
+## Readiness
+
+### `GET /health`
+
+```json
+{"ok": true, "app_version": "1.1.4", "api_version": 1}
+```
+
+The liveness check. Cheap enough to poll.
+
+- **`api_version`** changes only when a supported endpoint changes shape. A tool
+  can check it once and tell its user to update Clips Kitty, instead of failing
+  in some stranger way later.
+- **`app_version`** is the installed release.
+
+### `GET /health/preflight`
+
+Whether it can actually *do* anything, which is a different question.
+
+```json
+{
+  "ready": true,
+  "checks": [
+    {"name": "ffmpeg",  "ok": true, "detail": "8.1.2-essentials_build", "fix": "", "blocking": true},
+    {"name": "ollama",  "ok": true, "detail": "running, 2 model(s) installed", "fix": "", "blocking": true},
+    {"name": "model",   "ok": true, "detail": "gemma:7b installed", "fix": "", "blocking": true},
+    {"name": "whisper", "ok": true, "detail": "large-v3-turbo, small bundled", "fix": "", "blocking": false},
+    {"name": "gpu",     "ok": true, "detail": "NVIDIA GeForce RTX 3060 (13 GB)", "fix": "", "blocking": false},
+    {"name": "disk",    "ok": true, "detail": "67 GB free", "fix": "", "blocking": false}
+  ]
+}
+```
+
+Seven checks: `ffmpeg`, `ffprobe`, `ollama`, `model`, `whisper`, `gpu`, `disk`.
+**Call this before submitting work.** A failing `blocking` check means the job
+will be accepted and then die: no model installed is the common one. `fix`
+carries a human-readable remedy when a check fails.
+
+`gpu` and `disk` are non-blocking: it runs on the CPU, slowly.
+
+### `GET /system/stats`
+
+```json
+{
+  "cpu_percent": 4.2, "ram_percent": 61.0,
+  "data_dir_bytes": 48216342528, "disk_free_bytes": 72341598208,
+  "gpu": {"name": "NVIDIA GeForce RTX 3060", "vram_used": 1024, "vram_total": 12288, "gpu_percent": 3},
+  "build_sha": "", "started_at": 1755261234.5, "uptime_seconds": 8134.2
+}
+```
+
+`gpu` is `null` on a machine without one.
+
+## Submitting work
+
+### `POST /jobs`
+
+The main entry point. Only `url` is required.
+
+```bash
+curl -X POST http://127.0.0.1:8765/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.youtube.com/watch?v=aB3dEfGhIjK"}'
+```
+
+```json
+{"job_id": 149}
+```
+
+Takes YouTube, Twitch and Kick links. Optional fields, all defaulting to the
+values in `config/settings.yaml`:
+
+| Field | Type | What it does |
+|---|---|---|
+| `force` | bool | process again even if this video is already done. A clip you edited is made again with its saved `render_opts` (below) |
+| `max_clips` | int | cap clips from this video |
+| `min_score` | int | quality bar, 0–100 |
+| `captions` | bool | burn captions in (default true) |
+| `caption_style` | object | font, size, colour, position, `words_per_caption`; `second_speaker` (bool) with `second_speaker_color` burns anyone but the main speaker in another colour |
+| `long_clips` | bool | 61–180s clips, for TikTok monetisation |
+| `podcast` | bool | multi-camera: letterbox, no subject tracking |
+| `longform` | object | `{"mode": ...}`: `short_clips`, `clips_140`, `highlights` or `edited_stream`; add `"shorts": true` to make the 9:16 Shorts in the same job |
+| `focus` | string | what the clips should be about, in plain words (up to 600 characters): a topic, a moment, a time range ("1:35-1:55", "near the end") or a style (funny, laughing, hype, reactions). It only adds points to what matches and never removes a clip; a must-have that was never said is reported in the video's `outcome.intent`, never invented |
+| `sport` | object | a match: `{"name": "soccer", "highlights": "goals", "period": "full", "teams": "Team A"}`. `highlights` is `best`, `goals`, `goals_celebrations`, `saves`, `chances`, `attacking`, `cards`, `penalties` or `custom` (with `request`, the moments in words); `period` is `full`, `first_half`, `second_half` or `extra_time`; `footage` is `auto` (the default), `broadcast` or `sideline` (club or phone footage); `events` is the match's events as text, one per line ("18:16 Goal", "45+2' yellow card"); `reels` is any of `recap`, `teams` and `players`, the story reels to join from the clips; `teams` is optional. `GET /sports` lists them. Not with `gaming` or `podcast`. See [SPORTS.md](SPORTS.md) |
+| `filter` | string | colour preset from `video/filters.py` |
+| `watermark_profile_id` | int | branding profile applied to every clip |
+| `webhook_url` | string | http(s) URL to POST once when this job finishes |
+| `webhook_secret` | string | signs that POST, so the listener can trust it |
+| `pipeline` | object or string | an installed Marketplace pipeline picks the moments instead of Clips Kitty's own scoring: `{"id": "publisher/name", "version": "1.2.0", "settings": {...}}`, or just the id. Not with `sport`, `gaming_scoring` or `longform` |
+| `understand` | list | up to 3 installed Marketplace plugins that say what happens in each moment once it is found, in this order; their notes go to the AI that writes the titles, descriptions and hashtags. Each item is shaped like `pipeline`; one item alone is taken as a list of one |
+| `rate` | list | up to 3 installed Marketplace plugins that give each moment a new score once it is found (and any understanding is done), in this order; the last one's score counts. A moment rated under `min_score` is set aside, unless it is a must-have. Shaped like `understand` |
+| `edit` | list | up to 3 installed Marketplace plugins that suggest edits for the clips that will be made, once they are chosen (after any rating and the clip limit), in this order; each is handed what the ones before it suggested. The suggestions wait for the creator in the timeline editor and change no clip. Shaped like `understand` |
+
+**`rate` and `understand`** work on the moments whoever found them: Clips
+Kitty's own scoring, `sport`, `gaming_scoring` or a `pipeline`. They can't be
+combined with `longform` (`shorts` included): "Rate & understand can't be
+combined with Longform: Longform picks and writes its clips its own way. Turn
+one of them off." Naming the job's own `pipeline` again is refused too:
+"rate: example-dev/x is this job's pipeline, so it already scores and
+describes the moments it finds". Each item must be installed, turned on and
+able to do that step, or the job is refused with a message that names the
+item, for example `rate[0]: the pipeline example-dev/x isn't installed`.
+`{"clear": ["rate"]}` on `PATCH /jobs/{id}` drops one. Scores decide which
+clips are made and their order, so where a watched channel or the daily
+schedule posts only the best few, a rater decides which clips those are.
+Developer guide: [Steps](developers/steps.md).
+
+**`edit`** works on the clips a Shorts run makes, whoever found the moments.
+It can't be combined with `longform`: "Suggest edits can't be combined with
+Longform: Longform picks and writes its clips its own way. Turn one of them
+off." The job's own `pipeline` may be named under it, and then has an edit
+run of its own after the clips are chosen. Each item must be installed,
+turned on and able to suggest edits, for example `edit[0]: the pipeline
+example-dev/x can't suggest edits for clips: its manifest needs moments in
+inputs and edits in outputs`. Each suggestion is kept in the clip's
+`scores.plugin_edits` ([below](#get-videosvideo_idclips)); the clip itself is
+made exactly as it would be without `edit`, and the edit step never writes a
+clip's `render_opts` (what a run writes to a clip it makes again is under
+**Clips the video already has**, below). Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload).
+An edit plugin that couldn't run holds nothing back: its suggestions change
+no clip, so watched channels and `then` publish as they would without it.
+`{"clear": ["edit"]}` on `PATCH /jobs/{id}` drops it. The word means three
+things: this job field is a list of plugins, while a clip's `render_opts.edit`
+and the preview's `edit` are the timeline editor's edit list; a job's `edit`
+never reaches a clip's render options. Developer guide:
+[Steps › Suggest edits](developers/steps.md#suggest-edits-the-edit-step).
+
+Apps without the Marketplace (2.0.0 and earlier) ignore `pipeline`, `rate`,
+`understand` and `edit` without an error. `GET /plugins` tells them apart: those apps
+don't have it.
+
+**Two responses that are not failures and not `job_id`:**
+
+```json
+{"job_id": null, "already_processed": true, "video_id": "tw_2833826919"}
+{"job_id": null, "already_queued": true, "video_id": "aB3dEfGhIjK", "queued_job_id": 148}
+```
+
+Re-submitting a finished video is silently a no-op without `force`, because
+processing costs an hour and produces duplicate clips. **Check for `job_id`
+being `null`** rather than assuming a job was created. Retry with
+`{"force": true}` if you meant it.
+
+**Clips the video already has.** A run that makes a window again keeps the
+clip's title, description, hashtags and status. A clip the creator edited
+(its `render_opts` hold `edit`, `crop`, `caption_lines`, `speaker_edits`,
+`adjust`, `captions` or `normalize_audio`, or `"gaming": null`, or a `gaming`
+with `by` `clip`) is made with its saved `render_opts`, except `profile`,
+`podcast`, `vertical_live`, `sport` and `speaker_turns`, which the job
+decides. In a Sports job only those per-clip keys are used, and the job's
+caption style, filter, watermark and card words stay. In a Gaming / Reaction
+job, an edited clip's `gaming` with `by` `video`, `creator` or none keeps its
+layout and takes the job's webcam when a person chose it (`by` `user` or
+`creator`); outside a Gaming / Reaction job, a `gaming` a run found or
+remembered (`by` `video`, `creator` or none) is dropped. A `gaming` with `by`
+`user` or `clip`, or `null`, stays in any job but Sports, and an edited clip
+with no `gaming` gets the job's. Any other clip is made with the job's
+options. No run changes the choices saved on a clip you edited: a run records
+the split it rendered with and who is heard talking, and adds a Highlights
+card where the clip had none; for clips nobody edited it also updates the
+Highlights card words and the split to this run's.
+
+Other outcomes:
+
+- `409`: the queue is full (the cap is a real limit, not a greyed-out button)
+- `422`: no `url` field
+
+> Two known warts, both harmless: this returns **200**, not 201, and it accepts
+> a stray `status_code` query parameter that does nothing. Do not send it.
+
+### Webhooks: being told instead of asking
+
+Pass `webhook_url` and the engine POSTs once, when the job reaches a terminal
+state. That is the whole feature: no polling loop in your dock, your cron job or
+your n8n flow for the forty minutes a stream takes.
+
+```json
+{"event": "job.done", "job_id": 149, "job_type": "process", "status": "done",
+ "video_id": "aB3dEfGhIjK", "title": "Friday stream", "clips": 38, "error": ""}
+```
+
+`event` is `job.done`, `job.failed` or `job.cancelled`, so a listener can switch
+on one field. Every key is always present, including on a job that failed before
+its video was identified.
+
+Add `webhook_secret` and the body is signed:
+
+```
+X-Clips-Kitty-Signature: sha256=<hmac-sha256 of the exact body bytes>
+```
+
+Verify against the **raw bytes you received**, not a re-serialised copy of them:
+key order and spacing would differ and every signature would fail.
+
+Three deliberate limits:
+
+- **One attempt.** A retry queue turns a listener that was down into a burst of
+  duplicate deliveries later, and `GET /jobs/{id}` is always there.
+- **A 10 second timeout.** Delivery runs on the worker thread between two jobs,
+  so a listener that accepts the connection and then hangs would stall the queue.
+- **A failed delivery never fails the job.** It is a line in the job log.
+
+`webhook_url` must be `http` or `https`; anything else is rejected at submission
+with a `400`, rather than discovered forty minutes later.
+
+### `POST /jobs/batch`
+
+Several links at once, each with its own settings.
+
+```bash
+curl -X POST http://127.0.0.1:8765/jobs/batch \
+  -H "Content-Type: application/json" \
+  -d '{"items": [{"url": "https://www.twitch.tv/videos/123456789"}, {"url": "not a link"}]}'
+```
+
+```json
+{
+  "created": [{"url": "https://www.twitch.tv/videos/123456789", "job_id": 150, "video_id": "tw_123456789"}],
+  "skipped": [{"url": "not a link", "reason": "unrecognized"}]
+}
+```
+
+**Deliberately tolerant**: one bad link in a list of twelve reports itself and
+the other eleven still queue. `reason` is one of `unrecognized`,
+`already_processed`, `already_queued`, `queue_full`, `bad_option`. Always read
+`skipped`. The request succeeds with a 200 even when nothing was queued.
+
+### `POST /videos/local`
+
+A file already on this computer. No download, same pipeline.
+
+```json
+{"path": "D:/streams/friday.mp4", "title": "Friday stream", "channel": "examplechannel"}
+```
+
+`title` defaults to the filename. **Set `channel`**: creator profiles key off
+it, so an empty one means catchphrase learning and preference history quietly
+do not run for that video. Accepts the same option fields as `POST /jobs`.
+
+A path that is not a readable video gives `400`:
+
+```json
+{"detail": "not a video file this app can open: C:/does/not/exist.mp4"}
+```
+
+### `GET /sports`
+
+The sports a job's `sport` option can name, with the choices each takes:
+
+```json
+[
+  {
+    "id": "soccer", "label": "Soccer",
+    "highlights": [{"id": "best", "label": "Best moments"}, {"id": "goals", "label": "All goals"}],
+    "periods": [{"id": "full", "label": "Full match"}, {"id": "first_half", "label": "1st half"}]
+  }
+]
+```
+
+(Shortened: soccer has nine highlight choices and four periods.) A `sport`
+naming anything else is refused with a `400` that lists what is allowed.
+
+## Watching progress
+
+### `GET /jobs`
+
+Every job, newest last. Note this is a **bare array**, not an object:
+
+```json
+[
+  {
+    "id": 149, "type": "process", "status": "done", "error": "",
+    "video_id": "aB3dEfGhIjK", "title": "Friday stream",
+    "position": 3, "attempts": 0, "interrupted": 0,
+    "created_at": "2026-08-15T13:56:15", "started_at": "2026-08-15T13:56:15",
+    "updated_at": "2026-08-15T14:41:02", "finished_at": "2026-08-15T14:41:02",
+    "payload": "{\"url\": \"...\", \"force\": false}"
+  }
+]
+```
+
+`status` is `queued`, `running`, `done` or `failed`.
+
+### `GET /jobs/{id}`
+
+One job, same shape. `404 {"detail": "no such job"}` if it is gone.
+
+### `GET /jobs/{id}/log`
+
+```json
+{"log": "…", "missing": false}
+```
+
+The run's own log file, last 300 lines. `?tail=2000` for more. `missing` is
+true when the file has been cleaned up. The in-memory event stream only holds
+minutes, which is no use for a batch that failed at 3am. **This is the endpoint
+to surface when a job fails**; `error` on the job row is one line, and the log
+is why.
+
+### `POST /jobs/{id}/retry`
+
+Re-queue a failed job with its original settings.
+
+### `DELETE /jobs/{id}`
+
+```json
+{"deleted": 149}
+```
+
+Removes a queued job. Also works on a running one. See `POST /cancel` first.
+
+### `POST /cancel`
+
+```bash
+curl -X POST http://127.0.0.1:8765/cancel \
+  -H "Content-Type: application/json" -d '{"video_id": "aB3dEfGhIjK"}'
+```
+
+```json
+{"cancelling": "aB3dEfGhIjK"}
+```
+
+**Cooperative, not immediate.** The pipeline stops at its next stage boundary
+(or aborts the download). A job cancelled during transcription keeps running
+until transcription finishes. Accepts `video_id` or `url`; `400` with neither.
+
+A cancelled download can leave a `.part` file in `data/downloads/`. See
+`POST /storage/cleanup`.
+
+## The queue
+
+### `GET /queue`
+
+The grouped view the UI renders, and the one endpoint to poll if you only poll
+one:
+
+```json
+{
+  "processing": [], "queued": [], "completed": [], "failed": [],
+  "paused": false,
+  "estimate": {"queued_seconds": 0, "per_video_seconds": 2400, "samples": 6, "confident": true},
+  "capacity": 5, "max_active": 5
+}
+```
+
+`max_active` is the cap on videos waiting or running at once (**5**);
+`capacity` is how many more you may add right now. When `capacity` hits zero,
+`POST /jobs` returns `409` and `POST /jobs/batch` skips with
+`"reason": "queue_full"`.
+
+Job objects here are **richer than in `GET /jobs`**. They add `log_path`,
+`display_title`, `channel`, `url`, `source_seconds`, `video_status` and the
+`settings` snapshot.
+
+`estimate.confident` is false below three samples, because a 3-hour stream and
+a 20-minute upload do not cost the same and two data points cannot tell you
+which you have. Do not show a countdown when it is false.
+
+### `POST /queue/pause` · `POST /queue/resume`
+
+```json
+{"paused": true}
+```
+
+Stops claiming new work. Whatever is running keeps running. **The pause state
+lives in the database**, so it survives a restart, and a paused queue that
+nobody un-paused looks exactly like a broken app. Check `paused` before
+reporting that nothing is happening.
+
+## Results
+
+### `GET /videos`
+
+Every processed video, newest first. A bare array:
+
+```json
+[
+  {
+    "video_id": "aB3dEfGhIjK", "title": "Friday stream",
+    "channel_id": "", "channel_name": "examplechannel",
+    "status": "done", "duration": 10842.0, "clip_count": 38,
+    "creator_id": 4, "creator_name": "examplechannel",
+    "process_seconds": 2831.4,
+    "created_at": "2026-08-12T21:49:50", "updated_at": "2026-08-12T22:09:28"
+  }
+]
+```
+
+Each video also carries `outcome`: what its last run made of it, or `null`.
+It holds numbers such as `clips`, `candidates`, `best_score`, `min_score`
+and `rejected` (by reason) and, when the run made no clips, a `cause`
+(`no_candidates`, `no_people`, `duplicates`, `below_threshold`, `rated_out`
+or `null`). `outcome.intent` and `outcome.sport` are described with `focus` and
+`sport`. A run with `understand`, `rate` or `edit` adds:
+
+- `steps`: one entry for each plugin run, in order:
+  `{"plugin", "version", "name", "steps", "ok", "given", "noted", "rated", "set_aside"}`,
+  plus `error` when it didn't run. `error` is one sentence for the creator,
+  such as "It isn't installed any more." An edit run's entry has `steps`
+  `["edit"]`, `given` the clips it was handed and `suggested` how many of them
+  it suggested an edit for; its `noted`, `rated` and `set_aside` are 0.
+- `rated_out`: how many moments a plugin rated under the minimum score, when
+  any were. The cause `rated_out` means every moment was set aside that way.
+
+### `GET /videos/{video_id}/clips`
+
+```json
+[
+  {
+    "id": 80, "video_id": "aB3dEfGhIjK",
+    "start_s": 3574.12, "end_s": 3590.64, "score": 98,
+    "title": "The one about the sandwich",
+    "description": "A short summary written by the model.",
+    "hashtags": ["#clip", "#stream", "#funny"],
+    "hook": "the transcript line the clip was chosen for",
+    "path": "C:\\Users\\you\\AppData\\Local\\Clips Studio\\data\\clips\\…\\clip_03574-03590.mp4",
+    "status": "queued", "scheduled_for": null,
+    "created_at": "2026-08-12T22:00:50",
+    "scores": {"text": 88, "audio": 54, "visual": 72, "reaction": 66,
+               "engagement": 85, "action": 10, "trending": true,
+               "source": "transcript", "rerank_position": 2},
+    "render_opts": {"caption_style": {"font": "Arial", "font_size": 84,
+                    "words_per_caption": 3, "uppercase": true}, "podcast": true}
+  }
+]
+```
+
+`score` is the final 0–100 ranking; `scores` is the breakdown that produced it,
+which is the interesting part if you are building your own selection on top.
+
+A clip a plugin suggested edits for (the job's `edit`) carries them in
+`scores.plugin_edits`, one entry for each suggestion:
+
+```json
+"plugin_edits": [
+  {"id": "3f1c0a9e7b2d", "plugin": "example-dev/quarkbloom-trimmer", "version": "1.0.0",
+   "name": "Quarkbloom Trimmer", "window": [812.0, 841.5], "min_length": 10.0,
+   "edit": {"cuts": [[815.6, 820.6]], "title_overlay": {"text": "Triple bloom!", "seconds": 3}},
+   "reason": "Cuts the respawn wait", "state": "new"}
+]
+```
+
+`id` is the same whenever the same plugin suggests the same edit, in every
+run and every version, so the creator's decision carries over a forced re-run.
+`window` is the clip's start and end when it was suggested, and `edit` holds
+`cuts`, `mutes`, `volume`, `fade_in`, `fade_out`, `speed`, `title_overlay` and
+`crop` as Clips Kitty fitted them, its times in seconds of the video. `state`
+is `new`, `hidden` (put away by the creator, or used once and no longer in the
+clip's saved edit) or `used`. A used entry has `applied`, what it put in the
+clip and is still there: `{"removed", "mutes", "muted_words", "values"}`, the
+cuts it took out, the mutes it added, the words those hide in the captions
+(`{start, end, word}`) and `{field: {before, after}}` for each of `volume`,
+`fade_in`, `fade_out`, `speed`, `hook` and `crop` it changed, all in video
+seconds. It may also have `remade: true`: the clip's file was made again
+without its saved edit (the edit was saved while a run was making the clip),
+and the editor says so. Nothing in
+`plugin_edits` changes a clip by itself.
+
+`PATCH /clips/{clip_id}` with `{"suggestion": {"id": "3f1c0a9e7b2d", "state":
+"hidden"}}` hides one, and `"state": "new"` shows it again. Nothing renders. A
+suggestion is used only by a render that applies it (`suggestions`, under
+[`render_first`](#publishing-to-youtube)): any other state is 400 "suggestion:
+state must be hidden or new; a suggestion is used by applying it", and an id
+the clip doesn't have is 404 "no such suggestion on this clip". A used
+suggestion whose parts the clip's saved edit still holds can't be hidden or
+shown: that is 409 "suggestion: some of it is still in the clip's saved
+edit. Take it back and apply your edits, and Clips Kitty hides it then".
+A clip from a `sport` job also carries the moment it is: `sport_event`
+(`goal`, `save`...), `sport_label`, `sport_minute` (from the match clock),
+`sport_t` (seconds into the video), `sport_team`, `sport_player`, `sport_period`,
+`sport_why` (the signals that marked it) and `sport_bonus`. A story reel (the
+`reels` option) carries `sport_reel` (`recap`, `team` or `player`) and
+`sport_parts` instead, and `reel` and `of` (its team or player) in its render
+options; re-rendering one is refused. The video's `outcome.sport`
+says what the match gave: the moments found by type, the replays grouped and
+the score read.
+
+> **An unknown video ID returns `200 []`, not 404.** A typo in a video ID is
+> indistinguishable from a video with no clips. Check `GET /videos` first.
+
+### `GET /media/{clip_id}`
+
+The rendered MP4.
+
+```
+curl -r 0-63 http://127.0.0.1:8765/media/80
+→ 206 Partial Content, video/mp4, Content-Range: bytes 0-63/8922466
+```
+
+Supports range requests, so it can be the `src` of a `<video>` element and seek
+properly. `404` if the clip or its file is gone. **`HEAD` returns 405**. Use a
+one-byte range request if you only want the size.
+
+### `GET /clips/{clip_id}/captions`
+
+```json
+{"lines": [{"start": 0.0, "end": 0.98, "text": "the first caption line"}]}
+```
+
+Clip-relative seconds. `GET /clips/{clip_id}/words` is the same data at word
+granularity as `{"words": [{"start", "end", "word"}]}`, and returns
+`{"words": []}` when the transcript file has been cleaned up.
+
+## Models
+
+### `GET /models`
+
+```json
+{
+  "active": "ollama/gemma:7b",
+  "installed": [{"name": "gemma:7b", "size_gb": 5.01}],
+  "recommended": {"model": "gemma3:12b", "reason": "Sized for 13 GB of VRAM — …"},
+  "recommendations": [{"hardware": "8 GB VRAM", "model": "gemma:7b", "note": "…"}],
+  "other_models": [{"purpose": "Translation / multilingual", "model": "qwen3:8b / qwen3:14b", "note": "…"}]
+}
+```
+
+`recommended` is the single answer for *this* machine, measured from actual
+VRAM. `recommendations` is the whole table.
+
+### `POST /models/activate`
+
+```json
+{"tag": "gemma3:12b"}
+```
+
+`400 {"detail": "'x' is not pulled yet"}` if it is not installed. Anything
+Ollama serves works. The app has no allow-list.
+
+### `POST /models/pull`
+
+Downloads a model. Returns immediately; **progress arrives on the WebSocket**
+as `{"type": "model_pull", "tag": …, "status": "done"}` (or `"error"`). A 12 GB model
+on a slow connection is not an HTTP request you want to hold open. `"done"` comes only
+once Ollama has said the pull succeeded and lists the model; a download that stopped
+short is an `"error"`. Asking for a tag that is already downloading starts nothing and
+returns `{"started": tag, "already": true}`.
+
+### Where the AI runs: `/ai`
+
+Local (Ollama and Whisper on this machine) is the default. For a machine that
+cannot run the models, a cloud provider can do the AI work, or the transcription,
+on **the user's own API key**, billed by that provider. There is no Clips Kitty key
+or proxy. See [AI-BACKENDS.md](AI-BACKENDS.md) for what each provider does.
+
+`GET /ai`:
+
+```json
+{
+  "active": {"provider": "ollama", "model": "gemma:7b", "local": true},
+  "transcription": {"backend": "local", "model": ""},
+  "providers": [
+    {"id": "ollama", "label": "This PC — Ollama", "local": true, "has_key": false, "key_tail": "", "…": "…"},
+    {"id": "openrouter", "label": "OpenRouter", "local": false, "stt": true,
+     "stt_models": ["openai/whisper-large-v3-turbo", "…"],
+     "preferred": {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo",
+                   "text_family": "google/gemma"},
+     "key_label": "OpenRouter API key", "key_url": "…", "pricing_url": "…", "privacy": "…",
+     "has_key": true, "key_tail": "9f3a"}
+  ]
+}
+```
+
+No route ever returns a key; `key_tail` is its last four characters.
+
+| Route | What it does |
+|---|---|
+| `PUT /ai/providers/{id}/key` `{"api_key"}` | Checks the key with the provider, then keeps it. A key that fails is not saved; `400` says why in plain words. |
+| `DELETE /ai/providers/{id}/key` | Deletes the stored key. |
+| `GET /ai/providers/{id}/models` | Models that can do the job, from the provider, with the user's key: `{"models": [{"id", "name", "context", "json_schema", "tools", "note"}]}`. Cached for a day; `?refresh=true` asks again. |
+| `POST /ai/providers/{id}/test` `{"model"}` | Key, reachability and whether the model is offered, without spending tokens: `{"ok", "kind"?, "message"}`. |
+| `POST /ai/activate` `{"provider", "model"}` | Which model does the AI work. `"ollama"` switches back to local (the last local model used); a cloud provider needs a saved key. |
+| `POST /ai/transcription` `{"backend", "model"}` | `"local"` (Whisper here, the default) or a provider with `stt`. |
+
+A cloud provider's failure fails the job with a message that says what to do
+(bad key, out of credit, rate limited, model not offered). Nothing ever falls
+back to another provider or to the local model.
+
+## Languages and export
+
+### `GET /languages`
+
+```json
+{
+  "languages": [{"code": "es", "name": "Spanish", "native": "Español",
+                 "can_dub": true, "caption_font": null}],
+  "dubbing_available": true
+}
+```
+
+19 languages. `caption_font` is non-null where burned captions need a specific
+font for the script. Chinese gets Microsoft YaHei, Hindi gets Nirmala UI,
+because the default Latin fonts render those as empty boxes, permanently, in
+the video.
+
+**`dubbing_available` reflects whether the speech engine is importable.** It
+is true in installed builds from 1.1.3, which bundle it, and false in a source
+checkout without the optional dependency. `can_dub` describes the language, not
+your installation. Check both.
+
+### `POST /translate`
+
+```json
+{"clip_ids": [80, 81], "languages": ["es", "pt"], "stage": "translate"}
+```
+
+`stage` is `translate` (produce text for review) or `export` (write files).
+With `export`, `folder` is where they land, and `burn`, `dub`, `subtitles` and
+`post_text` choose what gets written. `400 {"detail": "no clips selected"}` on
+an empty list.
+
+### `POST /clips/{clip_id}/export`
+
+```json
+{"folder": "D:/clips/friday"}
+```
+
+Copies the clip out with its final filename. Returns `{"exported": [...]}`, and
+**returns 200 with an empty list rather than 404 when the clip does not
+exist**. Check the array, not the status.
+
+`POST /export/batch` takes `{"clip_ids": [...], "folder": "..."}`.
+
+Every clip that is copied out gets `exported_at` set to the time of the export.
+Clip JSON from `GET /videos/{video_id}/clips` carries `exported_at`, an ISO
+timestamp or `""`. Set or clear it by hand with `PATCH /clips/{clip_id}` and
+`{"exported": true}` or `{"exported": false}`. Marking a clip that is already
+marked keeps its original time.
+
+## Publishing to YouTube
+
+Optional, and **off unless the user has switched it on** in Settings. While it is
+off, `GET /youtube/status` returns `{"enabled": false}` and every other endpoint
+here returns **404**. A disabled feature looks absent rather than refused. Check
+status first; do not treat a 404 as a fault.
+
+Publishing needs the user's own Google Cloud OAuth client. Nothing is proxied
+through a server, and **no endpoint here ever returns a token or a client
+secret**, in any form.
+
+### Is it available?
+
+```bash
+curl http://127.0.0.1:8765/youtube/status
+```
+
+```json
+{
+  "enabled": true,
+  "backend": "windows-dpapi",
+  "has_client": true,
+  "connected": true,
+  "scopes": ["https://www.googleapis.com/auth/youtube.upload",
+             "https://www.googleapis.com/auth/youtube.readonly"],
+  "playlists_available": false,
+  "channel": {"id": "UCxxxxxxxx", "title": "My Channel", "handle": "@mychannel"},
+  "settings": {"enabled": true, "privacy": "public", "category_id": "22",
+               "made_for_kids": false, "playlists_enabled": false,
+               "notify_subscribers": true, "region": "US"},
+  "quota": {"uploads_used": 3, "uploads_limit": 100, "remaining": 97, "resets_at": ""}
+}
+```
+
+`quota` counts **uploads**, not units. Since June 2026 `videos.insert` has its own
+daily bucket (100 per Google Cloud project) separate from the 10,000-unit pool
+the other endpoints share. The count is advisory: two installs sharing one key
+cannot see each other, so a 403 from YouTube is always the truth.
+
+### Publish a clip
+
+```bash
+curl -X POST http://127.0.0.1:8765/clips/812/publish   -H 'Content-Type: application/json'   -d '{"title": "The comeback", "description": "No way", "tags": ["gaming"],
+       "privacy": "public", "made_for_kids": false}'
+```
+
+```json
+{"publish_job_id": 4, "render_job_id": null}
+```
+
+Returns immediately. Watch the `publish` WebSocket events, or poll
+`GET /clips/812/publish`.
+
+| Field | Notes |
+|---|---|
+| `title` | required, 100 characters |
+| `description` | 5,000 characters. Timestamps become chapters. |
+| `tags` | 500 characters in total, not a count |
+| `category_id` | see `GET /youtube/categories` |
+| `privacy` | `public` / `unlisted` / `private` |
+| `publish_at` | RFC 3339 with an offset. Forces `privacy` to `private`. |
+| `made_for_kids` | YouTube requires an explicit answer |
+| `contains_synthetic_media` | altered/synthetic-content disclosure |
+| `license` | `youtube` or `creativeCommon` |
+| `embeddable`, `public_stats_viewable`, `notify_subscribers` | booleans |
+| `default_language`, `playlist_id`, `thumbnail` | optional |
+| `render_first` | `{start?, end?, render_opts?, suggestions?}`: re-render before uploading |
+
+**`render_first` is how "no manual export" works.** Pass the editor's pending
+`render_opts` and the clip is re-rendered through the ordinary `render` job
+first, then uploaded. Omit it and the existing rendered file is used as-is.
+Either way the clip's own `render_opts` are never modified. The project stays
+editable.
+
+`render_first.suggestions` says which edits a plugin suggested this render
+puts in the clip, as the editor used them: `{"used": [{"id", "applied"}]}`,
+at most 8, with `applied` shaped as in `scores.plugin_edits`
+([above](#get-videosvideo_idclips)). The internal `POST /clips/{clip_id}/render`
+(Apply edits) takes the same field. Only what the render really changed, and
+only parts of each suggestion, is recorded, so a client can never mark more
+than it put in. Each value's `before`, which Take it back puts back, is taken
+as the client sent it, checked only to be a value the editor could hold. A
+wrong shape is a 400, such as "suggestions: expected {used: [{id,
+applied}]}".
+
+### Scheduling
+
+Send `publish_at`. The video is uploaded **now**, set private, and YouTube
+publishes it at that time. There is no local timer and nothing has to stay
+running; once the call returns, this app has no further part in it.
+
+Must be at least 15 minutes ahead, and must carry an offset (`...Z` or
+`+01:00`). A bare local time is rejected rather than guessed at.
+
+### Publishing state
+
+```bash
+curl http://127.0.0.1:8765/clips/812/publish
+```
+
+```json
+{
+  "upload": {"clip_id": 812, "youtube_id": "dQw4w9WgXcQ", "privacy": "public",
+             "actual_privacy": "private", "state": "locked_private",
+             "publish_at": "", "channel_title": "My Channel"},
+  "job": null
+}
+```
+
+**Compare `privacy` against `actual_privacy`.** When they differ and `state` is
+`locked_private`, YouTube overrode the request, which is what happens to every
+upload from a Google Cloud project that has not passed YouTube's compliance
+audit. It is permanent and cannot be undone in Studio. Surface it; do not report
+success.
+
+`state` is one of `uploaded`, `locked_private`, `rejected`, `failed`.
+
+### The rest
+
+| Endpoint | Purpose |
+|---|---|
+| `PATCH /youtube/settings` | enable/disable and publishing defaults |
+| `PUT`/`DELETE /youtube/credentials` | install or remove the user's OAuth client |
+| `POST`/`GET /youtube/connect` | start the browser consent, then poll it |
+| `POST /youtube/disconnect` | revoke and forget the token |
+| `GET /youtube/categories?region=US` | assignable categories |
+| `GET /youtube/playlists` | needs the full `youtube` scope (opt-in) |
+| `GET /youtube/uploads?limit=50` | publishing history |
+| `POST /publish/{job_id}/cancel` | cancel an upload in flight |
+| `GET /clips/{id}/frame?t=12.5` | a JPEG frame, for a thumbnail picker |
+| `POST /clips/{id}/thumbnail` | choose a thumbnail by `path` or by `t` |
+
+Of these, `GET /youtube/status`, `POST /clips/{id}/publish` and
+`GET /clips/{id}/publish` are **supported**; the rest exist to serve the Settings
+screen and may change with it.
+
+### One thing that will surprise you
+
+An upload interrupted by a crash or a quit is marked `interrupted` and is
+**never retried automatically**. From the outside there is no way to tell whether
+YouTube finished receiving the file, and a retry that guesses wrong posts the
+video to someone's channel twice. Ask the user to check their channel instead.
+
+## Streamer integrations
+
+For a tool that sits next to a livestream, such as the Clips Kitty OBS Plugin.
+
+- **Your tool** decides the stream has really ended, then hands it over.
+- **Clips Kitty** finds the VOD the platform publishes afterwards, queues it once,
+  and reports progress in terms a small dock can show.
+
+Clips Kitty does not need to be running while the stream is live. Launch it
+after the stream, wait for `GET /health`, then post the stream.
+
+### `POST /integrations/streams`
+
+```json
+{
+  "session_id": "3f2a9c1e-7b64-4d8a-9e21-5c0b6a1f4d77",
+  "source": "obs",
+  "platform": "twitch",
+  "channel": "yourchannel",
+  "started_at": 1757790000,
+  "ended_at": 1757801400,
+  "preset": "standard"
+}
+```
+
+| Field | Notes |
+|---|---|
+| `session_id` | Yours: 8 to 64 letters, digits and hyphens. A UUID works. Posting the same id again returns the existing stream and creates nothing. |
+| `platform` | `twitch`, `youtube` or `kick`. |
+| `channel` | The channel handle, without `@`. Needed to find the VOD automatically. |
+| `started_at`, `ended_at` | Unix seconds, as your tool saw them. The VOD is matched by start time. |
+| `preset` | An `id` from `GET /integrations/presets`. |
+
+Returns the stream, as below, plus `"created": true` or `false`.
+
+### `GET /integrations/streams/{session_id}`
+
+```json
+{
+  "session_id": "3f2a9c1e-7b64-4d8a-9e21-5c0b6a1f4d77",
+  "source": "obs", "platform": "twitch", "channel": "yourchannel",
+  "started_at": 1757790000.0, "ended_at": 1757801400.0, "preset": "standard",
+  "state": "processing",
+  "vod_url": "https://www.twitch.tv/videos/2869889709", "video_id": "tw_2869889709",
+  "job_id": 212, "waiting_behind": 0, "error": "",
+  "progress": {"stage": "analyze", "label": "Finding the best moments",
+               "percent": 57, "eta_seconds": 1480, "elapsed_seconds": 1930}
+}
+```
+
+| `state` | Meaning | Extra fields |
+|---|---|---|
+| `waiting_for_vod` | Looking for the VOD every 5 minutes, for up to 2 hours after the stream ended. | |
+| `needs_link` | It can't look (Kick, or no channel name) or didn't find the VOD. `error` says which, in words a streamer can read. Post the link. | |
+| `queued` | In the queue. | `waiting_behind`: videos ahead of it. `queue_paused`: `true` while it waits for someone to press Start. |
+| `processing` | Running. | `progress`: stage, label, percent and `eta_seconds` (`null` for the first few percent). |
+| `complete` | Done, or that VOD had already been processed. | `clips`: how many were made. |
+| `error` | The job failed, or the queue was full. | `error` for the streamer, `details` for a log. |
+| `cancelled` | Cancelled here, or removed from the queue in the app. | |
+
+Poll it every few seconds while a dock is open. It reads the queue live, so it
+never goes stale.
+
+**It never starts other videos.** Clips Kitty does not start processing on its
+own; the queue starts stopped. A stream you hand over counts as the go-ahead for
+that stream only.
+- **Nothing else waiting, queue stopped:** the queue starts.
+- **Other videos already waiting:** it stays stopped and `queue_paused` is
+  `true`. Tell the user to press Start in Clips Kitty.
+
+The percentages use the same stage weights as the app, so a dock and the app
+never disagree about the same job.
+
+### `POST /integrations/streams/{session_id}/link`
+
+```json
+{"url": "https://kick.com/yourchannel/videos/12345678-1234-1234-1234-123456789abc"}
+```
+
+For `needs_link`: queues that link instead. Once the stream is queued,
+processing or complete, posting again returns it unchanged.
+
+### `DELETE /integrations/streams/{session_id}`
+
+Removes a queued job, or cancels a running one, and marks the stream
+`cancelled`. A finished stream is left as it is.
+
+### `GET /integrations/presets`
+
+```json
+[
+  {"id": "standard", "name": "Standard", "description": "Vertical clips with captions.", "options": {}},
+  {"id": "podcast", "name": "Podcast", "description": "Letterboxed framing for multi-camera podcasts, without subject tracking.", "options": {"podcast": true}},
+  {"id": "long_clips", "name": "Long clips", "description": "Clips between 61 and 180 seconds long.", "options": {"long_clips": true}},
+  {"id": "highlights", "name": "Stream highlights", "description": "A horizontal highlights video of the stream.", "options": {"longform": {"mode": "highlights"}}}
+]
+```
+
+Named bundles of options `POST /jobs` already accepts. Show `name` and
+`description`, and send `id`.
+
+### Publishing a batch: plan first, then execute
+
+`POST /publish/plan` works out what publishing a set of clips would do and
+**creates nothing**:
+
+```json
+{"clip_ids": [80, 81, 82], "start_at": "2026-09-18T12:00:00-05:00", "every_hours": 1}
+```
+
+```json
+{"items": [{"clip_id": 80, "title": "...", "description": "...",
+            "privacy": "private", "publish_at": "2026-09-18T17:00:00Z"}],
+ "warnings": []}
+```
+
+The description is resolved exactly as the worker will build it, standing block
+and hashtags included, so the preview is the truth rather than an approximation.
+Scheduled items come back **private**: YouTube rejects `publishAt` on anything
+else, and flips them public itself at the time.
+
+Omit `start_at` and `every_hours` to upload as soon as each is ready. An interval
+without a start is refused, as is a start inside the 15 minute lead time, because
+a batch must not slip past a check a single upload has to pass.
+
+`warnings` is where a plan bigger than today's remaining quota says so, before
+anything is spent.
+
+`POST /publish/plan/execute` takes the items back and creates one ordinary
+publish job per clip:
+
+```json
+{"started": [{"clip_id": 80, "publish_job_id": 12}],
+ "skipped": [{"clip_id": 81, "reason": "This clip has no rendered file yet."}]}
+```
+
+**One clip's problem never costs the batch.** Titles are optional on the way
+back: an agent that only moved the schedule does not have to repeat metadata it
+never touched, and the clip's own title is used.
+
+### Thumbnails made on this machine
+
+`POST /clips/{clip_id}/thumbnail/generate?count=3` looks through the clip for
+frames with a face in them, crops each to 16:9 around the face, burns the clip's
+hook across the bottom and writes up to four candidates.
+
+```json
+{"generated": 3}
+```
+
+**Zero is a normal answer**, not an error: a clip with no readable frame gets
+none, and the three fixed suggestions (a quarter, half and three quarters in)
+are still there. Everything degrades rather than fails, so a missing face
+cascade means a centre crop and a machine with no usable font means no burned
+text.
+
+Fetch one with `GET /clips/{clip_id}/thumbnail/generated/{index}`, where index 0
+is the best-ranked. Keep one with the normal chooser:
+
+```json
+{"generated": 0}
+```
+
+`POST /clips/{clip_id}/thumbnail` takes exactly one of `image` (base64),
+`t` (seconds into the clip) or `generated` (an index). Candidates are replaced
+each time you generate, so an index only refers to the most recent run.
+
+Nothing here calls out to anything: the faces come from the Haar cascades
+already bundled for the tracker, the frames from the bundled FFmpeg's decoder,
+and the type from a font already on the machine.
+
+## Watched channels
+
+Clips Kitty watches a YouTube, Twitch or Kick channel. When the channel posts,
+Clips Kitty queues the video exactly once, like a pasted link, and then
+publishes the clips through WoopSocial, asks first, or leaves them alone,
+depending on the watch's settings. This is what the Watch page in the app uses.
+
+Nothing happens until automation is switched on (`PATCH /automation`) and the
+watch is enabled. Watching only happens while Clips Kitty is running. Anything
+posted while it was closed is found on the next look, and the watch's `backlog`
+choice decides what happens to it.
+
+How each channel is read:
+
+- **YouTube:** the channel's RSS feed. If the feed fails or comes back empty,
+  the uploads playlist through yt-dlp.
+- **Twitch:** past broadcasts, through yt-dlp.
+- **Kick:** Kick's own channel videos endpoint. It is unofficial; if it stops
+  answering, the watch's `last_error` says so.
+
+### `GET /automation` · `PATCH /automation`
+
+```json
+{"enabled": true, "delete_sources": false, "interval_minutes": 15, "watches": 2,
+ "watching": 1,
+ "presets": [{"id": "standard", "name": "Standard", "description": "...", "options": {}}]}
+```
+
+PATCH takes either field, or both:
+
+- `enabled`: switch watching on or off.
+- `delete_sources`: delete each watched video's download once its clips are
+  published. The clips and the library entry stay, and videos no watch queued
+  are never touched.
+
+The interval comes from `poll_interval_minutes` in settings.yaml, and is never
+less than 5 minutes.
+
+### `POST /automation/watches`
+
+```json
+{"platform": "youtube", "channel": "https://www.youtube.com/@LinusTechTips",
+ "publish": {"mode": "auto", "platforms": ["youtube", "tiktok"]}}
+```
+
+`channel` accepts a channel link, an `@handle` or a bare name. `publish` is
+optional and takes the same fields as the watch's `publish` below, so a
+hands-off channel is one request. A YouTube channel
+is resolved to its `UC...` id, so the handle and the id name the same watch.
+Returns the watch plus `"created": true`, or `false` if the channel was already
+watched. A channel that can't be found or read returns 400 with a message a
+person can read.
+
+The first look records everything already on the channel with status
+`earlier`. Adding a channel never queues its back catalogue.
+
+### `GET /automation/watches` · `PATCH` / `DELETE /automation/watches/{id}`
+
+```json
+{
+  "id": 1, "platform": "youtube", "channel_key": "UC0123456789abcdefABCDEF",
+  "name": "Some Channel", "enabled": true,
+  "preset": "standard", "options": {"max_clips": 5},
+  "publish": {"mode": "auto", "platforms": ["youtube", "tiktok"], "per_day": 5,
+              "gap_hours": 1, "day_start": "09:00",
+              "hashtags": ["creatorname", "twitch"], "ai_hashtags": true, "footer": "",
+              "overrides": {"youtube": {"privacy": "private"},
+                            "tiktok": {"privacyLevel": "PUBLIC_TO_EVERYONE", "allowDuet": false}}},
+  "backlog": "newest", "min_minutes": 3,
+  "last_ok_poll_at": 1790190000.0, "next_poll_at": 1790190900.0, "last_error": "",
+  "counts": {"baseline": 15, "queued": 2, "skipped": 1},
+  "creator": {"id": 7, "name": "Some Channel", "learning": true, "videos": 2, "facts": 23}
+}
+```
+
+`creator` is the creator profile the channel's videos learn into, the one the
+app's Creators page shows. It is made when the channel is added, so
+it is there before the first video, and every video the watch queues is
+learned into it, whatever the download calls the channel. `videos` counts the
+finished ones and `facts` what has been learned from them (facts and
+storylines). It is `null` for a YouTube channel whose name could not be read.
+Removing the watch keeps the profile and what it learned.
+
+PATCH takes any of the following, and changes only what it is sent:
+
+| Field | Notes |
+|---|---|
+| `enabled` | Whether this watch is looked at. |
+| `preset` | An `id` from `GET /automation` (the same presets as integrations). |
+| `options` | The same per-video options as `PATCH /jobs/{id}`, validated the same way. |
+| `publish.mode` | `off`: leave the clips alone. `ask`: stop at "ready to publish" (the default). `auto`: publish as soon as the clips exist, and retry on failure (see below). |
+| `publish.platforms` | Lower-case names of connected WoopSocial platforms. With none chosen, an automatic watch asks instead. |
+| `publish.max_posts` | How many of each video's clips to post, best-scoring first. `0` (the default) posts every clip; the rest stay in the library. |
+| `publish.spread` | `true` (the default) spaces posts on the daily budget below. `false` posts each clip the moment it is made, like the Publish dialog with "Space them out" off; pair it with a small `max_posts`. |
+| `publish.per_day`, `publish.gap_hours` | A daily budget, queued behind everything already scheduled. WoopSocial's free plan allows about 5 YouTube posts a day. |
+| `publish.day_start` | Local `"HH:MM"` for each day's first post, or `""` to start as soon as the scheduler allows. |
+| `publish.hashtags` | The creator's own, set once. They lead every caption, ahead of the AI's, so nothing trims them off. |
+| `publish.ai_hashtags` | `false` leaves out the hashtags the AI chose, so only the ones above are used. |
+| `publish.footer` | Optional text under each caption. Links and "clipped from" wording can get TikTok posts flagged as unoriginal content. |
+| `publish.overrides` | Per platform, the fields WoopSocial takes: `youtube.privacy` (`public`, `unlisted`, `private`); `tiktok.privacyLevel` (`PUBLIC_TO_EVERYONE`, `FOLLOWER_OF_CREATOR`, `MUTUAL_FOLLOW_FRIENDS`, `SELF_ONLY`) and the booleans `allowComment`, `allowDuet`, `allowStitch`, `isYourBrand`, `isBrandedContent`; `instagram.postType` (`REEL`, `STORY`); `facebook.postType` (`REEL`, `VIDEO`, `STORY`); `pinterest.pinterestBoardId`. |
+| `backlog` | What to do when several videos appeared while Clips Kitty wasn't watching: `newest` (default), `all`, `day` (the last 24 hours) or `none`. Videos that aren't taken are listed as `skipped`, never dropped. |
+| `min_minutes` | Shorter videos (Shorts) are skipped. |
+
+`DELETE` stops watching and forgets the watch's list. Jobs and clips it
+produced stay in the library.
+
+### `GET /automation/activity`
+
+What the watcher is doing right now, and its last steps, newest first. The
+Watched channels page shows this as its live panel.
+
+```json
+{
+  "now": {"state": "busy", "text": "Making clips of \u201cStream highlights\u201d",
+          "progress": {"stage": "analyze", "label": "Finding the best moments",
+                       "percent": 57, "eta_seconds": 1480, "elapsed_seconds": 1930}},
+  "watching": 2, "next_check_at": 1790195678.5,
+  "events": [{"at": 1790194778.5, "text": "Queued \u201cStream highlights\u201d for clipping",
+              "kind": "queued"}]
+}
+```
+
+`now.state` is `off`, `watching`, `waiting` (a video is in the queue) or `busy`
+(checking a channel, clipping, or sending clips). `kind` is one of `found`,
+`queued`, `done`, `posted`, `waiting`, `retry`, `error` or `info`. The steps
+are kept in memory, so a restart starts the list afresh; every `automation`
+WebSocket event is a cue to read this again.
+
+### `GET /automation/slots?per_day=5&gap_hours=1&day_start=09:00&count=3`
+
+When the next posts would go out with those settings, after everything already
+scheduled. It reserves nothing; the Watched channels page shows it as a preview.
+
+```json
+{"times": ["2026-09-24T13:00:00+00:00", "2026-09-24T14:00:00+00:00",
+           "2026-09-24T15:00:00+00:00"], "already_scheduled": 4}
+```
+
+Returns 400 with the reason when the settings cannot work, such as 10 posts
+3 hours apart, which does not fit in a day.
+
+### `POST /automation/watches/{id}/check`
+
+Look at the channel now instead of waiting for the next interval.
+
+### `GET /automation/items?watch_id=`
+
+The videos a watch has seen, newest first.
+
+```json
+{
+  "id": 7, "watch_id": 1, "platform": "youtube", "video_id": "XM04mbymDsE",
+  "url": "https://www.youtube.com/watch?v=XM04mbymDsE", "title": "...",
+  "published_at": 1790184627.0, "detected_at": 1790185000.0,
+  "status": "complete", "reason": "", "job_id": 214,
+  "publish_state": "done", "publish_error": "", "clips": 6,
+  "deliveries": [{"clip_id": 901, "platform": "youtube", "state": "published",
+                  "post_url": "https://www.youtube.com/watch?v=...",
+                  "scheduled_for": "2026-09-24T13:00:00+00:00", "error": ""}]
+}
+```
+
+| `status` | Meaning |
+|---|---|
+| `earlier` | Already on the channel when the watch was added. |
+| `waiting_for_video` | Live, premiering or still processing on the platform. Checked again every 15 minutes, for up to a week. `reason` says which. |
+| `waiting_for_queue` | Ready, but the queue is full. |
+| `queued` · `processing` · `complete` · `failed` · `cancelled` | Read live from the video's job, as in `GET /integrations/streams/{session_id}`, with the same extra fields. |
+| `skipped` | Set aside. `reason` says why: too short, posted while Clips Kitty wasn't watching, already clipped, members-only. |
+
+`publish_state` is empty until the clips exist. Then it is one of:
+
+- `off`: publishing is off for this watch.
+- `ask`: waiting to be told. `publish_error` says why if an automatic publish
+  could not start, for example WoopSocial not being set up.
+- `publishing`
+- `done`
+
+**When a plugin the job chose didn't run.** If the job named plugins under
+`rate` or `understand` and one of them couldn't run, an `auto` watch doesn't
+post the clips: the item goes to `ask` with `publish_error` "Clips Kitty made
+these clips without {names}, so they weren't posted automatically. Check them
+and publish, or turn off Rate & understand in this channel's settings." An
+`ask` watch says "Clips Kitty made these clips without {names}. Check them
+before you publish." A job whose options name neither is never held this way, and neither is one
+whose only skipped plugin was named under `edit`: its suggestions change no
+clip.
+When a rater set every moment aside, the item is `done` with "{names} rated
+every moment under the minimum score ({min_score}), so there were no clips to
+publish." A job's own `then` publish is held the same way, with a line in its
+log. The command-line daily upload is not held.
+
+**Which clips a publish sends.** The first publish of an item sends the
+video's best `max_posts` clips by score (all of them with `0`), and the item
+remembers which ones. Every later publish of that item (the button again,
+Retry failed, the re-send of rejected posts) sends only clips from that first
+choice, even when a forced re-run has changed the scores since. A clip
+trimmed in the editor since stays part of that choice. When none of the
+chosen clips is left, the item is `done` with "The clips chosen when this
+video was first published aren't there any more, so there was nothing to
+send." An item published before Clips Kitty remembered the choice chooses
+again, once.
+
+`deliveries` holds one row per clip and platform. Its state is `sending`,
+`queued`, `processing`, `published`, `failed` or `skipped`.
+
+**Hands-off retries.** For a watch whose `publish.mode` is `auto`, a failure
+is tried again instead of waiting for a person, since nobody may be at the PC:
+
+- **A failed download or processing run** is re-queued (the same job) after
+  30 minutes and then after 3 hours. `retries` counts these, and `retry_at` is
+  when the next one is due (unix seconds, 0 when none is scheduled).
+- **A publish that could not start** because WoopSocial was unreachable, busy
+  or rate limiting is tried every 15 minutes, 6 times, then falls back to
+  `ask`. `publish_attempts` and `publish_retry_at` track this. Setup problems,
+  such as no key, no platforms or an unconnected account, go to `ask` at once.
+- **Posts a platform rejected** are sent again after 6 hours and after 24
+  hours. `delivery_retries` counts these. Only the rejected ones go; nothing
+  published or on its way is ever sent twice.
+
+`source_freed` is 1 once the video's download was deleted (`delete_sources`), and 2 if there was none to delete.
+
+### `POST /automation/items/{id}/queue`
+
+Clip a video that was set aside (`earlier` or `skipped`). The person asking is
+the go-ahead, so the minimum length does not apply. A video that is still live
+waits as `waiting_for_video`.
+
+### `POST /automation/items/{id}/publish`
+
+Publish a finished video's clips with its watch's settings. This is both the
+answer to `ask` and the retry for failed deliveries. Only clips not already
+sent, or on their way, to a platform go out, so pressing it twice never posts
+anything twice. It returns at once; the upload runs in the background.
+Returns 409 until the clips exist.
+
+### `POST /automation/items/{id}/skip`
+
+Set aside a video that hasn't been queued yet, or decline an `ask`.
+
+## Plugins
+
+**Experimental.** Community pipelines: plugins that find a video's moments,
+say what happens in them and rate them, or suggest edits for the clips, while
+Clips Kitty does the rest.
+Installing one never runs anything from it; a job runs it when its options
+say `pipeline: {"id": "publisher/name"}`, or name it under `understand`,
+`rate` or `edit` ([`POST /jobs`](#post-jobs)). Each plugin's `details.steps` says which
+of these it can be chosen for (`Finds moments`, `Understands moments`,
+`Understands what it finds`, `Rates moments`, `Suggests edits`), and
+`details.time_limit` how long a run that rates, understands or suggests edits
+may take. Developer guide:
+[Getting started](developers/getting-started.md) and [Steps](developers/steps.md).
+
+Routes that fetch, install, change or remove plugins need the
+`X-Clips-Kitty-Session` header. The desktop app sends it; a script reads it from
+`<data folder>/plugins/session.secret`. It keeps web pages and stray calls out;
+it is not a password against software already running as you.
+
+```bash
+# Installed app: %LOCALAPPDATA%\Clips Studio\data. A checkout: data/ in the repository.
+SECRET=$(cat data/plugins/session.secret)
+curl -X POST localhost:8765/plugins/plan -H "X-Clips-Kitty-Session: $SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"source": {"kind": "git", "url": "https://github.com/example-dev/example-plugin",
+                  "commit": "<40-character commit hash>"}}'
+# → {"plan_id": "...", "ok": true, "plugin": {...}, "details": {"permissions": [...],
+#    "data_warnings": ["⚠ Sends ..."], ...}, "errors": [], "warnings": [], "technical": [],
+#    "update": null, "text": "Install ...?\n..."}
+curl -X POST localhost:8765/plugins/install -H "X-Clips-Kitty-Session: $SECRET" \
+  -H 'Content-Type: application/json' -d '{"plan_id": "..."}'
+```
+
+A plan's `text` is the install screen as plain text, without the buttons (the
+SDK's `install` command shows it). Its `warnings` are in plain words for the
+person installing; `technical` holds the precise lines behind them (the
+manifest's own warnings, files that couldn't be fetched); a model file that can
+run code when it is opened adds a plain line to `warnings` as well. A download
+or Git that fails answers with a fixed sentence for its cause (no connection,
+files no longer at the address, a full disk, a damaged download, or anything
+else); what went wrong is in the engine's log.
+
+`GET /plugins` lists what is installed (no header needed);
+`POST /plugins/{publisher}/{name}/enable`, `/disable`, `/rollback`, `/pin`,
+`/unpin`, `DELETE /plugins/{publisher}/{name}` and
+`PUT /plugins/{publisher}/{name}/secrets` change one plugin. A source is
+`{"kind": "folder", "path": ...}`, `{"kind": "git", "url": ..., "commit": ...}`
+(with `"path"` for a plugin in a subfolder), or a registry listing,
+`{"kind": "index", "id": "publisher/name", "version": "1.2.0"}`.
+
+`GET /marketplace` lists and searches the installable listings in the indexes
+the app knows (`?q=`, `category`, `tag`, `kind`, `section`), each listing with
+the same details a plan shows and whether it is installed; it reads only cached
+copies. `section` also matches the sections inside it, so `section=gaming`
+includes `gaming/generic`. Each listing carries its `section`, its labels
+(`badges`: `official` or `community`, plus `compatible` and `featured` when they
+apply), its numbers (`metrics`, each from its own source) and, on each of its
+`versions`, the `compatibility` record when there is one; the answer's
+`sections` lists the sections of each installable kind. Each listing's
+`problems_here` says what the engine can tell would stop it running on this PC
+(`{"need": "app" | "python", "text": ...}`: a Clips Kitty version outside its
+range, no Python for a plugin that runs with one), and each of its `versions`
+has its own `problem_here`. `GET /plugins` gives installed plugins the same
+`problems_here`.
+The answer's `indexes` names each list with its `kind`: `bundled` (the copy
+that came with the app), `online` (Clips Kitty's online list, the catalog's
+index on the project's main branch) or `other` (an address in
+`plugins.registry_urls`); `online` says whether the Marketplace checks that
+list by itself, when its copy was fetched (`fetched_at`), whether that copy is
+in use (`in_use`: one older than the bundled list is set aside) and how the
+last try went (`tried_at`, `error`). What the online list adds shows as Community and is
+never counted; only the bundled list labels (DECISIONS D29).
+`POST /marketplace/refresh` (session header) fetches Clips Kitty's online list
+and the indexes in `plugins.registry_urls` again and answers
+`{"checked": true, "indexes": [{"url", "ok", "error"}]}`; with
+`{"automatic": true}`, as the Marketplace sends when it opens (and the app at start, when a pipeline is installed), it fetches only
+the online list, and only when the automatic checks are on (`PUT
+/marketplace/online`), its copy is a day old and no check was tried in the last
+hour, or the last day after a list that wasn't there or couldn't be read
+(`{"checked": false, "indexes": []}` otherwise); one check runs at a time. `error` is one
+of a few fixed sentences (no connection, nothing at the address, the website's
+error, too large, not a list Clips Kitty can read, not https://, couldn't be
+saved); the details of what went wrong go to the engine's log.
+`GET /marketplace/online` (no header) answers like `online` above, and
+`PUT /marketplace/online` `{"enabled": false}` (session header) switches the
+automatic checks off for this Windows account (or on again). See
+[Marketplace publishing](developers/marketplace-publishing.md).
+
+`GET /marketplace/catalog` (`?q=`, `kind`, `section`; no header) lists the rest
+of Awesome Clips Kitty: its apps, models, workflows, integrations and tools.
+They are not installed from here; each entry has an `id` (`apps/<name>`, the
+folder and file it comes from), its `source` (GitHub,
+Hugging Face or a home page, and the project's own website, `homepage`, and
+download page, `download`, when the list has them), `setup` when given
+(`installer`, or `technical` for one that needs the command line or Python),
+its `relationship` to Clips Kitty (`built-with`
+or `related`), its `license`, its labels and its numbers. `kind` is one of
+`app`, `model`, `workflow`, `integration` or `tool` (anything else is a 400).
+The answer also carries the `sections`, `kinds`, `relationships`, what each
+label means (`badges`) and `metrics_at`, the date the numbers were read.
+
+`GET /marketplace/counting` (no header) says whether installs from the
+Marketplace are counted:
+`{"enabled": true, "locked_off": false, "active": false, "text": "..."}`.
+`locked_off` is true when settings say `plugins.count_installs: false`;
+`active` is false while the bundled index has no install counter address (no
+other index can count installs), which is the case today, so nothing is counted. `PUT /marketplace/counting`
+`{"enabled": false}` switches counting off for this Windows account (or on again), needs the
+session header, and answers the same way. `POST /plugins/install` answers with
+`counted`: whether that install was counted, which only a first install from a
+listing can be. What a count sends: [Security](developers/security.md#what-clips-kitty-sends-when-you-install).
+
+`GET /plugin-models` lists every model the installed plugins name, once, with
+where it is, its licence and size, and which plugins use it (no header).
+`POST /plugin-models/plan` `{"plugin": "publisher/name", "model": "<name>"}` says what
+downloading one would fetch, from Hugging Face's metadata, and
+`POST /plugin-models/download` (add `"allow_pickle": true` to accept a
+pickle-format file) downloads it into the shared model folder; both need
+the session header. See [Model references](developers/model-references.md).
+
+## MCP: let an AI agent drive it
+
+Clips Kitty ships an **MCP server**, so Claude, Cursor or any MCP client can use the
+endpoints above in plain language: queue a stream, follow the job, read the clips it
+chose, export one. It is a translation layer over this same API, talking to the running
+engine on `127.0.0.1:8765`, and it needs no API key of any kind, because the model that
+picks the clips is the one on this machine, or a cloud model the user chose in Settings →
+AI on their own key, which the MCP client never sees.
+
+```bash
+claude mcp add clips-kitty -- python main.py mcp
+```
+
+Installed builds ship the engine as `api.exe` in the app's `resources\backend` folder, so
+the command there is `api.exe mcp`. `CLIPS_STUDIO_API` overrides the address if the engine
+is on another port.
+
+Thirteen tools. Processing: `queue_video`, `queue_local_file`, `job_status`,
+`queue_status`, `list_videos`, `list_clips`, `clip_captions`, `export_clip`,
+`engine_status`. Publishing: `youtube_status`, `publish_plan`,
+`publish_plan_execute`, `publish_status`.
+
+The publishing tools are deliberately two steps. `publish_plan` returns a
+proposal and says in its own output that nothing has been uploaded; an agent is
+told to get a clear yes before calling `publish_plan_execute`. Uploads cannot be
+taken back and each one spends the user's daily quota.
+
+stdio only, newline-delimited JSON-RPC, protocol version `2025-06-18` (an older version
+from the client is accepted and echoed back). **No dependency was added for it**: the
+transport is standard library in `server/mcp.py`, because requirements.txt is pinned per
+line and an SDK would also mean a new hidden import and a re-frozen backend.
+
+The tools carry the traps in their own output, since an agent reads nothing else: a
+`job_id` of `null` means "not queued" rather than "failed", an unknown video id returns an
+empty clip list rather than a 404, and a paused queue looks exactly like a stalled app.
+
+An agent skill for clients that support them is in [`skills/clips-kitty/`](../skills/clips-kitty/).
+
+## WebSocket events
+
+```
+ws://127.0.0.1:8765/ws
+```
+
+Connect and listen. The server never expects a message from you. Seven event
+types:
+
+```json
+{"type": "queue"}
+{"type": "job", "job_id": 149, "job_type": "process", "status": "running", "title": "Friday stream", "remaining": 2}
+{"type": "progress", "job_id": 149, "stage": "transcribe", "video_id": "aB3dEfGhIjK"}
+{"type": "model_pull", "tag": "gemma3:12b", "status": "done"}
+{"type": "publish", "publish_job": 4, "clip_id": 812, "stage": "publish", "phase": "upload", "fraction": 0.42, "message": "Uploading to YouTube"}
+{"type": "automation"}
+{"type": "clip_replaced", "old": 812, "new": 845, "video_id": "aB3dEfGhIjK"}
+```
+
+- **`queue`** carries no data. It means "something changed, re-fetch
+  `GET /queue`". You will see it often; it is the cheapest way for the server
+  to stay honest without duplicating the queue in the event stream.
+- **`job`** fires on status transitions. `error` is present when it failed.
+- **`progress`** is the pipeline talking. `stage` moves through `download`,
+  `downloaded`, `converting source to H.264`, `transcribe`, `analyze`,
+  `ranking`, `render`, `done`. Render events carry `clip` and `total`. A job
+  with `understand` or `rate` also has `understand` events (a plugin saying
+  what happens in the moments) and `ranking` events from each plugin that
+  rates them; both carry `plugin`, the plugin's name, and the job's progress
+  label reads "Understanding moments with {plugin}" or "Rating moments with
+  {plugin}". A job with `edit` also has `edit` events, from each plugin
+  suggesting edits for the clips, after `ranking` and before `render`; they
+  carry `plugin` too, and the label reads "Suggesting edits with {plugin}".
+  **`job_id` is `null` for prefetch downloads**, which belong to a future job,
+  not the running one: never attribute them to the current job.
+- **`model_pull`** is download progress for `POST /models/pull`.
+- **`automation`** carries no data, like `queue`: a watch found something or
+  moved a video along. Re-fetch `GET /automation/items`.
+- **`clip_replaced`** is a clip rendered again with new edits or times. It is
+  back under a new id (`new`; `old` is gone), with its title, translations and
+  uploads moved over to it. Anything holding the old id should follow it.
+- **`publish`** is a YouTube upload. `phase` moves through `prepare`, `upload`,
+  `metadata`, then one of `done` / `failed` / `cancelled`. The terminal one
+  also sets `terminal` to the same value, and `done` carries `youtube_id`,
+  `url`, and any `warnings`. A later `checked` event may arrive about a minute
+  after `done` if YouTube rejected the video or locked it to private.
+  **It is deliberately not a `job` event**: publish jobs live in their own
+  table and have nothing to do with the video pipeline's progress, so a client
+  tracking pipeline state should ignore `publish` entirely.
+
+Events are dropped rather than queued for a slow client (a 200-event buffer per
+connection). Treat the WebSocket as a hint to re-read state, not as the state
+itself.
+
+## A complete example
+
+**[`examples/drive_the_api.py`](../examples/drive_the_api.py) is a working
+program** that walks the whole path: preflight, submit, follow the WebSocket,
+read the clips, and it is kept running as part of the repo:
+
+```bash
+python main.py serve                                  # in another terminal
+python examples/drive_the_api.py                      # preflight only
+python examples/drive_the_api.py --url https://twitch.tv/videos/123456789
+python examples/drive_the_api.py --file "D:/footage/stream.mp4"
+```
+
+The shorter version below is the same idea in one file with polling instead of
+a WebSocket. It was run end to end against a live instance.
+
+```python
+"""Queue a video and wait for its clips. Requires: pip install requests"""
+
+import time
+import requests
+
+API = "http://127.0.0.1:8765"
+URL = "https://www.youtube.com/watch?v=aB3dEfGhIjK"
+
+# 1. Can it actually work right now?
+pre = requests.get(f"{API}/health/preflight", timeout=10).json()
+blocking = [c for c in pre["checks"] if c["blocking"] and not c["ok"]]
+if blocking:
+    raise SystemExit("not ready: " + "; ".join(f"{c['name']}: {c['fix']}" for c in blocking))
+
+# 2. Submit. A null job_id is an answer, not a failure.
+r = requests.post(f"{API}/jobs", json={"url": URL}, timeout=30).json()
+if r.get("already_processed"):
+    video_id = r["video_id"]
+    print(f"already done: {video_id}")
+else:
+    job_id = r["job_id"]
+    print(f"queued job {job_id}")
+
+    # 3. Poll. The WebSocket is nicer; this keeps the example to one file.
+    while True:
+        job = requests.get(f"{API}/jobs/{job_id}", timeout=10).json()
+        print(f"  {job['status']}")
+        if job["status"] in ("done", "failed"):
+            break
+        time.sleep(15)
+
+    if job["status"] == "failed":
+        log = requests.get(f"{API}/jobs/{job_id}/log", timeout=10).json()
+        raise SystemExit(job["error"] + "\n" + log["log"][-2000:])
+    video_id = job["video_id"]
+
+# 4. Read the clips.
+clips = requests.get(f"{API}/videos/{video_id}/clips", timeout=30).json()
+for c in sorted(clips, key=lambda c: -c["score"]):
+    print(f"{c['score']:3}  {c['start_s']:8.1f}s  {c['title']}")
+    print(f"     {API}/media/{c['id']}")
+```
+
+The same thing in one line, for a video that is already processed:
+
+```bash
+curl -s http://127.0.0.1:8765/videos/aB3dEfGhIjK/clips \
+  | python -c "import json,sys; [print(c['score'], c['title']) for c in json.load(sys.stdin)]"
+```
+
+## Gotchas
+
+Collected because each one has cost somebody time:
+
+1. **`POST /jobs` can return `{"job_id": null}`.** Already processed or already
+   queued. Check the field, not the status code.
+2. **`GET /videos/{unknown}/clips` returns `200 []`.** A typo looks like a video
+   with no clips.
+3. **`POST /clips/{id}/export` returns 200 for a clip that does not exist.**
+   Check `exported`.
+4. **`HEAD /media/{id}` is a 405.** Use a range request.
+5. **A paused queue is invisible** unless you read `paused`. It persists across
+   restarts.
+6. **Cancelling is cooperative.** The job keeps running to the next stage
+   boundary.
+7. **A source checkout and an installed build have different libraries** on the
+   same machine, and both want port 8765.
+8. **`dubbing_available` and `can_dub` are different questions**: one is
+   your installation, the other is whether the language has a voice at all.
+9. **One worker, one video at a time.** GPU contention makes parallel jobs
+   pointless on consumer hardware, so a queued job waits. That is not a hang.
+10. **No pagination.** `GET /videos` returns everything.
+
+---
+
+## Building something?
+
+- **Get it listed:** add it to [Awesome Clips Kitty](https://github.com/ColinGPT9/awesome-clips-kitty)
+  with a pull request ([how](https://github.com/ColinGPT9/awesome-clips-kitty/blob/main/CONTRIBUTING.md)), so people
+  can find it there and in the Marketplace.
+- **Need an internal endpoint?** Open an issue saying what you are building. The
+  fastest way to get one promoted to supported is for somebody to need it.
+
+For changing the app itself rather than building beside it, see
+[EXTENDING.md](EXTENDING.md): adding a language, a platform, an AI model or an
+export format. [ARCHITECTURE.md](../ARCHITECTURE.md) explains how the pipeline
+fits together.

@@ -1,0 +1,121 @@
+# Platform overview
+
+Clips Kitty finds the best moments in a long video and turns them into short clips: it downloads the video, transcribes it with Whisper, picks the moments, then cuts, frames, captions and publishes them, all on the user's PC. The platform lets anyone take over or add to the moment steps: find, understand, rate, and suggest edits for the clips, with their own plugin, without forking the app.
+
+That is where specialised knowledge pays: someone who knows one game, one sport or one kind of show can tell a great moment from a loud one far better than a general-purpose detector. You write the part that knows your niche. Clips Kitty does the rest, and its users find your pipeline in the Marketplace.
+
+```text
+                  Marketplace (the Awesome Clips Kitty index on GitHub, searched in the app)
+                                         │
+                       ┌─────────────────┼─────────────────┐
+                   Pipelines          Models          (Plugins, Workflows,
+                  (built)       (references, built)    Providers: planned)
+                       └─────────────────┼─────────────────┘
+                     Plugin contract 1 + Python SDK (clipskitty_sdk)
+                                         │
+             Clips Kitty's engine: one local API (127.0.0.1:8765), one job queue,
+    one pipeline: download → transcribe → [find] → [understand] → [rate] → [edit] → cut, frame, caption
+                                         │
+                ┌────────────────────────┼────────────────────────┐
+             FFmpeg                   Whisper                Ollama / Gemma
+                └────────────────────────┼────────────────────────┘
+                                   GPU, when there is one
+```
+
+There is one API, one engine and one job queue. A community pipeline runs inside the same job as Clips Kitty's own modes; it is not a second app beside it.
+
+## The SDK at a glance
+
+```text
+Clips Kitty SDK
+
+Input                      a link or a video file
+  ↓
+Video                      Clips Kitty downloads it and writes down what is said
+  ↓
+Your plugin                every step is optional
+  ├── find                 picks the moments                  built
+  ├── understand           says what happens in each one      built
+  ├── rate                 scores each moment                 built
+  └── edit                 suggests edits for the creator     built
+  ↓
+Clips Kitty                does every step no plugin does, then cuts, frames and captions the clips
+  ↓
+Creator / Social Platform  posts when the creator clicks Publish, or on a schedule or automatic posting the creator switched on
+```
+
+- One plugin can find moments for a video; it replaces Clips Kitty's own finding.
+- Up to 3 plugins can understand and up to 3 can rate, after any finder.
+- A plugin's role comes from `inputs` and `outputs` in its manifest ([Steps](steps.md)).
+- Up to 3 plugins can suggest edits for the clips that will be made.
+- Edit plugins suggest edits that wait for the creator in the editor ([Steps](steps.md#suggest-edits-the-edit-step)).
+- Posting isn't a plugin step: Clips Kitty posts clips itself, and through [WoopSocial](https://woopsocial.com/?via=clipskitty) it can post to many sites at once on the creator's own account ([Publish to every platform at once](../../README.md#publish-to-every-platform-at-once)). `kind: publisher` is refused: plugins don't post.
+  <sub>Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.</sub>
+
+Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0 ([Versioning](versioning.md#which-release-runs-plugins)).
+
+## What a pipeline is
+
+A program, in any language, that Clips Kitty starts for one video. It reads a job folder (`job.json`: the video, its transcript, settings, the tools and models it asked for), works out which moments make good clips, and writes them back (`result.json`: start, end, score, label, reason). Progress goes to the app as it works. It can run entirely on the PC, call your own hosted model, or both, as long as it says so.
+
+A plugin can also work on the moments after they are found, by Clips Kitty or by a pipeline: say what happens in each one, for the titles (**understand**), or give each one a new score (**rate**). The creator chooses those under **Rate & understand** when adding a video ([Steps](steps.md)). Once the clips are chosen, a plugin can also suggest edits for each one (**edit**): cuts, mutes, a hook title. The creator chooses those under **Suggest edits**, and each suggestion waits in the timeline editor until the creator uses it ([Steps](steps.md#suggest-edits-the-edit-step)).
+
+```text
+Clips Kitty                              your pipeline
+  download, transcribe   ── job.json ──▶  find the moments (your code, your models)
+  cut, frame, caption    ◀─ result.json ─
+  library, publishing    ◀─ progress ───
+```
+
+## Where things stand
+
+| Piece | State |
+|---|---|
+| Plugin contract 1, the Python SDK, running a pipeline for a job | built |
+| The manifest (`clipskitty.yaml`), its validator and JSON Schema | built |
+| Install from a folder or a Git commit; update, roll back, turn off, pin, remove | built (engine routes and the Marketplace screen) |
+| Awesome Clips Kitty, the catalog the Marketplace reads: listing and entry formats, index and README build, the app's search, install from a listing, block list, labels, compatibility check, weekly numbers | built; the catalog is its own repository, [ColinGPT9/awesome-clips-kitty](https://github.com/ColinGPT9/awesome-clips-kitty), and the app reads its index from that repository's main branch; the install counter has no address, so nothing is counted |
+| Marketplace screen in the desktop app; the Pipeline switch on a video | built and type-checked; not yet looked at on a real PC |
+| Plugins that understand and rate the moments found ([Steps](steps.md)): SDK 1.1.0, the `rate` and `understand` job options, the Rate & understand switch | built; the switch is type-checked, not yet looked at on a real PC |
+| Plugins that suggest edits for the clips ([Steps](steps.md#suggest-edits-the-edit-step)): SDK 1.3.0, the `edit` job option, the Suggest edits switch, the suggestions in the timeline editor with Use, Hide and Take it back | built; the switch and the editor are type-checked, not yet looked at on a real PC |
+| Model references (Hugging Face, url, Ollama, bundled), one shared download, licence and size shown | built for public models; gated models planned |
+| Returning finished clip files instead of moments | planned |
+| Plugin kinds other than pipelines (caption styles, sources, providers) | planned: the manifest names them and refuses them with a message |
+| Plugins that post clips (`kind: publisher`) | not planned: the manifest refuses them, and Clips Kitty posts clips itself |
+| A plugin's own Python packages, installed for it | planned |
+| Sandboxing a plugin's process | not planned for now; see [Security](security.md) for what that means |
+
+"Built" means written and covered by automated tests on Linux. Nothing here has yet been run on Windows, the platform Clips Kitty ships on; the overnight report (`docs/platform/OVERNIGHT-REPORT.md`) lists what still needs a real PC.
+
+## The pages
+
+**Start here**
+- [Your first game pipeline](first-game-pipeline.md): a pipeline for one (made-up) game, from `new` to installed and shared, with every command's output.
+- [Getting started](getting-started.md): the same steps, short: a working pipeline, tested outside the app, then installed in it.
+- [Example pipeline](example-pipeline.md): a complete one, laid out as its own repository, to copy.
+
+**Building**
+- [Pipeline development](pipeline-development.md): the contract, what you receive and return, testing.
+- [Steps](steps.md): find, understand, rate and edit: which plugin does which step, how their answers combine, and how a suggested edit waits for the creator.
+- [SDK](sdk.md): the Python helper (`clipskitty_sdk`), every call and command.
+- [Signals cookbook](signals-cookbook.md): recipes for reading a game's video: a region's frames, colours, brightness, loudness, scene cuts, words said, the local model.
+- [Plugin manifest](plugin-manifest.md): every field of `clipskitty.yaml`.
+- [Plugin development](plugin-development.md): install, update, roll back and remove, as a user and through the API.
+- [Model references](model-references.md) and [Hugging Face](hugging-face.md): naming models, one shared copy.
+- [Local APIs](local-apis.md): FFmpeg, Ollama and Clips Kitty's own API from a plugin.
+- [Remote APIs](remote-apis.md): calling a hosted model, declaring what leaves the PC, keys.
+- [API](api.md) and the [API reference](api-reference.md): the engine's HTTP API, with a stability label on every route.
+
+**Trust and releases**
+- [Permissions](permissions.md): what each permission means, and which are enforced and which only declared.
+- [Security](security.md): what Clips Kitty does and doesn't protect, for the people installing plugins.
+- [Versioning](versioning.md): plugin versions, app versions, pinning, rollback.
+- [Marketplace publishing](marketplace-publishing.md): getting listed in Awesome Clips Kitty, labels, numbers, how search finds you, what a listing means.
+- [Troubleshooting](troubleshooting.md): the messages, and what to do.
+
+## Promises
+
+- **Free.** Listing, updating and installing cost nothing. Clips Kitty takes no share of anything and processes no payments; link to your own pricing, sponsors or support page.
+- **Yours.** Your code stays in your repository under the licence you choose, shown on your Marketplace card. Clips Kitty is AGPL-3.0-or-later, but the SDK is MIT, so using it doesn't put your plugin under the AGPL; code that `new` copied from a template keeps the SDK's MIT notice, in `TEMPLATE-LICENSE.txt`. A listing points at your repository; nothing moves it.
+- **No fork.** Everything on these pages works against an unmodified Clips Kitty.
+- **Honest labels.** A permission is called enforced only where Clips Kitty enforces it, neither a listing nor ✓ Compatible means "reviewed", and data that leaves the PC is always shown as a warning.

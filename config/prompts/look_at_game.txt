@@ -1,0 +1,17 @@
+You are checking a candidate clip from a gaming stream by looking at it. The game is {game}. In this kind of game the best clips are: {highlights}.
+
+You are shown {count} frames from the clip, in order, taken at {times} seconds into it.
+
+What the streamer said in it:
+{transcript}
+
+What the stream's signals picked up in it (chat, the game's sound, on-screen text):
+{events}
+
+First say what is on the screen in each frame, in a few words: is it the game being played, or a menu, a settings page, a character or loadout select, a lobby or queue, a loading screen, a black screen, a "be right back" or starting-soon screen? Then answer:
+- gameplay: true if most frames show the game being played (or the streamer reacting to it); false if most frames show any of the other screens.
+- moment: a few words on what happens in the game, as the frames show it (for example "kills two enemies at close range", "scores a goal", "dies to the boss", "walks around the map"). Say only what you can see.
+- strength: 0 to 10, how clearly the frames show a real in-game moment worth clipping (a fight, a kill, a goal, a boss, a win, a funny fail, a big reaction): 0 nothing is happening, 5 ordinary play, 10 an unmistakable highlight.
+
+Respond with ONLY valid JSON:
+{"frames": ["<frame 1>", "<frame 2>", "<frame 3>", "<frame 4>"], "gameplay": <true or false>, "moment": "<what happens>", "strength": <0 to 10>}

@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+
+/* Navy + sky design tokens (see DESIGN-V2.md, "Visual theme") */
+@theme {
+  --color-base: #0a1628;
+  --color-surface: #13243d;
+  --color-raised: #1c3354;
+  --color-accent: #38bdf8;
+  --color-accent-strong: #0ea5e9;
+  --color-ink: #f1f5f9;
+  --color-muted: #94a3b8;
+  --color-success: #34d399;
+  --color-warn: #fbbf24;
+  --color-error: #f87171;
+}
+
+body {
+  @apply bg-base text-ink antialiased;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Accessibility (WCAG 2.1 / AODA):
+   - visible keyboard focus on every interactive element (2.4.7)
+   - honor the user's reduced-motion preference (2.3.3) */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Shared primitives (Tailwind v4: custom classes can't @apply each other,
+   so the button base styles are repeated in both variants) */
+.card {
+  @apply bg-surface rounded-xl p-4 border border-raised/60;
+}
+.btn-accent {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-accent text-base hover:bg-accent-strong;
+}
+.btn-ghost {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-raised text-ink hover:bg-raised/70;
+}
+/* Disabled matches .btn-ghost / .btn-accent above: a field that cannot be
+   used has to look it, or "greyed out until it applies" reads as broken. */
+.input {
+  @apply bg-raised text-ink rounded-lg px-3 py-2 w-full outline-none border border-transparent focus:border-accent placeholder:text-muted/60 disabled:opacity-40 disabled:cursor-not-allowed;
+}
+.label {
+  @apply text-xs uppercase tracking-wider text-muted;
+}
+
+/* Scroll containers that navigate by gesture (timeline pan/zoom) — no
+   grabbable scrollbar that could be mistaken for an editing control. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

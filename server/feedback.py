@@ -1,0 +1,544 @@
+"""Feedback Hub backend: diagnostics collection, redaction, and submission.
+
+Reports are for NON-TECHNICAL users: they answer a few plain questions in
+the UI, and this module contributes everything a developer needs to
+reproduce the problem — versions, hardware, the exact AI model (name,
+parameter size, quantization), settings, and the recent log tail. The
+finished Markdown goes to the feedback relay (a Cloudflare Worker holding
+the GitHub token — see feedback-relay/README.md), which files it as a
+GitHub Issue. No GitHub account, no telemetry: nothing is ever sent unless
+the user presses Submit, and the exact payload is previewable in the UI.
+
+Diagnostics are built from an ALLOWLIST of known-safe fields — we never
+dump raw config or environment. Free text and the log excerpt additionally
+pass through redact(), which scrubs token-shaped strings and usernames in
+Windows paths.
+"""
+
+import collections
+import hashlib
+import json
+import platform
+import re
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+import requests
+
+from core.binaries import ffmpeg
+from core.scrub import SECRET_PATTERNS
+
+# ---- log ring buffer ---------------------------------------------------------
+
+_LOG_LINES = 400
+_ring: collections.deque[str] = collections.deque(maxlen=_LOG_LINES)
+
+
+# Open log file for the job currently running, if any. The worker owns this:
+# one job at a time, so one sink. Hung off the existing tee rather than adding
+# a second stdout wrapper — stacked wrappers are how double-printing starts.
+_job_sink = None
+_sink_lock = threading.Lock()
+
+
+class _Tee:
+    """Wraps a stream so pipeline prints also land in the ring buffer, and in
+    the running job's log file when one is open."""
+
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        try:
+            for line in str(text).splitlines():
+                if line.strip():
+                    _ring.append(line[:500])
+        except Exception:
+            pass  # capturing a line for diagnostics must never break printing it
+        with _sink_lock:
+            sink = _job_sink
+        if sink is not None:
+            try:
+                sink.write(text)
+                sink.flush()  # a crash must not lose the lines explaining it
+            except Exception:
+                pass  # a broken log file must never break the pipeline's print
+        return self._stream.write(text)
+
+    def __getattr__(self, name):  # flush, encoding, isatty, ...
+        return getattr(self._stream, name)
+
+
+def install_log_capture() -> None:
+    """Idempotent: tee stdout/stderr into the in-memory log ring."""
+    if not isinstance(sys.stdout, _Tee):
+        sys.stdout = _Tee(sys.stdout)
+    if not isinstance(sys.stderr, _Tee):
+        sys.stderr = _Tee(sys.stderr)
+
+
+def open_job_log(path) -> bool:
+    """Start copying output into `path` until close_job_log().
+
+    The in-memory ring is only 400 lines and dies with the process, which is no
+    use for a queue left running overnight: by morning the failure that matters
+    scrolled away hours ago. Per-job files make a batch diagnosable after it."""
+    global _job_sink
+    close_job_log()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path, "a", encoding="utf-8", errors="replace")
+    except Exception as e:
+        print(f"      (could not open job log {path}: {e})")
+        return False
+    # Deliberately not a `with`: this handle has to outlive the call, because
+    # the point of it is to keep receiving output until close_job_log() runs at
+    # the end of the job. Ownership passes to _job_sink here, and close_job_log
+    # is the only thing that closes it — including on the way in, above, so a
+    # second open() can never orphan the first.
+    with _sink_lock:
+        _job_sink = handle
+    return True
+
+
+def close_job_log() -> None:
+    global _job_sink
+    with _sink_lock:
+        handle, _job_sink = _job_sink, None
+    if handle is not None:
+        try:
+            handle.close()
+        except Exception:
+            pass  # already closed, or the disk went away — either way it is done with
+
+
+def recent_log(lines: int = 120) -> str:
+    return "\n".join(list(_ring)[-lines:])
+
+
+# ---- redaction ---------------------------------------------------------------
+
+# One list for the whole app, including every cloud AI provider's key format.
+_SECRET_PATTERNS = SECRET_PATTERNS
+# Bounded on purpose. The unbounded form backtracks polynomially: on a log
+# line containing a long run of "+" and no "@", the engine retries the scan
+# from every start position. These limits are the real ones from the email
+# spec (64-character local part, 255-character domain), so nothing valid is
+# lost and a hostile log tail cannot stall a bug report.
+_EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,255}\.[\w.]{1,63}")
+_USERPATH = re.compile(r"(?i)([A-Z]:\\Users\\)([^\\\s/]+)")
+
+
+def redact(text: str) -> str:
+    """Scrub anything secret-shaped or personally identifying from text
+    that goes into a public GitHub issue."""
+    if not text:
+        return ""
+    out = text
+    for pat in _SECRET_PATTERNS:
+        out = pat.sub("[redacted]", out)
+    out = _EMAIL.sub("[email]", out)
+    out = _USERPATH.sub(r"\1<user>", out)
+    return out
+
+
+# ---- diagnostics (allowlist only) ---------------------------------------------
+
+
+def _run(cmd: list[str], timeout: int = 10) -> str:
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _gpu() -> dict:
+    smi = _run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version",
+                "--format=csv,noheader"])
+    if smi:
+        parts = [p.strip() for p in smi.splitlines()[0].split(",")]
+        if len(parts) >= 3:
+            return {"name": parts[0], "vram": parts[1], "driver": parts[2]}
+    wmic = _run(["powershell", "-NoProfile", "-Command",
+                 "(Get-CimInstance Win32_VideoController).Name"])
+    return {"name": wmic.splitlines()[0] if wmic else "unknown", "vram": "?", "driver": "?"}
+
+
+def _cuda() -> dict:
+    """Whether PyTorch can actually use the GPU, and what it was built for.
+
+    Both halves are needed together. Issue #83 was a GPU newer than the bundled
+    CUDA, and pinning that down took the build's architecture list held up
+    against the card's compute capability — neither one alone says anything.
+    Reporting them means the next such report diagnoses itself.
+    """
+    try:
+        import torch
+
+        from core.gpu import cuda_usable
+
+        usable, reason = cuda_usable()
+        out: dict = {
+            "usable": usable,
+            "reason": reason,
+            "torch": torch.__version__,
+            "built_for": torch.cuda.get_arch_list(),
+        }
+        if torch.cuda.is_available():
+            major, minor = torch.cuda.get_device_capability(0)
+            out["device_capability"] = f"sm_{major}{minor}"
+        return out
+    except Exception as e:
+        # Importing torch is seconds and can fail outright; a report missing
+        # this section is far better than a report that never sends.
+        return {"usable": "?", "reason": f"could not check ({type(e).__name__})"}
+
+
+def _ram_gb() -> float:
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+        st = MEMORYSTATUSEX()
+        st.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
+        return round(st.ullTotalPhys / (1024 ** 3), 1)
+    except Exception:
+        return 0.0
+
+
+def _model_info(config: dict) -> dict:
+    """The exact AI model a bug reporter is running — name, parameter size,
+    quantization, Ollama version — so 'works on my PC' is answerable."""
+    from llm.spec import parse_spec
+
+    provider, model = parse_spec(config.get("llm", {}).get("backend") or str(config.get("model") or ""))
+    if provider != "ollama":
+        # A cloud model on the reporter's own key: which one, and nothing
+        # else. The key never goes near a report.
+        return {"model": model, "backend": provider, "local": False}
+    info: dict = {"model": config.get("model", "?"), "backend": "ollama"}
+    host = config.get("llm", {}).get("ollama_host", "http://localhost:11434")
+    try:
+        info["ollama_version"] = requests.get(f"{host}/api/version", timeout=3).json().get("version", "?")
+        for m in requests.get(f"{host}/api/tags", timeout=3).json().get("models", []):
+            if m.get("name") == info["model"]:
+                det = m.get("details", {})
+                info["parameter_size"] = det.get("parameter_size", "?")
+                info["quantization"] = det.get("quantization_level", "?")
+                info["family"] = det.get("family", "?")
+                info["model_disk_size"] = f"{m.get('size', 0) / 1e9:.1f} GB"
+    except Exception:
+        info["ollama_version"] = "unreachable"
+    return info
+
+
+def _versions() -> dict:
+    v: dict = {"python": platform.python_version()}
+    ff = _run([ffmpeg(), "-version"])
+    v["ffmpeg"] = ff.splitlines()[0].replace("ffmpeg version ", "") if ff else "?"
+    for mod, key in (("cv2", "opencv"), ("faster_whisper", "faster_whisper"),
+                     ("yt_dlp.version", "yt_dlp"), ("ultralytics", "ultralytics")):
+        try:
+            m = __import__(mod, fromlist=["__version__"])
+            v[key] = getattr(m, "__version__", getattr(m, "version", "?"))
+        except Exception:
+            v[key] = "not installed"
+    return v
+
+
+def _app_version() -> dict:
+    """The version this report came from.
+
+    A report that cannot be dated cannot be triaged: three arrived saying
+    `"app": "?"` before it was noticed, and the last of them was a new bug
+    against the newest build that read exactly like an old one against an old
+    build. Worth some care.
+
+    The version lives in ui/package.json and nowhere else. Beside the code in a
+    checkout; bundled into the executable in a frozen build, where sys._MEIPASS
+    is the unpack directory and Path(__file__).parent.parent points inside the
+    exe at a path that does not exist.
+    """
+    import sys
+
+    root = Path(__file__).parent.parent
+    candidates = [root / "ui" / "package.json"]
+    if getattr(sys, "frozen", False):
+        # Bundled at the root of the unpack dir; see the datas block in
+        # clips-studio.spec. Tried first, because in a frozen build the
+        # checkout path is the one that cannot work.
+        candidates.insert(0, Path(getattr(sys, "_MEIPASS", root)) / "package.json")
+
+    out: dict = {"app": "?"}
+    for path in candidates:
+        try:
+            out["app"] = json.loads(path.read_text(encoding="utf-8")).get("version", "?")
+            break
+        except Exception:
+            continue
+
+    # Only meaningful in a checkout; an installed copy has no repository.
+    commit = _run(["git", "-C", str(root), "rev-parse", "--short", "HEAD"])
+    if commit:
+        out["commit"] = commit
+    return out
+
+
+# Settings keys that are safe and useful in a public report.
+_SETTINGS_ALLOWLIST = ("clips", "scoring", "video", "tracking", "analysis")
+
+
+def collect_diagnostics(config: dict, db, video_id: str | None = None) -> dict:
+    """Everything a contributor needs to reproduce, from safe fields only."""
+    d: dict = {
+        "version": _app_version(),
+        "os": platform.platform(),
+        "cpu": {"name": platform.processor() or "?", "cores": __import__("os").cpu_count()},
+        "gpu": _gpu(),
+        "cuda": _cuda(),
+        "ram_gb": _ram_gb(),
+        "ai": _model_info(config),
+        "versions": _versions(),
+        "whisper": {"model": config.get("whisper", {}).get("model", "?"),
+                    "device": config.get("whisper", {}).get("device", "?")},
+        "settings": {k: config.get(k) for k in _SETTINGS_ALLOWLIST if k in config},
+    }
+    # Context for "it broke on this video" — platform/creator are public info
+    # and essential for reproduction; nothing private is included.
+    try:
+        row = None
+        if video_id:
+            row = db.conn.execute(
+                "SELECT video_id, channel_name, status FROM videos WHERE video_id = ?",
+                (video_id,),
+            ).fetchone()
+        if row is None:
+            # The most recent JOB, not the most recent surviving video. People
+            # routinely delete the video before filing -- the report that
+            # prompted this had `DELETE /videos/...` in its own log excerpt --
+            # and jobs keep the id and title after the video row is gone.
+            job_row = db.conn.execute(
+                "SELECT video_id FROM jobs WHERE video_id != '' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if job_row:
+                row = db.conn.execute(
+                    "SELECT video_id, channel_name, status FROM videos WHERE video_id = ?",
+                    (job_row["video_id"],),
+                ).fetchone()
+                if row is None:
+                    # Deleted. Report what is still knowable rather than nothing.
+                    d["video"] = {"video_id": job_row["video_id"], "deleted_by_user": True}
+        if row is None and "video" not in d:
+            row = db.conn.execute(
+                "SELECT video_id, channel_name, status FROM videos ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        if row:
+            vid = row["video_id"]
+            plat = ("twitch" if vid.startswith("tw_") else "kick" if vid.startswith("kick_")
+                    else "local file" if vid.startswith("local_") else "youtube")
+            d["video"] = {"platform": plat, "channel": row["channel_name"], "status": row["status"]}
+            # Codec and pixel format of the source. Rendering failures are
+            # frequently a property of the file rather than the machine —
+            # h264_nvenc refuses 10-bit input, for one — and without these two
+            # fields a report saying "every clip failed to cut" gives a triager
+            # nothing to go on. Cheap: one ffprobe on a file already on disk.
+            try:
+                from core.paths import cached_source, resolve_data_dir
+                from video.encoding import source_probe
+
+                src = cached_source(resolve_data_dir(config) / "downloads", vid)
+                if src and src.exists():
+                    d["video"].update(source_probe(src))
+            except Exception:
+                pass  # a missing source must never cost us the whole report
+            # Why this run produced the clips it did. For the commonest
+            # report of all -- "clips didn't get created" -- this IS the
+            # answer, and it arrives whether or not the reporter writes
+            # anything useful in the free-text boxes.
+            try:
+                outcome = db.get_outcome(vid)
+                if outcome:
+                    d["video"]["outcome"] = outcome
+            except Exception:
+                pass  # the outcome is extra context; the report must still send without it
+            job = db.conn.execute(
+                "SELECT status, error FROM jobs WHERE payload LIKE ? ORDER BY id DESC LIMIT 1",
+                (f"%{vid}%",),
+            ).fetchone()
+            if job and job["error"]:
+                d["video"]["last_error"] = redact(str(job["error"])[:800])
+    except Exception as e:
+        # The report still sends without this field; say so rather than
+        # leaving whoever reads it wondering why it looks thin.
+        print(f"(diagnostics: could not read the last job error: {e})")
+    d["log_excerpt"] = redact(recent_log())
+    return d
+
+
+# ---- report building -----------------------------------------------------------
+
+# Every substantive question must be answered — half-filled reports aren't
+# actionable. Fields the UI marks "(optional)" are excluded on purpose:
+# forcing filler into "Anything else?" produces noise, not information.
+REQUIRED_FIELDS: dict[str, list[tuple[str, str]]] = {
+    "bug": [
+        # The video first, and required. A bug report without it usually cannot
+        # be acted on: the same stage fails for different reasons on different
+        # footage, and which one it was cannot be recovered from a description.
+        ("source", "Which video were you processing?"),
+        ("trying", "What were you trying to do?"),
+        ("happened", "What happened?"),
+        ("expected", "What did you expect to happen?"),
+        ("repro", "Can you make it happen again?"),
+        ("severity", "How serious is it?"),
+    ],
+    "feature": [
+        ("what", "What feature would you like?"),
+        ("why", "Why would it be useful?"),
+        ("workflow", "How would it fit your workflow?"),
+        ("importance", "How important is this to you?"),
+    ],
+    "improvement": [
+        ("what", "What would you like improved?"),
+        ("why", "Why would it improve Clips Kitty?"),
+    ],
+}
+
+
+def missing_fields(kind: str, answers: dict) -> list[str]:
+    """Labels of required questions left unanswered (empty = complete)."""
+    return [
+        label
+        for key, label in REQUIRED_FIELDS.get(kind, [])
+        if not str(answers.get(key, "")).strip()
+    ]
+
+
+def build_markdown(kind: str, answers: dict, diagnostics: dict | None) -> str:
+    """The GitHub issue body. answers are the wizard's plain-question fields."""
+    a = {k: redact(str(v).strip()) for k, v in answers.items() if str(v).strip()}
+    lines: list[str] = []
+
+    def sec(title: str, key: str) -> None:
+        if a.get(key):
+            lines.append(f"### {title}\n{a[key]}\n")
+
+    if kind == "bug":
+        sec("Which video were you processing?", "source")
+        sec("What were you trying to do?", "trying")
+        sec("What happened?", "happened")
+        sec("What did you expect to happen?", "expected")
+        if a.get("repro"):
+            lines.append(f"**Reproducible:** {a['repro']}\n")
+        if a.get("severity"):
+            lines.append(f"**Severity:** {a['severity']}\n")
+        sec("Additional notes", "notes")
+    elif kind == "feature":
+        sec("What feature would you like?", "what")
+        sec("Why would it be useful?", "why")
+        sec("How would it improve your workflow?", "workflow")
+        if a.get("importance"):
+            lines.append(f"**Importance:** {a['importance']}\n")
+    else:  # improvement
+        if a.get("inspiration"):
+            lines.append(f"**Inspired by:** {a['inspiration']}\n")
+        sec("What would you like improved?", "what")
+        sec("Why would it improve Clips Kitty?", "why")
+        sec("Links / references", "links")
+
+    if diagnostics:
+        pretty = json.dumps(diagnostics, indent=2, ensure_ascii=False, default=str)
+        lines.append(
+            "<details><summary>Diagnostics (auto-collected, secrets redacted)</summary>\n\n"
+            f"```json\n{pretty}\n```\n</details>\n"
+        )
+    lines.append("_Sent from the in-app Feedback Hub._")
+    return "\n".join(lines)
+
+
+def encode_images(images: list[dict]) -> list[dict]:
+    """File paths (from the UI's picker) -> capped base64 payloads for the
+    relay. Only png/jpg, max 3 files, 2MB each — screen recordings are too
+    big for an issue and are politely refused in the UI."""
+    import base64
+
+    out: list[dict] = []
+    for img in images[:3]:
+        p = Path(str(img.get("path", "")))
+        ext = p.suffix.lower().lstrip(".")
+        if ext == "jpeg":
+            ext = "jpg"
+        if ext not in ("png", "jpg"):
+            continue
+        try:
+            data = p.read_bytes()
+        except Exception:
+            continue
+        if not data or len(data) > 2 * 1024 * 1024:
+            continue
+        out.append({"b64": base64.b64encode(data).decode(), "ext": ext})
+    return out
+
+
+# ---- relay client ---------------------------------------------------------------
+
+
+def _solve_pow(challenge: dict) -> dict:
+    """Find a nonce so sha256(salt.nonce) starts with `difficulty` zero bits.
+    ~1s of CPU — the anti-spam cost of sending one report."""
+    salt = challenge["salt"]
+    difficulty = int(challenge["difficulty"])
+    prefix_bytes, rem_bits = divmod(difficulty, 8)
+    n = 0
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        nonce = str(n)
+        digest = hashlib.sha256(f"{salt}.{nonce}".encode()).digest()
+        if digest[:prefix_bytes] == b"\x00" * prefix_bytes and (
+            rem_bits == 0 or digest[prefix_bytes] >> (8 - rem_bits) == 0
+        ):
+            return {"salt": salt, "expires": challenge["expires"],
+                    "sig": challenge["sig"], "nonce": nonce}
+        n += 1
+    raise TimeoutError("could not solve the anti-spam challenge")
+
+
+def submit_to_relay(relay_url: str, kind: str, title: str, markdown: str,
+                    areas: list[str], severity: str, images: list[dict]) -> dict:
+    """Returns {"ok": True, "url": ...} or raises with a friendly message."""
+    base = relay_url.rstrip("/")
+    # The relay requires this header: cross-origin browser requests carrying
+    # a custom header trigger a CORS preflight the relay never answers, so
+    # web pages can't be used to spam it — only real clients can.
+    headers = {"X-Clips-Studio": "1"}
+    challenge = requests.get(f"{base}/challenge", timeout=15, headers=headers).json()
+    pow_solution = _solve_pow(challenge)
+    resp = requests.post(
+        f"{base}/submit",
+        json={
+            "type": kind,
+            "title": title,
+            "markdown": markdown,
+            "areas": areas,
+            "severity": severity,
+            "images": images[:3],
+            "pow": pow_solution,
+        },
+        timeout=60,
+        headers=headers,
+    )
+    data = resp.json()
+    if not resp.ok or not data.get("ok"):
+        raise RuntimeError(data.get("error", f"relay returned {resp.status_code}"))
+    return data

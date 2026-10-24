@@ -1,0 +1,81 @@
+# What CodeQL should and should not read.
+#
+# third_party/ holds code copied verbatim from other projects. Scanning it
+# produces findings nobody here can act on: the only correct response to a
+# lint complaint in vendored code is to leave it alone, because an edited copy
+# is no longer the thing that was audited, licensed and can be re-fetched from
+# upstream. Seven such findings appeared the moment TalkNet was vendored —
+# unused imports, an unclosed file, a `== None` — all in the published source,
+# none of them ours to fix.
+#
+# Genuine security problems in a vendored dependency are still worth knowing
+# about, but they arrive through Dependabot advisories and upstream releases,
+# not through style rules run against a snapshot.
+#
+# This is a scope decision, not a suppression: everything the project actually
+# writes is still scanned, including video/asd.py, which is the code that
+# calls into TalkNet.
+
+# Six alerts are dismissed in code scanning rather than fixed, because the
+# thing they describe is the product:
+#
+#   py/path-injection x4   core/paths.py (resolve + stat), the image read in
+#                          server/api.py, and the thumbnail read in
+#                          server/youtube_api.py. Importing a video, a logo or
+#                          a thumbnail from anywhere on your own disk is the
+#                          feature; the path comes from a native file dialog,
+#                          the API binds 127.0.0.1, and picked_file() already
+#                          rejects UNC paths, non-files and unexpected
+#                          extensions.
+#
+#                          Every one of these goes through picked_file(). That
+#                          matters: publishing first shipped with its own copy
+#                          of the validation, which put TEN path-injection
+#                          alerts on server/youtube_api.py instead of one, and
+#                          re-created the bug picked_file()'s docstring warns
+#                          about — a helper that returns a bare Path leaves
+#                          each caller re-stat-ing untrusted input. If a new
+#                          endpoint needs a file the user picked, call
+#                          picked_file(); do not write a second validator.
+#   py/clear-text-storage-sensitive-data
+#                          core/secrets.py, the non-Windows branch of save().
+#                          It writes 0600 JSON, and the module docstring is
+#                          already explicit that this is the fallback rather
+#                          than protection. It cannot be honestly fixed here:
+#                          encrypting on POSIX needs a master key with nowhere
+#                          safe to put it, which is obfuscation in a security
+#                          costume, and `keyring` was rejected for this exact
+#                          reason - on Linux it wants a Secret Service the
+#                          Docker image does not have and degrades to
+#                          plaintext anyway. The shipped product never reaches
+#                          the branch: releases are a Windows MSIX, so
+#                          backend_name() is always windows-dpapi. Only
+#                          contributor boxes on Linux and macOS hit it.
+#
+#                          Deliberately NOT a query-filter exclusion. This is
+#                          the one rule that should keep firing if someone
+#                          later writes a token to disk somewhere new.
+#
+#   py/file-not-closed     server/feedback.py — the job log handle belongs to
+#                          _job_sink until close_job_log() runs, which is a
+#                          lifetime the rule cannot follow.
+#
+# They are dismissed through the API/UI and NOT with `# codeql[...]` comments:
+# GitHub code scanning ignores in-source suppression comments. Tried on
+# 354583b, all three still reported.
+#
+# The consequence to know about: a dismissal is pinned to a line number, so an
+# edit that shifts one of these lines retires the dismissal and opens a fresh
+# alert for the same code. That has happened twice. If it becomes tiresome,
+# a `query-filters: - exclude: id: py/path-injection` here would end it
+# permanently, at the cost of hiding the rule repo-wide.
+
+name: Clips Kitty
+
+paths-ignore:
+  - third_party
+  - vendor
+  - ui/node_modules
+  - build
+  - dist
+  - release

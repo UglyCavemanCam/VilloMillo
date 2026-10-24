@@ -1,0 +1,417 @@
+"""CLI entry point.
+
+For YouTubers — three commands to full automation:
+    python main.py channels add @YourHandle    # paste your handle or channel URL
+    python main.py run                         # daemon: watch, clip, schedule
+    python main.py status                      # see what it's done
+
+More:
+    python main.py process <url>               # one video, end-to-end
+    python main.py channels list / remove <id>
+    python main.py models                      # installed models + GPU guide
+    python main.py models use gemma3:12b       # switch the LLM (one command)
+"""
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+
+def _force_utf8_io() -> None:
+    """Print UTF-8 no matter who started us.
+
+    Windows picks the process's text encoding from the system locale, which
+    on most Western installs is cp1252 — and cp1252 cannot encode an emoji.
+    Stream and video titles are full of them, so a single print of a title
+    like "🏴 stream" raised UnicodeEncodeError and killed the backend
+    mid-run. The console the developer uses often has UTF-8 set already,
+    which is exactly why this hides until someone else installs the app:
+    Electron spawns the backend WITHOUT inheriting that.
+
+    Reconfiguring here covers every entry path — CLI, Electron dev, and the
+    packaged executable — because they all come through this file.
+    """
+    # A frozen build launched without a console has no stdout at all, and
+    # print() to None raises — which would turn every progress line in the
+    # pipeline into a crash. Give it somewhere harmless to write first.
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass  # already UTF-8, detached, or not reconfigurable — fine
+
+
+_force_utf8_io()
+
+# A pipeline running on the Python inside the installed app: the engine is
+# started as `api.exe src/main.py ...` with this marker (plugin_env in
+# sdk/python/clipskitty_sdk/host.py). Handled here, before the heavy imports
+# below, so a pipeline starts quickly and loads none of the engine.
+if os.environ.get("CLIPSKITTY_SCRIPT_HOST") == "1":
+    import _clipskitty_script_host
+
+    if _clipskitty_script_host.wants_host(sys.argv):
+        sys.exit(_clipskitty_script_host.main(sys.argv[1:]))
+
+import yaml
+
+from core.paths import resolve_data_dir, user_config_path
+from core.pipeline import process_video
+from core.scheduler import run_daemon
+from core.state import StateDB
+
+# What ships with the app. Read-only defaults in an installed build; the file
+# you edit in a checkout.
+BUNDLED_CONFIG = Path(__file__).resolve().parent / "config" / "settings.yaml"
+
+# What this install actually reads and writes. The same path in a checkout,
+# per-user app data once frozen — see user_config_path() for why writing to
+# the bundled copy cannot be relied on.
+CONFIG_PATH = user_config_path(BUNDLED_CONFIG)
+
+
+def load_config(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    # The "quick setup" block at the top of settings.yaml uses flat,
+    # non-coder-friendly keys. Normalize them onto the full structure here
+    # so the rest of the codebase only ever sees one shape.
+    model = config.get("model")
+    if model:
+        spec = str(model) if "/" in str(model) else f"ollama/{model}"
+        config.setdefault("llm", {})["backend"] = spec
+
+    channel = config.get("channel")
+    if channel and str(channel).strip():
+        config.setdefault("channels", [])
+        if channel not in config["channels"]:
+            config["channels"].insert(0, str(channel).strip())
+
+    if "auto_upload" in config:
+        config.setdefault("upload", {})["enabled"] = bool(config["auto_upload"])
+
+    privacy = str(config.get("privacy", "")).strip().lower()
+    if privacy in ("public", "unlisted", "private"):
+        config.setdefault("upload", {})["privacy"] = privacy
+
+    # Environment overrides. Containers cannot edit settings.yaml — Ollama
+    # lives at a service name rather than localhost, and the data directory
+    # is a mounted volume. These let a compose file say so without anyone
+    # hand-editing config that is checked into the repo.
+    #
+    # The desktop app uses the same door: it starts its own bundled Ollama on
+    # a private port so it cannot collide with one the creator already runs,
+    # and passes the address in here rather than rewriting settings.yaml
+    # underneath them.
+    ollama_host = os.environ.get("CLIPS_STUDIO_OLLAMA_HOST")
+    if ollama_host:
+        config.setdefault("llm", {})["ollama_host"] = ollama_host.rstrip("/")
+
+    data_dir = os.environ.get("CLIPS_STUDIO_DATA_DIR")
+    if data_dir:
+        config.setdefault("paths", {})["data_dir"] = data_dir
+
+    config.setdefault("paths", {})["data_dir"] = str(resolve_data_dir(config))
+    # Where a cloud backend finds the user's own API key (llm/providers/keys).
+    # The path only; the key itself never enters the config.
+    config.setdefault("llm", {})["data_dir"] = config["paths"]["data_dir"]
+    return config
+
+
+def _render_worker(args, config: dict) -> int:
+    from remote_render import worker as worker_mod
+
+    if args.run_job:
+        return worker_mod.run_job(args.run_job)
+    data_dir = Path(config["paths"]["data_dir"])
+    if args.pair:
+        try:
+            info = worker_mod.pair(data_dir, args.pair[0], args.pair[1])
+        except worker_mod.PairingError as e:
+            print(f"Pairing failed: {e}")
+            return 1
+        print(f"Paired with {info['main']} (certificate {info['fingerprint']}; it should match the one "
+              "the main PC shows).")
+    w = worker_mod.Worker(data_dir)
+    try:
+        return w.run()
+    except KeyboardInterrupt:
+        w.stop()
+        return 0
+
+
+def main() -> int:
+    # LLM titles may contain emoji; Windows consoles often use cp1252 and
+    # would crash the whole pipeline on a mere print(). Degrade gracefully.
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+    parser = argparse.ArgumentParser(description="Local AI YouTube Shorts pipeline")
+    parser.add_argument("--config", type=Path, default=CONFIG_PATH)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_process = sub.add_parser("process", help="Process one video URL end-to-end")
+    p_process.add_argument("url", help="YouTube video URL")
+    p_process.add_argument("--force", action="store_true", help="Reprocess even if already done")
+
+    sub.add_parser("run", help="Run the automation daemon (RSS monitor + scheduler)")
+    sub.add_parser("status", help="Show processing/scheduling state")
+    p_outro = sub.add_parser(
+        "outro-backfill",
+        help="Add the end card to finished clips that are missing one")
+    p_outro.add_argument("--video", help="Only this video id (default: all)")
+    sub.add_parser("auth", help="One-time YouTube authorization (opens browser)")
+    sub.add_parser("upload", help="Upload today's scheduled clips now")
+
+    p_serve = sub.add_parser("serve", help="Run the local API for the desktop app")
+    p_serve.add_argument("--port", type=int, default=8765)
+    # Localhost by DEFAULT and on purpose: this API has no authentication,
+    # and it can read and write video files. Only a container needs to bind
+    # 0.0.0.0, where "localhost" means the container itself and nothing on
+    # the host could otherwise reach it.
+    p_serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="interface to bind (default 127.0.0.1; use 0.0.0.0 only inside a container)",
+    )
+
+    sub.add_parser(
+        "mcp",
+        help="Talk MCP over stdin/stdout, so an AI agent can drive the engine")
+
+    p_channels = sub.add_parser("channels", help="Manage monitored channels")
+    ch_sub = p_channels.add_subparsers(dest="channels_command", required=True)
+    p_ch_add = ch_sub.add_parser("add", help="Add a channel by @handle, URL, or ID")
+    p_ch_add.add_argument("channel", help="e.g. @MrBeast, a channel URL, or UC... id")
+    ch_sub.add_parser("list", help="List monitored channels")
+    p_ch_rm = ch_sub.add_parser("remove", help="Stop monitoring a channel")
+    p_ch_rm.add_argument("channel", help="Channel ID, @handle, or URL")
+
+    p_models = sub.add_parser("models", help="Show installed LLMs and switch between them")
+    p_models.add_argument("action", nargs="?", choices=["use"], help="'use' to switch models")
+    p_models.add_argument("model", nargs="?", help="Ollama model tag, e.g. gemma3:12b")
+
+    # Remote rendering (remote_render/): this PC renders clips for another
+    # Clips Kitty. Headless on an always-on box, or started by the desktop
+    # app when "Use this PC as a render worker" is on.
+    p_rw = sub.add_parser("render-worker", help="Render clips for another Clips Kitty (remote rendering)")
+    p_rw.add_argument("--pair", nargs=2, metavar=("MAIN_PC", "CODE"),
+                      help="pair with a main PC first: its address (host:port) and the code it shows")
+    p_rw.add_argument("--run-job", type=Path, help=argparse.SUPPRESS)  # one job, in a child process
+
+    args = parser.parse_args()
+    config = load_config(args.config)
+    # The YouTube cookies fallback (Settings → Advanced settings), for the
+    # command line and the daemon as the app's engine sets it (server/api.py).
+    from sources import ytdlp_common
+
+    ytdlp_common.set_cookies(config.get("youtube_cookies"), config["paths"]["data_dir"])
+    db = StateDB(Path(config["paths"]["data_dir"]) / "state.db")
+
+    try:
+        if args.command == "process":
+            clips = process_video(args.url, config, db, force=args.force)
+            if clips:
+                print(f"\nDone. {len(clips)} clip(s) created:")
+                for clip in clips:
+                    print(f"  {clip.path}  (score {clip.candidate.score})")
+            return 0
+
+        if args.command == "run":
+            run_daemon(config, db)
+            return 0
+
+        if args.command == "status":
+            _print_status(db)
+            return 0
+
+        if args.command == "outro-backfill":
+            # A repair pass, not part of normal use: clips that missed their
+            # end card (a locked file, or a build from before the feature) get
+            # one without being re-rendered, which would cost minutes each.
+            from video import outro
+
+            if not outro.enabled(config):
+                print("clips.outro is off in settings.yaml — nothing to do.")
+                return 0
+            print("Checking finished clips for a missing end card...")
+            s = outro.backfill(db, config, args.video)
+            print(f"\n  checked {s['checked']}  |  added {s['added']}  |  "
+                  f"already had one {s['already']}")
+            if s["missing"]:
+                print(f"  {s['missing']} clip(s) listed in the database are no "
+                      f"longer on disk")
+            if s["failed"]:
+                print(f"  {s['failed']} could not be updated — see above")
+            return 0
+
+        if args.command == "auth":
+            from core.paths import resolve_config_file
+            from publish.youtube_shorts import YouTubeShortsPublisher
+
+            publisher = YouTubeShortsPublisher(
+                # Not Path(...) directly: the shipped value is relative, and a
+                # relative path here resolved against the working directory,
+                # which Electron does not set. See core/paths.py.
+                client_secret=resolve_config_file(
+                    config, config["upload"]["client_secret"], args.config
+                ),
+                token_path=Path(config["paths"]["data_dir"]) / "youtube_token.json",
+            )
+            publisher.authenticate(interactive=True)
+            print("YouTube authorized. Token saved — uploads can now run unattended.")
+            print("Turn on auto-posting by setting  auto_upload: true  in config/settings.yaml.")
+            return 0
+
+        if args.command == "upload":
+            from core.scheduler import upload_scheduled
+
+            config.setdefault("upload", {})["enabled"] = True  # explicit command overrides the flag
+            db.promote_queued_clips(config["upload"]["daily_limit"])
+            n = upload_scheduled(config, db)
+            print(f"{n} clip(s) uploaded." if n else "Nothing uploaded.")
+            return 0
+
+        if args.command == "render-worker":
+            return _render_worker(args, config)
+
+        if args.command == "serve":
+            import uvicorn
+
+            from server.api import create_app
+
+            db.close()  # the server manages its own connections
+            if args.host != "127.0.0.1":
+                print(f"  WARNING: binding {args.host} — this API has no authentication.")
+            uvicorn.run(create_app(config, args.config), host=args.host, port=args.port)
+            return 0
+
+        if args.command == "mcp":
+            # Nothing may be printed here: stdout carries the protocol, and a
+            # stray line makes the client drop the connection.
+            from server.mcp import serve as serve_mcp
+
+            db.close()  # this talks to the running engine over HTTP, not the DB
+            if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+                sys.stdout.reconfigure(encoding="utf-8")
+            return serve_mcp()
+
+        if args.command == "channels":
+            return _handle_channels(args, db)
+
+        if args.command == "models":
+            return _handle_models(args, config)
+    finally:
+        db.close()
+
+    return 1
+
+
+def _handle_channels(args, db: StateDB) -> int:
+    from sources.youtube import resolve_channel
+
+    if args.channels_command == "add":
+        print(f"Resolving {args.channel!r}...")
+        try:
+            info = resolve_channel(args.channel)
+        except Exception as e:
+            print(f"Could not resolve channel: {e}")
+            return 1
+        db.add_channel(info["channel_id"], info["name"])
+        print(f"Now monitoring: {info['name']} ({info['channel_id']})")
+        print("Start the daemon with:  python main.py run")
+        return 0
+
+    if args.channels_command == "list":
+        channels = db.list_channels()
+        if not channels:
+            print("No channels yet. Add yours with:  python main.py channels add @YourHandle")
+            return 0
+        for row in channels:
+            print(f"  {row['channel_id']}  {row['name']}")
+        return 0
+
+    if args.channels_command == "remove":
+        target = args.channel
+        if not target.startswith("UC"):
+            from sources.youtube import resolve_channel
+            target = resolve_channel(target)["channel_id"]
+        if db.remove_channel(target):
+            print(f"Removed {target}.")
+            return 0
+        print(f"{target} was not in the channel list.")
+        return 1
+
+    return 1
+
+
+def _handle_models(args, config: dict) -> int:
+    from llm.manager import (
+        OTHER_MODELS,
+        RECOMMENDATIONS,
+        installed_models,
+        switch_model,
+    )
+
+    host = config["llm"].get("ollama_host", "http://localhost:11434")
+    current = config["llm"]["backend"]
+
+    if args.action == "use":
+        if not args.model:
+            print("Usage: python main.py models use <model-tag>   e.g. gemma3:12b")
+            return 1
+        try:
+            installed = {m["name"] for m in installed_models(host)}
+        except Exception:
+            installed = set()
+        if installed and args.model not in installed:
+            print(f"'{args.model}' is not pulled in Ollama yet. Run:  ollama pull {args.model}")
+            print("Then re-run this command.")
+            return 1
+        spec = switch_model(args.config if hasattr(args, "config") else CONFIG_PATH, args.model)
+        print(f"Switched LLM backend to {spec}. Everything else stays the same.")
+        return 0
+
+    try:
+        models = installed_models(host)
+    except Exception as e:
+        print(f"Could not reach Ollama at {host} ({e}). Is it running?")
+        return 1
+
+    print(f"Active model: {current}\n")
+    print("Installed in Ollama:")
+    for m in models:
+        marker = " <- active" if f"ollama/{m['name']}" == current else ""
+        print(f"  {m['name']:24} {m['size_gb']:5.1f} GB{marker}")
+    print("\nBy what your machine can hold (bigger = better clip selection):")
+    for hw, model, note in RECOMMENDATIONS:
+        print(f"  {hw:18} {model:26} {note}")
+    print("\nBy what you need it for:")
+    for purpose, model, note in OTHER_MODELS:
+        print(f"  {purpose:28} {model:24} {note}")
+    print("\nSwitch with:  ollama pull <model>   then   python main.py models use <model>")
+    return 0
+
+
+def _print_status(db: StateDB) -> None:
+    s = db.summary()
+    print("Videos:")
+    for row in s["videos"]:
+        print(f"  {row['status']:12} {row['n']}")
+    print("Clips:")
+    for row in s["clips"]:
+        print(f"  {row['status']:12} {row['n']}")
+    print("Duplicates/rejections:")
+    for row in s["rejections"]:
+        print(f"  {row['reason']:22} {row['n']}")
+    print(f"Scheduled today: {s['scheduled_today']}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

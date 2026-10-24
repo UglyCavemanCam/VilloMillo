@@ -1,0 +1,243 @@
+# Microsoft Store listing copy
+
+Draft for review, not final. Paste into Partner Center's **Store listings**
+page. Character limits are Microsoft's.
+
+Two rules this copy follows deliberately:
+
+- **No comparative claims.** Not "an OpusClip alternative", not "better than".
+  Store policy 11.2 covers third-party names, and a listing that leans on
+  someone else's product reads as derivative even where it is permitted. The
+  positioning is what Clips Kitty *is* (local, open source, yours) which is
+  the genuine difference anyway.
+- **No unmeasured performance numbers.** Nothing about speed appears here that
+  is not in the README's tested-hardware table.
+
+---
+
+> **Do not mention the previous name anywhere in this listing.** The
+> submission was rejected under policy 10.1.1.1 because the product name was
+> too close to another product's; writing "formerly ..." into the description
+> puts that same string back into the listing. The "formerly" note belongs on
+> the README and the website, where it helps people find the project, and
+> nowhere near Partner Center.
+
+## Product name
+
+```
+Clips Kitty
+```
+
+## Short description
+
+Field limit is 1,000, but Partner Center recommends **270 or fewer** because
+this is what shows at the top of the listing before anyone expands it. Kept
+under that:
+
+```
+Turn long videos into vertical clips using AI that runs on your own PC. Paste a stream or video link and Clips Kitty finds the moments worth clipping, keeps the speaker in frame and adds subtitles. Your footage stays on your PC. Free and open source.
+```
+
+## What's new in this version (1,500 max)
+
+Shown on the listing for the current release. No other companies' names in new copy: the names below that stay (Windows, NVIDIA, GitHub, Ollama) passed review before. 2.0:
+
+```
+Version 2.0
+
+Videos no longer get stuck at "Transcribing" when your graphics card does the transcription: the libraries it needs now come with the app, and if they can't be loaded it carries on with the processor instead of failing.
+
+New:
+• Sports, starting with soccer: tick Sports for a match and get its goals, saves and cards as clips, with a match recap and team or player reels if you want them.
+• Game streams and reaction videos: the streamer's webcam and the game together, in eleven layouts.
+• Watched channels: Clips Kitty clips a channel's new videos by itself, and can post them for you.
+• Cloud AI when your PC is too old for a model of its own: sign in with your own account at a cloud AI service.
+• 16:9 and 9:16 clips of the same video in one go.
+• Tell it what the clips should be about, in a sentence.
+
+Fixed:
+• 16:9 clips no longer fail with error 404 when the AI model in settings isn't downloaded.
+• Cancel stops a long video while it's being analysed.
+• One odd answer from the AI model no longer fails a whole video.
+• The minimum clip score can be changed in Settings, under Advanced settings.
+```
+
+## Description (10,000 max)
+
+```
+Clips Kitty finds the best moments in a long video and cuts them into vertical clips ready to post anywhere short-form video goes. Give it a stream link, a video link, or a file from your own disk, and it does the rest. The supported sites are listed on the project page.
+
+Everything runs on your computer.
+
+That is the part that makes it different. Most AI clipping tools upload your video to a server, charge a monthly fee, and cap how many clips you get. Clips Kitty does the transcription, the scoring, the speaker tracking, the subtitles and the rendering locally, on your own hardware. Your footage never leaves your computer unless you tell it to publish, or choose cloud AI. There is no subscription, no clip limit, and no account to create.
+
+WHAT IT DOES
+
+• Finds the moments: transcribes the whole video, then scores every candidate on what was said, how the audience reacted, and what is happening on screen
+• Keeps the speaker in frame: tracks who is actually talking, by lip movement rather than by who is biggest in the shot, so a two-person conversation does not jump to the wrong face
+• Game streams and reactions: the streamer's webcam and the game together, in eleven layouts
+• Sports, starting with soccer: a match's goals, saves and cards become clips, with a match recap and team or player reels
+• Watches channels: new videos on a channel you follow are clipped by themselves, and can be posted for you
+• Writes the titles: a local language model drafts a title and description for each clip
+• Burns in subtitles: word-level timing, styled, in the language of the clip
+• Speaks 19 languages: translate, subtitle and dub clips into any of them
+• Learns a creator: recurring jokes, catchphrases and running bits feed into how their moments are scored
+• Longer edits too: assemble a long-form cut, not only short clips
+• Edit before you publish: adjust the crop, the captions, the music and the branding
+
+YOUR CHOICE OF AI MODEL
+
+The language model runs through Ollama, on your machine, and you pick it. A small model runs on a laptop with no graphics card; a larger one gives better scoring if you have the VRAM for it. The app recommends one based on your hardware and downloads it for you on first run. If your PC is too old to run one, a cloud model can run it instead, on your own account with a cloud AI service.
+
+FREE AND OPEN SOURCE
+
+The whole thing is on GitHub under the AGPL-3.0 licence. You can read exactly what it does, including every line that touches the network. Bug reports, translations and pull requests are welcome.
+
+WHAT YOU NEED
+
+• Windows 10 or 11, 64-bit
+• 16 GB of RAM. This is a requirement, not a suggestion: with less, a video is analysed and then rendering fails.
+• About 20 GB of disk, plus room for your videos
+• A graphics card is not required, but an NVIDIA one makes it substantially faster
+
+ALPHA SOFTWARE
+
+Clips Kitty is version 2.0. It works, and it is still rough in places. The known issues are listed openly in the repository, and there is a feedback button in the app that files a report for you without needing a GitHub account.
+
+It was built for IRL, just-chatting and talking-head content, which is what it is tested on most. It also clips game streams and reaction videos, and soccer matches. VTubers are not supported.
+```
+
+## App features (200 chars each, 20 max)
+
+Displayed as a bulleted list, so short lines beat complete sentences. Eleven
+rather than the maximum twenty: a reader skims the first few and stops, and a
+long list buries the two that actually sell it (runs on your PC, no
+subscription). 2.0 added the three for soccer, game streams and watched
+channels.
+
+```
+Runs on your PC. Nothing uploaded unless you publish or choose cloud AI
+Works from stream and video links, or your own files
+Finds the best moments from speech, audience reaction and video
+Keeps whoever is talking in frame
+Clips soccer matches: goals, saves and cards
+Webcam and game together for game streams
+Clips a followed channel's new videos by itself
+Burns in word-timed subtitles
+Translates and dubs into 19 languages
+Pick the local AI model that suits your hardware, or use cloud AI
+No subscription, no account, no clip limit
+```
+
+## Search terms (7 max, 40 chars each, 21 unique words total)
+
+Policy 10.1.3: at most seven, relevant, no pricing words, no other products'
+names. These are phrases someone would actually type, not a keyword dump.
+
+**No brand names here, and the rule is stricter than it looks.** The 2026-08-24
+submission (`9NB6XT7DSQZZ`) failed certification on exactly this, with
+"twitch clip maker" and "youtube shorts maker" flagged:
+
+> keywords which are product titles that aren't published by you
+> Problematic Keyword(s): YouTube, Twitch
+
+"Shorts" is itself a YouTube product name, so that second term broke the rule
+twice. "Reels" and "TikTok" are out for the same reason.
+
+**The description was cleared of them too, by choice rather than by rule.**
+10.1.3 governs search terms only, and the same reviewer read "Paste a YouTube,
+Twitch or Kick link" in the short description, the full description and a
+feature bullet without objecting, so keeping them was permitted. They were
+removed anyway, because a second rejection costs another review cycle and the
+words were not worth that risk.
+
+What that costs, so the trade is visible if anyone reconsiders: a reader can no
+longer tell from the listing alone which sites are supported. The description
+now points at the project page for that list, which Store policy does not
+govern.
+
+Names kept on purpose, because they state requirements rather than chase
+search traffic: Windows and NVIDIA under WHAT YOU NEED (10.4.1 wants
+compatibility stated), GitHub for the source link, and Ollama, without which
+"pick your own AI model" cannot be explained.
+
+```
+ai video clipper
+local ai video editing
+stream clip maker
+short form video maker
+vertical video editor
+open source video ai
+auto subtitle generator
+```
+
+## Copyright
+
+```
+Copyright (c) 2026 ColinGPT9. AGPL-3.0.
+```
+
+---
+
+## Screenshots
+
+**Required: 1. Recommended: 4 or more. Maximum: 10.** PNG, 1366x768 or larger.
+
+### Two hard rules before anything else
+
+**No identifiable people without their consent.** Test footage is somebody
+else's video. Processing it locally to check the pipeline is one thing;
+publishing their face on a Microsoft Store page to advertise a product is
+another, and it is not covered by anything. That rules out most of the
+interesting screens, because clip thumbnails are faces by definition. Clip
+Editor, the clip grid, the editor preview.
+
+Options, in order of preference:
+
+1. Footage of a creator who has actually agreed, ideally one whose clips you
+   already have permission to post
+2. Your own face
+3. Screens with no thumbnails in them at all: Models, Settings, the queue
+   mid-job showing progress rather than results
+4. A video with no people in it: screen recording, gameplay, b-roll
+
+**Nothing but the app in the frame.** Capture the window, never the desktop.
+A full-screen grab picks up whatever else is open: file paths, other
+applications, message windows. `scripts/capture_screenshots.ps1` grabs the
+window rectangle for this reason, but check every image before uploading,
+if the app loses focus mid-capture, the rectangle fills with whatever is
+behind it.
+
+### What to show
+
+Capture on a clean install with a real video, not placeholder data. A listing
+with obviously fake content reads as fake.
+
+| # | Shows | Faces? | Why it earns the slot |
+|---|---|---|---|
+| 1 | The queue mid-job, progress bar and ETA visible | no | The first screenshot is the one everybody sees. It should show the app *working*, and progress bars contain no people. |
+| 2 | The model picker with the hardware recommendation | no | The local-AI story, which is the whole positioning |
+| 3 | Settings on the language selector | no | Shows the 19 languages are real |
+| 4 | The dashboard with its options and the processed list | no | The one screen that explains what the app does at a glance |
+| 5 | The clips grid with thumbnails and scores | **yes** | Only with consented footage. Proves it produced something, and that the scoring is visible rather than magic. |
+| 6 | The editor with a clip open, subtitles and crop visible | **yes** | Only with consented footage. Answers "can I change what it decided?" |
+
+The first four need no consent from anyone and are enough to satisfy Partner
+Center's recommended four. Treat 5 and 6 as upgrades to take once there is
+footage you are entitled to publish.
+
+Avoid: empty states, error messages, any face you do not have permission to
+use, and any channel name you have not cleared.
+
+## Store logos
+
+- **1:1 box art: required.** 300x300 minimum. `site/assets/mascot.png` is
+  1024x1024 and works directly.
+- **2:3 poster art: recommended.** 720x1080. Needs making; the mascot centred
+  on the app's dark background (`#0A1628`) is enough.
+
+## Trailer
+
+Optional, and issue #35 already tracks making a demo video. If one exists by
+submission time, add it. A fifteen-second clip of a link going in and a
+finished vertical clip coming out is worth more than any of the screenshots.

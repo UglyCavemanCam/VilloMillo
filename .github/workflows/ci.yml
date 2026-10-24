@@ -1,0 +1,271 @@
+# Checks that run on every pull request.
+#
+# Deliberately fast and honest about what it can prove. A GitHub runner has
+# no GPU, no Ollama and no FFmpeg-heavy footage, so this cannot tell you a
+# clip came out well. What it CAN do is catch the things that broke this
+# project before: a syntax error, a bad import, a TypeScript error, or a
+# config file that no longer parses.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Compile every module
+        # Catches syntax errors across the whole engine in seconds, without
+        # installing PyTorch. Import checking would need ~4 GB of wheels.
+        run: python -m compileall -q analysis core creator llm longform multilingual plugins publish sdk server sources sports transcription video video_editor main.py
+
+      - name: Install what these checks need
+        # NOT requirements.txt — that pulls ~4 GB of PyTorch wheels to run a
+        # syntax check. The tests are written to need nothing heavier.
+        run: pip install --quiet pyyaml ruff pytest requests
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Tests
+        # Deterministic logic only: catchphrase repetition, transcript
+        # repair, path resolution, binary lookup, preflight. Nothing here
+        # needs a GPU, Ollama or real footage — see tests/README.md for what
+        # this deliberately cannot prove.
+        #
+        # On failure the summary is echoed as workflow annotations too, so a
+        # maintainer can see WHY from the run's summary page without opening
+        # and scrolling the raw log.
+        run: |
+          set +e
+          output=$(python -m pytest -q --tb=short 2>&1)
+          status=$?
+          echo "$output"
+          if [ $status -ne 0 ]; then
+            echo "$output" | grep -E '^(FAILED|ERROR|E |tests/|assert)' | head -30 |
+              while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          exit $status
+
+      - name: Config and prompts still parse
+        run: |
+          python - <<'PY'
+          import sys, pathlib, yaml
+          bad = []
+          for f in ['config/settings.yaml'] + [str(p) for p in pathlib.Path('.github').rglob('*.yml')]:
+              try:
+                  yaml.safe_load(open(f, encoding='utf-8'))
+              except Exception as e:
+                  bad.append(f'{f}: {e}')
+          prompts = list(pathlib.Path('config/prompts').glob('*.txt'))
+          if not prompts:
+              bad.append('config/prompts is empty — scoring cannot run')
+          for p in prompts:
+              if not p.read_text(encoding='utf-8').strip():
+                  bad.append(f'{p} is empty')
+          print(f'checked {len(prompts)} prompt file(s)')
+          if bad:
+              print('\n'.join(bad)); sys.exit(1)
+          PY
+
+      - name: No accidental secrets in config
+        # config/client_secret.json and token files are gitignored; this fails
+        # loudly if one is ever committed anyway.
+        run: |
+          if git ls-files | grep -E 'client_secret|token.*\.json$'; then
+            echo "A credentials file is tracked in git."
+            exit 1
+          fi
+          echo "no credential files tracked"
+
+  platform:
+    name: Plugin platform
+    runs-on: ubuntu-latest
+    # The plugin platform's tests import the engine's web layer and OpenCV (the
+    # API contract, the pipeline job option, the process_video branch), which
+    # the Python job above does not install, so they skip there. This job
+    # installs just those, within requirements.txt's ranges, and runs only them.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install what these tests need
+        run: >-
+          pip install --quiet pytest requests httpx numpy pillow
+          "PyYAML>=6.0.3,<7" "fastapi>=0.141.1,<1" "opencv-python-headless>=4.14.0.94,<5"
+          "yt-dlp>=2026.8.19" "defusedxml>=0.7.1,<1"
+
+      - name: FFmpeg, for the example pipeline's end-to-end test and the compatibility check
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+
+      - name: Platform tests
+        run: >-
+          python -m pytest -q --tb=short tests/test_api_contract.py tests/test_plugin_*.py
+          tests/test_example_pipeline.py tests/test_catalog.py
+
+  sdk-windows:
+    name: SDK (Windows)
+    runs-on: windows-latest
+    # The SDK's own tests on Windows, where Clips Kitty runs, with Clips
+    # Kitty's Python (3.11) and nothing but pytest and PyYAML: the files
+    # named tests/test_plugin_sdk_*.py import nothing from the engine
+    # (test_plugin_sdk_package.py checks). This runner has no FFmpeg, so the
+    # tests that need it skip here and run in the Plugin platform job.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install what these tests need
+        run: pip install --quiet pytest "PyYAML>=6.0.3,<7"
+
+      - name: Build the SDK's wheel, for the wheel test
+        shell: bash
+        run: |
+          pip wheel --quiet --no-deps sdk/python -w dist
+          echo "CLIPSKITTY_SDK_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV"
+
+      - name: SDK tests
+        # bash, because PowerShell doesn't expand a glob for a program it starts.
+        shell: bash
+        run: python -m pytest -q --tb=short tests/test_plugin_sdk_*.py
+
+  ui:
+    name: Desktop app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        # A build failure is the difference between "types are fine" and
+        # "this actually packages", and it is what the installer depends on.
+        run: npm run build
+
+  vendored:
+    name: Vendored code unchanged
+    runs-on: ubuntu-latest
+    # Pull requests only: this compares against the base branch, which a push
+    # to main has no meaningful equivalent of.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Refuse silent edits to third_party/
+        run: |
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- third_party/ || true)
+          if [ -z "$changed" ]; then
+            echo "third_party/ untouched."
+            exit 0
+          fi
+          echo "::error::This pull request edits vendored third-party code:"
+          echo "$changed" | while read -r f; do echo "::error::  $f"; done
+          echo ""
+          echo "third_party/ is copied verbatim from upstream and must stay that way —"
+          echo "an edited copy is no longer the code that was audited and licensed, and"
+          echo "cannot be re-fetched without working out which differences were meant."
+          echo ""
+          echo "Change video/asd.py instead; it owns everything the app needs from the"
+          echo "model. To upgrade the dependency, replace the files wholesale and say so"
+          echo "in the pull request. See third_party/talknet/README.md."
+          exit 1
+
+  website:
+    name: Website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history: build_sitemap.py reads each page's lastmod from
+          # `git log`, and a shallow clone has only the tip commit, so every
+          # page comes back dated today. The generated sitemap then matches
+          # the committed one only on the day the site last changed — the
+          # check passed by coincidence and failed the rest of the time.
+          fetch-depth: 0
+
+      - name: Links and paths
+        # The site is published to GitHub Pages AND a Hugging Face Space. A
+        # project Pages site lives in a subdirectory while a Space serves from
+        # its root, so an absolute path works on one and breaks on the other.
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          site = pathlib.Path('site')
+          problems = []
+          for page in site.glob('*.html'):
+              html = page.read_text(encoding='utf-8')
+              for path in re.findall(r'(?:href|src)="([^"#][^"]*)"', html):
+                  if path.startswith(('http://', 'https://', 'mailto:', 'data:')):
+                      continue
+                  if path.startswith('/'):
+                      problems.append(f'{page.name}: absolute path "{path}" breaks on GitHub Pages')
+                  elif not (site / path.split('#')[0]).exists():
+                      problems.append(f'{page.name}: missing "{path}"')
+          print(f'checked {len(list(site.glob("*.html")))} pages')
+          if problems:
+              print('\n'.join(problems)); sys.exit(1)
+          PY
+
+      - name: External links open in a new tab
+        # The Space serves the site inside an iframe and GitHub replies
+        # X-Frame-Options: DENY, so a link without target="_blank" shows
+        # "refused to connect". Invisible on Pages, which has no frame.
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          bad = []
+          for page in pathlib.Path('site').glob('*.html'):
+              for tag in re.finditer(r'<a\b[^>]*href="https?://[^"]+"[^>]*>',
+                                     page.read_text(encoding='utf-8')):
+                  if 'target=' not in tag.group(0):
+                      bad.append(f'{page.name}: {tag.group(0)[:80]}')
+          if bad:
+              print('these break inside the Hugging Face Space:')
+              print('\n'.join(bad)); sys.exit(1)
+          print('all external links open in a new tab')
+          PY
+
+      - name: Sitemap is current
+        # A page missing from the sitemap never gets crawled, and a lastmod
+        # that never changes tells Google nothing has changed. Both fail
+        # silently, so the generator is the source of truth.
+        run: python scripts/build_sitemap.py --check

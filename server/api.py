@@ -1,0 +1,3373 @@
+"""Local HTTP API for the desktop app.
+
+Bound to 127.0.0.1 only — this is a local service, not a web server.
+Start with:  python main.py serve   (default port 8765)
+
+The Electron renderer talks exclusively to this API; it never touches
+Python or the filesystem directly.
+"""
+
+import asyncio
+import json
+import os
+import re
+import shutil
+import threading
+import time
+import traceback
+import urllib.error
+from pathlib import Path
+
+import requests as _requests
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+from core import queue
+from core.binaries import ffmpeg, ffprobe
+from core.paths import discard, picked_file, safe_name
+from core.state import StateDB
+from server.events import broadcaster
+from server.jobs import Worker
+
+# Version of the supported API described in docs/API.md. Bumped only when a
+# supported endpoint changes shape, never for additions.
+API_VERSION = 1
+
+# ---- request bodies ----------------------------------------------------------
+
+
+class JobIn(BaseModel):
+    url: str
+    force: bool = False
+    max_clips: int | None = None  # per-job override of clips.max_clips_per_video
+    caption_style: dict | None = None  # style applied to every clip of this job
+    captions: bool | None = None  # burn captions into this job's clips (default true)
+    long_clips: bool | None = None  # 61-180s clips (TikTok monetization needs >60s)
+    filter: str | None = None  # color preset name (video/filters.py) for the whole job
+    min_score: int | None = None  # per-job quality bar override (0-100)
+    focus: str | None = None  # the person's clip direction, in their words (analysis/intent.py)
+    sport: dict | str | None = None  # the Sports toggle: {name, highlights, period, teams} (sports/)
+    longform: dict | None = None  # {"mode": short_clips|clips_140|highlights|edited_stream}
+    watermark_profile_id: int | None = None  # branding profile applied to all clips
+    podcast: bool | None = None   # multi-cam podcast: letterbox, no subject tracking
+    vertical_live: bool | None = None  # an already-composed 9:16 live: keep its layout, no face tracking
+    gaming: bool | None = None  # Gaming / Split-Screen: webcam over the game, or the game alone
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
+    gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
+    gaming_remember: bool | None = None  # ...also kept for this creator's next videos
+    webhook_url: str | None = None  # POST once when this job reaches a terminal state
+    webhook_secret: str | None = None  # signs that POST (X-Clips-Kitty-Signature)
+    hashtags: list[str] | None = None  # tags every clip of this job must carry
+    pipeline: dict | str | None = None  # a plugin pipeline picks the moments: {id, version, settings} (plugins/)
+    # Rate & understand (plugins/steps.py): up to 3 plugins each, run on the
+    # moments once they are found. Choices shaped like `pipeline`, in order.
+    rate: list | dict | str | None = None
+    understand: list | dict | str | None = None
+    # Suggest edits (plugins/steps.py): up to 3 plugins, run on the clips
+    # once they are chosen. Their suggestions wait for the creator in the
+    # editor; this is a list of plugins, not an edit list (render_opts.edit).
+    edit: list | dict | str | None = None
+    then: dict | None = None  # what to do once this job finishes, e.g.
+    #     {"action": "publish", "platforms": ["youtube"]}
+    # Queueing returns in a second and the clips appear an hour later, so a
+    # request like "process this and publish them" has to survive the gap.
+
+
+class JobPatch(BaseModel):
+    """Per-video settings for a job that hasn't started yet.
+
+    The same options as JobIn minus url/force: the settings snapshot stays
+    editable right up until the worker claims the row, and is untouchable
+    afterwards — a job whose configuration changed halfway would render some
+    of its clips one way and the rest another."""
+
+    max_clips: int | None = None
+    caption_style: dict | None = None
+    captions: bool | None = None
+    long_clips: bool | None = None
+    filter: str | None = None
+    min_score: int | None = None
+    focus: str | None = None
+    sport: dict | str | None = None
+    longform: dict | None = None
+    watermark_profile_id: int | None = None
+    podcast: bool | None = None
+    vertical_live: bool | None = None
+    gaming: bool | None = None
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
+    gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
+    gaming_remember: bool | None = None  # ...also kept for this creator's next videos
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    pipeline: dict | str | None = None
+    rate: list | dict | str | None = None
+    understand: list | dict | str | None = None
+    edit: list | dict | str | None = None
+    # Options to drop back to the app-wide default. Needed because null means
+    # "unchanged" above, so there would otherwise be no way to turn one off.
+    clear: list[str] = []
+
+
+class BatchItemIn(BaseModel):
+    """One video and the settings chosen for IT.
+
+    Options are per item, not per batch: the user stages a list and configures
+    each row before any of it runs, so "these three as podcasts, that one
+    longform" has to survive the trip. A batch-wide option set could not
+    express that."""
+
+    url: str
+    force: bool = False
+    max_clips: int | None = None
+    caption_style: dict | None = None
+    captions: bool | None = None
+    long_clips: bool | None = None
+    filter: str | None = None
+    min_score: int | None = None
+    focus: str | None = None
+    sport: dict | str | None = None
+    longform: dict | None = None
+    watermark_profile_id: int | None = None
+    podcast: bool | None = None
+    vertical_live: bool | None = None
+    gaming: bool | None = None
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
+    gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
+    gaming_remember: bool | None = None  # ...also kept for this creator's next videos
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    pipeline: dict | str | None = None
+    rate: list | dict | str | None = None
+    understand: list | dict | str | None = None
+    edit: list | dict | str | None = None
+
+
+class BatchJobIn(BaseModel):
+    items: list[BatchItemIn] = []
+
+
+class QueueMoveIn(BaseModel):
+    delta: int = 0            # -1 earlier, +1 later
+    to: str | None = None     # "top" | "bottom"
+
+
+class ClipPatch(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    hashtags: list[str] | None = None
+    exported: bool | None = None  # the clip's star; exporting also sets it
+    # Hide or show an edit a plugin suggested: {"id", "state": "hidden" | "new"}
+    # (plugins/edit_marks.py). A suggestion is used by applying it, never here.
+    suggestion: dict | None = None
+
+
+class MergeIn(BaseModel):
+    from_id: int
+    into_id: int
+
+
+class LearningIn(BaseModel):
+    enabled: bool
+
+
+class AccountIn(BaseModel):
+    platform: str   # youtube | twitch | kick
+    channel: str    # channel/username on that platform
+
+
+class PreviewIn(BaseModel):
+    edit: dict | None = None            # pending edit list from the editor
+    caption_lines: list[dict] | None = None  # pending caption text, if changed
+    crop: str | None = None             # pending layout (track/letterbox/center)
+    caption_style: dict | None = None   # pending caption font/size/etc.
+    watermark: dict | None = None       # pending branding config (or {} to clear)
+    normalize_audio: bool | None = None  # pending loudness-matching toggle
+    # pending Gaming / Reaction split (gaming/run.py keys), or gaming_off to
+    # preview the clip without it
+    gaming: dict | None = None
+    gaming_off: bool = False
+    # pending hand fixes of who is talking (video/captions.py paint_turns);
+    # None keeps the clip's saved ones, an empty list previews it with none
+    speaker_edits: list | None = None
+    # pending Captions on/off switch; None keeps the clip's saved choice
+    captions: bool | None = None
+
+
+class CreatorGamingLayoutIn(BaseModel):
+    layout: dict | None = None   # the clip's gaming settings to remember, or null to forget
+
+
+class BrandingIn(BaseModel):
+    name: str
+    config: dict
+
+
+# What the two "import a file from this computer" endpoints will accept. Kept
+# next to the models that carry those paths so the two stay in step, and passed
+# to picked_file() so a path is rejected before anything opens it.
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+_VIDEO_SUFFIXES = (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".flv", ".ts", ".mpg",
+                   ".mpeg", ".wmv", ".m2ts", ".mts")
+
+
+class BrandingAssetIn(BaseModel):
+    path: str   # image file on this computer to import as a branding asset
+
+
+class CreatorBrandingIn(BaseModel):
+    branding_id: int | None = None   # default branding profile, or null to clear
+
+
+class LocalVideoIn(BaseModel):
+    path: str                  # video file on this computer (mp4/mov/mkv/…)
+    title: str = ""            # defaults to the file name
+    channel: str = ""          # creator/channel name for the Creators tab
+    platform: str = "youtube"  # which platform profile this creator belongs to
+    captions: bool | None = None
+    caption_style: dict | None = None
+    long_clips: bool | None = None
+    podcast: bool | None = None  # multi-cam podcast: letterbox, no subject tracking
+    vertical_live: bool | None = None  # an already-composed 9:16 live: keep its layout, no face tracking
+    gaming: bool | None = None  # Gaming / Split-Screen: webcam over the game, or the game alone
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
+    gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
+    gaming_remember: bool | None = None  # ...also kept for this creator's next videos
+    # Where the file came from, when the user knows (a downloaded live's
+    # original link). Optional: never invented. Kept with the video so the
+    # clips' publishing footers can point back to it.
+    source_url: str = ""
+    # The rest of the per-video options, so an uploaded file can be set up
+    # exactly like a pasted link — the list builder offers the same switches
+    # for both, and a switch that silently did nothing on your own upload
+    # would be worse than not offering it. _process_options reads these by
+    # name, so listing them here is all that is needed.
+    longform: dict | None = None
+    watermark_profile_id: int | None = None
+    filter: str | None = None
+    min_score: int | None = None
+    focus: str | None = None
+    sport: dict | str | None = None
+    max_clips: int | None = None
+    force: bool = False
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    pipeline: dict | str | None = None
+    rate: list | dict | str | None = None
+    understand: list | dict | str | None = None
+    edit: list | dict | str | None = None
+
+
+class RenderIn(BaseModel):
+    start: float | None = None
+    end: float | None = None
+    render_opts: dict | None = None  # crop / captions / caption_style / caption_lines
+    # The edits plugins suggested that this render puts in the clip, as the
+    # editor used them: {"used": [{"id", "applied"}]} (plugins/edit_marks.py).
+    # The worker keeps only what the render really changed.
+    suggestions: dict | None = None
+
+
+class CaptionsIn(BaseModel):
+    lines: list[dict]  # [{"start", "end", "text"}] clip-relative
+
+
+class TightenIn(BaseModel):
+    """Which kinds of dead weight to propose cutting."""
+
+    silence: bool = True
+    fillers: bool = True
+
+
+class TermIn(BaseModel):
+    """A creator's ruling on one word for translation."""
+
+    term: str
+    rule: str = "protect"  # protect | ignore | auto (forget the ruling)
+
+
+class TranslationPatch(BaseModel):
+    """A creator's corrections to one language's translated captions."""
+
+    lines: list[dict]           # [{"start", "end", "text"}] clip-relative
+    post: dict | None = None    # {title, description, hashtags}, unchanged if omitted
+
+
+class CancelIn(BaseModel):
+    video_id: str | None = None
+    url: str | None = None
+
+
+class AiEditIn(BaseModel):
+    message: str
+
+
+class AgentIn(BaseModel):
+    message: str
+    # Prior turns, so "now schedule them an hour apart" knows what "them" is.
+    history: list[dict] = []
+    # The Generate bar's toggles, sent by the window. A job the assistant
+    # queues should render the same way as one started by hand: these choices
+    # live in the renderer, so without them the chat silently used the config
+    # defaults and burned captions in on a video whose box was unticked.
+    defaults: dict = {}
+
+
+class ExportIn(BaseModel):
+    folder: str
+
+
+class BatchExportIn(BaseModel):
+    clip_ids: list[int]
+    folder: str
+
+
+class ModelIn(BaseModel):
+    tag: str
+
+
+class SettingsPatch(BaseModel):
+    model: str | None = None
+    channel: str | None = None
+    auto_upload: bool | None = None
+    privacy: str | None = None
+    content_language: str | None = None  # auto / ISO code (es, pt, hi, id...)
+    translation_model: str | None = None  # local model used for translation
+    outro: bool | None = None  # append the Clips Kitty end card (clips.outro)
+    min_score: int | None = None  # clips.min_score: the quality bar, 0-100
+    # "" none or "firefox": asked with only when YouTube takes the PC for a
+    # bot (sources/ytdlp_common.py, #136). A cookies.txt comes as its text in
+    # youtube_cookies_text, kept in the data folder, and the setting is "file".
+    youtube_cookies: str | None = None
+    youtube_cookies_text: str | None = None
+
+
+class TranslateIn(BaseModel):
+    """Multilingual publishing for one or more finished clips."""
+
+    clip_ids: list[int]
+    languages: list[str]          # ISO codes from multilingual.languages
+    stage: str = "export"         # translate (review first) | export (write files)
+    folder: str = ""              # where the files are written (export only)
+    include_video: bool = False   # copy the clip AS IT IS (original captions
+                                  # burned in) beside the translated ones —
+                                  # opt-in, matching the editor's checkbox
+    burn: bool = False            # also make a video per language with captions burned in
+    dub: bool = False             # also speak the translation over the clip
+    subtitles: bool = False       # write .srt/.vtt files as well
+    post_text: bool = False       # write the translated post text as well
+    voices: dict | None = None    # {language: voice id} chosen by the creator
+    style: dict | None = None     # subtitle font/size/colour/position; falls
+                                  # back to the clip's own caption style
+
+
+class FeedbackIn(BaseModel):
+    kind: str  # bug | feature | improvement
+    title: str
+    answers: dict = {}
+    areas: list[str] = []
+    severity: str = ""
+    include_diagnostics: bool = True
+    video_id: str | None = None
+    images: list[dict] = []  # [{"b64": ..., "ext": "png"|"jpg"}]
+
+
+# ---- app factory ---------------------------------------------------------------
+
+
+_BUILD: dict | None = None
+
+
+def _build_stamp() -> dict:
+    """Which commit this PROCESS is running, and how long it has been up.
+
+    Python imports a module once. A backend left running while the checkout
+    moves on keeps executing the code it started with, and nothing anywhere
+    says so — the app reports the version on disk, which can be hours ahead of
+    what is actually running.
+
+    That is not hypothetical. A 70-minute run once produced clips with a
+    tracker bug that had been fixed two hours earlier, and the only way to
+    tell was comparing the process start time against the commit timestamps.
+    From the outside it looked exactly like the fix not working.
+
+    Read once and cached: this is a subprocess call on a hot endpoint, and the
+    answer cannot change without restarting the process — which is the whole
+    point of reporting it.
+    """
+    import time  # module scope, not inside the cache guard: the return below
+    #              uses it on EVERY call, not just the first
+
+    global _BUILD
+    if _BUILD is None:
+        import subprocess
+
+        sha = ""
+        try:
+            sha = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=Path(__file__).resolve().parent.parent,
+                capture_output=True, text=True, timeout=5,
+            ).stdout.strip()
+        except Exception:
+            pass  # a packaged build has no git; the field just stays empty
+        _BUILD = {"build_sha": sha, "started_at": time.time()}
+    return {**_BUILD, "uptime_seconds": round(time.time() - _BUILD["started_at"])}
+
+
+def _unlink_best_effort(path: Path, root: Path) -> bool:
+    """Delete a file inside `root`, or report that it could not be deleted.
+
+    Never raises, and never touches anything outside `root`. The containment
+    check is here, at the unlink itself, rather than only at the call sites:
+    every caller already checks, but this is the one line that actually
+    removes a file, so it is the one line where being wrong costs a user
+    their data. A path that escapes is a bug, not a request to be honoured.
+
+    On Windows a file that is currently open cannot be removed at all: the
+    app's own video players hold the clip they are showing, so deleting a
+    clip the user is looking at raised WinError 32. The row had already gone
+    by then, so the clip vanished from the library, the file stayed on disk
+    and the request returned 500 — the user saw a failure for something that
+    had mostly worked.
+
+    Removing the clip from the library is what "delete" means to the person
+    clicking it. The file is disk space, and core/housekeeping already finds
+    and reclaims clip files with no row pointing at them, so a locked file is
+    recovered on the next cleanup rather than lost.
+    """
+    try:
+        base = root.resolve()
+        # relative_to raises if `path` is not under root. The segments it
+        # gives back are then used to WALK DOWN from the trusted root: each
+        # step is whatever the directory listing says is there, matched by
+        # name, so the thing that finally gets deleted came off the
+        # filesystem rather than out of the request. That is belt to the
+        # check's braces, and unlike a bare "raise if outside" it is a form a
+        # taint scanner can follow — the same reason the branding asset
+        # lookup is written this way.
+        parts = path.resolve().relative_to(base).parts
+    except (ValueError, OSError):
+        print(f"refusing to delete {path} — outside {root}")
+        return False
+    target = base
+    for part in parts:
+        try:
+            found = next((e for e in target.iterdir() if e.name == part), None)
+        except OSError:
+            return False
+        if found is None:
+            return True  # not on disk; missing_ok=True means that is a success
+        target = found
+    if target == base or not target.is_file():
+        return True      # a directory, or the root itself: not ours to unlink
+    try:
+        target.unlink(missing_ok=True)
+        return True
+    except OSError as e:
+        print(f"could not remove {path.name} yet ({e.__class__.__name__}); "
+              f"housekeeping will reclaim it")
+        return False
+
+
+def _process_options(body, into: dict | None = None, data_dir: Path | None = None) -> dict:
+    """Turn job options into the payload the worker reads.
+
+    Shared by POST /jobs, POST /jobs/batch and PATCH /jobs/{id}: three doors
+    onto the same settings, and a limit enforced at only two of them is not a
+    limit. `into` lets a patch merge onto an existing snapshot instead of
+    replacing it, since an unset field there means "leave this alone".
+    `data_dir`, when given, is where a named plugin (the pipeline, or one
+    chosen to rate or understand the moments or to suggest edits for the
+    clips) must be installed."""
+    payload: dict = dict(into or {})
+    if getattr(body, "max_clips", None) is not None:
+        payload["max_clips"] = max(1, min(10, body.max_clips))
+    if getattr(body, "caption_style", None):
+        payload["caption_style"] = body.caption_style
+    if getattr(body, "captions", None) is not None:
+        payload["captions"] = body.captions
+    if getattr(body, "long_clips", None):
+        payload["long_clips"] = True
+    if getattr(body, "podcast", None):
+        payload["podcast"] = True
+    if getattr(body, "vertical_live", None):
+        payload["vertical_live"] = True
+    if getattr(body, "gaming", None):
+        payload["gaming"] = True
+    if getattr(body, "gaming_scoring", None):
+        # Score as a gaming stream (analysis/gaming.py) with whatever layout
+        # the video gets, e.g. an already-vertical live of a game.
+        payload["gaming_scoring"] = True
+    if getattr(body, "gaming_layout", None):
+        # Set up on the video's own frames before processing: it is the user's
+        # choice, so no detection second-guesses the parts they set.
+        from core.modes import clean_gaming
+
+        try:
+            payload["gaming_layout"] = {**clean_gaming(body.gaming_layout), "by": "user"}
+        except ValueError as e:
+            raise HTTPException(400, f"gaming_layout: {e}") from e
+    if getattr(body, "gaming_remember", None):
+        payload["gaming_remember"] = True
+    if getattr(body, "longform", None):
+        payload["longform"] = body.longform
+    if getattr(body, "sport", None):
+        # The Sports toggle (sports/): checked against the sports that exist,
+        # so a job can't be queued for one that doesn't.
+        import sports
+
+        try:
+            payload["sport"] = sports.clean(body.sport)
+        except ValueError as e:
+            raise HTTPException(400, f"sport: {e}") from e
+    focus = " ".join(str(getattr(body, "focus", None) or "").split())
+    if focus:
+        # What the clips should be about, in the person's words: it only adds
+        # points (analysis/intent.py), and a job without one is untouched.
+        from analysis.intent import MAX_CHARS
+
+        payload["focus"] = focus[:MAX_CHARS]
+    if getattr(body, "pipeline", None):
+        # A plugin pipeline (plugins/): it picks the moments, and everything
+        # after that is made as usual. Checked against what is installed, so a
+        # job can't be queued for a pipeline that isn't there.
+        from plugins import store
+
+        try:
+            payload["pipeline"] = store.clean_choice(body.pipeline)
+            if data_dir is not None:
+                store.installed_choice(data_dir, payload["pipeline"])
+        except ValueError as e:
+            raise HTTPException(400, f"pipeline: {e}") from e
+    if getattr(body, "rate", None) or getattr(body, "understand", None) or getattr(body, "edit", None):
+        # Rate & understand and Suggest edits (plugins/steps.py): plugins
+        # that look at the moments once they're found, and at the clips once
+        # they're chosen. Checked like the pipeline, each list in its own
+        # words ("rate[0]: ..."). Imported only here, so a job without them
+        # never loads plugins.steps.
+        from plugins import steps as plugin_steps
+
+        for field in plugin_steps.FIELDS:
+            value = getattr(body, field, None)
+            if not value:
+                continue
+            try:
+                choices = plugin_steps.clean(field, value)
+                if data_dir is not None:
+                    plugin_steps.check_installed(data_dir, field, choices)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+            payload[field] = choices
+    if getattr(body, "watermark_profile_id", None):
+        payload["watermark_profile_id"] = body.watermark_profile_id
+    if getattr(body, "filter", None):
+        from video.filters import is_valid
+
+        if not is_valid(body.filter):
+            raise HTTPException(400, f"unknown filter '{body.filter}'")
+        payload["filter"] = body.filter
+    if getattr(body, "min_score", None) is not None:
+        payload["min_score"] = max(0, min(100, body.min_score))
+    if getattr(body, "hashtags", None):
+        payload["hashtags"] = [str(h) for h in body.hashtags if str(h).strip()]
+    if getattr(body, "then", None):
+        payload["then"] = body.then
+    if getattr(body, "webhook_url", None):
+        from server.webhooks import is_deliverable
+
+        # Rejected here rather than at delivery time: a typo that is only
+        # discovered when the job ends, forty minutes later, is a bad trade.
+        if not is_deliverable(body.webhook_url):
+            raise HTTPException(400, "webhook_url must be an http or https URL")
+        payload["webhook_url"] = body.webhook_url
+        if getattr(body, "webhook_secret", None):
+            payload["webhook_secret"] = body.webhook_secret
+    # Explicit "back to the default" — an absent field means unchanged, so a
+    # toggle being switched off needs to say so.
+    for key in getattr(body, "clear", []) or []:
+        payload.pop(key, None)
+    # Vertical Live keeps a finished 9:16 layout as it is; Podcast reframes a
+    # multi-camera set and Longform makes 16:9. Asking for both is a mistake
+    # worth saying out loud rather than quietly picking one.
+    if payload.get("vertical_live") and (payload.get("podcast") or payload.get("longform")):
+        raise HTTPException(400, "Vertical Live can't be combined with Podcast or Longform: "
+                                 "it keeps the live's own 9:16 layout. Turn one of them off.")
+    # Gaming lays out a landscape game stream as webcam + game; each of the
+    # others is a different answer to the same question of what the frame is.
+    if payload.get("gaming") and (payload.get("vertical_live") or payload.get("podcast")
+                                  or payload.get("longform")):
+        raise HTTPException(400, "Gaming / Split-Screen can't be combined with Vertical Live, "
+                                 "Podcast or Longform: each lays out the video its own way. "
+                                 "Turn one of them off.")
+    # A plugin pipeline picks the moments its own way, as Sports and Gaming
+    # scoring do theirs; Longform is a different system altogether.
+    if payload.get("pipeline") and (payload.get("sport") or payload.get("gaming_scoring")
+                                    or payload.get("longform")):
+        raise HTTPException(400, "A plugin pipeline can't be combined with Sports, Gaming scoring or "
+                                 "Longform: each picks the moments its own way. Turn one of them off.")
+    # Rate & understand work on the moments a Shorts run finds, whoever found
+    # them (Sports, Gaming scoring and a pipeline included). Longform, with
+    # Shorts beside it or not, has no such step.
+    if (payload.get("rate") or payload.get("understand")) and payload.get("longform"):
+        raise HTTPException(400, "Rate & understand can't be combined with Longform: Longform picks and "
+                                 "writes its clips its own way. Turn one of them off.")
+    # Suggest edits works on the clips a Shorts run makes. A job's own
+    # pipeline may be named under it: a find run is never asked to edit.
+    if payload.get("edit") and payload.get("longform"):
+        raise HTTPException(400, "Suggest edits can't be combined with Longform: Longform picks and "
+                                 "writes its clips its own way. Turn one of them off.")
+    own = payload.get("pipeline")
+    own_id = own.get("id") if isinstance(own, dict) else own
+    for field in ("rate", "understand"):
+        for choice in payload.get(field) or []:
+            if own_id and (choice.get("id") if isinstance(choice, dict) else choice) == own_id:
+                raise HTTPException(400, f"{field}: {own_id} is this job's pipeline, so it already scores "
+                                         "and describes the moments it finds")
+    if payload.get("gaming_scoring") and (payload.get("podcast") or payload.get("longform")):
+        raise HTTPException(400, "Gaming / reaction scoring works with the standard layout, Vertical "
+                                 "Live and Gaming / Reaction, not with Podcast or Longform.")
+    # A match is scored as a match: not also as a game stream or a podcast.
+    if payload.get("sport") and (payload.get("gaming") or payload.get("gaming_scoring")
+                                 or payload.get("podcast")):
+        raise HTTPException(400, "Sports can't be combined with Gaming / Reaction or Podcast: "
+                                 "each scores and lays out the video its own way. Turn one of them off.")
+    return payload
+
+
+def _clean_render_gaming(render_opts: dict) -> dict:
+    """render_opts from the editor, with its "gaming" settings made valid.
+    None stays None: it turns the split off for the clip."""
+    from core.modes import clean_gaming
+
+    if render_opts.get("gaming") is not None:
+        try:
+            render_opts["gaming"] = clean_gaming(render_opts["gaming"])
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+    return render_opts
+
+
+def _quiet_connection_resets(loop, context: dict) -> None:
+    """Windows' event loop reports a connection the other side already closed
+    (the app's window reloading, a websocket dropped) as a traceback when it
+    shuts its end, WinError 10054, and it landed in job logs as if a job had
+    failed. Only that is dropped; anything else is reported as before."""
+    if (isinstance(context.get("exception"), ConnectionResetError)
+            and "_call_connection_lost" in str(context.get("message") or "")):
+        return
+    loop.default_exception_handler(context)
+
+
+def create_app(config: dict, settings_path: Path) -> FastAPI:
+    from server import feedback as feedback_mod
+
+    feedback_mod.install_log_capture()  # pipeline prints -> bug-report log tail
+    from sources import ytdlp_common
+
+    ytdlp_common.set_cookies(config.get("youtube_cookies"), config["paths"]["data_dir"])  # #136
+    app = FastAPI(title="Clips Kitty API", version="0.1")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite dev server
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    # Answer only requests addressed to this machine. There is no auth, so a web
+    # page could otherwise reach the API by DNS rebinding: its own domain pointed
+    # at 127.0.0.1 passes the browser's same-origin rules, but still carries its
+    # own name in the Host header, which this refuses.
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+
+    # Read once: `git rev-parse` in a checkout is not free, and the version
+    # cannot change while the process runs.
+    app_version = feedback_mod._app_version().get("app", "?")
+
+    data_dir = Path(config["paths"]["data_dir"]).resolve()
+    db_path = data_dir / "state.db"
+    worker = Worker(config)
+
+    def db() -> StateDB:
+        # sqlite connections aren't shareable across FastAPI's threadpool
+        # threads; per-request connections are effectively free.
+        return StateDB(db_path)
+
+    # Uploads get their own thread. They must not queue behind an hour of GPU
+    # work, must not be blocked by the queue's default-paused state, and must
+    # never be re-run by crash recovery — see server/publisher.py.
+    from server.publisher import PublishWorker
+
+    publish_worker = PublishWorker(config, db_path, data_dir)
+
+    @app.on_event("startup")
+    async def _startup():
+        asyncio.get_running_loop().set_exception_handler(_quiet_connection_resets)
+        broadcaster.attach_loop(asyncio.get_running_loop())
+        worker.start()
+        publish_worker.start()
+        stream_watcher.start()
+        channel_watcher.start()
+
+    @app.on_event("shutdown")
+    async def _shutdown():
+        worker.stop()
+        publish_worker.stop()
+        stream_watcher.stop()
+        channel_watcher.stop()
+
+    # Publishing lives in its own module: it is optional, self-contained and
+    # removable, and threading ~15 routes through this file would end that.
+    from server import youtube_api
+
+    youtube_api.install(
+        app,
+        config=config,
+        db=db,
+        data_dir=data_dir,
+        worker=worker,
+        publish_worker=publish_worker,
+    )
+
+    # Publishing to several platforms at once, through the user's own
+    # Upload-Post account. Installed the same way and just as removable: it
+    # owns its own settings, its own key and its own routes, and touches
+    # nothing above when it is switched off.
+    from server import uploadpost_api
+
+    uploadpost_api.install(
+        app,
+        config=config,
+        db=db,
+        data_dir=data_dir,
+        publish_worker=publish_worker,
+    )
+
+    # Remote rendering (remote_render/): off unless switched on under
+    # Settings -> Advanced settings; then a separate, authenticated gateway
+    # for render workers, and routes here for the Settings page.
+    from remote_render import service as remote_render_service
+
+    remote_render_service.install(app, config, data_dir)
+
+    # A second multi-platform provider beside Upload-Post, not instead of it:
+    # a creator uses whichever they have an account with. Independent
+    # settings, independent key, independent routes.
+    from server import woopsocial_api
+
+    woopsocial_api.install(
+        app,
+        config=config,
+        db=db,
+        data_dir=data_dir,
+        publish_worker=publish_worker,
+    )
+
+    # Settings → AI: local Ollama (the default) or a cloud model on the
+    # user's own key. Its own module, the same way the publishers are.
+    from server import ai_api
+
+    ai_api.install(app, config=config, db=db, data_dir=data_dir, settings_path=settings_path)
+
+    # Plugins: install, turn on and off, roll back and remove community
+    # pipelines (plugins/api.py). Its own module, the same way; the routes
+    # that change what is installed need the desktop app's session secret.
+    from plugins import api as plugins_api
+
+    plugins_api.install(app, data_dir=data_dir, config=config, app_version=app_version)
+
+    # Streamer integrations such as the OBS plugin: hand over a finished stream,
+    # find its VOD, report progress. Its own module for the same reason.
+    from server import integrations
+
+    stream_watcher = integrations.install(app, db=db, worker=worker, broadcaster=broadcaster)
+
+    # Watched channels: a creator posts, the video is queued and its clips are
+    # published without anyone pasting a link. Off until switched on.
+    from server import automation
+
+    def _watch_options(raw: dict) -> dict:
+        # The same door a queued job's options go through, so a watch cannot
+        # hold a setting the queue would refuse.
+        try:
+            patch = JobPatch(**raw)
+        except Exception as e:
+            raise HTTPException(400, f"invalid options: {e}") from e
+        return _process_options(patch, data_dir=data_dir)
+
+    channel_watcher = automation.install(
+        app,
+        db=db,
+        worker=worker,
+        broadcaster=broadcaster,
+        options_from=_watch_options,
+        data_dir=data_dir,
+        interval_minutes=float(config.get("poll_interval_minutes") or 15),
+    )
+
+    # ---- health / system -----------------------------------------------
+
+    @app.get("/health")
+    def health():
+        # Integrations such as the OBS plugin read these to tell "Clips Kitty is
+        # running" apart from "this Clips Kitty is too old for me". api_version
+        # moves only when a supported endpoint changes shape.
+        return {"ok": True, "app_version": app_version, "api_version": API_VERSION}
+
+    @app.get("/health/preflight")
+    def preflight_check():
+        """Can this install actually make a clip?
+
+        An installed copy can be half-ready in ways a dev checkout never is —
+        no FFmpeg, no Ollama, no model, no disk. Each used to surface as a
+        stack trace deep inside a stage, long after the user pressed Generate.
+        This names the missing piece and what to do about it, up front.
+        """
+        from core import preflight
+
+        return preflight.run(config).as_dict()
+
+    @app.get("/system/stats")
+    def system_stats():
+        import psutil
+
+        disk = shutil.disk_usage(data_dir)
+        stats = {
+            "cpu_percent": psutil.cpu_percent(interval=0.1),
+            "ram_percent": psutil.virtual_memory().percent,
+            "data_dir_bytes": sum(f.stat().st_size for f in data_dir.rglob("*") if f.is_file()),
+            "disk_free_bytes": disk.free,
+            "gpu": _gpu_stats(),
+            **_build_stamp(),
+        }
+        return stats
+
+    # ---- feedback hub -----------------------------------------------------
+
+    @app.get("/feedback/diagnostics")
+    def feedback_diagnostics(video_id: str | None = None):
+        """The auto-collected diagnostics block, exactly as it would be sent
+        — the UI shows this under 'see what will be shared'."""
+        d = db()
+        try:
+            return feedback_mod.collect_diagnostics(config, d, video_id)
+        finally:
+            d.conn.close()
+
+    @app.post("/feedback/submit")
+    def feedback_submit(body: FeedbackIn):
+        """Build the report and send it through the feedback relay (which
+        files it as a GitHub issue — no account needed by the user). The
+        Markdown comes back either way, so the UI can save it to a file
+        when the relay is unreachable or not configured."""
+        missing = feedback_mod.missing_fields(body.kind, body.answers)
+        if missing:
+            raise HTTPException(400, f"please answer: {', '.join(missing)}")
+        diagnostics = None
+        if body.include_diagnostics:
+            d = db()
+            try:
+                diagnostics = feedback_mod.collect_diagnostics(config, d, body.video_id)
+            finally:
+                d.conn.close()
+        markdown = feedback_mod.build_markdown(body.kind, body.answers, diagnostics)
+        title = feedback_mod.redact(body.title.strip())[:140]
+
+        relay = (config.get("feedback") or {}).get("relay_url", "").strip()
+        if not relay:
+            return {"ok": False, "markdown": markdown,
+                    "error": "feedback relay not configured in this build"}
+        try:
+            res = feedback_mod.submit_to_relay(
+                relay, body.kind, title, markdown,
+                body.areas, body.severity, feedback_mod.encode_images(body.images),
+            )
+            return {"ok": True, "url": res.get("url", ""), "markdown": markdown}
+        except Exception as e:
+            # The exception text stays here. An error from an HTTP call can
+            # carry the relay URL, a token in a query string, or a path with
+            # the user's name in it, and nothing needs it: FeedbackHub only
+            # reads `ok`, and on false it saves the report to a file and
+            # explains that itself. Passing the detail out gained nobody
+            # anything and risked putting a secret on screen.
+            print(f"feedback relay failed: {e}")  # local console only
+            return {
+                "ok": False,
+                "markdown": markdown,
+                "error": "could not reach the report service",
+            }
+
+    # ---- jobs -------------------------------------------------------------
+
+    @app.post("/jobs")
+    def create_job(body: JobIn, status_code=201):
+        # Re-pasting an already-done URL without force would silently no-op —
+        # tell the UI instead, so it can offer "process again with current
+        # settings" (e.g. the same video in both 60s+ and regular modes).
+        # Longform jobs skip the guard: making longform outputs of an
+        # already-processed video is the normal case, not a re-run. And a
+        # video with only Longform output has no Shorts yet, so asking for
+        # them isn't a re-run either (#98).
+        from sources.dispatch import identify
+
+        vid = ""
+        if not body.force and not body.longform:
+            _, vid = identify(body.url)
+            if vid:
+                d0 = db()
+                try:
+                    made = d0.shorts_made(vid)
+                finally:
+                    d0.close()
+                if made:
+                    return {"job_id": None, "already_processed": True, "video_id": vid}
+        elif not body.longform:
+            _, vid = identify(body.url)
+
+        payload = _process_options(body, {"url": body.url, "force": body.force}, data_dir=data_dir)
+        d = db()
+        try:
+            if queue.capacity(d) <= 0:
+                raise HTTPException(
+                    409,
+                    f"the queue is full ({queue.MAX_ACTIVE} videos) — let one finish or remove one first",
+                )
+            # Same video already waiting or running: with a queue the likely
+            # mistake is pasting a link twice into a batch, and processing it
+            # twice costs an hour and produces duplicate clips.
+            existing = queue.duplicate_of(d, vid) if vid else None
+            if existing is not None:
+                return {"job_id": None, "already_queued": True, "video_id": vid,
+                        "queued_job_id": existing}
+            # `identify` returns None for anything without an extractable
+            # video id (a channel page, a live URL, a typo). The column is NOT
+            # NULL, so passing None through turns a perfectly ordinary link
+            # into a 500 — the pipeline is what should report a bad URL.
+            job_id = d.add_job("process", json.dumps(payload), video_id=vid or "")
+        finally:
+            d.close()
+        worker.notify()
+        broadcaster.publish({"type": "queue"})
+        return {"job_id": job_id}
+
+    @app.get("/videos/local/shape")
+    def local_video_shape(path: str):
+        """A picked file's size and shape, before it is added: the Generate bar
+        suggests Vertical Live for a 9:16 file (only suggests; the toggle is
+        the user's) and warns when it is on for a file that isn't 9:16."""
+        from core import modes
+
+        picked = picked_file(path, _VIDEO_SUFFIXES)
+        if picked is None:
+            raise HTTPException(400, f"not a video file this app can open: {path}")
+        width, height = modes.probe_size(picked[0])
+        return {"width": width, "height": height, "orientation": modes.orientation(width, height)}
+
+    @app.post("/videos/local")
+    def add_local_video(body: LocalVideoIn):
+        """Import a video FILE from this computer and run the normal clip
+        pipeline on it — for editing/clipping a video before it's published
+        anywhere. The user's title/creator/platform fill the same fields a
+        downloaded video would get, so it lands in the library and the
+        Creators tab exactly like a processed URL."""
+        import hashlib
+        import subprocess as sp
+
+        # Normalised and checked before anything reads it — see picked_file().
+        # The path comes from a native file dialog, so a rejection here means
+        # the request did not come from the app. It hands back the resolved
+        # path and the stat it already took, so nothing below has to ask the
+        # filesystem about a user-supplied string a second time.
+        picked = picked_file(body.path, _VIDEO_SUFFIXES)
+        if picked is None:
+            raise HTTPException(400, f"not a video file this app can open: {body.path}")
+        src, _suffix, src_stat = picked
+
+        # Must contain a video stream (catches audio files / random files).
+        probe = sp.run(
+            [ffprobe(), "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(src)],
+            capture_output=True, text=True,
+        )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            raise HTTPException(400, "that file doesn't look like a video")
+
+        # Length, while we already have the file open. Local files are the one
+        # path where the queue can know a video's duration before it runs, and
+        # duration is what its time estimate scales by.
+        seconds = 0.0
+        try:
+            dur = sp.run(
+                [ffprobe(), "-v", "error", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", str(src)],
+                capture_output=True, text=True,
+            )
+            seconds = float(dur.stdout.strip() or 0)
+        except (ValueError, OSError):
+            pass  # only costs a less precise estimate
+
+        # usedforsecurity=False because this is a naming scheme, not a defence:
+        # it turns a path into a stable short id so re-importing the same file
+        # reuses its downloads/ entry. Nothing trusts it, and collisions cost a
+        # duplicate import rather than anything worse. Saying so explicitly
+        # keeps the security scanners from reading it as a weak digest.
+        #
+        # src is already resolved and src_stat already taken, both by
+        # picked_file() — re-doing either here would be a second unchecked
+        # look at the same user-supplied string.
+        vid = "local_" + hashlib.md5(
+            f"{src}|{src_stat.st_size}|{int(src_stat.st_mtime)}".encode(),
+            usedforsecurity=False,
+        ).hexdigest()[:12]
+        dest = data_dir / "downloads" / f"{vid}.mp4"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        # H.264, H.265, AV1 and VP9 are stream-copied into the pipeline's mp4
+        # layout, which takes seconds; the job converts the slow three to
+        # H.264 where the window can show it. Anything else (ProRes, old AVI
+        # codecs) is converted here. Never left half-written: see
+        # import_local_source, and #122 for what a half-written copy cost.
+        from video.encoding import import_local_source
+
+        if not import_local_source(src, dest, probe.stdout.strip()):
+            raise HTTPException(
+                400,
+                "couldn't convert this file — export it as MP4 (H.264) and try again",
+            )
+
+        title = body.title.strip() or src.stem
+        platform = body.platform if body.platform in ("youtube", "twitch", "kick") else "youtube"
+        d = db()
+        try:
+            # The same file added again: say so, as for a pasted link, so the
+            # app can offer "Make clips again". Queued anyway, it finished in
+            # two seconds with nothing made and no word why (#98).
+            if not body.force and not body.longform and d.shorts_made(vid):
+                return {"job_id": None, "already_processed": True, "video_id": vid}
+            if queue.capacity(d) <= 0:
+                raise HTTPException(
+                    409,
+                    f"the queue is full ({queue.MAX_ACTIVE} videos) — let one finish or remove one first",
+                )
+            d.upsert_video(
+                vid, title=title, channel_name=body.channel.strip(), duration=seconds
+            )
+            # The file's original link, only when the user gave one (a downloaded
+            # live's page). Never required, never guessed.
+            from sources.dispatch import platform_of_link
+
+            original = body.source_url.strip()
+            if original and platform_of_link(original):
+                d.set_video_source(vid, original, platform_of_link(original))
+            if body.channel.strip():
+                from creator.identity import tag_video
+
+                tag_video(d, vid, body.channel.strip(), platform=platform)
+            # force is part of the job, as for a pasted link: without it "Make clips
+            # again" on an uploaded file finished at once, with nothing made.
+            payload = _process_options(body, {"url": f"local:{vid}", "force": body.force}, data_dir=data_dir)
+            job_id = d.add_job("process", json.dumps(payload), video_id=vid, title=title)
+        finally:
+            d.close()
+        worker.notify()
+        broadcaster.publish({"type": "queue"})
+        return {"job_id": job_id, "video_id": vid}
+
+    @app.get("/jobs")
+    def jobs():
+        d = db()
+        try:
+            return [dict(r) for r in d.list_jobs()]
+        finally:
+            d.close()
+
+    @app.get("/jobs/{job_id}")
+    def job(job_id: int):
+        d = db()
+        try:
+            row = d.get_job(job_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such job")
+        return dict(row)
+
+    # ---- queue ------------------------------------------------------------
+    # Management around the job queue that already existed: ordering, pausing,
+    # retrying, and an estimate. GET /jobs above is deliberately left alone —
+    # ProcessingBar uses it as its liveness oracle when the WebSocket drops.
+
+    @app.get("/queue")
+    def queue_snapshot():
+        d = db()
+        try:
+            return queue.snapshot(d)
+        finally:
+            d.close()
+
+    @app.post("/queue/pause")
+    def queue_pause():
+        d = db()
+        try:
+            queue.set_paused(d, True)
+        finally:
+            d.close()
+        broadcaster.publish({"type": "queue"})
+        return {"paused": True}
+
+    @app.post("/queue/resume")
+    def queue_resume():
+        d = db()
+        try:
+            queue.set_paused(d, False)
+        finally:
+            d.close()
+        worker.notify()  # start the next video now, not after the idle poll
+        broadcaster.publish({"type": "queue"})
+        return {"paused": False}
+
+    @app.post("/jobs/{job_id}/move")
+    def move_job(job_id: int, body: QueueMoveIn):
+        d = db()
+        try:
+            if body.to in ("top", "bottom"):
+                # "Run this one next" is the actual need, and stepping a job up
+                # six places one click at a time is not a way to express it.
+                steps = len(d.queued_jobs())
+                delta = -1 if body.to == "top" else 1
+                moved = False
+                for _ in range(steps):
+                    if not queue.move(d, job_id, delta):
+                        break
+                    moved = True
+            else:
+                moved = queue.move(d, job_id, body.delta)
+        finally:
+            d.close()
+        broadcaster.publish({"type": "queue"})
+        return {"moved": moved}
+
+    @app.post("/jobs/{job_id}/retry")
+    def retry_job(job_id: int, standard: bool = False):
+        """Run a failed or cancelled job again. `standard` runs it without
+        Vertical Live: the answer to a video Vertical Live refused as not 9:16."""
+        d = db()
+        try:
+            new_id = queue.retry(d, job_id, drop=("vertical_live",) if standard else ())
+        finally:
+            d.close()
+        if new_id is None:
+            raise HTTPException(409, "only a failed or cancelled job can be retried")
+        worker.notify()
+        broadcaster.publish({"type": "queue"})
+        return {"job_id": new_id}
+
+    @app.patch("/jobs/{job_id}")
+    def patch_job(job_id: int, body: JobPatch):
+        """Change one queued video's settings. Never touches any other job."""
+        d = db()
+        try:
+            row = d.get_job(job_id)
+            if row is None:
+                raise HTTPException(404, "no such job")
+            if row["status"] != "queued":
+                raise HTTPException(409, "that video has already started — cancel it first")
+            if row["type"] != "process":
+                raise HTTPException(409, "only video jobs have these settings")
+            current = json.loads(row["payload"]) if row["payload"] else {}
+            keep = {k: current[k] for k in ("url", "force") if k in current}
+            payload = _process_options(body, {**current, **keep}, data_dir=data_dir)
+            queue.update_settings(d, job_id, payload)
+        finally:
+            d.close()
+        broadcaster.publish({"type": "queue"})
+        return {"ok": True}
+
+    @app.delete("/jobs/{job_id}")
+    def delete_job(job_id: int):
+        """Drop a waiting job. Any video already downloaded for it stays on
+        disk — Settings > Storage owns file cleanup, not the queue."""
+        d = db()
+        try:
+            row = d.get_job(job_id)
+            if row is None:
+                raise HTTPException(404, "no such job")
+            if row["status"] == "running":
+                raise HTTPException(409, "that video is processing — cancel it instead")
+            d.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            d.conn.commit()
+        finally:
+            d.close()
+        broadcaster.publish({"type": "queue"})
+        return {"deleted": job_id}
+
+    @app.post("/queue/clear")
+    def clear_queue(body: dict):
+        what = str(body.get("what", "completed"))
+        d = db()
+        try:
+            removed = queue.clear(d, what)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        finally:
+            d.close()
+        broadcaster.publish({"type": "queue"})
+        return {"deleted": removed}
+
+    @app.post("/jobs/batch")
+    def create_jobs_batch(body: BatchJobIn):
+        """Queue a staged list, each video carrying its own settings.
+
+        Deliberately tolerant: one unreadable link in a list of twelve reports
+        itself and the other eleven are still queued. Failing the whole batch
+        would mean re-staging the good ones."""
+        from sources.dispatch import identify
+
+        created: list[dict] = []
+        skipped: list[dict] = []
+        d = db()
+        try:
+            for item in body.items:
+                url = item.url.strip()
+                if not url:
+                    continue
+                # Pasting a block of text is how this box gets used, so a
+                # stray line that isn't a link at all is an ordinary mistake —
+                # catch it here rather than an hour later in the pipeline.
+                # Only obvious non-links are refused: channel and live pages
+                # have no video id either, and the single-URL path has always
+                # accepted them, so URL-shaped input still goes through.
+                if not (url.startswith("http://") or url.startswith("https://")
+                        or url.startswith("local:")):
+                    skipped.append({"url": url, "reason": "unrecognized"})
+                    continue
+                try:
+                    _, vid = identify(url)
+                except Exception as e:
+                    skipped.append({"url": url, "reason": "unrecognized", "detail": str(e)[:200]})
+                    continue
+                if vid and not item.force:
+                    # As POST /jobs: Longform output of a processed video is
+                    # the normal case, and Shorts of a Longform-only one too.
+                    if not item.longform and d.shorts_made(vid):
+                        skipped.append({"url": url, "reason": "already_processed", "video_id": vid})
+                        continue
+                    if queue.duplicate_of(d, vid) is not None:
+                        skipped.append({"url": url, "reason": "already_queued", "video_id": vid})
+                        continue
+                # Enforced here as well as in the UI: the cap is a real limit,
+                # not a disabled button. Reported per item so the videos that
+                # do fit are still queued.
+                if queue.capacity(d) <= 0:
+                    skipped.append({"url": url, "reason": "queue_full"})
+                    continue
+                # Same builder as POST /jobs and PATCH, so this row's options
+                # get the identical clamps and filter validation.
+                try:
+                    payload = _process_options(item, {"url": url, "force": item.force}, data_dir=data_dir)
+                except HTTPException as e:
+                    skipped.append({"url": url, "reason": "bad_option", "detail": str(e.detail)[:200]})
+                    continue
+                job_id = d.add_job("process", json.dumps(payload), video_id=vid or "")
+                created.append({"url": url, "job_id": job_id, "video_id": vid or ""})
+        finally:
+            d.close()
+        if created:
+            worker.notify()  # no-op while stopped; wakes it if already running
+        broadcaster.publish({"type": "queue"})
+        return {"created": created, "skipped": skipped}
+
+    @app.get("/jobs/{job_id}/log")
+    def job_log(job_id: int, tail: int = 300):
+        """The run's own log. The in-memory ring only holds minutes, which is
+        no help for a batch that failed at 3am."""
+        d = db()
+        try:
+            row = d.get_job(job_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such job")
+        path = Path(row["log_path"]) if row["log_path"] else None
+        if path is None or not path.exists():
+            return {"log": "", "missing": True}
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception as e:
+            raise HTTPException(500, f"could not read the log: {e}")
+        return {"log": "\n".join(lines[-max(1, tail):]), "missing": False}
+
+    @app.post("/cancel")
+    def cancel_processing(body: CancelIn):
+        """Cancel the in-flight processing of a video. Cooperative — the
+        pipeline stops at its next stage boundary (or aborts the download)."""
+        from core import cancel
+        from sources.dispatch import identify
+
+        vid = body.video_id
+        if not vid and body.url:
+            _, vid = identify(body.url)
+        if not vid:
+            raise HTTPException(400, "provide video_id or a resolvable url")
+        cancel.request_cancel(vid)
+        return {"cancelling": vid}
+
+    def _log_feedback(d: StateDB, row, action: str, extra: dict | None = None) -> None:
+        """Append a learning signal for creator preference learning (which
+        clip styles this creator's user keeps, edits, exports). Snapshot the
+        clip's stats — the clip row itself may be deleted later. Best-effort:
+        a logging failure must never fail the user's actual request."""
+        try:
+            from core.state import _now
+
+            v = d.conn.execute(
+                "SELECT creator_id FROM videos WHERE video_id = ?", (row["video_id"],)
+            ).fetchone()
+            meta = {
+                "score": row["score"],
+                "scores": json.loads(row["scores"]) if row["scores"] else None,
+                "duration": round(row["end_s"] - row["start_s"], 1),
+                **(extra or {}),
+            }
+            d.conn.execute(
+                "INSERT INTO clip_feedback (creator_id, clip_id, action, clip_meta, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (v["creator_id"] if v else None, row["id"], action, json.dumps(meta), _now()),
+            )
+            d.conn.commit()
+        except Exception:
+            pass  # an audit row is not worth failing the request over
+
+    @app.get("/storage")
+    def storage():
+        """Where the disk went, and how much of it is safe to reclaim."""
+        from core import housekeeping
+
+        d = db()
+        try:
+            found = housekeeping.survey(d, data_dir)
+        finally:
+            d.close()
+        found.pop("_groups", None)  # Paths aren't JSON, and the UI doesn't need them
+        return found
+
+    @app.get("/storage/videos")
+    def storage_videos():
+        """What each processed video costs on disk, biggest first.
+
+        The cleanup above only removes leftovers — it deliberately never
+        touches a source or clip the library knows about, which on a real
+        library is a rounding error next to the sources themselves. Deleting
+        individual clips does not help either: it frees the clip file and
+        leaves the multi-gigabyte source behind.
+
+        So this lists the actual cost per video, and the UI pairs it with
+        DELETE /videos/{id}, which removes the clips, the source, the
+        transcript and the rows together.
+        """
+        def total(paths) -> int:
+            out = 0
+            for p in paths:
+                try:
+                    if p.is_file():
+                        out += p.stat().st_size
+                except OSError:
+                    pass  # vanished under us; it costs nothing either way
+            return out
+
+        d = db()
+        try:
+            rows = d.conn.execute(
+                "SELECT v.video_id, v.title, v.channel_name, v.created_at,"
+                "       COUNT(c.id) AS clips"
+                "  FROM videos v LEFT JOIN clips c ON c.video_id = v.video_id"
+                " GROUP BY v.video_id"
+            ).fetchall()
+        finally:
+            d.close()
+
+        downloads, transcripts, clips_root = (
+            data_dir / "downloads", data_dir / "transcripts", data_dir / "clips"
+        )
+        out = []
+        for r in rows:
+            vid = r["video_id"]
+            source = total(
+                p for p in downloads.iterdir()
+                if p.is_file() and p.name.startswith(f"{vid}.")
+            ) if downloads.is_dir() else 0
+            transcript = total([transcripts / f"{vid}.json"])
+            clip_bytes = 0
+            if clips_root.is_dir():
+                for creator in clips_root.iterdir():
+                    if not creator.is_dir():
+                        continue
+                    for folder in creator.iterdir():
+                        # Clip folders are named "<title> [<video_id>]".
+                        if folder.is_dir() and folder.name.endswith(f"[{vid}]"):
+                            clip_bytes += total(folder.rglob("*"))
+            out.append({
+                "video_id": vid,
+                "title": r["title"] or vid,
+                "channel": r["channel_name"] or "",
+                "created_at": r["created_at"],
+                "clips": r["clips"],
+                "source_bytes": source,
+                "transcript_bytes": transcript,
+                "clip_bytes": clip_bytes,
+                "total_bytes": source + transcript + clip_bytes,
+            })
+        out.sort(key=lambda v: -v["total_bytes"])
+        return {"videos": out, "total_bytes": sum(v["total_bytes"] for v in out)}
+
+    @app.post("/storage/cleanup")
+    def storage_cleanup():
+        """Delete leftovers from failed renders, interrupted downloads and
+        old previews. Never removes a clip or a source the library still
+        references."""
+        from core import housekeeping
+
+        d = db()
+        try:
+            result = housekeeping.clean(d, data_dir)
+        finally:
+            d.close()
+        print(f"  Housekeeping: freed {result['bytes_freed']/1e9:.2f} GB "
+              f"across {result['files_removed']} file(s)")
+        return result
+
+    @app.delete("/videos/{video_id}")
+    def delete_video(video_id: str):
+        """Delete a video: its download, transcript, clip files, and all its
+        database rows. Only blocked if the video is ACTIVELY processing right
+        now (not merely stuck in an in-progress status from a past crash)."""
+        from core import cancel
+
+        # This id comes off the URL and is then used to unlink files. A path
+        # parameter cannot contain "/" — the route would not match — but it
+        # CAN contain "\", which traverses just as well on Windows, and the
+        # transcript line below is an unlink(). Real ids are the platform's
+        # own (tw_2814378156, grMkMHCx9Bo, local_a7266e1b1a02), so requiring
+        # a plain name costs nothing.
+        if safe_name(video_id) is None:
+            raise HTTPException(400, "invalid video id")
+
+        if cancel.active_video() == video_id:
+            raise HTTPException(409, "video is processing right now — cancel it first")
+
+        # Remove files: download, transcript, and the clip folder.
+        #
+        # Everything below is chosen by LISTING a folder and comparing names,
+        # never by building a path out of the id. That matters because these
+        # are unlinks and an rmtree: a path assembled from a parameter is one
+        # missed check away from deleting something else, whereas a path taken
+        # from a directory listing is, by construction, a thing that is in
+        # that directory.
+        downloads = data_dir / "downloads"
+        if downloads.is_dir():
+            for f in downloads.iterdir():
+                # Mirrors the old glob("<id>.*") exactly. Not `f.stem == id`,
+                # which would miss yt-dlp's intermediates ("<id>.f137.mp4",
+                # "<id>.mp4.part") and quietly leave gigabytes behind.
+                if f.is_file() and f.name.startswith(f"{video_id}."):
+                    _unlink_best_effort(f, data_dir)
+
+        transcripts = data_dir / "transcripts"
+        if transcripts.is_dir():
+            for f in transcripts.iterdir():
+                if f.is_file() and f.name == f"{video_id}.json":
+                    _unlink_best_effort(f, data_dir)
+
+        # Whose voice is whose in it (analysis/voice_turns.py).
+        voice_profiles = data_dir / "voice_profiles"
+        if voice_profiles.is_dir():
+            for f in voice_profiles.iterdir():
+                if f.is_file() and f.name == f"{video_id}.json":
+                    _unlink_best_effort(f, data_dir)
+
+        clips_root = data_dir / "clips"
+        if clips_root.is_dir():
+            for creator_dir in clips_root.iterdir():
+                if not creator_dir.is_dir():
+                    continue
+                for clip_dir in creator_dir.iterdir():
+                    # Folders are named "<title> [<video_id>]".
+                    if clip_dir.is_dir() and clip_dir.name.endswith(f"[{video_id}]"):
+                        shutil.rmtree(clip_dir, ignore_errors=True)
+
+        d = db()
+        try:
+            d.delete_video(video_id)
+        finally:
+            d.close()
+        return {"deleted": video_id}
+
+    @app.delete("/clips/{clip_id}")
+    def delete_clip(clip_id: int):
+        """Delete ONE clip — its file, its editor preview, and its rows —
+        so the creator can cull clips they won't post and reclaim the space.
+        The video and every other clip are untouched."""
+        d = db()
+        try:
+            path = d.delete_clip(clip_id)
+        finally:
+            d.close()
+        if path is None:
+            raise HTTPException(404, "no such clip")
+        freed = 0
+        clip_file = Path(path)
+        # Only delete inside our own data dir — never follow a stray path out.
+        if clip_file.exists() and data_dir in clip_file.resolve().parents:
+            size = clip_file.stat().st_size
+            if _unlink_best_effort(clip_file, data_dir):
+                freed = size
+        _unlink_best_effort(data_dir / "previews" / f"clip_{clip_id}.mp4", data_dir)
+        return {"deleted": clip_id, "bytes_freed": freed}
+
+    @app.websocket("/ws")
+    async def ws(socket: WebSocket):
+        await socket.accept()
+        queue = broadcaster.subscribe()
+        try:
+            while True:
+                event = await queue.get()
+                await socket.send_json(event)
+        except WebSocketDisconnect:
+            pass  # the browser closed the tab; the finally below cleans up
+        finally:
+            broadcaster.unsubscribe(queue)
+
+    # ---- videos + clips ------------------------------------------------------
+
+    @app.get("/videos")
+    def videos():
+        d = db()
+        try:
+            rows = d.conn.execute(
+                """SELECT v.*, COUNT(c.id) AS clip_count, cr.display_name AS creator_name
+                   FROM videos v
+                   LEFT JOIN clips c ON c.video_id = v.video_id
+                   LEFT JOIN creators cr ON cr.creator_id = v.creator_id
+                   GROUP BY v.video_id ORDER BY v.created_at DESC"""
+            ).fetchall()
+            # `outcome` is stored as JSON (why this run produced the clips it
+            # did). Decoded here rather than in the UI, the same way clips
+            # decode their scores/render_opts at this boundary.
+            out = []
+            for r in rows:
+                v = dict(r)
+                raw = v.get("outcome")
+                try:
+                    v["outcome"] = json.loads(raw) if raw else None
+                except (ValueError, TypeError):
+                    v["outcome"] = None
+                out.append(v)
+            return out
+        finally:
+            d.close()
+
+    @app.get("/videos/{video_id}/clips")
+    def clips_for_video(video_id: str):
+        d = db()
+        try:
+            return [_clip_json(r) for r in d.clips_for_video(video_id)]
+        finally:
+            d.close()
+
+    @app.patch("/clips/{clip_id}")
+    def patch_clip(clip_id: int, body: ClipPatch):
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+            fields = {}
+            if body.title is not None:
+                fields["title"] = body.title.strip()[:100]
+            if body.description is not None:
+                fields["description"] = body.description.strip()
+            if body.hashtags is not None:
+                fields["hashtags"] = json.dumps(body.hashtags)
+            # The clip's star, set by hand. Starring again keeps the first time,
+            # and it is not logged as feedback: only a real export says "keep
+            # this style".
+            from core.state import _now
+
+            if body.exported is False:
+                fields["exported_at"] = ""
+            elif body.exported and not row["exported_at"]:
+                fields["exported_at"] = _now()
+            if body.suggestion is not None:
+                fields["scores"] = _suggestion_state(row, body.suggestion)
+            if fields:
+                d.set_clip(clip_id, **fields)
+            return _clip_json(d.get_clip(clip_id))
+        finally:
+            d.close()
+
+    def _clip_captions(row, as_burned: bool = False) -> list[dict]:
+        """Current caption lines for a clip: the user-corrected override when
+        one exists, otherwise regenerated from the transcript.
+
+        `as_burned` is for a caller that will SAVE the lines it is given (the
+        AI edit). On a clip with the second speaker's colour on, the render
+        ends a line where the speaker changes; saved lines keep their
+        grouping and are coloured whole, so saving the plain grouping would
+        put two people's words in one caption and one colour."""
+        opts = json.loads(row["render_opts"]) if row["render_opts"] else {}
+        if opts.get("caption_lines"):
+            return opts["caption_lines"]
+
+        from core.models import ClipCandidate, Segment
+        from video.captions import DEFAULT_STYLE, build_caption_lines
+
+        transcript_path = data_dir / "transcripts" / f"{row['video_id']}.json"
+        if not transcript_path.exists():
+            return []
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+        segments = [Segment(**s) for s in transcript["segments"]]
+        candidate = ClipCandidate(start=row["start_s"], end=row["end_s"], score=row["score"])
+        words = opts.get("caption_style", {}).get(
+            "words_per_caption", DEFAULT_STYLE["words_per_caption"]
+        )
+        if as_burned:
+            from core.pipeline import _wants_second_speaker
+            from video.captions import paint_turns
+
+            if _wants_second_speaker(config, opts):
+                said = paint_turns(opts.get("speaker_turns"), opts.get("speaker_edits"))
+                # Who says a line is worked out afresh at every render.
+                return [
+                    {k: v for k, v in line.items() if k != "speaker"}
+                    for line in build_caption_lines(segments, candidate, words, said)
+                ]
+        return build_caption_lines(segments, candidate, words)
+
+    @app.get("/clips/{clip_id}/captions")
+    def get_captions(clip_id: int):
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        return {"lines": _clip_captions(row)}
+
+    @app.put("/clips/{clip_id}/captions")
+    def put_captions(clip_id: int, body: CaptionsIn):
+        """Save corrected caption text and queue a re-render burning it in."""
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+            lines = [
+                {"start": float(l["start"]), "end": float(l["end"]), "text": str(l.get("text", ""))}
+                for l in body.lines
+                if "start" in l and "end" in l
+            ]
+            payload = {"clip_id": clip_id, "render_opts": {"caption_lines": lines}}
+            job_id = d.add_job("render", json.dumps(payload))
+            _log_feedback(d, row, "captions_edited")
+        finally:
+            d.close()
+        worker.notify()
+        return {"job_id": job_id}
+
+    @app.post("/clips/{clip_id}/tighten")
+    def tighten_clip(clip_id: int, body: TightenIn):
+        """Propose cuts removing dead air and filler words. Returns keep
+        ranges for the editor to draw — nothing is rendered or saved."""
+        from analysis import tighten
+
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+        finally:
+            d.close()
+
+        path = Path(row["path"]) if row["path"] else None
+        if path is None or not path.exists():
+            raise HTTPException(404, "clip file missing")
+
+        # Word timings for this clip's window, made clip-relative.
+        words: list[dict] = []
+        tpath = data_dir / "transcripts" / f"{row['video_id']}.json"
+        if tpath.exists():
+            transcript = json.loads(tpath.read_text(encoding="utf-8"))
+            for seg in transcript["segments"]:
+                for w in seg.get("words") or []:
+                    if w["end"] > row["start_s"] and w["start"] < row["end_s"]:
+                        words.append({
+                            "start": w["start"] - row["start_s"],
+                            "end": w["end"] - row["start_s"],
+                            "word": w.get("word", ""),
+                        })
+
+        return tighten.propose(
+            path,
+            words,
+            duration=float(row["end_s"]) - float(row["start_s"]),
+            drop_silence=body.silence,
+            drop_fillers=body.fillers,
+        )
+
+    @app.post("/clips/{clip_id}/ai-edit")
+    def ai_edit(clip_id: int, body: AiEditIn):
+        """Chat-driven editing: plain language in, validated edit + re-render out."""
+        from analysis.clip_edit import interpret_edit
+        from core.pipeline import _with_usable_model
+        from llm.registry import create_backend
+
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+
+            opts = json.loads(row["render_opts"]) if row["render_opts"] else {}
+            caption_lines = _clip_captions(row, as_burned=True)
+            transcript_path = data_dir / "transcripts" / f"{row['video_id']}.json"
+            source_duration = 0.0
+            if transcript_path.exists():
+                transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+                if transcript["segments"]:
+                    source_duration = float(transcript["segments"][-1]["end"])
+
+            clip_state = {
+                "start": row["start_s"],
+                "end": row["end_s"],
+                "duration": round(row["end_s"] - row["start_s"], 1),
+                "crop": opts.get("crop", "track"),
+                "captions_enabled": opts.get("captions", opts.get("job_captions", True)),
+                "caption_style": opts.get("caption_style", {}),
+            }
+
+            result = interpret_edit(
+                body.message,
+                clip_state=clip_state,
+                caption_lines=caption_lines,
+                source_duration=source_duration,
+                llm=create_backend(_with_usable_model(config["llm"])),  # one that's installed (#118)
+            )
+
+            job_id = None
+            if result["needs_render"]:
+                payload: dict = {"clip_id": clip_id}
+                if result["start"] is not None:
+                    payload["start"] = result["start"]
+                if result["end"] is not None:
+                    payload["end"] = result["end"]
+                if result["render_opts"]:
+                    payload["render_opts"] = result["render_opts"]
+                job_id = d.add_job("render", json.dumps(payload))
+                _log_feedback(
+                    d, row,
+                    "timestamps_adjusted"
+                    if (result["start"] is not None or result["end"] is not None)
+                    else "rerendered",
+                )
+        finally:
+            d.close()
+
+        if job_id is not None:
+            worker.notify()
+        return {"reply": result["reply"], "job_id": job_id}
+
+    @app.post("/clips/{clip_id}/render")
+    def rerender_clip(clip_id: int, body: RenderIn):
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+            payload = {"clip_id": clip_id}
+            if body.start is not None:
+                payload["start"] = body.start
+            if body.end is not None:
+                payload["end"] = body.end
+            if body.render_opts:
+                payload["render_opts"] = _clean_render_gaming(dict(body.render_opts))
+            if body.suggestions is not None:
+                payload["suggestions"] = used_suggestions(body.suggestions)
+            job_id = d.add_job("render", json.dumps(payload))
+            _log_feedback(
+                d, row,
+                "timestamps_adjusted"
+                if (body.start is not None or body.end is not None)
+                else "rerendered",
+            )
+        finally:
+            d.close()
+        worker.notify()
+        return {"job_id": job_id}
+
+    @app.post("/clips/{clip_id}/preview")
+    def preview_clip(clip_id: int, body: PreviewIn):
+        """Render this clip with every pending edit applied — into a preview
+        file, through the REAL render path (face tracking, letterbox,
+        captions, hook, music, speed), so the preview's framing and zoom are
+        exactly what Apply will produce. Slower than a rough draft, but
+        what you see is what you export."""
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        source = data_dir / "downloads" / f"{row['video_id']}.mp4"
+        if not source.exists():
+            raise HTTPException(404, "source video missing — cannot preview-render")
+
+        segments = []
+        tpath = data_dir / "transcripts" / f"{row['video_id']}.json"
+        if tpath.exists():
+            from core.models import Segment
+
+            tdata = json.loads(tpath.read_text(encoding="utf-8"))
+            segments = [Segment(**s) for s in tdata["segments"]]
+
+        from core.models import ClipCandidate
+        from core.pipeline import _render_files
+
+        opts = json.loads(row["render_opts"]) if row["render_opts"] else {}
+        opts["edit"] = body.edit  # pending edit (None = cleared)
+        if body.caption_lines is not None:
+            opts["caption_lines"] = body.caption_lines
+        if body.crop:
+            opts["crop"] = body.crop
+        if body.caption_style:
+            opts["caption_style"] = {**(opts.get("caption_style") or {}), **body.caption_style}
+        if body.watermark is not None:
+            # {} clears the watermark for this clip; a dict sets it.
+            opts["watermark"] = body.watermark or None
+        if body.normalize_audio is not None:
+            opts["normalize_audio"] = body.normalize_audio
+        if body.gaming_off:
+            opts["gaming"] = None
+        elif body.gaming is not None:
+            opts["gaming"] = _clean_render_gaming({"gaming": body.gaming})["gaming"]
+        if body.speaker_edits is not None:
+            opts["speaker_edits"] = body.speaker_edits
+        if body.captions is not None:
+            opts["captions"] = body.captions
+
+        candidate = ClipCandidate(
+            start=row["start_s"], end=row["end_s"],
+            score=row["score"] or 0, hook=row["hook"] or "",
+        )
+        prev_dir = data_dir / "previews"
+        prev_dir.mkdir(parents=True, exist_ok=True)
+        # clip_id is a number, so this is always inside previews/; checked as
+        # a path all the same, since the file is overwritten in place below.
+        named = os.path.normpath(os.path.join(prev_dir, f"clip_{int(clip_id)}.mp4"))
+        if not named.startswith(os.path.join(os.path.normpath(prev_dir), "")):
+            raise HTTPException(400, "not a clip")
+        out = Path(named)
+        try:
+            from transcription.transcriber import detected_language
+
+            content_lang = detected_language(row["video_id"], data_dir / "transcripts")
+            rendered, _ = _render_files(
+                source, candidate, segments, prev_dir, config, opts, content_lang
+            )
+            # The last preview may still be playing in the editor: Windows
+            # refuses deleting or renaming over it (#137), so put the new one
+            # in its place the way the end card does.
+            from video.outro import _replace_with_retry
+
+            if not _replace_with_retry(rendered, out, label="Preview"):
+                raise RuntimeError(f"{out.name} is open elsewhere and could not be written")
+            # Moved into place, or written into it with the old draft still
+            # playing: what is left is scratch, and on Windows deleting a file
+            # something still holds raises, which would fail a good preview.
+            discard(rendered)
+        except Exception as e:
+            raise HTTPException(500, f"preview render failed: {str(e)[:400]}")
+        import time as _time
+
+        return {"url": f"/media/preview/{clip_id}?v={int(_time.time())}"}
+
+    def _video_frame(at: float, url: str, path: str) -> Path:
+        """A frame of a video that hasn't been processed yet (a link or a file
+        on this computer), cached (sources/preview_frames.py)."""
+        from sources import preview_frames
+
+        cache = data_dir / "previews" / "source_frames"
+        try:
+            if path:
+                picked = picked_file(path, _VIDEO_SUFFIXES)
+                if picked is None:
+                    raise HTTPException(400, "not a video file on this computer")
+                return preview_frames.frame(cache, at, path=picked[0])
+            if url:
+                return preview_frames.frame(cache, at, url=url.strip())
+            raise HTTPException(400, "give a url or a path")
+        except preview_frames.NotFrameable as e:
+            raise HTTPException(422, str(e)) from e
+
+    def _people(image: Path) -> dict:
+        """Everyone on a frame, for the layout editor's face check. The person
+        detector runs here only when the editor asks."""
+        try:
+            from gaming import detect
+        except ImportError as e:              # a build without the vision stack
+            raise HTTPException(503, "person detection isn't available in this build") from e
+        return detect.people_on(image, config["tracking"]["detector"])
+
+    @app.get("/sources/frame")
+    def source_frame(at: float = 0.5, url: str = "", path: str = ""):
+        """A frame of a video that hasn't been processed yet, `at` (0-1) of the
+        way through: a YouTube/Twitch/Kick link (nothing is downloaded) or a
+        file on this computer. For setting up a Gaming / Reaction layout on the
+        real picture before processing."""
+        out = _video_frame(at, url, path)
+        return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/sources/people")
+    def source_people(at: float = 0.5, url: str = "", path: str = ""):
+        """Who is on that frame, and where their heads are (normalized)."""
+        return _people(_video_frame(at, url, path))
+
+    def _panels(frames: list) -> list:
+        """The stream's solid panels (a black chat bar, a splits timer) on
+        these frames, which the game crop keeps out (gaming/panels.py)."""
+        try:
+            from gaming import panels
+        except ImportError:
+            return []
+        return panels.panels_in_images(frames)
+
+    @app.get("/sources/suggest")
+    def source_suggest(url: str = "", path: str = ""):
+        """A starting webcam box for the layout editor, from frames spread over
+        the video: the same person in the same place, inside an overlay's own
+        border (gaming/detect.suggest_cam). None when there isn't a clear one;
+        the webcam is then found by who is talking, when processing. With it,
+        the stream's solid panels."""
+        frames = [_video_frame(at, url, path) for at in (0.1, 0.3, 0.5, 0.7, 0.9)]
+        try:
+            from gaming import detect
+        except ImportError:
+            return {"cam": None, "panels": []}
+        return {"cam": detect.suggest_cam(frames, config["tracking"]["detector"]), "panels": _panels(frames)}
+
+    SETUP_FRAMES = (0.1, 0.3, 0.5, 0.7, 0.9)   # the editor's five frames, spread over the video
+
+    def _snap(frames: list, box: str) -> dict:
+        """A drawn webcam box snapped onto the overlay's own border, over the
+        editor's frames (gaming/detect.snap_details)."""
+        try:
+            parts = [float(v) for v in box.split(",")]
+        except ValueError as e:
+            raise HTTPException(400, "box must be x,y,w,h") from e
+        from core.modes import _unit_box
+
+        unit = _unit_box(parts)
+        if unit is None:
+            raise HTTPException(400, "box must be x,y,w,h within the frame")
+        try:
+            import cv2
+
+            from gaming import detect
+        except ImportError as e:
+            raise HTTPException(503, "border snapping isn't available in this build") from e
+        stills = []
+        for f in frames:
+            img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
+            if img is not None:
+                h, w = img.shape
+                stills.append(cv2.resize(img, (detect.STILLS_WIDTH, round(h * detect.STILLS_WIDTH / w))))
+        snapped, bordered = detect.snap_details(tuple(unit), stills)
+        return {"box": [round(v, 4) for v in snapped], "bordered": bordered}
+
+    @app.get("/sources/snap")
+    def source_snap(box: str, url: str = "", path: str = ""):
+        """A webcam box drawn in the layout editor, snapped to its border."""
+        return _snap([_video_frame(at, url, path) for at in SETUP_FRAMES], box)
+
+    def _clip_frame(clip_id: int, at: float) -> Path:
+        """A frame of a clip's SOURCE video, `at` (0-1) of the way through the
+        clip, cached."""
+        import subprocess as sp
+
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        source = data_dir / "downloads" / f"{row['video_id']}.mp4"
+        if not source.exists():
+            raise HTTPException(404, "the source video is no longer on disk")
+        start, end = float(row["start_s"]), float(row["end_s"])
+        when = start + min(max(at, 0.0), 1.0) * max(0.0, end - start)
+        # One file per moment, written aside and swapped in: the editor asks
+        # for several frames at once, and one shared file was overwritten
+        # while it was being served (a truncated image).
+        from sources.preview_frames import made_once
+
+        def make(part: Path) -> None:
+            r = sp.run(
+                [ffmpeg(), "-y", "-v", "error", "-ss", f"{when:.2f}", "-i", str(source),
+                 "-frames:v", "1", "-q:v", "3", str(part)],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0 or not part.exists():
+                raise HTTPException(500, "could not read a frame from the source video")
+
+        return made_once(data_dir / "previews", f"frame_{clip_id}_{round(when * 10)}.jpg", make)
+
+    @app.get("/clips/{clip_id}/source-frame")
+    def clip_source_frame(clip_id: int, at: float = 0.5):
+        """A frame of the SOURCE video (not the rendered clip), `at` of the
+        way through the clip, to draw the Gaming / Reaction webcam and game
+        area on: the boxes are in the source's own layout."""
+        return FileResponse(_clip_frame(clip_id, at), media_type="image/jpeg",
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/clips/{clip_id}/snap")
+    def clip_snap(clip_id: int, box: str):
+        """A webcam box drawn for this clip, snapped to its border."""
+        return _snap([_clip_frame(clip_id, at) for at in SETUP_FRAMES], box)
+
+    @app.get("/clips/{clip_id}/panels")
+    def clip_panels(clip_id: int):
+        """The solid panels on the clip's source, over the editor's frames."""
+        return {"panels": _panels([_clip_frame(clip_id, at) for at in SETUP_FRAMES])}
+
+    @app.get("/clips/{clip_id}/people")
+    def clip_people(clip_id: int, at: float = 0.5):
+        """Who is on that frame of the clip's source, and where their heads are."""
+        return _people(_clip_frame(clip_id, at))
+
+    @app.get("/clips/{clip_id}/creator-gaming-layout")
+    def get_creator_gaming_layout(clip_id: int):
+        """The Gaming / Reaction layout remembered for this clip's creator."""
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+            creator_id = d.creator_of_video(row["video_id"])
+            layout = d.creator_gaming_layout(creator_id) if creator_id is not None else None
+        finally:
+            d.close()
+        return {"creator_id": creator_id, "layout": layout}
+
+    @app.put("/clips/{clip_id}/creator-gaming-layout")
+    def put_creator_gaming_layout(clip_id: int, body: CreatorGamingLayoutIn):
+        """Remember this layout for the clip's creator, so their next videos
+        with Gaming / Reaction on start from it (null forgets it)."""
+        from core.modes import clean_gaming
+
+        layout = None
+        if body.layout is not None:
+            try:
+                layout = {k: v for k, v in clean_gaming(body.layout).items() if k != "by"}
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+            if row is None:
+                raise HTTPException(404, "no such clip")
+            creator_id = d.creator_of_video(row["video_id"])
+            if creator_id is None:
+                raise HTTPException(409, "This video isn't linked to a creator, so there is "
+                                         "nobody to remember the layout for.")
+            d.set_creator_gaming_layout(creator_id, layout)
+        finally:
+            d.close()
+        return {"creator_id": creator_id, "layout": layout}
+
+    @app.get("/media/preview/{clip_id}")
+    def media_preview(clip_id: int):
+        # Named from the clip's id as the database has it rather than from
+        # the request's: the same number, but a path built from the request
+        # is one code scanning has to take on trust.
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        path = (data_dir / "previews" / f"clip_{int(row['id'])}.mp4").resolve()
+        if not path.exists():
+            raise HTTPException(404, "no draft preview")
+        # Never from the cache: every draft of a clip is written to the same
+        # file, so a cached one is the draft before (#147).
+        return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+    @app.get("/clips/{clip_id}/words")
+    def clip_words(clip_id: int):
+        """Word-level Whisper timestamps within this clip (clip-relative
+        seconds) — powers the editor's clickable transcript."""
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        tpath = data_dir / "transcripts" / f"{row['video_id']}.json"
+        if not tpath.exists():
+            return {"words": []}
+        from video.captions import clip_words as words_in_clip
+
+        data = json.loads(tpath.read_text(encoding="utf-8"))
+        every = (w for seg in data.get("segments", []) for w in seg.get("words") or [])
+        return {"words": words_in_clip(every, row["start_s"], row["end_s"])}
+
+    @app.get("/media/{clip_id}")
+    def media(clip_id: int):
+        d = db()
+        try:
+            row = d.get_clip(clip_id)
+        finally:
+            d.close()
+        if row is None or not row["path"]:
+            raise HTTPException(404, "no such clip")
+        path = Path(row["path"]).resolve()
+        if not path.exists() or data_dir not in path.parents:
+            raise HTTPException(404, "clip file missing")
+        # Never from the cache, like the frames: a clip's file can be written
+        # again in place (an end card added later), and what the editor shows
+        # must be the file as it is now (#147).
+        return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+    # ---- multilingual publishing (separate pipeline; see multilingual/) ----
+
+    @app.get("/languages")
+    def list_languages():
+        from multilingual import dub as dubber
+        from multilingual.languages import LANGUAGES
+        from video.captions import caption_font_for
+
+        return {
+            "languages": [
+                {
+                    "code": c,
+                    "name": n,
+                    "native": nat,
+                    "can_dub": dubber.supported(c),
+                    # The font a burn would actually use — non-Latin scripts
+                    # get swapped to one that has the glyphs. None means the
+                    # clip's own caption font is fine. The editor preview
+                    # needs this or it shows tofu boxes for Hindi/Thai/etc.
+                    "caption_font": caption_font_for(c, None),
+                }
+                for c, (n, nat, _p) in LANGUAGES.items()
+            ],
+            # Dubbing needs an optional local TTS package; everything else
+            # works without it.
+            "dubbing_available": dubber.available(),
+        }
+
+    @app.get("/voices")
+    def list_voices(language: str):
+        """Every dubbing voice available for a language, so the creator can
+        choose one that matches the person on screen."""
+        from multilingual import dub as dubber
+        from multilingual.voices import DEFAULTS, list_for
+
+        if not dubber.available():
+            return {"voices": [], "default": None}
+        return {
+            "voices": list_for(language, data_dir / "voices"),
+            "default": DEFAULTS.get(language),
+        }
+
+    @app.get("/voices/preview")
+    def preview_voice(language: str, voice: str | None = None):
+        """A spoken sample of one voice. GET so the player can point at it
+        directly — the app's CSP allows media from this API, not blobs."""
+        from multilingual import dub as dubber
+        from multilingual.languages import sample_text
+        from multilingual.voices import resolve
+
+        if not dubber.available():
+            raise HTTPException(400, "dubbing package not installed")
+        voices_dir = data_dir / "voices"
+        name = dubber.ensure_voice(language, voices_dir, voice)
+        if name is None:
+            raise HTTPException(400, f"no voice available for {language}")
+        _n, speaker = resolve(voice, language)
+        # Must be spoken IN the language being auditioned. Reading English
+        # through a Turkish voice only demonstrates an accent, which tells
+        # you nothing about the dub — so refuse rather than mislead.
+        sample = sample_text(language)
+        if sample is None:
+            raise HTTPException(400, f"no sample sentence for {language}")
+        # Built from the RESOLVED name, not the raw `voice` parameter. The old
+        # line stripped "#" and "/" from whatever the caller sent, which left
+        # "\" and ".." intact — enough to write the preview outside previews/
+        # on Windows. resolve() has already validated the shape of `name`.
+        safe = f"{name}_{speaker}" if speaker is not None else name
+        out = data_dir / "previews" / f"voice_{safe}.wav"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if not out.exists() and not dubber._speak(
+            sample, name, voices_dir, out, speaker=speaker
+        ):
+            raise HTTPException(500, "could not synthesize a sample")
+        return FileResponse(out, media_type="audio/wav")
+
+    @app.post("/translate")
+    def translate_clips(body: TranslateIn):
+        """Queue translation or export. Runs on finished clips only — the
+        clips themselves are never modified.
+
+        stage='translate' only produces text for review; stage='export'
+        writes the files using whatever text has been reviewed."""
+        from multilingual.languages import is_supported
+
+        langs = [c for c in body.languages if is_supported(c)]
+        if not langs:
+            raise HTTPException(400, "pick at least one supported language")
+        if not body.clip_ids:
+            raise HTTPException(400, "no clips selected")
+        stage = body.stage if body.stage in ("translate", "export") else "export"
+        if stage == "export" and not body.folder:
+            raise HTTPException(400, "choose an export folder")
+        d = db()
+        try:
+            job_id = d.add_job("translate", json.dumps({
+                "clip_ids": body.clip_ids[:50],
+                "languages": langs,
+                "stage": stage,
+                "folder": body.folder,
+                "include_video": body.include_video,
+                "burn": body.burn,
+                "dub": body.dub,
+                "subtitles": body.subtitles,
+                "post_text": body.post_text,
+                "voices": body.voices or {},
+                "style": body.style or {},
+            }))
+        finally:
+            d.close()
+        worker.notify()
+        return {"job_id": job_id, "languages": langs, "clips": len(body.clip_ids)}
+
+    @app.get("/clips/{clip_id}/translations")
+    def clip_translations(clip_id: int):
+        """The translated caption text held for review, per language, with
+        the original lines beside it so the two can be compared."""
+        d = db()
+        try:
+            clip = d.get_clip(clip_id)
+            if clip is None:
+                raise HTTPException(404, "clip not found")
+            return {
+                "source": _clip_captions(clip),
+                "translations": [
+                    {
+                        "language": r["language"],
+                        "lines": json.loads(r["lines"]),
+                        "post": json.loads(r["post"] or "{}"),
+                        "edited": bool(r["edited"]),
+                        "updated_at": r["updated_at"],
+                    }
+                    for r in d.translations_for(clip_id)
+                ],
+            }
+        finally:
+            d.close()
+
+    @app.put("/clips/{clip_id}/translations/{language}")
+    def save_clip_translation(clip_id: int, language: str, body: TranslationPatch):
+        """Store a creator's corrections. Marked `edited`, which stops a
+        later re-translation from overwriting them."""
+        from multilingual.languages import is_supported
+
+        if not is_supported(language):
+            raise HTTPException(400, f"unsupported language {language!r}")
+        d = db()
+        try:
+            if d.get_clip(clip_id) is None:
+                raise HTTPException(404, "clip not found")
+            existing = d.get_translation(clip_id, language)
+            post = body.post if body.post is not None else (
+                json.loads(existing["post"] or "{}") if existing else {}
+            )
+            d.save_translation(
+                clip_id, language,
+                json.dumps([dict(line) for line in body.lines], ensure_ascii=False),
+                json.dumps(post, ensure_ascii=False),
+                edited=True,
+            )
+        finally:
+            d.close()
+        return {"saved": language, "lines": len(body.lines)}
+
+    def _creator_of(d, clip) -> int | None:
+        row = d.conn.execute(
+            "SELECT creator_id FROM videos WHERE video_id = ?", (clip["video_id"],)
+        ).fetchone()
+        return row["creator_id"] if row else None
+
+    @app.get("/clips/{clip_id}/glossary")
+    def clip_glossary(clip_id: int):
+        """Words kept out of translation for this clip's creator: the list
+        actually in force, plus anything explicitly ruled out."""
+        from multilingual import glossary
+
+        d = db()
+        try:
+            clip = d.get_clip(clip_id)
+            if clip is None:
+                raise HTTPException(404, "clip not found")
+            creator_id = _creator_of(d, clip)
+            vrow = d.conn.execute(
+                "SELECT title FROM videos WHERE video_id = ?", (clip["video_id"],)
+            ).fetchone()
+            rules = {r["term"]: r["rule"] for r in d.terms_for(creator_id)}
+            return {
+                "protected": glossary.build(d, creator_id, vrow["title"] if vrow else ""),
+                "ignored": [t for t, r in rules.items() if r == "ignore"],
+                "mine": [t for t, r in rules.items() if r == "protect"],
+            }
+        finally:
+            d.close()
+
+    @app.post("/clips/{clip_id}/glossary")
+    def rule_clip_term(clip_id: int, body: TermIn):
+        """protect = keep this word as written; ignore = translate it
+        normally even if detected; auto = forget the ruling."""
+        term = body.term.strip()
+        if not term:
+            raise HTTPException(400, "empty term")
+        if body.rule not in ("protect", "ignore", "auto"):
+            raise HTTPException(400, "rule must be protect, ignore or auto")
+        d = db()
+        try:
+            clip = d.get_clip(clip_id)
+            if clip is None:
+                raise HTTPException(404, "clip not found")
+            creator_id = _creator_of(d, clip)
+            if body.rule == "auto":
+                d.clear_term(creator_id, term)
+            else:
+                d.set_term(creator_id, term, body.rule)
+        finally:
+            d.close()
+        return {"term": term, "rule": body.rule}
+
+    @app.delete("/clips/{clip_id}/translations/{language}")
+    def discard_clip_translation(clip_id: int, language: str):
+        """Throw away a stored translation so the next Translate run redoes
+        it — the way out once corrections are no longer wanted."""
+        d = db()
+        try:
+            d.delete_translation(clip_id, language)
+        finally:
+            d.close()
+        return {"discarded": language}
+
+    @app.post("/clips/{clip_id}/export")
+    def export_clip(clip_id: int, body: ExportIn):
+        return {"exported": _export([clip_id], Path(body.folder))}
+
+    @app.post("/export/batch")
+    def export_batch(body: BatchExportIn):
+        return {"exported": _export(body.clip_ids, Path(body.folder))}
+
+    def _export(clip_ids: list[int], folder: Path) -> list[str]:
+        from core.state import _now
+
+        folder.mkdir(parents=True, exist_ok=True)
+        d = db()
+        exported = []
+        try:
+            for cid in clip_ids:
+                row = d.get_clip(cid)
+                if row is None or not row["path"] or not Path(row["path"]).exists():
+                    continue
+                name = _slugify(row["title"] or row["hook"] or Path(row["path"]).stem)
+                target = _unique_path(folder, name)
+                shutil.copy2(row["path"], target)
+                exported.append(str(target))
+                d.set_clip(cid, exported_at=_now())  # Export all skips it from now on
+                _log_feedback(d, row, "exported")  # exports = strongest "keep" signal
+        finally:
+            d.close()
+        return exported
+
+    # ---- watermark & branding ------------------------------------------------
+
+    @app.get("/branding")
+    def list_branding():
+        d = db()
+        try:
+            rows = d.list_branding()
+        finally:
+            d.close()
+        return [{"id": r["id"], "name": r["name"], "config": json.loads(r["config"])} for r in rows]
+
+    @app.post("/branding")
+    def create_branding(body: BrandingIn):
+        d = db()
+        try:
+            pid = d.add_branding(body.name.strip() or "Branding", json.dumps(body.config))
+        finally:
+            d.close()
+        return {"id": pid}
+
+    @app.put("/branding/{profile_id}")
+    def update_branding(profile_id: int, body: BrandingIn):
+        d = db()
+        try:
+            if d.get_branding(profile_id) is None:
+                raise HTTPException(404, "no such branding profile")
+            d.update_branding(profile_id, body.name.strip() or "Branding", json.dumps(body.config))
+        finally:
+            d.close()
+        return {"id": profile_id}
+
+    @app.delete("/branding/{profile_id}")
+    def delete_branding(profile_id: int):
+        d = db()
+        try:
+            d.delete_branding(profile_id)
+        finally:
+            d.close()
+        return {"deleted": profile_id}
+
+    @app.post("/branding/asset")
+    def upload_branding_asset(body: BrandingAssetIn):
+        """Import a logo file from this computer into the branding assets
+        folder, deduped by content hash. Returns the stored asset filename to
+        put in a profile's config.image_asset."""
+        import hashlib
+
+        # The suffix check lives in picked_file() so the path is validated
+        # before it is read, not after — this used to load up to 20 MB off any
+        # path the request named and only then decide it was the wrong type.
+        picked = picked_file(body.path, _IMAGE_SUFFIXES)
+        if picked is None:
+            raise HTTPException(400, "use a PNG (transparent preferred), JPG or WebP")
+        src, suffix, _st = picked
+
+        # Reading the file the user picked is the feature; code scanning flags
+        # it as py/path-injection and it is dismissed there.
+        data = src.read_bytes()
+        if len(data) > 20 * 1024 * 1024:
+            raise HTTPException(400, "image too large (max 20 MB)")
+        # `suffix` is the constant that matched out of _IMAGE_SUFFIXES, not the
+        # text on the end of the filename, so the name written into the assets
+        # folder can only ever end in one of the four extensions above.
+        name = hashlib.sha256(data).hexdigest()[:16] + suffix
+        assets = data_dir / "branding" / "assets"
+        assets.mkdir(parents=True, exist_ok=True)
+        dest = assets / name
+        if not dest.exists():  # dedup: identical content is stored once
+            dest.write_bytes(data)
+        return {"asset": name}
+
+    @app.get("/branding/asset/{name}")
+    def get_branding_asset(name: str):
+        # Found by listing the folder rather than by joining the name onto
+        # it, so the served file can only ever be one that is genuinely in
+        # there. The previous version resolved the path and then checked its
+        # parents, which was correct but relied on getting that check right;
+        # this cannot construct a path outside the folder in the first place.
+        assets = data_dir / "branding" / "assets"
+        if safe_name(name) is None:
+            raise HTTPException(404, "no such asset")
+        try:
+            match = next((p for p in assets.iterdir() if p.name == name and p.is_file()), None)
+        except OSError:
+            match = None
+        if match is None:
+            raise HTTPException(404, "no such asset")
+        return FileResponse(match)
+
+    # ---- creator profiles (creator intelligence) -----------------------------
+
+    @app.get("/creators")
+    def creators():
+        """All creator profiles with library stats, plus possible same-person
+        matches across platforms (suggestions only — merging is a user action)."""
+        from creator.identity import suggestions
+
+        d = db()
+        try:
+            rows = d.conn.execute(
+                """SELECT c.creator_id, c.display_name, c.aliases, c.learning_enabled,
+                          COUNT(DISTINCT v.video_id) AS videos,
+                          COUNT(cl.id) AS clips,
+                          ROUND(AVG(cl.score), 1) AS avg_score
+                   FROM creators c
+                   LEFT JOIN videos v ON v.creator_id = c.creator_id
+                   LEFT JOIN clips cl ON cl.video_id = v.video_id
+                   GROUP BY c.creator_id
+                   ORDER BY videos DESC, c.display_name"""
+            ).fetchall()
+            accounts = d.conn.execute("SELECT * FROM platform_accounts").fetchall()
+            sugg = suggestions(d)
+            # Profiles a watched channel learns into, marked so they are easy
+            # to find among the rest.
+            from server.automation import watch_creator
+
+            watched = {watch_creator(d, w) for w in d.list_watches()}
+        finally:
+            d.close()
+        by_creator: dict[int, list] = {}
+        for a in accounts:
+            by_creator.setdefault(a["creator_id"], []).append(
+                {"account_id": a["account_id"], "platform": a["platform"], "username": a["username"]}
+            )
+        return {
+            "creators": [
+                {
+                    **dict(r),
+                    "aliases": json.loads(r["aliases"] or "[]"),
+                    "accounts": by_creator.get(r["creator_id"], []),
+                    "watched": r["creator_id"] in watched,
+                }
+                for r in rows
+            ],
+            "suggestions": sugg,
+        }
+
+    @app.get("/creators/{creator_id}")
+    def creator_detail(creator_id: int):
+        """Everything learned about one creator: knowledge, events, feedback."""
+        d = db()
+        try:
+            c = d.conn.execute(
+                "SELECT * FROM creators WHERE creator_id = ?", (creator_id,)
+            ).fetchone()
+            if c is None:
+                raise HTTPException(404, "no such creator")
+            knowledge = d.conn.execute(
+                "SELECT * FROM creator_knowledge WHERE creator_id = ?"
+                " ORDER BY knowledge_type, times_seen DESC, created_at DESC",
+                (creator_id,),
+            ).fetchall()
+            # Say WHY each fact is or isn't being used, using the same rules
+            # scoring does, so the page never shows a catchphrase as if it
+            # were in play when it's still waiting to be heard again.
+            from creator.models import (
+                DORMANT_DAYS,
+                DORMANT_VIDEOS,
+                MIN_PHRASE_REPEATS,
+                PHRASE_TYPES,
+            )
+            from creator.retrieval import dormant_before
+
+            cutoff = dormant_before(d, creator_id, DORMANT_DAYS, DORMANT_VIDEOS)
+
+            def knowledge_state(k) -> str:
+                heard = k["last_seen"] or k["created_at"]
+                if cutoff is not None and heard < cutoff:
+                    return "dormant"
+                if k["knowledge_type"] in PHRASE_TYPES and (k["times_seen"] or 1) < MIN_PHRASE_REPEATS:
+                    return "candidate"
+                return "active"
+
+            events = d.conn.execute(
+                "SELECT * FROM creator_events WHERE creator_id = ? ORDER BY detected_date DESC",
+                (creator_id,),
+            ).fetchall()
+            feedback = d.conn.execute(
+                "SELECT action, COUNT(*) AS n FROM clip_feedback WHERE creator_id = ?"
+                " GROUP BY action",
+                (creator_id,),
+            ).fetchall()
+            accounts = d.conn.execute(
+                "SELECT account_id, platform, username FROM platform_accounts WHERE creator_id = ?",
+                (creator_id,),
+            ).fetchall()
+            from creator.learning import preferences
+
+            prefs = preferences(d, creator_id)
+        finally:
+            d.close()
+        return {
+            **dict(c),
+            "aliases": json.loads(c["aliases"] or "[]"),
+            "accounts": [dict(a) for a in accounts],
+            "knowledge": [{**dict(k), "state": knowledge_state(k)} for k in knowledge],
+            "events": [dict(e) for e in events],
+            "feedback": {f["action"]: f["n"] for f in feedback},
+            "preferences": prefs,
+        }
+
+    @app.post("/creators/{creator_id}/accounts")
+    def add_creator_account(creator_id: int, body: AccountIn):
+        """Manually attach a channel the automatic matcher didn't connect.
+        Future videos from that channel resolve straight to this profile."""
+        from creator.identity import add_account
+
+        d = db()
+        try:
+            account_id = add_account(d, creator_id, body.platform, body.channel)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        finally:
+            d.close()
+        return {"account_id": account_id, "creator_id": creator_id}
+
+    @app.post("/creators/merge")
+    def merge_creators(body: MergeIn):
+        """Fold one profile into another (same person on two platforms)."""
+        from creator.identity import merge
+
+        d = db()
+        try:
+            merge(d, body.from_id, body.into_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+        finally:
+            d.close()
+        return {"merged": body.from_id, "into": body.into_id}
+
+    @app.post("/creators/split/{account_id}")
+    def split_creator_account(account_id: int):
+        """Detach one platform account into its own profile (undo a merge)."""
+        from creator.identity import split_account
+
+        d = db()
+        try:
+            new_id = split_account(d, account_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+        finally:
+            d.close()
+        return {"new_creator_id": new_id}
+
+    @app.delete("/creators/{creator_id}/knowledge/{knowledge_id}")
+    def delete_knowledge(creator_id: int, knowledge_id: int):
+        """Remove one learned fact the user says is wrong."""
+        d = db()
+        try:
+            d.conn.execute(
+                "DELETE FROM creator_knowledge WHERE creator_id = ? AND knowledge_id = ?",
+                (creator_id, knowledge_id),
+            )
+            d.conn.commit()
+        finally:
+            d.close()
+        return {"deleted": knowledge_id}
+
+    @app.delete("/creators/{creator_id}/knowledge")
+    def clear_unused_knowledge(creator_id: int):
+        """Drop everything that isn't in play — unconfirmed catchphrases and
+        dormant facts.
+
+        Profiles learned before repetition was tracked are full of phrases the
+        creator said exactly once. They already score nothing, but they're
+        still wrong to look at, and this clears them in one go without
+        touching the facts that earned their place."""
+        from creator.models import DORMANT_DAYS, DORMANT_VIDEOS, MIN_PHRASE_REPEATS, PHRASE_TYPES
+        from creator.retrieval import dormant_before
+
+        d = db()
+        try:
+            cutoff = dormant_before(d, creator_id, DORMANT_DAYS, DORMANT_VIDEOS)
+            slots = ",".join("?" * len(PHRASE_TYPES))
+            cur = d.conn.execute(
+                "DELETE FROM creator_knowledge WHERE creator_id = ? AND ("
+                f"  (knowledge_type IN ({slots}) AND times_seen < ?)"
+                "  OR (? IS NOT NULL AND COALESCE(last_seen, created_at) < ?))",
+                (creator_id, *PHRASE_TYPES, MIN_PHRASE_REPEATS, cutoff, cutoff),
+            )
+            d.conn.commit()
+            deleted = cur.rowcount
+        finally:
+            d.close()
+        return {"deleted": deleted}
+
+    @app.delete("/creators/{creator_id}/memory")
+    def wipe_creator_memory(creator_id: int):
+        """Erase everything LEARNED about a creator — knowledge, storyline
+        events, and feedback history — from this computer. The profile, its
+        channels, videos and clips stay; only the intelligence data goes."""
+        d = db()
+        try:
+            wiped = 0
+            for table in ("creator_knowledge", "creator_events", "clip_feedback"):
+                cur = d.conn.execute(f"DELETE FROM {table} WHERE creator_id = ?", (creator_id,))
+                wiped += cur.rowcount
+            d.conn.commit()
+        finally:
+            d.close()
+        return {"creator_id": creator_id, "wiped": wiped}
+
+    @app.delete("/creators/{creator_id}")
+    def delete_creator(creator_id: int):
+        """Remove a creator profile entirely — channels, knowledge, events,
+        feedback and glossary rulings.
+
+        Videos and clips are kept and simply unlinked, so tidying the list
+        can never cost footage. A video left behind is unattributed until a
+        creator is detected for it again."""
+        d = db()
+        try:
+            row = d.conn.execute(
+                "SELECT display_name FROM creators WHERE creator_id = ?", (creator_id,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "no such creator")
+            counts = d.delete_creator(creator_id)
+        finally:
+            d.close()
+        return {"deleted": creator_id, "name": row["display_name"], **counts}
+
+    @app.post("/creators/{creator_id}/learning")
+    def set_learning(creator_id: int, body: LearningIn):
+        """Enable/disable knowledge learning for one creator."""
+        d = db()
+        try:
+            d.conn.execute(
+                "UPDATE creators SET learning_enabled = ? WHERE creator_id = ?",
+                (1 if body.enabled else 0, creator_id),
+            )
+            d.conn.commit()
+        finally:
+            d.close()
+        return {"creator_id": creator_id, "learning_enabled": body.enabled}
+
+    @app.post("/creators/{creator_id}/branding")
+    def set_creator_branding(creator_id: int, body: CreatorBrandingIn):
+        """Set this creator's DEFAULT branding profile — auto-applied to their
+        videos when a job doesn't pick one. For clippers who make videos for
+        several creators, each gets their own logo without re-picking."""
+        d = db()
+        try:
+            d.conn.execute(
+                "UPDATE creators SET default_branding_id = ? WHERE creator_id = ?",
+                (body.branding_id, creator_id),
+            )
+            d.conn.commit()
+        finally:
+            d.close()
+        return {"creator_id": creator_id, "default_branding_id": body.branding_id}
+
+    # ---- the assistant -----------------------------------------------------
+
+    @app.get("/agent/status")
+    def agent_status():
+        """Whether the box can work, and which model it would use.
+
+        The app's default clip-scoring model cannot call tools, so this is a
+        real question rather than a formality, and the answer belongs in the
+        window instead of arriving as a confusing reply.
+        """
+        from llm.spec import is_local, parse_spec
+        from server.agent import install_offer, usable_model
+
+        backend_spec = config["llm"].get("backend") or ""
+        if not is_local(backend_spec):
+            # A cloud model on the user's own key runs the assistant too: every
+            # provider offered can call tools. What it needs is the key.
+            from llm.providers.catalog import get
+            from llm.providers.keys import has_key
+
+            provider, cloud_model = parse_spec(backend_spec)
+            from llm.signin import catalog as signin
+
+            if signin.is_signin(provider):
+                # Codex's tool calling for other apps is still experimental,
+                # so the assistant doesn't run on a signed-in plan yet.
+                return {
+                    "ready": False,
+                    "model": backend_spec,
+                    "configured": backend_spec,
+                    "reason": "The assistant can't use the ChatGPT plan yet. Choose Ollama or a "
+                              "provider with your own API key in Settings → AI to use it.",
+                    "install": None,
+                }
+            spec = get(provider)
+            ready = bool(spec and cloud_model and has_key(config["llm"].get("data_dir") or data_dir, provider))
+            return {
+                "ready": ready,
+                "model": backend_spec,
+                "configured": backend_spec,
+                "reason": "" if ready else (
+                    f"Add your {spec.key_label if spec else 'API key'} in Settings → AI to use the assistant."
+                ),
+                "install": None,
+            }
+
+        configured = (config["llm"].get("backend") or "").split("/")[-1]
+        model = usable_model(ollama_host, configured)
+        return {
+            "ready": bool(model),
+            "model": model,
+            "configured": configured,
+            "reason": "" if model else (
+                "No installed model can use tools. Install Gemma 4 on the Models page: "
+                "gemma4:e4b for a 6 GB graphics card, gemma4:e2b for less. "
+                "Or use OpenRouter with your own key in Settings → AI."
+            ),
+            # The build for this machine, so the box can offer the download
+            # itself and nobody has to work out which of the two they need.
+            "install": None if model else install_offer(_nvidia_vram_gb()),
+        }
+
+    @app.post("/agent/chat")
+    def agent_chat(body: AgentIn):
+        """One exchange with the assistant."""
+        from llm.spec import is_local
+        from server.agent import run, run_cloud, usable_model
+        from server.mcp import TOOLS
+
+        if not body.message.strip():
+            raise HTTPException(400, "Say what you would like done.")
+
+        cloud = not is_local(config["llm"].get("backend") or "")
+        model = ""
+        if not cloud:
+            configured = (config["llm"].get("backend") or "").split("/")[-1]
+            model = usable_model(ollama_host, configured)
+            if not model:
+                raise HTTPException(
+                    400,
+                    "No installed model can use tools. Install Gemma 4 on the Models page.",
+                )
+
+        # The plan tool's structured items go to the window, which turns them
+        # into a Confirm button; the model only needs to describe the plan.
+        def call_tool(name: str, arguments: dict):
+            tool = next((x for x in TOOLS if x["name"] == name), None)
+            if tool is None:
+                return f"There is no tool called {name}.", None
+            if name == "queue_video":
+                # Only where the model said nothing: an explicit "no captions"
+                # in the sentence still beats the bar above it.
+                for key, value in (body.defaults or {}).items():
+                    arguments.setdefault(key, value)
+            try:
+                text = tool["handler"](arguments)
+            except urllib.error.HTTPError as e:
+                # Hand back WHY. "400 Bad Request" tells the model nothing and
+                # it cannot correct itself; "that time is in the past" it can.
+                try:
+                    detail = json.loads(e.read() or b"{}").get("detail", "")
+                except Exception:
+                    detail = ""
+                return f"That was refused: {detail or e.reason}", None
+            except Exception:  # a tool failing is news, not a crash
+                # Unlike the refusal above, this is an unexpected internal
+                # failure rather than our own API saying no. Its text can
+                # carry absolute paths and internal names, it goes into the
+                # steps the window shows, and the model cannot correct itself
+                # from it anyway. The console gets the whole thing.
+                traceback.print_exc()
+                return "That did not work — something failed inside the app.", None
+            structured = None
+            if name == "schedule_clips_plan":
+                # The same call the tool just made, for the items rather than
+                # the prose, so the window can offer one button instead of
+                # asking the person to retype what the model just said.
+                from server.mcp import _request as _api
+                from server.mcp import _spacing
+
+                try:
+                    clip_ids = list(arguments.get("clip_ids") or [])
+                    if not clip_ids and arguments.get("video_id"):
+                        clips = _api("GET", f"/videos/{arguments['video_id']}/clips") or []
+                        clip_ids = [c["id"] for c in clips if c.get("path")]
+                    structured = _api(
+                        "POST",
+                        "/woopsocial/batch/plan",
+                        {
+                            "clip_ids": clip_ids,
+                            "platforms": arguments.get("platforms") or ["youtube"],
+                            "hashtags": arguments.get("hashtags") or [],
+                            **_spacing(arguments),
+                            **({"start_at": arguments["start_at"]} if arguments.get("start_at") else {}),
+                        },
+                    )
+                except Exception:
+                    structured = None
+            if name == "publish_plan":
+                # Same call the tool just made, for the items rather than the
+                # prose. Through server.mcp's own client so there is one place
+                # that knows where the engine listens.
+                from server.mcp import _request as _api
+
+                try:
+                    structured = _api(
+                        "POST",
+                        "/publish/plan",
+                        {k: v for k, v in arguments.items() if v is not None},
+                    )
+                except Exception:
+                    structured = None
+            return text, structured
+
+        try:
+            if cloud:
+                from llm.registry import create_backend
+
+                return run_cloud(body.message, body.history, TOOLS, call_tool,
+                                 create_backend(config["llm"]))
+            return run(
+                body.message, body.history, TOOLS, call_tool, ollama_host, model,
+                # Never below 16K: the tool list alone fills most of Ollama's 4K default.
+                num_ctx=max(16384, int(config["llm"].get("num_ctx") or 0)),
+            )
+        except Exception as e:
+            from llm.providers.base import LLMError
+
+            if isinstance(e, LLMError):
+                # A provider's failure is already in plain words and carries
+                # no key: say it, rather than "see the log".
+                raise HTTPException(400, e.message) from e
+            # The detail goes to the backend console rather than the reply.
+            # The renderer prints whatever comes back straight into the chat,
+            # and an exception's text can carry absolute paths and internals.
+            # The case worth naming — no usable model — is already reported
+            # by /agent/status, which is what the panel checks before it will
+            # let you type.
+            traceback.print_exc()
+            raise HTTPException(
+                500, "The assistant could not run. The backend log has the details."
+            ) from e
+
+    # ---- models ------------------------------------------------------------
+
+    ollama_host = config["llm"].get("ollama_host", "http://localhost:11434").rstrip("/")
+
+    @app.get("/models")
+    def models():
+        from llm.manager import (
+            OTHER_MODELS,
+            RECOMMENDATIONS,
+            installed_models,
+            recommend_for,
+        )
+
+        try:
+            installed = installed_models(ollama_host)
+        except Exception:
+            raise HTTPException(503, "Ollama is not reachable — is it running?")
+
+        # Pick the model for THIS machine server-side, so the setup wizard and
+        # the Models page can never give contradictory advice.
+        vram_gb = _nvidia_vram_gb()
+
+        return {
+            "active": config["llm"]["backend"],
+            "installed": installed,
+            "recommendations": [
+                {"hardware": h, "model": m, "note": n} for h, m, n in RECOMMENDATIONS
+            ],
+            # Kept separate rather than appended: these are chosen for a
+            # purpose, not for how much VRAM you have, and mixing the two put
+            # "Multilingual" under a "Your hardware" heading.
+            "other_models": [
+                {"purpose": p, "model": m, "note": n} for p, m, n in OTHER_MODELS
+            ],
+            "recommended": recommend_for(vram_gb),
+        }
+
+    @app.post("/models/activate")
+    def activate_model(body: ModelIn):
+        from llm.manager import installed_models, switch_model
+
+        try:
+            installed = {m["name"] for m in installed_models(ollama_host)}
+        except Exception:
+            installed = set()
+        if installed and body.tag not in installed:
+            raise HTTPException(400, f"'{body.tag}' is not pulled yet")
+        spec = switch_model(settings_path, body.tag)
+        config["llm"]["backend"] = spec  # live config follows the file
+        return {"active": spec}
+
+    # Each download's latest state, by tag. The WebSocket events are the live
+    # view, but a window can miss the one that matters: the broadcaster drops
+    # events for a client whose queue is full, and a reconnect leaves a gap.
+    # With nothing to catch up from, a download that had finished or failed
+    # sat at 100% for good (#148, #150). A finished one is kept for a while so
+    # a window can still read how it ended, then forgotten.
+    pulls: dict[str, dict] = {}
+    pulls_lock = threading.Lock()
+    pull_kept_seconds = 600
+
+    def _pull_event(event: dict) -> None:
+        """Send a model_pull event, and keep it as that download's state."""
+        with pulls_lock:
+            state = pulls.get(event["tag"])
+            if state is not None:
+                state["status"] = event["status"]
+                state["completed"] = event.get("completed")
+                state["total"] = event.get("total")
+                if event["status"] in ("done", "error"):
+                    state["done"] = True
+                    state["error"] = event.get("error")
+                    state["ended"] = time.monotonic()
+        broadcaster.publish(event)
+
+    @app.get("/models/pulls")
+    def model_pulls():
+        """Downloads running now, and how the recent ones ended."""
+        now = time.monotonic()
+        with pulls_lock:
+            for tag in [t for t, s in pulls.items() if s["done"] and now - s["ended"] > pull_kept_seconds]:
+                del pulls[tag]
+            return {"pulls": [{k: v for k, v in s.items() if k != "ended"} for s in pulls.values()]}
+
+    @app.post("/models/pull")
+    def pull_model(body: ModelIn):
+        from llm import pulls as running_pulls
+
+        tag = body.tag
+        with pulls_lock:
+            running = pulls.get(tag)
+            if running is not None and not running["done"]:
+                # A second click, or setup and the Models page both asking for
+                # the model: a second thread would only fetch the same files
+                # again alongside the first.
+                return {"started": tag, "already": True}
+            pulls[tag] = {
+                "tag": tag, "status": "starting", "completed": None, "total": None,
+                "error": None, "done": False,
+            }
+
+        def _pull():
+            last = ""
+            try:
+                try:
+                    with _requests.post(
+                        f"{ollama_host}/api/pull", json={"model": tag}, stream=True, timeout=3600
+                    ) as resp:
+                        for line in resp.iter_lines():
+                            if not line:
+                                continue
+                            info = json.loads(line)
+                            # Ollama reports a failed pull (no such model, no
+                            # network, disk full) as a line carrying "error", on
+                            # a stream that then simply ends. Unchecked, the
+                            # download was announced as done with nothing on disk.
+                            if info.get("error"):
+                                raise RuntimeError(info["error"])
+                            last = info.get("status") or last
+                            _pull_event(
+                                {
+                                    "type": "model_pull",
+                                    "tag": tag,
+                                    "status": info.get("status", ""),
+                                    "completed": info.get("completed"),
+                                    "total": info.get("total"),
+                                }
+                            )
+                except _requests.exceptions.RequestException as e:
+                    # Ollama quitting or crashing part-way (while it checks a
+                    # big download, say), or the connection dropping, cuts the
+                    # stream off, and requests raises from iter_lines. Its own
+                    # words ("Response ended prematurely") don't say that
+                    # trying again carries on rather than starting over.
+                    raise RuntimeError(
+                        f"The download didn't finish (last step: {last or 'connecting to Ollama'}). "
+                        "Try again; it carries on where it stopped."
+                    ) from e
+                # Ollama ends a pull that worked with "success". A stream that
+                # ends cleanly before it is not a download either, however far
+                # the percentage got.
+                if last != "success":
+                    step = f"last step: {last}" if last else "Ollama sent nothing back"
+                    raise RuntimeError(
+                        f"The download didn't finish ({step}). Try again; it carries on where it stopped."
+                    )
+                if not _listed(tag):
+                    raise RuntimeError(
+                        f"Ollama said the download finished, but {tag} isn't in its list of models. Try again."
+                    )
+                _select_if_nothing_usable(tag)
+                _pull_event({"type": "model_pull", "tag": tag, "status": "done"})
+            except Exception as e:
+                _pull_event({"type": "model_pull", "tag": tag, "status": "error", "error": str(e) or type(e).__name__})
+            finally:
+                running_pulls.finished(tag)
+
+        def _listed(tag: str) -> bool:
+            """Whether Ollama now lists the model. Checked before the download
+            is called done, because a tag that isn't there, once selected,
+            fails every job with a 404 from Ollama."""
+            from llm.manager import installed_models, model_is_installed
+
+            try:
+                names = [m["name"] for m in installed_models(ollama_host)]
+            except Exception:
+                return False
+            # model_is_installed drops everything up to the last "/", which is
+            # right for "ollama/gemma:7b" but not for a tag such as
+            # "hf.co/user/repo:Q4_K_M", which Ollama lists in full.
+            return tag in names or f"{tag}:latest" in names or model_is_installed(tag, names)
+
+        def _select_if_nothing_usable(tag: str) -> None:
+            """Make the download count as a choice when nothing else can run.
+
+            Setup pulls the model it recommends for the hardware, which on a
+            machine with no graphics card is not the one settings.yaml ships
+            with. Downloading it and leaving the old one selected is what left
+            a Store reviewer looking at a finished download and a red error.
+
+            Only when the current selection is unusable, though: someone on
+            gemma:7b pulling gemma3:27b to try later must not be switched out
+            from under them.
+            """
+            try:
+                from llm.manager import installed_models, model_is_installed, switch_model
+                from llm.spec import is_local
+
+                current = config["llm"]["backend"]
+                if not is_local(current):
+                    return  # a cloud model was chosen on purpose; a download is not a vote against it
+                installed = [m["name"] for m in installed_models(ollama_host)]
+                if model_is_installed(current, installed):
+                    return
+                config["llm"]["backend"] = switch_model(settings_path, tag)
+            except Exception:
+                # Never fail a completed download over bookkeeping — the model
+                # is on disk either way, and the Models page can still select it.
+                pass
+
+        # Recorded before the thread starts, not in it: a job queued the moment
+        # this returns (setup says to carry on while the model downloads) must
+        # already see that its model is on the way.
+        running_pulls.started(tag)
+        threading.Thread(target=_pull, daemon=True).start()
+        return {"started": tag}
+
+    @app.delete("/models/{tag:path}")
+    def delete_model(tag: str):
+        resp = _requests.delete(f"{ollama_host}/api/delete", json={"model": tag}, timeout=60)
+        if resp.status_code != 200:
+            raise HTTPException(400, f"Ollama refused: {resp.text[:200]}")
+        return {"deleted": tag}
+
+    # ---- settings (quick-setup keys only) -----------------------------------
+
+    @app.get("/sports")
+    def list_sports():
+        """The sports the Sports toggle offers, with their highlight and period
+        choices. Empty when the sports package isn't installed."""
+        try:
+            import sports
+        except ImportError:
+            return []
+        return sports.available()
+
+    @app.get("/settings")
+    def get_settings():
+        return {
+            "model": config["llm"]["backend"].split("/", 1)[-1],
+            "channel": config.get("channel", ""),
+            "auto_upload": config.get("upload", {}).get("enabled", False),
+            "privacy": config.get("upload", {}).get("privacy", "public"),
+            "content_language": config.get("content_language", "auto"),
+            "translation_model": config.get("llm", {}).get("translation_model", ""),
+            # Absent counts as ON, matching how the pipeline reads it, so the
+            # toggle shows the state an upgrading user actually gets.
+            "outro": config.get("clips", {}).get("outro", True),
+            "min_score": int(config.get("clips", {}).get("min_score", 55)),
+            "youtube_cookies": ytdlp_common.cookies(),  # as the engine uses it: "", "firefox" or "file"
+        }
+
+    @app.patch("/settings")
+    def patch_settings(body: SettingsPatch):
+        text = settings_path.read_text(encoding="utf-8")
+        if body.translation_model is not None:
+            # Nested under llm:, so patch it in place rather than via the
+            # flat top-level key rewrite below.
+            text = settings_path.read_text(encoding="utf-8")
+            text, n = re.subn(r'(?m)^(\s*translation_model:\s*).*$',
+                              rf'\g<1>"{body.translation_model}"', text, count=1)
+            if n:
+                settings_path.write_text(text, encoding="utf-8")
+                config.setdefault("llm", {})["translation_model"] = body.translation_model
+        if body.content_language is not None and not re.fullmatch(
+            r"auto|[a-z]{2,3}", body.content_language
+        ):
+            raise HTTPException(400, "content_language must be 'auto' or an ISO code")
+        if body.outro is not None:
+            # clips.outro is NESTED under `clips:`, so the flat rewrite below --
+            # which is anchored at column 0 -- can never match its indented
+            # line. Same shape as translation_model above, plus an insert: no
+            # existing user's settings.yaml has an `outro:` line, so without
+            # the insert this would 400 for exactly the people turning it off.
+            value = "true" if body.outro else "false"
+            text, n = re.subn(r"(?m)^(\s*outro:\s*)\S*", rf"\g<1>{value}",
+                              text, count=1)
+            if n == 0:
+                text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
+                                  rf"\g<1>\n  outro: {value}", text, count=1)
+            if n == 0:
+                raise HTTPException(400, "no 'clips:' section in settings.yaml")
+            config.setdefault("clips", {})["outro"] = body.outro
+        if body.min_score is not None:
+            # Nested under `clips:` like outro. The "no clips" message sends
+            # people to change it in Settings (#111), where it wasn't. The
+            # line's comment is kept.
+            if not 0 <= body.min_score <= 100:
+                raise HTTPException(400, "min_score must be between 0 and 100")
+            text, n = re.subn(r"(?m)^([^\S\n]+min_score:[^\S\n]*)\d+", rf"\g<1>{body.min_score}",
+                              text, count=1)
+            if n == 0:
+                text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
+                                  rf"\g<1>\n  min_score: {body.min_score}", text, count=1)
+            if n == 0:
+                raise HTTPException(400, "no 'clips:' section in settings.yaml")
+            config.setdefault("clips", {})["min_score"] = body.min_score
+        if body.youtube_cookies is not None or body.youtube_cookies_text is not None:
+            from sources import ytdlp_common
+
+            # The file is always the data folder's own copy, never a path the
+            # request names: it keeps working if the original is moved.
+            jar = Path(config["paths"]["data_dir"]) / ytdlp_common.COOKIES_FILE
+            if body.youtube_cookies_text is not None:
+                if not ytdlp_common.cookies_text_ok(body.youtube_cookies_text):
+                    raise HTTPException(400, "That file isn't a cookies.txt: export one with a "
+                                             "cookies.txt extension from a browser signed in to YouTube.")
+                jar.parent.mkdir(parents=True, exist_ok=True)
+                jar.write_text(body.youtube_cookies_text.lstrip("﻿"), encoding="utf-8",
+                               newline="")  # as exported, less a byte-order mark yt-dlp would trip on
+                value = "file"
+            else:
+                value = body.youtube_cookies.strip().lower()
+                if value not in ("", "firefox"):
+                    raise HTTPException(400, "youtube_cookies must be '' or 'firefox'")
+                discard(jar)        # a sign-in is not kept once it's turned off
+            line = f"youtube_cookies: '{value}'"
+            text, n = re.subn(r"(?m)^youtube_cookies:.*$", lambda _m: line, text, count=1)
+            if n == 0:
+                text = text.rstrip("\n") + "\n" + line + "\n"
+            config["youtube_cookies"] = value
+            ytdlp_common.set_cookies(value, config["paths"]["data_dir"])
+
+        edits = {
+            "model": body.model,
+            "channel": f'"{body.channel}"' if body.channel is not None else None,
+            "auto_upload": str(body.auto_upload).lower() if body.auto_upload is not None else None,
+            "privacy": body.privacy,
+            "content_language": body.content_language,
+        }
+        for key, value in edits.items():
+            if value is None:
+                continue
+            text, n = re.subn(rf"(?m)^({key}:\s*)\S*", rf"\g<1>{value}", text, count=1)
+            if n == 0:
+                raise HTTPException(400, f"no '{key}:' line in settings.yaml")
+        settings_path.write_text(text, encoding="utf-8")
+        if body.content_language is not None:
+            # Applies to the NEXT processed video — no restart needed.
+            config["content_language"] = body.content_language
+        return {"ok": True, "note": "restart serve to apply pipeline-level changes"}
+
+    return app
+
+
+# ---- helpers --------------------------------------------------------------------
+
+
+def used_suggestions(value) -> dict:
+    """A render's `suggestions` (RenderIn; RenderFirst in server/youtube_api.py),
+    checked by plugins/edit_marks.py: 400 with what is wrong."""
+    from plugins import edit_marks
+
+    try:
+        return edit_marks.clean_used(value)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+def _suggestion_state(row, value) -> str:
+    """PATCH /clips/{id} `suggestion`: the clip's scores with that suggested
+    edit hidden, or shown again. Nothing renders. A used one whose parts the
+    clip's saved edit still holds is refused: it would lose its Take it back
+    while the clip keeps them."""
+    from plugins import edit_marks
+
+    try:
+        sid, state = edit_marks.clean_state(value)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    try:
+        scores = json.loads(row["scores"]) if row["scores"] else {}
+    except ValueError:
+        scores = {}
+    scores = scores if isinstance(scores, dict) else {}
+    entries = edit_marks.set_state(scores.get("plugin_edits"), sid, state)
+    if entries is None:
+        raise HTTPException(404, "no such suggestion on this clip")
+    try:
+        saved = json.loads(row["render_opts"]) if row["render_opts"] else {}
+    except ValueError:
+        saved = {}
+    if edit_marks.still_held(scores.get("plugin_edits"), sid, saved, (row["start_s"], row["end_s"])):
+        raise HTTPException(409, "suggestion: some of it is still in the clip's saved edit. Take it back and "
+                                 "apply your edits, and Clips Kitty hides it then")
+    return json.dumps({**scores, "plugin_edits": entries})
+
+
+def _clip_json(row) -> dict:
+    d = dict(row)
+    d["hashtags"] = json.loads(d["hashtags"]) if d.get("hashtags") else []
+    d["scores"] = json.loads(d["scores"]) if d.get("scores") else {}
+    d["render_opts"] = json.loads(d["render_opts"]) if d.get("render_opts") else {}
+    return d
+
+
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^\w\s-]", "", text.lower()).strip()
+    slug = re.sub(r"[\s_]+", "-", slug)[:60].strip("-")
+    return slug or "clip"
+
+
+def _unique_path(folder: Path, name: str) -> Path:
+    target = folder / f"{name}.mp4"
+    i = 2
+    while target.exists():
+        target = folder / f"{name}-{i}.mp4"
+        i += 1
+    return target
+
+
+def _gpu_stats() -> dict | None:
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        return {
+            "name": pynvml.nvmlDeviceGetName(handle),
+            "vram_used": mem.used,
+            "vram_total": mem.total,
+            "gpu_percent": util.gpu,
+        }
+    except Exception:
+        return None  # no NVIDIA GPU / driver — the UI shows CPU-only mode
+
+
+def _nvidia_vram_gb() -> float | None:
+    """The first NVIDIA card's memory in GB, or None with no card or driver.
+
+    Model advice is sized by this one figure, so the Models page, the setup
+    wizard and the assistant's install offer cannot disagree about the card.
+    """
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        total = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+        pynvml.nvmlShutdown()
+        return total / 1e9
+    except Exception:
+        return None  # no NVIDIA GPU, or the library isn't available — CPU advice

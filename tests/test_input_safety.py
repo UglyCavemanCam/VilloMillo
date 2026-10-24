@@ -1,0 +1,376 @@
+"""Values that arrive as data must not be able to escape their folder.
+
+CodeQL raised 50 alerts against this repo; these cover the ones that were
+genuinely reachable rather than the ones that describe the app working as
+intended (a creator picking any video to import and any folder to export to
+is the product, not a vulnerability).
+
+Two shapes of real bug, both from stored configuration rather than a file
+dialog:
+
+  * `image_asset` inside a saved branding profile was joined straight onto
+    the assets folder and handed to FFmpeg as an input path.
+  * `voice_id` from the API became both `voices_dir / f"{name}.onnx"` and
+    the `-m` argument of a piper subprocess. A leading "-" there is not
+    traversal — it turns a filename into a flag.
+"""
+
+from pathlib import Path
+
+from core.paths import picked_file, safe_name, within
+
+TRAVERSALS = [
+    "../../../etc/passwd",
+    "..\\..\\Windows\\System32\\config\\SAM",
+    "sub/dir/file.png",
+    "sub\\dir\\file.png",
+    "..",
+    ".",
+    "",
+]
+
+
+def test_safe_name_accepts_a_generated_asset_name():
+    """What the upload endpoint actually produces: sha256[:16] + extension."""
+    assert safe_name("a1b2c3d4e5f6a7b8.png") == "a1b2c3d4e5f6a7b8.png"
+    assert safe_name("logo with spaces.webp") == "logo with spaces.webp"
+
+
+def test_safe_name_rejects_traversal():
+    for name in TRAVERSALS:
+        assert safe_name(name) is None, f"accepted {name!r}"
+
+
+def test_safe_name_rejects_absolute_paths():
+    assert safe_name("/etc/passwd") is None
+    assert safe_name("C:\\Windows\\x.png") is None
+
+
+def test_safe_name_rejects_leading_dash():
+    """Not a path problem. These names are also passed to piper and ffmpeg as
+    arguments, where a leading dash makes the value a flag instead of a
+    filename."""
+    assert safe_name("-rf") is None
+    assert safe_name("--data-dir=/tmp") is None
+
+
+VIDEO_SUFFIXES = (".mp4", ".mov", ".mkv")
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def test_picked_file_accepts_a_real_video_anywhere_on_disk(tmp_path):
+    """The feature, not a hole: importing any video from any folder is the
+    whole point, so this must not turn into a confinement check."""
+    f = tmp_path / "stream vod.mp4"
+    f.write_bytes(b"xyz")
+
+    path, suffix, st = picked_file(str(f), VIDEO_SUFFIXES)
+    assert path == f.resolve()
+    assert suffix == ".mp4"
+    assert st.st_size == 3
+
+
+def test_picked_file_returns_the_allowlisted_constant_not_the_filename(tmp_path):
+    """The suffix a caller builds a stored filename from must come out of the
+    allowlist, never off the end of the name on disk. The branding endpoint
+    concatenates it onto a hash, and taking it from the filename is how a
+    checked path turned back into an unchecked one."""
+    f = tmp_path / "LOGO.PNG"
+    f.write_bytes(b"x")
+
+    _path, suffix, _st = picked_file(str(f), IMAGE_SUFFIXES)
+    assert suffix in IMAGE_SUFFIXES
+    assert suffix == ".png"          # the constant, lowercase, not "PNG"
+
+
+def test_picked_file_collapses_traversal_before_anything_reads_it(tmp_path):
+    """`..` is legal in a path a person typed, but the value that reaches
+    ffprobe should be the resolved one, so what gets probed and what gets
+    logged are the same file."""
+    (tmp_path / "sub").mkdir()
+    f = tmp_path / "clip.mov"
+    f.write_bytes(b"x")
+
+    path, _suffix, _st = picked_file(str(tmp_path / "sub" / ".." / "clip.mov"),
+                                     VIDEO_SUFFIXES)
+    assert path == f.resolve()
+    assert ".." not in str(path)
+
+
+def test_picked_file_rejects_a_network_path():
+    """A file dialog never produces one. Honouring it would let anything that
+    can reach the API pull files off every share this machine can see."""
+    assert picked_file(r"\\attacker\share\payload.mp4", VIDEO_SUFFIXES) is None
+    assert picked_file("//attacker/share/payload.mp4", VIDEO_SUFFIXES) is None
+
+
+def test_picked_file_rejects_the_wrong_kind_of_file(tmp_path):
+    """The image endpoint used to read up to 20 MB off any path it was given
+    and only then decide the extension was wrong."""
+    secret = tmp_path / "id_rsa"
+    secret.write_bytes(b"x")
+    assert picked_file(str(secret), IMAGE_SUFFIXES) is None
+
+    doc = tmp_path / "notes.txt"
+    doc.write_bytes(b"x")
+    assert picked_file(str(doc), VIDEO_SUFFIXES) is None
+
+
+def test_picked_file_rejects_directories_and_absent_files(tmp_path):
+    assert picked_file(str(tmp_path), VIDEO_SUFFIXES) is None
+    assert picked_file(str(tmp_path / "gone.mp4"), VIDEO_SUFFIXES) is None
+    assert picked_file("", VIDEO_SUFFIXES) is None
+    assert picked_file("movie\x00.mp4", VIDEO_SUFFIXES) is None
+
+
+def test_picked_file_is_case_insensitive_about_extensions(tmp_path):
+    """Windows hands back whatever case the file has on disk; a camera that
+    writes .MP4 must not be refused."""
+    f = tmp_path / "GX010042.MP4"
+    f.write_bytes(b"x")
+
+    path, suffix, _st = picked_file(str(f), VIDEO_SUFFIXES)
+    assert path == f.resolve()
+    assert suffix == ".mp4"
+
+
+def test_within_catches_what_the_name_check_missed():
+    base = Path("data/branding/assets")
+    assert within(base, base / "x.png")
+    assert not within(base, base / ".." / ".." / "x.png")
+
+
+def test_voice_id_falls_back_instead_of_reaching_the_command_line():
+    """A hostile voice id must not reach `piper -m <value>`.
+
+    Falling back to the language default rather than raising is deliberate:
+    a bad id should dub in the standard voice, not abort a batch export
+    halfway through.
+    """
+    from multilingual.voices import DEFAULTS, resolve
+
+    for hostile in ("--data-dir=/tmp", "-m", "../../../../etc/passwd", "..", "a/b"):
+        name, speaker = resolve(hostile, "en")
+        assert name == DEFAULTS["en"], f"{hostile!r} survived as {name!r}"
+        assert speaker is None
+
+
+def test_real_voice_ids_still_work():
+    from multilingual.voices import resolve
+
+    assert resolve("fr_FR-upmc-medium", "fr") == ("fr_FR-upmc-medium", None)
+    assert resolve("fr_FR-upmc-medium#1", "fr") == ("fr_FR-upmc-medium", 1)
+    assert resolve(None, "de")[0] == "de_DE-thorsten-medium"
+
+
+def test_watermark_refuses_an_asset_outside_its_folder(tmp_path):
+    from video_editor import watermark
+
+    cfg = {"image_asset": "../../../../Windows/System32/drivers/etc/hosts"}
+    try:
+        watermark.apply_image(tmp_path / "v.mp4", cfg, (1080, 1920), tmp_path / "assets")
+    except ValueError as e:
+        assert "invalid branding asset name" in str(e)
+    else:  # pragma: no cover
+        raise AssertionError("traversing asset name was accepted")
+
+
+def test_has_image_does_not_probe_outside_the_assets_folder(tmp_path):
+    from video_editor import watermark
+
+    assert not watermark.has_image(
+        {"type": "image", "image_asset": "../../secret.png"}, tmp_path
+    )
+
+
+def test_url_routing_matches_the_host_not_a_substring():
+    """`youtube.com/watch?v=x&ref=kick.com` used to be routed to Kick.
+
+    Tests `host_matches` rather than `sources.kick.is_kick_url`, because
+    importing that module pulls in yt_dlp. CI installs pyyaml/ruff/pytest/
+    requests and nothing else on purpose — requirements.txt would drag ~4 GB
+    of PyTorch onto a runner to check some string handling. The logic under
+    test lives here anyway; the source modules are one-line wrappers.
+    """
+    from sources.urlmatch import host_matches
+
+    assert host_matches("https://kick.com/video/abc", "kick.com")
+    assert host_matches("https://www.kick.com/someone/videos/abc", "kick.com")
+    assert host_matches("kick.com/video/abc", "kick.com")  # people paste bare links
+    assert not host_matches("https://www.youtube.com/watch?v=1&ref=kick.com", "kick.com")
+    assert not host_matches("https://kick.com.evil.net/video/abc", "kick.com")
+
+    assert host_matches("https://www.twitch.tv/videos/123", "twitch.tv")
+    assert not host_matches("https://evil.example/twitch.tv/videos/123", "twitch.tv")
+
+    assert not host_matches("", "kick.com")
+    assert not host_matches("http://[oops", "kick.com")  # malformed, must not raise
+
+
+def test_the_source_modules_actually_use_host_matches():
+    """The wrapper wiring, checked where the dependencies exist.
+
+    Skipped on CI, which has no yt_dlp — see the note above. Without this the
+    logic could be correct and simply not called.
+    """
+    import pytest
+
+    pytest.importorskip("yt_dlp", reason="source modules import yt_dlp; not installed on CI")
+
+    from sources.kick import is_kick_url
+    from sources.twitch import is_twitch_url
+
+    assert is_kick_url("https://kick.com/video/abc")
+    assert not is_kick_url("https://www.youtube.com/watch?v=1&ref=kick.com")
+    assert is_twitch_url("https://www.twitch.tv/videos/123")
+    assert not is_twitch_url("https://evil.example/twitch.tv/videos/123")
+
+
+def test_redaction_is_not_quadratic_on_hostile_input():
+    """The email pattern was unbounded, so a long run of '+' with no '@' made
+    the scan retry from every start position. Diagnostics are attached to bug
+    reports, so the input is whatever was in the log."""
+    import time
+
+    from server.feedback import redact
+
+    started = time.perf_counter()
+    redact("+" * 40_000)
+    assert time.perf_counter() - started < 1.0
+
+
+def test_installed_voice_name_is_unchanged_for_a_real_voice(tmp_path):
+    """The hardening must not change what piper is asked for.
+
+    `_installed_name` re-derives the name from the directory listing instead
+    of trusting the caller's string. The point is that the RESULT is byte
+    identical, so the subprocess command line is exactly what it was — only
+    the provenance of the string changes.
+    """
+    from multilingual.dub import _installed_name
+
+    (tmp_path / "en_US-lessac-medium.onnx").write_bytes(b"model")
+
+    assert _installed_name(tmp_path, "en_US-lessac-medium") == "en_US-lessac-medium"
+    assert _installed_name(tmp_path, "fr_FR-upmc-medium") is None  # not installed
+    assert _installed_name(tmp_path, "../../etc/passwd") is None
+
+
+def test_ensure_voice_never_builds_a_path_from_the_voice_id():
+    """CodeQL #106, "uncontrolled data in a path expression".
+
+    `_installed_name` was added to answer "is this voice here?" from a
+    directory listing, but `ensure_voice` went on asking it twice the old way,
+    with `voices_dir / f"{name}.onnx"` — so the tainted path expression the
+    helper existed to remove was still in the file, and the alert stayed.
+
+    Checked in the source rather than through behaviour because behaviour
+    cannot tell the two apart: the regex in `resolve()` does block traversal,
+    so both spellings give the same answer today. What differs is whether the
+    guarantee survives someone loosening that regex, and whether a scanner can
+    see it — taint stops at a directory listing and cannot be followed through
+    a regex. Dismissing the alert instead would not last: dismissals are pinned
+    to a line and come back the next time one nearby is edited.
+    """
+    source = (Path(__file__).resolve().parent.parent / "multilingual" / "dub.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'voices_dir / f"{name}' not in source, (
+        "ensure_voice is building a path out of the voice id again — ask "
+        "_installed_name() instead, which matches against a directory listing"
+    )
+
+
+def test_ensure_voice_still_finds_and_still_refuses(tmp_path):
+    """The rewrite must not change what the function actually does."""
+    from multilingual.dub import ensure_voice
+
+    (tmp_path / "fr_FR-siwis-medium.onnx").write_bytes(b"model")
+
+    assert ensure_voice("fr", tmp_path, "fr_FR-siwis-medium") == "fr_FR-siwis-medium"
+    # Traversal never reaches the filesystem: resolve() replaces it with the
+    # language default, which here happens to be the file above. The guarantee
+    # under test is that nothing outside tmp_path is ever consulted.
+    assert ensure_voice("fr", tmp_path, "../../etc/passwd") == "fr_FR-siwis-medium"
+
+
+def test_voice_id_validation_rejects_a_trailing_newline():
+    """`$` also matches just before a trailing newline in Python, so
+    "fr_FR-upmc-medium\\n" satisfied a check written to mean "ends here".
+
+    Nothing reachable turned that into an escape. It is closed because a
+    validator that accepts a character it meant to reject is a fact about the
+    regex, not about the code paths that happen to use it today.
+    """
+    from multilingual.voices import _VOICE_ID
+
+    assert _VOICE_ID.match("fr_FR-upmc-medium")
+    assert not _VOICE_ID.match("fr_FR-upmc-medium\n")
+    assert not _VOICE_ID.match("\nfr_FR-upmc-medium")
+
+
+def test_asset_lookup_finds_real_files_and_nothing_else(tmp_path):
+    from video_editor.watermark import _asset_in
+
+    (tmp_path / "a1b2c3d4e5f6a7b8.png").write_bytes(b"png")
+    (tmp_path / "sub").mkdir()
+
+    assert _asset_in(tmp_path, "a1b2c3d4e5f6a7b8.png") == tmp_path / "a1b2c3d4e5f6a7b8.png"
+    assert _asset_in(tmp_path, "missing.png") is None
+    assert _asset_in(tmp_path, "../../secret.png") is None
+    assert _asset_in(tmp_path, "sub") is None  # a directory is not an asset
+    assert _asset_in(tmp_path / "nonexistent", "x.png") is None
+
+
+def test_real_video_id_shapes_are_still_accepted():
+    """delete_video now rejects ids that are not plain names. Every platform
+    id the app actually creates has to survive that, or deleting a video from
+    the library stops working."""
+    for vid in ("tw_2814378156", "grMkMHCx9Bo", "local_a7266e1b1a02",
+                "317EVqR5mOw", "FnWfRNYI_4g", "kick_2b0f1e4c-1111-2222-3333-444455556666"):
+        assert safe_name(vid) == vid
+
+    # And the shape that made it worth checking: "/" cannot appear in a path
+    # parameter, but "\" can, and it traverses on Windows.
+    assert safe_name("..\\..\\Windows\\x") is None
+
+
+def test_redaction_still_removes_what_it_should():
+    from server.feedback import redact
+
+    assert "@" not in redact("mail me at someone@example.com")
+    assert "ghp_" not in redact("token=ghp_abcdefghijklmnopqrstuvwxyz012345")
+    assert "<user>" in redact("C:\\Users\\colin\\Videos\\clip.mp4")
+
+
+def test_unlink_stays_inside_the_data_folder(tmp_path):
+    """The one line in the app that actually removes a file checks, itself,
+    that the file is inside the data folder. Every caller checks too; this is
+    the check that has to hold when a caller stops checking, because being
+    wrong here costs somebody footage they cannot get back."""
+    # Import the helper alone: server.api pulls in FastAPI, which CI does not
+    # install, and the point of this test is one function.
+    api = Path(__file__).resolve().parent.parent / "server" / "api.py"
+    src = api.read_text(encoding="utf-8")
+    ns = {"Path": Path}
+    exec(compile(src[src.index("def _unlink_best_effort"):src.index("def create_app")],
+                 "api.py", "exec"), ns)
+    unlink = ns["_unlink_best_effort"]
+
+    data = tmp_path / "data"
+    (data / "downloads").mkdir(parents=True)
+    clip = data / "downloads" / "clip.mp4"
+    clip.write_text("x")
+
+    elsewhere = tmp_path / "Videos" / "wedding.mp4"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text("irreplaceable")
+
+    assert unlink(clip, data) is True and not clip.exists()
+    assert unlink(data / "downloads" / "gone.mp4", data) is True  # already absent
+
+    for escape in (elsewhere,
+                   data / ".." / "Videos" / "wedding.mp4",
+                   data / "downloads" / ".." / ".." / "Videos" / "wedding.mp4"):
+        assert unlink(escape, data) is False
+        assert elsewhere.exists(), f"{escape} was deleted"

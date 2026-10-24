@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local AI clipping vs uploading to a service | Clips Kitty</title>
+    <meta
+      name="description"
+      content="What changes when an AI clipper runs on your own PC instead of a server: no uploads, no subscription, no clip limits, and the AI model is your choice. Clips Kitty is free and open source."
+    />
+    <link rel="canonical" href="https://colingpt9.github.io/clips-studio/local-vs-cloud.html" />
+    <link rel="icon" href="assets/mascot.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Local AI clipping vs uploading to a service" />
+    <meta
+      property="og:description"
+      content="No uploads, no subscription, no clip limits. What running the AI on your own machine changes."
+    />
+    <meta property="og:image" content="https://colingpt9.github.io/clips-studio/assets/mascot.png" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/mascot.png" alt="" />
+          <span>
+            <span class="name">Clips <span>Kitty</span></span>
+            <span class="tagline">local-first AI clipping</span>
+          </span>
+        </a>
+        <nav class="site" aria-label="Main">
+          <a href="index.html">Home</a>
+          <a href="twitch.html">Twitch</a>
+          <a href="kick.html">Kick</a>
+          <a href="youtube.html">YouTube</a>
+          <a href="gaming.html">Gaming</a>
+          <a href="sports.html">Sports</a>
+          <a href="local-vs-cloud.html" aria-current="page">Local vs cloud</a>
+          <a href="alternatives.html">Compare</a>
+          <a href="opus-clip-alternative.html">vs Opus Clip</a>
+          <a href="descript-alternative.html">vs Descript</a>
+          <a href="roadmap.html">Roadmap</a>
+          <a href="changelog.html">Changelog</a>
+          <a href="developers.html">Developers</a>
+          <a href="https://github.com/ColinGPT9/clips-studio" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a class="donate" href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div class="wrap">
+          <span class="eyebrow">Comparison</span>
+          <h1>What running it locally actually means</h1>
+          <p class="lead">
+            Most clipping tools upload your video to a server and charge a monthly fee. Clips
+            Kitty runs on your own computer instead. Here is what that changes.
+          </p>
+        </div>
+      </div>
+
+      <section id="support">
+        <div class="wrap">
+          <div class="support">
+            <div class="body">
+              <p class="title">Clips Kitty is free &amp; open source ❤️</p>
+              <p>
+                It runs entirely on your PC with no fees. Please consider donating to help
+                cover development costs and keep it free for everyone.
+              </p>
+            </div>
+            <a class="btn btn-accent" href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate to Clips Kitty</a>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Side by side</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>&nbsp;</th>
+                  <th>Clips Kitty (local)</th>
+                  <th>Typical cloud clipper</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Cost</strong></td>
+                  <td>Free. You pay for electricity.</td>
+                  <td>Monthly, usually metered by minutes or clips.</td>
+                </tr>
+                <tr>
+                  <td><strong>Your footage</strong></td>
+                  <td>Never leaves your computer, unless you publish it or choose cloud AI on your own account.</td>
+                  <td>Uploaded and processed on their servers.</td>
+                </tr>
+                <tr>
+                  <td><strong>Volume</strong></td>
+                  <td>Unlimited. Re-run a stream as often as you like.</td>
+                  <td>Capped by your plan.</td>
+                </tr>
+                <tr>
+                  <td><strong>Waiting</strong></td>
+                  <td>No upload. Processing runs in the background while you work.</td>
+                  <td>Upload the whole video first, then wait in a queue.</td>
+                </tr>
+                <tr>
+                  <td><strong>The AI model</strong></td>
+                  <td>Your choice, swapped in one click. Bigger GPU, bigger model.</td>
+                  <td>Whichever one the service picked.</td>
+                </tr>
+                <tr>
+                  <td><strong>Offline</strong></td>
+                  <td>Works with no internet once set up.</td>
+                  <td>Needs a connection for everything.</td>
+                </tr>
+                <tr>
+                  <td><strong>Control</strong></td>
+                  <td>Yours to keep and change. Even how it scores clips is editable.</td>
+                  <td>Whatever the product exposes.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>What it asks of you</h2>
+          <ul class="ticks">
+            <li>
+              <strong>A one-time setup.</strong> An installer and a model download, rather than
+              signing up and pasting a link. The wizard walks through it.
+            </li>
+            <li>
+              <strong>Your own hardware.</strong> A long stream keeps the GPU busy for a while.
+              It runs in the background, but the computer is doing real work.
+            </li>
+            <li>
+              <strong>A graphics card, ideally.</strong> It runs without one, just slowly. An
+              NVIDIA GPU makes the biggest difference.
+            </li>
+            <li>
+              <strong>A second account, only if you want it to post.</strong> Making the clip
+              is entirely local. Publishing one is not: sending a clip to nine platforms at
+              once goes through <a href="https://woopsocial.com/?via=clipskitty" target="_blank" rel="noopener noreferrer sponsored">WoopSocial</a> or Upload-Post, on an account you create and pay for
+              yourself. It is off by default, and everything described above still works if
+              you never turn it on.
+            </li>
+          </ul>
+          <p class="note">Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>How it finds the good moments</h2>
+          <p class="section-lead">
+            A model that fits on a consumer graphics card is smaller than one running in a data
+            centre. The pipeline is built around that rather than ignoring it.
+          </p>
+          <ul class="ticks">
+            <li>
+              <strong>Find more candidates.</strong> Audio and visual peaks become clips in
+              their own right, so laughter and chaos are not missed just because the transcript
+              reads flat.
+            </li>
+            <li>
+              <strong>Rank, don't grade.</strong> Small models score everything in a narrow
+              band, so the finalists are compared against each other in one pass. Relative
+              judgement is far easier than absolute scoring.
+            </li>
+            <li>
+              <strong>Keep the human.</strong> You are going to review clips before posting
+              anyway. The model only has to get good moments <em>into the shortlist</em>, and you
+              pick the winners, which is the cheapest quality multiplier there is.
+            </li>
+            <li>
+              <strong>Scale with hardware.</strong> A bigger GPU means a bigger model, one
+              click, no new subscription.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Who this is actually for</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>High volume</h3>
+              <p>
+                Clipping several long streams a week, where metered plans get expensive fast.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Sensitive footage</h3>
+              <p>
+                Unreleased videos, sponsor reads, anything you would rather not hand to a third
+                party.
+              </p>
+            </div>
+            <div class="card">
+              <h3>People who like owning things</h3>
+              <p>
+                If the idea of tuning the scoring prompt yourself sounds good rather than
+                exhausting, you are in the right place.
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            Comparing against one product in particular?
+            <a href="opus-clip-alternative.html">Opus Clip vs Clips Kitty</a> has the prices
+            and the plan limits side by side.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-accent" href="https://github.com/ColinGPT9/clips-studio/releases/download/v2.1.0/ClipsKitty-Web-Setup-2.1.0.exe" target="_blank" rel="noopener noreferrer">Download for Windows</a
+            >
+            <a class="btn btn-ghost" href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ" target="_blank" rel="noopener noreferrer">Get it from Microsoft Store</a
+            >
+            <a class="btn btn-ghost" href="index.html">Back to the overview</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site">
+      <div class="wrap cols">
+        <span>Free and open source.</span>
+        <nav aria-label="Footer">
+          <a href="index.html">Home</a>
+          <a href="roadmap.html">Roadmap</a>
+          <a href="changelog.html">Changelog</a>
+          <a href="developers.html">Build a plugin</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="https://github.com/ColinGPT9/clips-studio" target="_blank" rel="noopener noreferrer">★ Star it</a>
+          <a href="https://github.com/ColinGPT9/clips-studio/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute</a>
+          <a href="https://github.com/ColinGPT9/clips-studio/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+          <a href="https://paypal.me/clipsstudio" target="_blank" rel="noopener noreferrer">Donate</a>
+        </nav>
+      </div>
+    </footer>
+    <script src="analytics.js"></script>
+    <script src="donate.js"></script>
+  </body>
+</html>

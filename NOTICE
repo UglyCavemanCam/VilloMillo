@@ -1,0 +1,163 @@
+Clips Studio
+Copyright (C) 2026 ColinGPT9
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
+for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+The full text is in LICENSE.
+
+
+-------------------------------------------------------------------------------
+What this means if you are just using the app
+-------------------------------------------------------------------------------
+
+Nothing changes for you. Download it, install it, clip your streams, post the
+clips, make money from them. The AGPL places obligations on people who
+DISTRIBUTE the software or run a MODIFIED version as a network service — not
+on people who use it. Your videos and your clips are yours; the licence has
+nothing to say about them.
+
+If you modify Clips Studio and give that modified version to someone else, or
+run it as a service other people use over a network, you have to offer them
+the source of your modified version under this same licence.
+
+
+-------------------------------------------------------------------------------
+Parts under other licences
+-------------------------------------------------------------------------------
+
+The plugin SDK in sdk/python/ (clipskitty_sdk, which the installer also
+bundles so plugins can import it) is MIT-licensed; its notice is in
+sdk/python/LICENSE and travels with it. The example plugins in
+examples/pipelines/scene-cut-highlights/ and examples/pipelines/keyword-rater/
+are MIT as well, and the copy of the Awesome Clips Kitty list in
+plugins/catalog_index.json is CC0-1.0, as is the list itself
+(github.com/ColinGPT9/awesome-clips-kitty). Plugins, pipelines and apps made by other people keep their own
+licences; installing one does not change it, and nothing here changes theirs.
+
+-------------------------------------------------------------------------------
+Why a copyleft licence
+-------------------------------------------------------------------------------
+
+It keeps improvements to the tool available to the creators it was written
+for, rather than allowing a closed fork of the same work to be sold back to
+them.
+
+
+-------------------------------------------------------------------------------
+Third-party components
+-------------------------------------------------------------------------------
+
+The Windows installer bundles the Python engine and its dependencies. The
+significant ones, with their licences:
+
+  ultralytics (YOLOv8)      AGPL-3.0     pose/face tracking + model weights
+  TalkNet-ASD               MIT          active speaker detection; the model
+                                         code is vendored unmodified under
+                                         third_party/talknet/ (c) 2021 Tao
+                                         Ruijie, and its pretrained weights
+                                         are fetched by scripts/fetch_asd_model.py
+  PANNs (Qiuqiang Kong)     MIT          game sounds; the MobileNetV1 network
+                                         is adapted in analysis/panns.py
+                                         (c) 2018-2020 Qiuqiang Kong, and its
+                                         pretrained weights (Zenodo 3987831)
+                                         are CC BY 4.0, fetched by
+                                         scripts/fetch_panns.py. AudioSet's
+                                         class names (config/
+                                         audioset_labels.txt) are CC BY 4.0,
+                                         Google
+  E-BARD detection models   CC BY 4.0    the basketball, the hoop and the
+                                         players, for basketball's 9:16 framing
+                                         (sports/basketball/crop/sources.py);
+                                         the YOLOv8n weights (huggingface.co/
+                                         GabrieleGiudici/E-BARD-detection-
+                                         models, revision 3f4789c), unmodified,
+                                         fetched by scripts/
+                                         fetch_basketball_model.py. Trained
+                                         with ultralytics, so its AGPL-3.0
+                                         terms apply as to the YOLOv8 weights;
+                                         full attribution below
+  pyannote segmentation-3.0 MIT          who is talking when, for the second
+                                         speaker's caption colour (analysis/
+                                         voice_turns.py); (c) 2022 CNRS, the
+                                         ONNX export is sherpa-onnx's (k2-fsa),
+                                         fetched by scripts/fetch_voice_model.py
+  WeSpeaker ResNet34-LM     CC BY 4.0    whose voice a turn is, for the same;
+                                         pretrained on VoxCeleb by the
+                                         WeSpeaker team (huggingface.co/
+                                         Wespeaker/wespeaker-voxceleb-
+                                         resnet34-LM), unmodified, fetched by
+                                         scripts/fetch_voice_model.py
+  RapidOCR                  Apache-2.0   on-screen text in a gaming stream;
+                                         its bundled PaddleOCR models are
+                                         Apache-2.0 (PaddlePaddle)
+  faster-whisper            MIT          transcription; its model weights are
+                                         fetched by scripts/fetch_whisper.py
+                                         and are MIT (Systran/faster-whisper,
+                                         converted from OpenAI Whisper)
+  Ollama                    MIT          the local AI runtime, bundled
+                                         unmodified and fetched at build time
+                                         by scripts/fetch_ollama.py
+  PyTorch                   BSD-3-Clause tensor runtime, CUDA libraries
+  OpenCV (opencv-python)    Apache-2.0   frame decoding and analysis
+  yt-dlp                    Unlicense    downloading source videos
+  yt-dlp-ejs                Unlicense,   YouTube player solver scripts, for the
+                            MIT, ISC     YouTube cookies fallback only
+  QuickJS-ng                MIT          runs those scripts; bundled unmodified
+                                         and fetched at build time by
+                                         scripts/fetch_quickjs.py
+  FFmpeg                    see below    all encoding, decoding and muxing
+  FastAPI / Uvicorn         MIT          the local API the desktop app talks to
+  Electron                  MIT          the desktop shell
+  React                     MIT          the interface
+  Material Icons            Apache-2.0   a few icon shapes in the layout
+                                         editor's platform preview (Google)
+  Lucide                    ISC          a few icon shapes in the same preview;
+                                         both notices are in
+                                         third_party/icons/NOTICE.md
+
+The E-BARD detection model (https://github.com/GabrieleGiudic/E-BARD) is licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/). Clips Kitty uses its YOLOv8n
+weights unmodified:
+  model    https://huggingface.co/GabrieleGiudici/E-BARD-detection-models
+  code     https://github.com/GabrieleGiudic/E-BARD
+  dataset  https://huggingface.co/datasets/GabrieleGiudici/E-BARD-detection
+E-BARD extends BARD: G. Giudici, A. Maurino and P. Zuccolotto, "BARD: A
+Basketball Action Recognition Dataset for multi-label classification",
+Computer Vision and Image Understanding 267 (2026) 104713,
+https://doi.org/10.1016/j.cviu.2026.104713.
+
+FFmpeg is fetched at build time by scripts/fetch_ffmpeg.py rather than kept
+in this repository. The builds used are LGPL-2.1-or-later, or GPL-2.0-or-later
+where they include GPL-licensed components; the exact terms ship with the
+binary in the installer.
+
+Ollama is fetched at build time by scripts/fetch_ollama.py rather than kept in
+this repository, and ships unmodified. Its MIT licence travels with it in the
+installer as README-OLLAMA.txt.
+
+The language models Ollama runs are NOT bundled. The app downloads the one it
+needs on first launch, and each carries its own licence — Gemma, for example,
+is covered by the Gemma Terms of Use rather than by anything here. That is
+also why they are downloaded rather than shipped: redistributing them would
+mean accepting those terms on every user's behalf.
+
+
+-------------------------------------------------------------------------------
+Commercial licensing
+-------------------------------------------------------------------------------
+
+If the AGPL does not suit your use, ask. The copyright is held by one person,
+which means a different arrangement is possible without collecting agreements
+from a hundred contributors.
