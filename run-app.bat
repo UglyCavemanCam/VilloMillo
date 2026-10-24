@@ -36,7 +36,7 @@ rem The dashboard needs these packages; install whatever is missing.
 %PY% -c "import fastapi, uvicorn, jinja2, yaml, yt_dlp, cv2, numpy, PIL" >nul 2>nul
 if errorlevel 1 (
     echo Installing the packages the app needs. This only happens once...
-    %PY% -m pip install -r requirements-villomillo.txt yt-dlp opencv-python-headless numpy pillow
+    %PY% -m pip install -r requirements-villomillo.txt
     if errorlevel 1 (
         echo.
         echo The install failed. Copy the text above and send it to Claude.

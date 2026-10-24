@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="empty error-page">{{ icon('alert') }}<h2>{{ headline }}</h2><p>{{ text }}</p>
+  <p class="muted" style="font-size:13px">Error {{ status }}</p>
+  <div class="cluster"><a class="btn btn-primary" href="{{ home }}">Go to Home</a><button type="button" class="btn" onclick="history.back()">Go back</button></div>
+</div>
+{% endblock %}

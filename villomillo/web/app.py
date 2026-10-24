@@ -10,15 +10,18 @@ from __future__ import annotations
 import pathlib
 import subprocess
 from datetime import date
+from html import escape as html_escape
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .. import accounts, clipper, copywriter, posting, routing, secrets, tasks, timefmt
+from .. import accounts, clipper, copywriter, posting, routing, secrets, store, tasks, timefmt
 from ..services import Services
 from . import pages
 
@@ -79,6 +82,39 @@ def create_app(sv: Services) -> FastAPI:
         if platform is not None and (sv.profiles[profile].posting is None or platform not in sv.profiles[profile].posting.platforms):
             raise HTTPException(404, "no such channel account")
         return sv.profiles[profile]
+
+    # ---- errors: a browser gets a page inside the dashboard, everything else gets the JSON it always did ----------
+
+    def wants_page(request: Request) -> bool:
+        return (request.method == "GET" and "text/html" in request.headers.get("accept", "")
+                and not request.url.path.startswith(("/api/", "/static/")) and request.headers.get("x-requested-with") != "panel")
+
+    def error_page(request: Request, status: int, headline: str, text: str) -> HTMLResponse:
+        p = sv.profiles.get(request.query_params.get("profile", "")) or next(iter(sv.profiles.values()), None)
+        try:
+            body = env.get_template("error.html").render(
+                shell=pages.shell(sv, p, request.url.path, ""), page={"title": headline, "active": ""},
+                status=status, headline=headline, text=text, home=f"/?profile={p.id}")
+        except Exception:  # the page that explains a failure must not fail too
+            body = f"<!doctype html><title>{status} | VilloMillo</title><h1>{html_escape(headline)}</h1><p>{html_escape(text)}</p>"
+        return HTMLResponse(body, status_code=status)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException):
+        if not wants_page(request):
+            return await http_exception_handler(request, exc)
+        known = {404: ("That page is not here", "The address may be old, or the clip or post was removed."),
+                 403: ("Not allowed", "This dashboard only answers requests from this computer.")}
+        headline, text = known.get(exc.status_code, ("Something went wrong", str(exc.detail)))
+        return error_page(request, exc.status_code, headline, text)
+
+    @app.exception_handler(Exception)
+    async def crashed(request: Request, exc: Exception):
+        store.event(sv.db, "error", "dashboard", f"{request.url.path}: {type(exc).__name__}: {str(exc)[:200]}")
+        if not wants_page(request):
+            return JSONResponse({"detail": "the dashboard hit an error; it is in the event log"}, status_code=500)
+        return error_page(request, 500, "The dashboard hit an error",
+                          f"{type(exc).__name__}: {str(exc)[:200]}. It was written to the event log; nothing was changed.")
 
     # ---- pages ------------------------------------------------------------------------------------------------
 

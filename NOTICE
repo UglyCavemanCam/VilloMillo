@@ -125,6 +125,11 @@ significant ones, with their licences:
   Lucide                    ISC          a few icon shapes in the same preview;
                                          both notices are in
                                          third_party/icons/NOTICE.md
+  Geist (font)              SIL OFL 1.1  the VilloMillo dashboard's typeface
+                                         (Vercel); licence in
+                                         villomillo/web/static/fonts/
+  Lucide (dashboard icons)  ISC          the VilloMillo dashboard's icons,
+                                         inlined in web/templates/_ui.html
 
 The E-BARD detection model (https://github.com/GabrieleGiudic/E-BARD) is licensed under
 Creative Commons Attribution 4.0 International (CC BY 4.0,

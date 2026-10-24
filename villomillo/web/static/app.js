@@ -23,18 +23,24 @@
   });
 
   /* ---- drawer ---- */
+  var SKELETON = '<div class="drawer-head"><div class="skel" style="width:40%;height:20px"></div><button type="button" class="icon-btn" data-close aria-label="Close">\u00d7</button></div>' +
+    '<div class="drawer-body" aria-busy="true"><div class="skel" style="aspect-ratio:9/16;max-height:46vh"></div><div class="skel" style="height:16px"></div><div class="skel" style="height:16px;width:70%"></div><div class="skel" style="height:64px"></div></div>';
   function openPanel(url) {
-    lastFocus = document.activeElement;
+    lastFocus = lastFocus && drawer.classList.contains("open") ? lastFocus : document.activeElement;
     currentPanel = url;
-    return fetch(url, { headers: { "X-Requested-With": "panel" } }).then(function (r) {
-      if (!r.ok) throw new Error("could not open this (" + r.status + ")");
-      return r.text();
-    }).then(function (html) {
-      drawer.innerHTML = html;
+    if (!drawer.classList.contains("open")) {  /* show the frame at once; a slow disk should not feel like a dead click */
+      drawer.innerHTML = SKELETON;
       drawer.classList.add("open"); backdrop.classList.add("open");
       drawer.setAttribute("aria-hidden", "false");
+    }
+    return fetch(url, { headers: { "X-Requested-With": "panel" } }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 404 ? "That item is gone (it may have been removed)." : "Could not open this (" + r.status + ").");
+      return r.text();
+    }).then(function (html) {
+      if (currentPanel !== url) return;  /* a newer click replaced this one */
+      drawer.innerHTML = html;
       var focusTarget = $("[data-close]", drawer); if (focusTarget) focusTarget.focus();
-    }).catch(function (e) { toast(e.message, "bad"); });
+    }).catch(function (e) { closePanel(); toast(e.message, "bad"); });
   }
   function closePanel() {
     drawer.classList.remove("open"); backdrop.classList.remove("open");
@@ -116,7 +122,7 @@
   });
 
   /* ---- search palette ---- */
-  var palette = $("#palette"), input = $("#palette-input"), list = $("#palette-list"), timer = null, items = [], cursor = 0;
+  var palette = $("#palette"), input = $("#palette-input"), list = $("#palette-list"), timer = null, items = [], cursor = 0, searching = false;
   function pages() {
     return $$(".sidebar a.nav").map(function (a) { return { type: "Page", title: a.getAttribute("title") || a.textContent.trim(), sub: "", href: a.getAttribute("href") }; });
   }
@@ -132,16 +138,17 @@
       if (it.sub) { var s = document.createElement("small"); s.textContent = it.sub; a.appendChild(s); }
       li.appendChild(a); list.appendChild(li);
     });
-    if (!items.length) { var e = document.createElement("li"); e.className = "group"; e.textContent = "Nothing found"; list.appendChild(e); }
+    if (!items.length) { var e = document.createElement("li"); e.className = "group"; e.textContent = searching ? "Searching\u2026" : "Nothing found"; list.appendChild(e); }
   }
   function search() {
     var q = input.value.trim();
     if (!q) { items = pages(); cursor = 0; return render(); }
     var lower = q.toLowerCase();
     var local = pages().filter(function (p) { return p.title.toLowerCase().indexOf(lower) !== -1; });
+    searching = true; items = local; render();
     fetch("/api/search?profile=" + encodeURIComponent(profile) + "&q=" + encodeURIComponent(q)).then(function (r) { return r.json(); })
-      .then(function (found) { items = local.concat(found.results || []); cursor = 0; render(); })
-      .catch(function () { items = local; render(); });
+      .then(function (found) { if (input.value.trim() !== q) return; searching = false; items = local.concat(found.results || []); cursor = 0; render(); })
+      .catch(function () { searching = false; items = local; render(); });
   }
   function openPalette() { palette.showModal(); input.value = ""; search(); input.focus(); }
   $("#open-palette").addEventListener("click", openPalette);
@@ -156,6 +163,24 @@
     } else if (ev.key === "Enter" && items[cursor]) { location.href = items[cursor].href; }
   });
   palette.addEventListener("click", function (ev) { if (ev.target === palette) palette.close(); });
+
+  /* ---- keyboard shortcuts: g then a letter goes to a page; / searches; [ folds the side panel; ? lists them ---- */
+  var shortcuts = $("#shortcuts"), goKeys = { h: "/?", r: "/research", c: "/clips", p: "/calendar", a: "/accounts", i: "/insights", s: "/settings" }, going = 0;
+  function typing(t) { return t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable); }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target) || $("dialog[open]")) return;
+    var k = ev.key;
+    if (going && Date.now() - going < 1200 && goKeys[k.toLowerCase()]) {
+      going = 0; var link = $('.sidebar a.nav[href^="' + goKeys[k.toLowerCase()] + '"]'); if (link) location.href = link.href; return;
+    }
+    going = 0;
+    if (k === "g") going = Date.now();
+    else if (k === "/") { ev.preventDefault(); openPalette(); }
+    else if (k === "[" && collapse) collapse.click();
+    else if (k === "?" && shortcuts) shortcuts.showModal();
+  });
+  var shortcutsBtn = $("#open-shortcuts"); if (shortcutsBtn && shortcuts) shortcutsBtn.addEventListener("click", function () { shortcuts.showModal(); });
+  if (shortcuts) shortcuts.addEventListener("click", function (ev) { if (ev.target === shortcuts || ev.target.closest("[data-close-dialog]")) shortcuts.close(); });
 
   /* ---- live clip progress: only while the engine reports a job ---- */
   var live = $("[data-live]");

@@ -1,6 +1,6 @@
 # Dashboard redesign plan
 
-Status: **plan, not built.** Written 2026-10-24. Clickable mock-ups of Home, Clips and Calendar (amber accent, dark mode): https://claude.ai/artifact/XffCRE4X6RM2oppfP2GZSG (private to your account). Reference studied: Opus Clip's web app (clip.opus.pro), read in your
+Status: **built (R1 to R6 done; R0 clean-up waits for your OK).** Written 2026-10-24, built the same day. Clickable mock-ups of Home, Clips and Calendar (amber accent, dark mode): https://claude.ai/artifact/XffCRE4X6RM2oppfP2GZSG (private to your account). Reference studied: Opus Clip's web app (clip.opus.pro), read in your
 Chrome while signed in (read only: nothing was changed or clicked that saves anything).
 
 ## 1. What Opus Clip's UI is made of (measured from the page, not guessed)
@@ -125,15 +125,17 @@ deleted file recoverable.
 
 ## 8. Build order
 
-| Step | Work | Done when |
-|---|---|---|
-| R0 | Repository clean-up (only with your OK) | Engine clips a test video; all tests pass |
-| R1 | Design system and app shell: tokens, fonts, icons, sidebar, top bar, base components, templates split out | Every existing page renders inside the new shell |
-| R2 | Home | Shows real counts, needs-you list and the next 7 days |
-| R3 | Clips: grid, tabs, review drawer, in-progress timeline | Approve and reject work from the drawer; old studio and review pages removed |
-| R4 | Calendar: month, week, list, post drawer, manual-upload flow | Old posts and manual pages removed; posting flows unchanged |
-| R5 | Research, Accounts, Insights, Settings | All pages on the new system |
-| R6 | Polish: empty, loading and error states, ⌘K palette, keyboard shortcuts, laptop widths | Every page checked in the browser at 1366 and 1920 px; tests pass |
+| Step | Work | Done when | Status |
+|---|---|---|---|
+| R0 | Repository clean-up (only with your OK) | Engine clips a test video; all tests pass | **Waiting for your OK.** Nothing was deleted. |
+| R1 | Design system and app shell: tokens, fonts, icons, sidebar, top bar, base components, templates split out | Every existing page renders inside the new shell | Done |
+| R2 | Home | Shows real counts, needs-you list and the next 7 days | Done |
+| R3 | Clips: grid, tabs, review drawer, in-progress timeline | Approve and reject work from the drawer; old studio and review pages removed | Done (old addresses redirect) |
+| R4 | Calendar: month, week, list, post drawer, manual-upload flow | Old posts and manual pages removed; posting flows unchanged | Done (old addresses redirect) |
+| R5 | Research, Accounts, Insights, Settings | All pages on the new system | Done |
+| R6 | Polish: empty, loading and error states, Ctrl K palette, keyboard shortcuts, laptop widths | Every page checked in the browser at 1366 and 1920 px; tests pass | Done: empty states on every page; drawer and search show a loading state; errors show a page inside the dashboard (JSON stays for scripts); `g` + letter, `/`, `[` and `?` shortcuts; Geist font vendored; content widens to 1560 px; reduced-motion respected. Checked at 1366 and 1920 px with demo data: no horizontal overflow, no script errors. |
+
+Not shipped, by design: light mode (dark only, decision 2). Tokens for it are not defined yet.
 
 ## 9. Decisions needed
 

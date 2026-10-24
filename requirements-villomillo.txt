@@ -1,4 +1,4 @@
-# VilloMillo's own dependencies: the research engine, dashboard and API clients.
+# VilloMillo's own dependencies: the research engine, dashboard, format renderer and API clients.
 # The clipping engine's dependencies are in requirements.txt (needed from Phase 3).
 pydantic>=2.8,<3
 PyYAML>=6.0.3,<7
@@ -11,3 +11,11 @@ python-multipart>=0.0.9,<1
 # The clipping engine's speech recognition (faster-whisper 1.2.x) needs this older PyAV: from 18 on it
 # rejects an option faster-whisper still passes, and every transcription fails.
 av>=17,<18
+# Imported by the engine and the format renderer; same pins as requirements.txt where it has them.
+# opencv-python 5.x dropped cv2.CascadeClassifier, which the face check uses, so it stays below 5.
+yt-dlp>=2026.8.19
+opencv-python>=4.14.0.94,<5
+numpy>=1.26
+pillow>=10.4
+anthropic>=0.40
+google-auth-oauthlib>=1.4.0,<2

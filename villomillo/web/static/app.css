@@ -121,7 +121,7 @@ body.collapsed .engine { justify-content: center; }
 .bell .menu .head { padding: 8px 10px; font-size: 13px; font-weight: 600; color: var(--label); }
 .bell .menu a { align-items: flex-start; }
 .bell .menu small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
-.content { padding: 28px 32px 56px; width: 100%; max-width: 1344px; display: flex; flex-direction: column; gap: 22px; }
+.content { padding: 28px 32px 56px; width: 100%; max-width: 1560px; display: flex; flex-direction: column; gap: 22px; }
 .page-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .page-head .sub { color: var(--muted); }
 .page-head .right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
@@ -343,3 +343,17 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 10px; }
   .list .lrow, .list .lhead { grid-template-columns: 1fr 1fr; } .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .spend { display: none; }
 }
+
+/* ---- loading, errors, shortcuts ---------------------------------------------------------------------------------- */
+.skel { border-radius: var(--r); background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: skel 1.2s linear infinite; }
+@keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.error-page { margin-top: 8vh; }
+.error-page .icon { color: var(--warn); }
+.shortcuts { width: min(460px, calc(100% - 32px)); }
+.shortcuts h2 { margin-bottom: 12px; }
+.shortcuts dl { margin: 0 0 16px; display: flex; flex-direction: column; }
+.shortcuts dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.shortcuts dt { color: var(--label); white-space: nowrap; } .shortcuts dd { margin: 0; text-align: right; }
+.shortcuts .actions { display: flex; justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .drawer { transition: none; } * { scroll-behavior: auto !important; } }
+.shortcuts .kbd { position: static; display: inline-block; top: auto; right: auto; min-width: 22px; text-align: center; color: var(--text); background: var(--surface-2); }
