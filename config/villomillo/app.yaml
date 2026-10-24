@@ -1,23 +1,23 @@
 # VilloMillo app settings. Edit and restart. Every key is optional; these are the defaults.
 
-# Only videos whose rights are known get clipped: yours, licensed to you, or Creative Commons.
-rights_gate: strict
-
 database: data/villomillo/villomillo.db
 
 dashboard:
   host: 127.0.0.1          # this PC only. Do not change unless you know why
   port: 8780
 
-# Hard daily caps. YouTube's own limits are 10,000 general units and 100 searches
-# per day, so these leave room to spare.
+# YouTube's own limits are 10,000 general units and 100 searches per day, so these leave room to spare.
 budgets:
   youtube_general_units_per_day: 8000
   youtube_search_calls_per_day: 80
-  jev_usd_per_day: 1.00
-  claude_usd_per_month: 25.00
   claude_escalations_per_day: 10   # second opinions on borderline videos
   transcript_jev_usd_per_video: 0.01
+
+# No monthly or daily dollar caps. Instead everything pauses when spending SINCE YOUR LAST APPROVAL reaches
+# these amounts (or when an account runs out of funds), and the dashboard asks you to approve.
+spend_breaker:
+  claude_usd: 25.00
+  jev_usd: 5.00
 
 # How often each job runs.
 schedule:

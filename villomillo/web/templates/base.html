@@ -47,7 +47,7 @@
     <div class="crumbs"><span>{{ shell.channel_name }}</span><span class="sep">/</span><b>{{ page.title }}</b></div>
     <div class="search"><label class="sr-only" for="open-palette">Find a clip, post or video</label>{{ icon('search') }}<input id="open-palette" type="text" readonly placeholder="Find a clip, post or video" autocomplete="off"><span class="kbd">Ctrl K</span></div>
     <div class="tools">
-      <div class="spend" title="{{ shell.budget.title }}">AI spend <b class="num">{{ shell.budget.month }}</b> this month</div>
+      <div class="spend" title="{{ shell.budget.title }}">Since approval <b class="num">{{ shell.budget.text }}</b></div>
       <button type="button" class="icon-btn" id="open-shortcuts" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
       <details class="bell">
         <summary class="icon-btn" aria-label="Notifications{% if shell.alerts %}, {{ shell.alerts|length }} need you{% endif %}">{{ icon('bell') }}{% if shell.alerts %}<span class="badge-dot"></span>{% endif %}</summary>
@@ -60,6 +60,10 @@
       {% block action %}{% endblock %}
     </div>
   </header>
+  {% if shell.pause %}<div class="notice warn pause-banner" role="alert">
+    <span class="grow"><b>{{ shell.pause.title }}</b><br>{{ shell.pause.text }}</span>
+    <button type="button" class="btn btn-primary" data-act="/api/spend-approve" data-ok="Approved: work continues">Approve and continue</button>
+  </div>{% endif %}
   <main class="content">{% block content %}{% endblock %}</main>
 </div>
 </div>

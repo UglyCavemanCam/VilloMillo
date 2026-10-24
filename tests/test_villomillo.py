@@ -425,11 +425,11 @@ def test_rescoring_uses_saved_answers_and_makes_no_ai_calls(db, library):
     assert all(r["score"] == pytest.approx(90.0) for r in store.ranked(db, p.id))  # niche answer was 0.9
 
 
-def test_the_daily_jev_budget_stops_grading(db, library):
+def test_the_spend_breaker_stops_grading(db, library):
     yt, jev, p = FakeYT(library), FakeJev(), profile()
-    app = config.AppConfig(budgets=config.Budgets(jev_usd_per_day=0.00005))  # room for one 4.2e-5 call
+    app = config.AppConfig(spend_breaker=config.SpendBreaker(jev_usd=0.00005))  # room for one 4.2e-5 call
     out = engine.run_cycle(db, yt, jev, app, p, topics=False)["grading"]
-    assert out["graded"] == 2 and "budget" in out["stopped"]
+    assert out["graded"] == 2 and "breaker" in out["stopped"]
 
 
 def test_jev_failing_repeatedly_stops_the_run_without_losing_the_videos(db, library):
@@ -457,6 +457,17 @@ def test_pages_render_and_titles_are_escaped(web):
         assert client_.get(path).status_code == 200
     html = client_.get("/research").text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html and "<script>alert(1)" not in html
+
+
+def test_a_tripped_breaker_shows_a_banner_and_approving_clears_it(web):
+    client_, sv = web
+    assert "pause-banner" not in client_.get("/?profile=test").text
+    with sv.db.conn() as c:
+        store.add_ai_usage(c, "claude", 0, 0, sv.app.spend_breaker.claude_usd + 1)
+    html = client_.get("/clips?profile=test").text
+    assert "Paused: spending reached the breaker" in html and "/api/spend-approve" in html
+    assert client_.post("/api/spend-approve", data={"profile": "test"}).status_code == 200
+    assert "pause-banner" not in client_.get("/clips?profile=test").text
 
 
 def test_there_is_no_rating_endpoint_any_more(web):

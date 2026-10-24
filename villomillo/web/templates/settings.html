@@ -40,11 +40,11 @@
 
 <div class="grid two">
   <section class="card" aria-labelledby="bud-h">
-    <h2 id="bud-h" style="margin-bottom:12px">Budgets</h2>
+    <h2 id="bud-h" style="margin-bottom:12px">Limits</h2>
     <dl class="kv" style="grid-template-columns:200px 1fr">
-      <dt>Claude per month</dt><dd class="num">{{ d.budgets.claude_usd_per_month|money }}</dd>
+      <dt>Pause at, Claude</dt><dd class="num">{{ d.breaker.claude_usd|money }} since approval</dd>
+      <dt>Pause at, Jev</dt><dd class="num">{{ d.breaker.jev_usd|money }} since approval</dd>
       <dt>Second opinions per day</dt><dd class="num">{{ d.budgets.claude_escalations_per_day }}</dd>
-      <dt>Jev per day</dt><dd class="num">{{ d.budgets.jev_usd_per_day|money }}</dd>
       <dt>YouTube units per day</dt><dd class="num">{{ d.budgets.youtube_general_units_per_day }}</dd>
       <dt>YouTube searches per day</dt><dd class="num">{{ d.budgets.youtube_search_calls_per_day }}</dd>
     </dl>

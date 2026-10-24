@@ -7,7 +7,7 @@ import threading
 import traceback
 from datetime import timedelta
 
-from . import discovery, engine, learning, store, tasks
+from . import discovery, engine, learning, spend, store, tasks
 from .services import Services
 
 
@@ -42,11 +42,11 @@ def do_grade(sv: Services, payload: dict) -> None:
 
 
 def do_clip(sv: Services, payload: dict) -> None:
-    """Hand one video to the clipping engine (rights are checked there), then look at it later."""
+    """Hand one video to the clipping engine , then look at it later."""
     from . import clipper, tasks
 
     p = _profile(sv, payload)
-    status = clipper.submit(sv.db, clipper.Engine(), sv.yt, p, payload["video_id"])
+    status = clipper.submit(sv.db, clipper.Engine(), p, payload["video_id"])
     store.event(sv.db, "info", "clip", f"{payload['video_id']}: {status}")
     if status.startswith("submitted"):
         tasks.enqueue(sv.db, "collect", {"profile": p.id, "video_id": payload["video_id"]},
@@ -66,7 +66,7 @@ def do_collect(sv: Services, payload: dict) -> None:
         return
     from . import formats
 
-    formatter = formats.formatter_for(sv.db, p, jev=sv.jev, budget_usd=sv.app.budgets.claude_usd_per_month)
+    formatter = formats.formatter_for(sv.db, p, jev=sv.jev, breaker=sv.app.spend_breaker)
     outcome = clipper.collect(sv.db, clipper.Engine(), sv.jev, p, dict(job), formatter)
     store.event(sv.db, "info", "clip", f"{payload['video_id']}: {outcome}")
     if outcome == "waiting":
@@ -94,8 +94,8 @@ def do_review(sv: Services, payload: dict) -> None:
     from . import claude
 
     p = _profile(sv, payload)
-    if sv.app.budgets.claude_usd_per_month <= store.ai_spend_month(sv.db, "claude"):
-        store.event(sv.db, "warn", "review", "Weekly review skipped: monthly Claude budget used up")
+    if (pause := spend.current(sv.db, sv.app.spend_breaker)):
+        store.event(sv.db, "warn", "review", f"Weekly review skipped: {pause.title.lower()}")
         return
     check = store.last_selfcheck(sv.db, p.id)
     rows = store.ranked(sv.db, p.id, limit=10)
@@ -121,7 +121,7 @@ def do_copy(sv: Services, payload: dict) -> None:
 
     p = _profile(sv, payload)
     status = copywriter.generate_with_keys(sv.db, p, payload["post_id"], jev=sv.jev,
-                                           budget_usd=sv.app.budgets.claude_usd_per_month)
+                                           breaker=sv.app.spend_breaker)
     store.event(sv.db, "info", "copy", f"post {payload['post_id']}: {status}")
 
 
@@ -152,12 +152,17 @@ HANDLERS = {
 
 def run_one(sv: Services, worker: str = "worker-1") -> bool:
     """Run the next ready task. Returns False when there was nothing to do."""
+    if spend.current(sv.db, sv.app.spend_breaker):
+        return False  # the spend breaker is tripped or an account is out of funds: wait for your approval
     task = tasks.claim(sv.db, worker)
     if not task:
         return False
     try:
         HANDLERS[task["kind"]](sv, json.loads(task["payload_json"]))
     except Exception as e:  # a bad task must not stop the worker; it is retried, then given up on
+        provider = spend.engine_of(e)
+        if provider and spend.note_failure(sv.db, provider, e):
+            store.event(sv.db, "error", "spend", f"{spend.NAMES[provider]} is out of funds: work is paused", error=str(e)[:300])
         outcome = tasks.fail(sv.db, task, f"{type(e).__name__}: {e}")
         store.event(sv.db, "error", "runner", f"{task['kind']} failed ({outcome})", error=str(e),
                     trace=traceback.format_exc()[-800:])

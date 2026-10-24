@@ -29,7 +29,14 @@ def cmd_status(args) -> None:
         print("  last self-check:", check["verdict"] if check else "not run yet (python -m villomillo check)")
     print("YouTube used today: general", sv.quota.used("general"), "of", sv.quota.caps["general"],
           "| search", sv.quota.used("search"), "of", sv.quota.caps["search"])
-    print(f"Jev spend today: ${store.ai_spend_today(sv.db, 'jev'):.4f} of ${sv.app.budgets.jev_usd_per_day:.2f}")
+    from . import spend
+
+    br = sv.app.spend_breaker
+    print(f"Spent since your last approval: Claude ${spend.since_approval(sv.db, 'claude'):.2f} of ${br.claude_usd:.2f}, "
+          f"Jev ${spend.since_approval(sv.db, 'jev'):.2f} of ${br.jev_usd:.2f}")
+    pause = spend.current(sv.db, br)
+    if pause:
+        print(f"PAUSED: {pause.text} (python -m villomillo approve-spend)")
 
 
 def cmd_check(args) -> None:
@@ -58,49 +65,14 @@ def _pick(sv: services.Services, profile_id: str | None):
     sys.exit(f"Choose a channel profile with --profile ({', '.join(sorted(sv.profiles))})")
 
 
-def cmd_rights(args) -> None:
-    from . import rights
+def cmd_approve_spend(args) -> None:
+    """Start a new spending count and let paused work continue (after topping up an empty account)."""
+    from . import spend
 
     sv = _services(with_apis=False)
-    p = _pick(sv, args.profile)
-    if args.action == "set-channel":
-        if not (args.channel_id and args.status):
-            sys.exit("usage: rights set-channel <channel_id> <owned|licensed|none> --note '...'")
-        try:
-            rights.set_channel(sv.db, p.id, args.channel_id, args.status, args.note or "")
-        except ValueError as e:
-            sys.exit(str(e))
-        print(f"{args.channel_id} is now recorded as '{args.status}' for {p.id}")
-    else:
-        with sv.db.conn() as c:
-            for r in c.execute("SELECT channel_id, status, note FROM channel_rights WHERE profile_id=?", (p.id,)):
-                print(f"channel {r['channel_id']}  {r['status']}  {r['note']}")
-            n = c.execute("SELECT COUNT(*) AS n FROM campaign_videos WHERE profile_id=?", (p.id,)).fetchone()["n"]
-            print(f"{n} videos listed by campaigns for {p.id}")
-
-
-def cmd_campaign(args) -> None:
-    """Record the source videos a campaign lists, and load them into the system."""
-    from . import rights
-
-    sv = _services()
-    p = _pick(sv, args.profile)
-    ids = [i.strip() for i in args.ids.split(",") if i.strip()]
-    if not ids:
-        sys.exit("give the video ids with --ids a,b,c")
-    try:
-        added = rights.add_campaign_videos(sv.db, p.id, ids, args.url, args.note)
-    except ValueError as e:
-        sys.exit(str(e))
-    found = sv.yt.videos(ids)
-    with sv.db.conn() as c:
-        for v in found:
-            if v["published_at"]:
-                store.upsert_video(c, p.id, v, "campaign")
-    missing = sorted(set(ids) - {v["video_id"] for v in found})
-    print(f"{added} new videos recorded as listed by the campaign; {len(found)} loaded from YouTube")
-    if missing:
-        print("not available on YouTube (skipped when clipping):", ", ".join(missing))
+    pause = spend.current(sv.db, sv.app.spend_breaker)
+    spend.approve(sv.db)
+    print("Approved. Paused work will continue." if pause else "Approved. Nothing was paused; the spending count starts again from now.")
 
 
 def cmd_youtube_connect(args) -> None:
@@ -158,7 +130,7 @@ def cmd_copy(args) -> None:
     for post_id in ids:
         try:
             print(f"post {post_id}: " + copywriter.generate_with_keys(
-                sv.db, p, post_id, jev=sv.jev, force=args.force, budget_usd=sv.app.budgets.claude_usd_per_month))
+                sv.db, p, post_id, jev=sv.jev, force=args.force, breaker=sv.app.spend_breaker))
         except LookupError as e:
             sys.exit(str(e))
 
@@ -185,7 +157,7 @@ def cmd_format_clip(args) -> None:
         info = formats.format_clip(sv.db, p, claude_client=claude._client(), jev=sv.jev, video_id=row["video_id"],
                                    start_s=row["start_s"], end_s=row["end_s"], out_path=out,
                                    episode=title["title"] if title else "the episode",
-                                   budget_usd=sv.app.budgets.claude_usd_per_month)
+                                   breaker=sv.app.spend_breaker)
     except formats.FormatError as e:
         sys.exit(f"could not apply the look: {e}")
     text = info["text"]
@@ -290,16 +262,16 @@ def cmd_clip(args) -> None:
     p = _pick(sv, args.profile)
     with sv.db.conn() as c:
         known = c.execute("SELECT 1 FROM videos WHERE profile_id=? AND video_id=?", (p.id, args.video_id)).fetchone()
-    if not known:  # a video you name yourself; rights are still checked before anything is clipped
+    if not known:  # a video you name yourself
         found = sv.yt.videos([args.video_id])
         if not found:
             sys.exit("YouTube has no such video")
         with sv.db.conn() as c:
             store.upsert_video(c, p.id, found[0], "manual")
-    print(clipper.submit(sv.db, clipper.Engine(), sv.yt, p, args.video_id), flush=True)
+    print(clipper.submit(sv.db, clipper.Engine(), p, args.video_id), flush=True)
     for _ in range(args.waits):
         time.sleep(args.interval)
-        formatter = formats.formatter_for(sv.db, p, jev=sv.jev, budget_usd=sv.app.budgets.claude_usd_per_month)
+        formatter = formats.formatter_for(sv.db, p, jev=sv.jev, breaker=sv.app.spend_breaker)
         outcome = clipper.collect(sv.db, clipper.Engine(), sv.jev, p, _job(sv, p, args.video_id), formatter)
         print(outcome, flush=True)
         if not outcome.startswith("waiting"):
@@ -354,26 +326,13 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="villomillo")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show counts and today's usage").set_defaults(fn=cmd_status)
-    rights_cmd = sub.add_parser("rights", help="record what you have permission to clip")
-    rights_cmd.add_argument("--profile")
-    rights_cmd.add_argument("action", choices=["set-channel", "list"])
-    rights_cmd.add_argument("channel_id", nargs="?")
-    rights_cmd.add_argument("status", nargs="?", choices=["owned", "licensed", "none"])
-    rights_cmd.add_argument("--note")
-    rights_cmd.set_defaults(fn=cmd_rights)
+    sub.add_parser("approve-spend", help="approve more spending and let paused work continue").set_defaults(fn=cmd_approve_spend)
     clip = sub.add_parser("clip", help="clip one video now and wait for the engine")
     clip.add_argument("video_id")
     clip.add_argument("--profile")
     clip.add_argument("--waits", type=int, default=60)
     clip.add_argument("--interval", type=int, default=30)
     clip.set_defaults(fn=cmd_clip)
-    campaign = sub.add_parser("campaign", help="record the source videos a clipping campaign lists")
-    campaign.add_argument("action", choices=["add"])
-    campaign.add_argument("--profile")
-    campaign.add_argument("--url", required=True, help="the campaign's web link")
-    campaign.add_argument("--note", required=True, help="the campaign's own wording about its source material")
-    campaign.add_argument("--ids", required=True, help="comma-separated YouTube video ids")
-    campaign.set_defaults(fn=cmd_campaign)
     from . import secrets as _secrets
 
     key = sub.add_parser("key", help="store an API key safely (no name: show which keys are stored)")

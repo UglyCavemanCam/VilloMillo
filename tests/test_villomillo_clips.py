@@ -1,4 +1,4 @@
-"""Phase 3 tests: rights, the clipping steps, the clip checks and the review queue. No real network."""
+"""Phase 3 tests: the clipping steps, the clip checks and the review queue. No real network."""
 
 from __future__ import annotations
 
@@ -11,9 +11,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from pydantic import ValidationError
 
-from villomillo import clipper, config, rights, store, validate
+from villomillo import clipper, config, store, validate
 from villomillo.db import Database
 from villomillo.jev import JevResult
 
@@ -79,14 +78,6 @@ def store_video(db: Database, profile_id: str, video_id: str) -> None:
         store.upsert_video(c, profile_id, v, "channel")
 
 
-class LicenseYT:
-    def __init__(self, license_):
-        self.license_ = license_
-
-    def videos(self, ids):
-        return [{"video_id": ids[0], "license": self.license_}]
-
-
 class FakeEngine:
     def __init__(self):
         self.submitted: list[str] = []
@@ -103,46 +94,15 @@ def queue_job(db: Database, profile_id: str, video_id: str) -> dict:
         return dict(c.execute("SELECT * FROM clip_jobs").fetchone())
 
 
-# ---- configuration and rights ------------------------------------------------------------------------------------
-
-
-def test_the_config_refuses_any_rights_setting_but_strict():
-    assert config.AppConfig().rights_gate == "strict"
-    with pytest.raises(ValidationError):
-        config.AppConfig(rights_gate="off")
-
-
-def test_rights_decisions(db):
-    v = {"channel_id": "UCx", "license": "youtube"}
-    assert rights.decide(db, "p", v)[0] == "none"
-    assert rights.decide(db, "p", {**v, "license": "creativeCommon"})[0] == "cc_by"
-    rights.set_channel(db, "p", "UCx", "owned", "my channel")
-    status, reason = rights.decide(db, "p", v)
-    assert status == "owned" and "my channel" in reason
-    assert rights.allowed("cc_by") and rights.allowed("licensed") and not rights.allowed("none")
-    with pytest.raises(ValueError):
-        rights.set_channel(db, "p", "UCx", "off")
-
-
 # ---- the engine client and submission ----------------------------------------------------------------------------
 
 
-def test_nothing_is_sent_to_the_engine_without_rights(db):
+def test_a_video_is_submitted_once(db):
     p = profile()
     store_video(db, p.id, "abcdefghijk")
     eng = FakeEngine()
-    assert clipper.submit(db, eng, LicenseYT(None), p, "abcdefghijk").startswith("not clipped")
-    assert eng.submitted == []
-    with db.conn() as c:
-        assert c.execute("SELECT state FROM videos").fetchone()["state"] == "held"
-
-
-def test_a_creative_commons_video_is_submitted_once(db):
-    p = profile()
-    store_video(db, p.id, "abcdefghijk")
-    eng = FakeEngine()
-    assert clipper.submit(db, eng, LicenseYT("creativeCommon"), p, "abcdefghijk").startswith("submitted")
-    assert clipper.submit(db, eng, LicenseYT("creativeCommon"), p, "abcdefghijk") == "already submitted"
+    assert clipper.submit(db, eng, p, "abcdefghijk").startswith("submitted")
+    assert clipper.submit(db, eng, p, "abcdefghijk") == "already submitted"
     assert eng.submitted == ["https://www.youtube.com/watch?v=abcdefghijk"]
 
 
@@ -261,46 +221,6 @@ def test_a_clip_that_does_not_stand_alone_is_not_offered_for_review(db, tmp_path
         assert c.execute("SELECT state FROM clips_ready").fetchone()["state"] == "rejected_auto"
     with pytest.raises(ValueError):
         clipper.decide(db, p.id, 1, "approve")  # only clips waiting for review can be decided
-
-
-# ---- campaign permission covers only the listed videos --------------------------------------------------------------
-
-CAMPAIGN = "https://contentrewards.com/c/campaigns/example"
-QUOTE = "Clips must come only from the official channel's full episodes."
-
-
-def test_a_campaign_allows_only_the_videos_it_lists(db):
-    p = "solved"
-    assert rights.add_campaign_videos(db, p, ["listed00001", "listed00002"], CAMPAIGN, QUOTE) == 2
-    assert rights.add_campaign_videos(db, p, ["listed00001"], CAMPAIGN, QUOTE) == 0  # no duplicates
-    listed = {"video_id": "listed00001", "channel_id": "UCshow", "license": "youtube"}
-    other = {"video_id": "other000001", "channel_id": "UCshow", "license": "youtube"}  # same channel, not listed
-    status, reason = rights.decide(db, p, listed)
-    assert status == "campaign" and CAMPAIGN in reason and rights.allowed(status)
-    assert rights.decide(db, p, other)[0] == "none"
-    assert rights.decide(db, "another-profile", listed)[0] == "none"  # permission belongs to one profile
-
-
-def test_campaign_records_need_a_link_and_the_campaigns_own_words(db):
-    with pytest.raises(ValueError, match="link"):
-        rights.add_campaign_videos(db, "p", ["abcdefghijk"], "not a link", QUOTE)
-    with pytest.raises(ValueError, match="wording"):
-        rights.add_campaign_videos(db, "p", ["abcdefghijk"], CAMPAIGN, "ok")
-
-
-def test_licensed_needs_a_note_saying_where_permission_comes_from(db):
-    with pytest.raises(ValueError, match="where the permission"):
-        rights.set_channel(db, "p", "UCx", "licensed", "")
-    rights.set_channel(db, "p", "UCx", "licensed", "email from the channel owner, 2026-10-01")
-
-
-def test_a_campaign_video_is_submitted_to_the_engine(db):
-    p = profile()
-    store_video(db, p.id, "abcdefghijk")
-    rights.add_campaign_videos(db, p.id, ["abcdefghijk"], CAMPAIGN, QUOTE)
-    eng = FakeEngine()
-    assert clipper.submit(db, eng, LicenseYT("youtube"), p, "abcdefghijk").startswith("submitted")
-    assert eng.submitted == ["https://www.youtube.com/watch?v=abcdefghijk"]
 
 
 def test_the_engine_refusing_a_duplicate_is_reported_and_force_is_sent_on_request():

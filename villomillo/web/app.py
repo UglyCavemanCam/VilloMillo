@@ -21,7 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .. import accounts, clipper, copywriter, posting, routing, secrets, store, tasks, timefmt
+from .. import accounts, clipper, copywriter, posting, routing, secrets, spend, store, tasks, timefmt
 from ..services import Services
 from . import pages
 
@@ -245,6 +245,13 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(422, str(e)) from None
         return JSONResponse({"ok": True})
 
+    @app.post("/api/spend-approve")
+    def spend_approve(request: Request):
+        _only_local(request, "changes")
+        spend.approve(sv.db)
+        store.event(sv.db, "info", "spend", "You approved more spending: paused work continues")
+        return JSONResponse({"ok": True})
+
     @app.post("/api/account-state")
     def account_state(request: Request, profile: str = Form(...), platform: str = Form(...), action: str = Form(...)):
         _only_local(request, "changes")
@@ -284,10 +291,13 @@ def create_app(sv: Services) -> FastAPI:
         in_profile(profile)
         try:
             status = copywriter.generate_with_keys(sv.db, sv.profiles[profile], post_id, jev=sv.jev,
-                                                   budget_usd=sv.app.budgets.claude_usd_per_month)
+                                                   breaker=sv.app.spend_breaker)
         except LookupError as e:
             raise HTTPException(404, str(e)) from None
         except Exception as e:  # Claude or Jev unreachable, or a key missing: say so, change nothing
+            provider = spend.engine_of(e)
+            if provider:
+                spend.note_failure(sv.db, provider, e)  # "no balance" pauses work and shows the banner
             raise HTTPException(502, f"could not write options: {type(e).__name__}: {str(e)[:160]}") from None
         return JSONResponse({"ok": True, "status": status})
 

@@ -91,22 +91,11 @@ CREATE TABLE IF NOT EXISTS schedules (
     next_run_at TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
 );
 
--- Rights: what you have told us about a channel, and what was decided for each video at clip time.
-CREATE TABLE IF NOT EXISTS channel_rights (
-    profile_id TEXT NOT NULL, channel_id TEXT NOT NULL, status TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
-    set_at TEXT NOT NULL, PRIMARY KEY (profile_id, channel_id)
+-- Every paid AI call with a time, so the spend breaker can count what was spent since your last approval.
+CREATE TABLE IF NOT EXISTS spend_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, engine TEXT NOT NULL, cost_usd REAL NOT NULL
 );
-CREATE TABLE IF NOT EXISTS video_rights (
-    profile_id TEXT NOT NULL, video_id TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL,
-    checked_at TEXT NOT NULL, PRIMARY KEY (profile_id, video_id)
-);
-
--- Videos a clipping campaign tells its clippers to use. Permission comes from the campaign's own
--- instructions, so it covers only the videos listed here, never the whole channel.
-CREATE TABLE IF NOT EXISTS campaign_videos (
-    profile_id TEXT NOT NULL, video_id TEXT NOT NULL, campaign_url TEXT NOT NULL, note TEXT NOT NULL,
-    added_at TEXT NOT NULL, PRIMARY KEY (profile_id, video_id)
-);
+CREATE INDEX IF NOT EXISTS spend_log_engine ON spend_log (engine, at);
 
 -- One clipping run on the engine per source video.
 CREATE TABLE IF NOT EXISTS clip_jobs (

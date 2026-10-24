@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from . import accounts, posting, rights, store
+from . import accounts, posting, store
 from .config import Profile
 from .db import Database
 
@@ -31,28 +31,12 @@ class Decision:
     scores: dict[str, int] = field(default_factory=dict)
 
 
-def _video_for_rights(db: Database, owner: str, video_id: str) -> dict:
-    """The video as the rights gate wants it. The licence comes from what the owner's check remembered."""
-    with db.conn() as c:
-        video = c.execute("SELECT * FROM videos WHERE profile_id=? AND video_id=?", (owner, video_id)).fetchone()
-        remembered = c.execute("SELECT status FROM video_rights WHERE profile_id=? AND video_id=?",
-                               (owner, video_id)).fetchone()
-    data = dict(video) if video else {"video_id": video_id}
-    data["license"] = "creativeCommon" if remembered and remembered["status"] == "cc_by" else None
-    return data
-
-
 def candidates(db: Database, profiles: dict[str, Profile], clip, now: datetime) -> tuple[list[dict], dict[str, str]]:
     """Channels allowed to post this clip, each with how long until its next free slot, and why others cannot."""
-    video = _video_for_rights(db, clip["profile_id"], clip["video_id"])
     allowed, refused = [], {}
     for p in profiles.values():
         if p.posting is None or not p.posting.platforms:
             refused[p.id] = "it has no posting settings"
-            continue
-        status, _ = rights.decide(db, p.id, video)
-        if not rights.allowed(status):
-            refused[p.id] = "it has no permission to use this video"
             continue
         live = [pl for pl in p.posting.platforms if not accounts.is_paused(db, p.id, pl)]
         slots = [posting.next_slot(db, p.posting, p.id, pl, now) for pl in (live or list(p.posting.platforms))]

@@ -120,6 +120,7 @@ def add_ai_usage(c, engine: str, input_tokens: int, output_tokens: int, cost: fl
         "cost_usd = cost_usd + excluded.cost_usd",
         (pacific_day(), engine, input_tokens, output_tokens, cost),
     )
+    c.execute("INSERT INTO spend_log (at, engine, cost_usd) VALUES (?, ?, ?)", (iso(), engine, cost))
 
 
 def ai_spend_today(db: Database, engine: str) -> float:
@@ -145,15 +146,6 @@ def ai_requests_today(db: Database, engine: str) -> int:
         row = c.execute("SELECT requests FROM ai_usage WHERE day=? AND engine=?", (pacific_day(), engine)).fetchone()
     return row["requests"] if row else 0
 
-
-def ai_spend_month(db: Database, engine: str) -> float:
-    month = pacific_day()[:7]  # YYYY-MM
-    with db.conn() as c:
-        row = c.execute(
-            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM ai_usage WHERE engine=? AND substr(day,1,7)=?",
-            (engine, month),
-        ).fetchone()
-    return float(row["total"])
 
 
 def last_selfcheck(db: Database, profile_id: str) -> dict | None:

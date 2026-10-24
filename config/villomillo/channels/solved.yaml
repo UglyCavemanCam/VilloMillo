@@ -1,7 +1,5 @@
 # Profile for the "Solved with Mark Manson" clipping campaign. The campaign names its source
-# episodes, so this profile watches no channel: the episodes are added with
-#   python -m villomillo campaign add ...
-# and permission covers only those episodes (see villomillo/rights.py).
+# episodes, so this profile watches no channel. (Phase 2 of docs/AUTOPILOT-PLAN.md turns this into a Podcasts channel.)
 
 id: solved
 display_name: "Solved clips (campaign)"

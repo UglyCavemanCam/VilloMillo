@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from villomillo import config, copywriter, posting, store
+from villomillo import config, copywriter, posting, spend, store
 from villomillo.db import Database
 from villomillo.jev import JevResult
 from villomillo.quota import Quota
@@ -77,7 +77,7 @@ def planned_post(db, solved, *, text=CLIP_TEXT, hook="Now, what's interesting is
 
 
 def run(db, solved, post_id, claude, jev, **kw):
-    return copywriter.generate(db, claude, jev, solved, post_id, budget_usd=kw.pop("budget_usd", 25.0), **kw)
+    return copywriter.generate(db, claude, jev, solved, post_id, **kw)
 
 
 # --- the rules code enforces on Claude's options ----------------------------------------------------
@@ -151,7 +151,7 @@ def test_the_cost_is_recorded_against_claude_and_jev(db, solved):
     with db.conn() as c:
         engines = {r["engine"]: r["requests"] for r in c.execute("SELECT engine, requests FROM ai_usage")}
     assert engines == {"claude": 1, "jev": 1}
-    assert store.ai_spend_month(db, "claude") > 0
+    assert spend.since_approval(db, "claude") > 0
 
 
 def test_options_are_written_once_unless_forced(db, solved):
@@ -193,12 +193,12 @@ def test_an_option_that_may_misstate_the_speaker_is_never_used(db, solved):
     assert status.startswith("kept the basic copy") and "may misstate the speaker" in status
 
 
-def test_nothing_is_written_when_the_monthly_claude_budget_is_used(db, solved):
+def test_nothing_is_written_when_the_spend_breaker_is_tripped(db, solved):
     post_id = planned_post(db, solved)
     with db.conn() as c:
         store.add_ai_usage(c, "claude", 0, 0, 30.0)
     claude = FakeClaude([option()])
-    assert run(db, solved, post_id, claude, FakeJev(misleading=[0], stop=[3])).startswith("skipped: this month's")
+    assert run(db, solved, post_id, claude, FakeJev(misleading=[0], stop=[3])).startswith("skipped: paused: spending reached the breaker")
     assert claude.calls == 0
 
 

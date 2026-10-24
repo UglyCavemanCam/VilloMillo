@@ -35,10 +35,15 @@ class Dashboard(_Strict):
 class Budgets(_Strict):
     youtube_general_units_per_day: int = 8000
     youtube_search_calls_per_day: int = 80
-    jev_usd_per_day: float = 1.0
-    claude_usd_per_month: float = 25.0
     claude_escalations_per_day: int = Field(10, ge=0)
     transcript_jev_usd_per_video: float = 0.01  # a single video's transcript pass should never cost more than this
+
+
+class SpendBreaker(_Strict):
+    """Work pauses when spending since your last approval reaches these amounts. There are no daily or monthly caps."""
+
+    claude_usd: float = Field(25.0, gt=0)
+    jev_usd: float = Field(5.0, gt=0)
 
 
 class Schedule(_Strict):
@@ -52,12 +57,10 @@ class Schedule(_Strict):
 
 
 class AppConfig(_Strict):
-    # Only clip videos whose rights are known: yours, licensed to you, or Creative Commons.
-    # "off" is deliberately not accepted; it would need an explicit decision and a code change.
-    rights_gate: Literal["strict"] = "strict"
     database: str = "data/villomillo/villomillo.db"
     dashboard: Dashboard = Dashboard()
     budgets: Budgets = Budgets()
+    spend_breaker: SpendBreaker = SpendBreaker()
     schedule: Schedule = Schedule()
 
     def database_path(self) -> pathlib.Path:

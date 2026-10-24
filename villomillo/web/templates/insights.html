@@ -7,10 +7,10 @@
   <div class="card stat"><div class="k">Self-check</div>
     {% if d.selfcheck %}<div class="verdict {{ 'good' if d.selfcheck.verdict == 'pointing the right way' else ('bad' if d.selfcheck.verdict.startswith('backwards') else '') }}" style="line-height:36px">{{ d.selfcheck.verdict|capitalize }}</div>
     <div class="s">{{ d.selfcheck.sample }} older uploads graded blind</div>{% else %}<div class="v">Not run</div><div class="s">Run <code>python -m villomillo check</code></div>{% endif %}</div>
-  <div class="card stat"><div class="k">Second opinions (Claude) today</div><div class="v num">{{ d.claude_today }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.claude_limit }}</span></div><div class="s">{{ d.claude_month|money }} of {{ d.claude_budget|money }} this month</div></div>
+  <div class="card stat"><div class="k">Second opinions (Claude) today</div><div class="v num">{{ d.claude_today }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.claude_limit }}</span></div><div class="s">{{ d.claude_since|money }} of {{ d.claude_limit_usd|money }} since your last approval</div></div>
   <div class="card stat"><div class="k">YouTube allowance today</div><div class="v num">{{ d.quota.general[0] }} <span class="muted" style="font-size:16px;font-weight:400">/ {{ d.quota.general[1] }}</span></div>
     <div class="bar thin"><i style="width:{{ (100 * d.quota.general[0] / d.quota.general[1])|round|int if d.quota.general[1] else 0 }}%"></i></div><div class="s">searches {{ d.quota.search[0] }} of {{ d.quota.search[1] }} · resets at midnight Pacific (3 AM Eastern)</div></div>
-  <div class="card stat"><div class="k">Jev spend today</div><div class="v num">{{ d.jev_today|money }}</div><div class="s">cap {{ d.jev_cap|money }} a day</div></div>
+  <div class="card stat"><div class="k">Jev spend since last approval</div><div class="v num">{{ d.jev_since|money }}</div><div class="s">pauses at {{ d.jev_limit_usd|money }}</div></div>
 </section>
 
 <div class="grid two">

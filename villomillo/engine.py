@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from . import claude, discovery, grading, learning, scoring, store, transcripts
+from . import claude, discovery, grading, learning, scoring, spend, store, transcripts
 from .config import AppConfig, Profile
 from .db import Database
 from .jev import Jev, JevError
@@ -110,8 +110,8 @@ def grade_new(db: Database, jev: Jev, app: AppConfig, profile: Profile, *, limit
     out = {"graded": 0, "errors": 0, "stopped": None}
     streak = 0
     for video in todo:
-        if store.ai_spend_today(db, "jev") >= app.budgets.jev_usd_per_day:
-            out["stopped"] = "Jev budget for today is used up"
+        if (pause := spend.current(db, app.spend_breaker)):
+            out["stopped"] = pause.title
             store.event(db, "warn", "grading", out["stopped"])
             break
         try:
@@ -177,8 +177,8 @@ def deepen(db: Database, jev: Jev, app: AppConfig, profile: Profile) -> dict:
     """Transcript pass on the shortlist, then a rescore so the transcript counts."""
     out = {"read": 0, "skipped": 0, "stopped": None}
     for video in shortlist(db, profile, app):
-        if store.ai_spend_today(db, "jev") >= app.budgets.jev_usd_per_day:
-            out["stopped"] = "Jev budget for today is used up"
+        if (pause := spend.current(db, app.spend_breaker)):
+            out["stopped"] = pause.title
             break
         status = transcript_pass(db, jev, app, profile, video)
         if status.startswith("read"):
@@ -212,8 +212,8 @@ def second_opinions(db: Database, app: AppConfig, profile: Profile, client=None)
     if store.ai_requests_today(db, CLAUDE_ENGINE) >= app.budgets.claude_escalations_per_day:
         out["stopped"] = "daily second-opinion limit reached"
         return out
-    if store.ai_spend_month(db, CLAUDE_ENGINE) >= app.budgets.claude_usd_per_month:
-        out["stopped"] = "monthly Claude budget used up"
+    if (pause := spend.current(db, app.spend_breaker)):
+        out["stopped"] = pause.title
         return out
     client = client or claude._client()
     for video in todo:

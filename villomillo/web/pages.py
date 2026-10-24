@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 import httpx
 import keyring
 
-from .. import accounts, clipper, learning, posting, secrets, store, studio, timefmt
+from .. import accounts, clipper, learning, posting, secrets, spend, store, studio, timefmt
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
@@ -155,8 +155,11 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
     paused = any(r["status"] == "paused" for r in accounts.overview(sv.db, sv.profiles) if r["profile"] == p.id)
     q = f"?profile={p.id}"
     up = engine_up()
-    claude_m, jev_m = store.ai_spend_month(sv.db, "claude"), store.ai_spend_month(sv.db, "jev")
+    br = sv.app.spend_breaker
+    claude_s, jev_s = spend.since_approval(sv.db, "claude"), spend.since_approval(sv.db, "jev")
+    pause = spend.current(sv.db, br)
     return {
+        "pause": pause and {"title": pause.title, "text": pause.text, "kind": pause.kind},
         "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.display_name if p.brand.name else "",
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
@@ -173,9 +176,8 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
         ],
         "engine": {"kind": "good" if up else "", "text": "Clip engine is on" if up else "Clip engine is off",
                    "title": f"The clipping engine at {clipper.ENGINE_URL} {'answers' if up else 'is not running'}"},
-        "budget": {"month": money(claude_m + jev_m),
-                   "title": f"Claude {money(claude_m)} of {money(sv.app.budgets.claude_usd_per_month)} this month; "
-                            f"Jev {money(store.ai_spend_today(sv.db, 'jev'))} of {money(sv.app.budgets.jev_usd_per_day)} today"},
+        "budget": {"text": f"Claude {money(claude_s)} of {money(br.claude_usd)} · Jev {money(jev_s)} of {money(br.jev_usd)}",
+                   "title": "Spent since your last approval. Everything pauses at these amounts and waits for you to approve more."},
         "alerts": [a for a in to_do if a["kind"] != "neutral"], "needs": to_do,
         "asset_v": asset_version(), "has_geist": (STATIC / "fonts" / "Geist-Variable.woff2").exists(),
     }
@@ -335,15 +337,16 @@ def home_page(sv: Services, p: Profile) -> dict:
     posted = sum(1 for x in posts if x["status"] in ("uploaded", "posted"))
     listed = one(db, "SELECT COUNT(*) AS n FROM videos WHERE profile_id=?", p.id)["n"]
     clipped = one(db, "SELECT COUNT(*) AS n FROM clip_jobs WHERE profile_id=? AND status='done'", p.id)["n"]
-    claude_m, jev_m = store.ai_spend_month(db, "claude"), store.ai_spend_month(db, "jev")
-    cap = sv.app.budgets.claude_usd_per_month
+    br = sv.app.spend_breaker
+    claude_s, jev_s = spend.since_approval(db, "claude"), spend.since_approval(db, "jev")
     waiting = by_state.get("review", 0)
     stats = [
         {"k": "Posts waiting for you", "v": hand, "s": "to post by hand" if hand else "nothing to post by hand"},
         {"k": "Clips waiting for review", "v": waiting, "s": "passed every check" if waiting else "nothing to review"},
         {"k": "Clips approved", "v": by_state.get("approved", 0), "s": f"of {made} made"},
-        {"k": "AI spend this month", "v": money(claude_m + jev_m), "s": f"Claude {money(claude_m)} of {money(cap)}, Jev {money(jev_m)}",
-         "bar": min(100, round(100 * claude_m / cap)) if cap else 0},
+        {"k": "AI spend since last approval", "v": money(claude_s + jev_s),
+         "s": f"Claude {money(claude_s)} of {money(br.claude_usd)}, Jev {money(jev_s)} of {money(br.jev_usd)}",
+         "bar": min(100, round(100 * max(claude_s / br.claude_usd, jev_s / br.jev_usd)))},
     ]
     funnel = [
         ("Videos found", listed, listed), ("Videos clipped", clipped, listed),
@@ -371,7 +374,8 @@ def home_page(sv: Services, p: Profile) -> dict:
                                "value": "Passed" if ok else "Not passed, so public posts stay manual"})
     paused = [r for r in accounts.overview(db, sv.profiles) if r["profile"] == p.id and r["status"] == "paused"]
     health.append({"kind": "bad" if paused else "good", "label": "Safety stops", "value": f"{len(paused)} paused" if paused else "No account is paused"})
-    health.append({"kind": "good" if claude_m < cap * 0.8 else "warn", "label": "AI budget", "value": "Well inside the caps" if claude_m < cap * 0.8 else "Close to the cap"})
+    near = max(claude_s / br.claude_usd, jev_s / br.jev_usd) >= 0.8
+    health.append({"kind": "warn" if near else "good", "label": "Spend breaker", "value": "Close to the limit" if near else "Well inside the limits"})
     events = [{"when": timefmt.short(e["ts"]), "level": e["level"], "text": f"{e['component']}: {e['message']}"}
               for e in rows(db, "SELECT * FROM events ORDER BY id DESC LIMIT 8")]
     return {"stats": stats, "pipeline": pipeline, "recent": recent, "week": week, "health": health, "events": events,
@@ -447,9 +451,9 @@ def insights_page(sv: Services, p: Profile) -> dict:
     rows_ = store.ranked(db, p.id, limit=500)
     preview = learning.shortlist_preview([dict(r, found_by=r["found_by"]) for r in rows_ if r["gate"] in ("pass", "escalate")], n=10)
     last = one(db, "SELECT created_at, body_json FROM suggestions WHERE profile_id=? ORDER BY id DESC LIMIT 1", p.id)
-    spend = rows(db, "SELECT day, engine, ROUND(SUM(cost_usd), 4) AS usd FROM ai_usage GROUP BY day, engine ORDER BY day DESC LIMIT 28")
+    daily = rows(db, "SELECT day, engine, ROUND(SUM(cost_usd), 4) AS usd FROM ai_usage GROUP BY day, engine ORDER BY day DESC LIMIT 28")
     by_day: dict[str, float] = defaultdict(float)
-    for r in spend:
+    for r in daily:
         by_day[r["day"]] += r["usd"]
     days = sorted(by_day)[-14:]
     peak = max((by_day[d] for d in days), default=0) or 1
@@ -458,9 +462,9 @@ def insights_page(sv: Services, p: Profile) -> dict:
             "preview": preview, "review": json.loads(last["body_json"]) if last else None,
             "review_at": timefmt.full(last["created_at"]) if last else None, "chart": chart,
             "claude_today": store.ai_requests_today(db, "claude"), "claude_limit": sv.app.budgets.claude_escalations_per_day,
-            "claude_month": store.ai_spend_month(db, "claude"), "claude_budget": sv.app.budgets.claude_usd_per_month,
+            "claude_since": spend.since_approval(db, "claude"), "claude_limit_usd": sv.app.spend_breaker.claude_usd,
             "quota": {"general": (sv.quota.used("general"), sv.quota.caps["general"]), "search": (sv.quota.used("search"), sv.quota.caps["search"])},
-            "jev_today": store.ai_spend_today(db, "jev"), "jev_cap": sv.app.budgets.jev_usd_per_day}
+            "jev_since": spend.since_approval(db, "jev"), "jev_limit_usd": sv.app.spend_breaker.jev_usd}
 
 
 # --- settings --------------------------------------------------------------------------------------------------
@@ -478,7 +482,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
             {"name": "Whop API key", "present": has_secret(secrets.WHOP)},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
-    return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,
+    return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,
             "zone": f"Eastern Time ({timefmt.zone_label()})", "dashboard": f"{sv.app.dashboard.host}:{sv.app.dashboard.port}",
             "schedule": [("Look for new uploads", s.watch_every_minutes), ("Refresh view counts", s.snapshots_every_minutes),
                          ("Grade new videos", s.grade_every_minutes), ("Send due posts", s.post_every_minutes),

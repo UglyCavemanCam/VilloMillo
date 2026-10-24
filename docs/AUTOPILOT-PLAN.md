@@ -111,9 +111,12 @@ There are ten phases. You get something usable after Phase 5. Effort is my rough
 **In plain words:** Before building, remove the parts of the old system that don't fit. That means the rule that refuses to
 clip a video without proof of rights, the monthly spending caps, and the old research code that was written in a rush. Each file is
 checked first and either kept, rewritten or deleted. The tests are run after every removal so nothing quietly breaks.
-**After this:** nothing new to see, but pasting a link can no longer be blocked over rights, and the old Solved channel is moved
-into the new channel system.
+**After this:** nothing new to see, but pasting a link can no longer be blocked over rights, and AI spending is guarded by the
+pause-and-approve breaker instead of monthly caps.
 **Done when:** all tests pass and no part of the code refuses a pasted link.
+**Status: done.** Differences from the first idea: the old research code stays until Phases 4 and 8 replace it (deleting it now would switch
+Research off); the per-file decisions are in `docs/CODE-AUDIT.md`. The spend breaker was built here rather than in Phase 5, so removing the
+caps never left spending unguarded. Moving the Solved channel into the new channel system moves to Phase 2, where channels are built.
 
 ### Phase 2: Channels (medium)
 **In plain words:** Build the Channels page and the Add channel steps. Channels are stored in the dashboard instead of in files.

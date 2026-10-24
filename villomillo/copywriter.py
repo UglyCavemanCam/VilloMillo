@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import re
 
-from . import claude, secrets, store
-from .config import Posting, Profile
+from . import claude, secrets, spend, store
+from .config import Posting, Profile, SpendBreaker
 from .db import Database
 
 TITLE_TARGET = 60
@@ -127,7 +127,7 @@ def _load(db: Database, profile_id: str, post_id: int):
     return post, clip, (video["title"] if video else "the podcast"), has_options
 
 
-def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *, budget_usd: float,
+def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *, breaker: SpendBreaker | None = None,
              force: bool = False) -> str:
     """Write, check and store the options for one post, and put the best one on it. Returns a short status."""
     post, clip, episode, has_options = _load(db, profile.id, post_id)
@@ -137,8 +137,8 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
         return "skipped: this post is blocked"
     if has_options and not force:
         return "skipped: options are already written"
-    if store.ai_spend_month(db, "claude") >= budget_usd:
-        return "skipped: this month's Claude budget is used up"
+    if (pause := spend.current(db, breaker or SpendBreaker())):
+        return f"skipped: {pause.title.lower()}"
 
     platform = post["platform"]
     grade = json.loads(clip["grade_json"])
@@ -207,9 +207,9 @@ def choose(db: Database, profile_id: str, post_id: int, option_id: int) -> None:
 
 
 def generate_with_keys(db: Database, profile: Profile, post_id: int, *, jev=None, force: bool = False,
-                       budget_usd: float = 25.0) -> str:
+                       breaker: SpendBreaker | None = None) -> str:
     """`generate` with the Claude and Jev clients built from the keychain, for the CLI and the dashboard."""
     from .jev import Jev
 
     return generate(db, claude._client(), jev or Jev(secrets.get(secrets.JEV)), profile, post_id,
-                    budget_usd=budget_usd, force=force)
+                    breaker=breaker, force=force)

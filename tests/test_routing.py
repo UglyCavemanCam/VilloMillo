@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from villomillo import accounts, config, posting, rights, routing, store
+from villomillo import accounts, config, posting, routing, store
 from villomillo.db import Database
 from villomillo.jev import JevResult
 from villomillo.quota import Quota
@@ -49,8 +49,6 @@ def db(tmp_path):
                   "tags_json, duration_s, published_at, first_seen_at, last_seen_at) VALUES "
                   "('pod', ?, 'channel', 'UCsrc', 'Source', 'Episode', '', '[]', 3000, ?, ?, ?)",
                   (VIDEO, store.iso(), store.iso(), store.iso()))
-    rights.set_channel(database, "pod", "UCsrc", "owned", "our own show")
-    rights.set_channel(database, "game", "UCsrc", "licensed", "written permission from the owner")
     return database
 
 
@@ -91,26 +89,8 @@ def test_a_clip_goes_back_to_its_own_channel_when_the_fit_is_a_tie(db, profiles)
     assert decision.profile_id == "pod"
 
 
-def test_a_channel_without_permission_is_never_chosen_however_well_it_fits(db, profiles):
-    with db.conn() as c:
-        c.execute("DELETE FROM channel_rights WHERE profile_id='game'")
-    clip = approved_clip(db)
-    planned = routing.assign_and_plan(db, no_ai, profiles, "pod", clip, now=NOW)
-    assert planned["profile"] == "pod"
-
-
-def test_a_campaigns_videos_can_only_go_to_the_campaign_channel(db, profiles):
-    with db.conn() as c:
-        c.execute("DELETE FROM channel_rights")
-    rights.add_campaign_videos(db, "pod", [VIDEO], "https://example.com/campaign",
-                               "the campaign lists this episode as source material for clips")
-    decision = routing.route_clip(db, FakeJev(pod=1, game=5), profiles, approved_clip(db), now=NOW)
-    assert decision.profile_id == "pod" and decision.reason == "the only channel that can post it"
-
-
-def test_a_clip_with_no_channel_allowed_to_post_it_is_held(db, profiles):
-    with db.conn() as c:
-        c.execute("DELETE FROM channel_rights")
+def test_a_clip_with_no_channel_able_to_post_it_is_held(db, profiles):
+    profiles = {k: v.model_copy(update={"posting": None}) for k, v in profiles.items()}
     clip = approved_clip(db)
     assert routing.assign_and_plan(db, no_ai, profiles, "pod", clip, now=NOW) is None
     with db.conn() as c:

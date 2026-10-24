@@ -13,11 +13,10 @@ import shutil
 
 import httpx
 
-from . import campaign, grading, rights, store, validate
+from . import campaign, grading, store, validate
 from .config import ROOT, Profile
 from .db import Database
 from .jev import Jev
-from .youtube import YouTube
 
 ENGINE_URL = os.environ.get("CLIPS_STUDIO_API", "http://127.0.0.1:8765")
 OUTBOX = ROOT / "data" / "villomillo" / "outbox"
@@ -86,22 +85,14 @@ class Engine:
         return r.content
 
 
-def submit(db: Database, engine: Engine, yt: YouTube, profile: Profile, video_id: str, *, force: bool = False) -> str:
-    """Hand one video to the engine, if its rights allow it. Returns a short status."""
+def submit(db: Database, engine: Engine, profile: Profile, video_id: str, *, force: bool = False) -> str:
+    """Hand one video to the engine. Returns a short status."""
     with db.conn() as c:
         if c.execute("SELECT 1 FROM clip_jobs WHERE profile_id=? AND video_id=?", (profile.id, video_id)).fetchone():
             return "already submitted"
         video = c.execute("SELECT * FROM videos WHERE profile_id=? AND video_id=?", (profile.id, video_id)).fetchone()
     if video is None:
         return "unknown video"
-    info = yt.videos([video_id])
-    video_dict = {**dict(video), "license": info[0]["license"] if info else None}
-    status, reason = rights.decide(db, profile.id, video_dict)
-    rights.remember(db, profile.id, video_id, status, reason)
-    if not rights.allowed(status):
-        with db.conn() as c:
-            store.set_state(c, profile.id, video_id, "held", f"rights: {reason}")
-        return f"not clipped: {reason}"
 
     job_id = engine.submit(f"https://www.youtube.com/watch?v={video_id}", focus=profile.niche.definition,
                            max_clips=MAX_CLIPS_PER_VIDEO, force=force)

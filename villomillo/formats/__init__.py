@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 import pathlib
 
-from .. import claude, secrets, store
-from ..config import ROOT, Profile
+from .. import claude, secrets, spend, store
+from ..config import ROOT, Profile, SpendBreaker
 from ..db import Database
 from . import blueprints, render, text
 from .blueprints import BlueprintError, OriginalityError, Plan
@@ -43,7 +43,7 @@ def clip_words(video_id: str, start: float, end: float, *, directory: pathlib.Pa
 
 
 def format_clip(db: Database, profile: Profile, *, claude_client, jev, video_id: str, start_s: float, end_s: float,
-                out_path: pathlib.Path, episode: str, budget_usd: float = 25.0,
+                out_path: pathlib.Path, episode: str, breaker: SpendBreaker | None = None,
                 source: pathlib.Path | None = None, words: list[dict] | None = None) -> dict:
     """Render one clip in the profile's recipe. Returns {"recipe", "dropped"}; raises FormatError if it cannot."""
     if not profile.format:
@@ -54,8 +54,8 @@ def format_clip(db: Database, profile: Profile, *, claude_client, jev, video_id:
     words = words if words is not None else clip_words(video_id, start_s, end_s)
     if not words:
         raise FormatError("no words were found in the clip")
-    if store.ai_spend_month(db, "claude") >= budget_usd:
-        raise FormatError("this month's Claude budget is used up")
+    if (pause := spend.current(db, breaker or SpendBreaker())):
+        raise FormatError(pause.title.lower())
     try:
         clip_text, cost = text.make(claude_client, jev, channel=profile.display_name, niche=profile.niche.definition,
                                     episode=episode, words=words, start=start_s)
@@ -76,12 +76,12 @@ def format_clip(db: Database, profile: Profile, *, claude_client, jev, video_id:
     return {"recipe": plan.recipe, "dropped": plan.dropped, "text": clip_text}
 
 
-def formatter_for(db: Database, profile: Profile, *, jev=None, budget_usd: float = 25.0):
+def formatter_for(db: Database, profile: Profile, *, jev=None, breaker: SpendBreaker | None = None):
     """The clip pipeline's formatter for this channel, or None when the channel keeps the engine's own look."""
-    return make_formatter(db, profile, jev=jev, budget_usd=budget_usd) if profile.format else None
+    return make_formatter(db, profile, jev=jev, breaker=breaker) if profile.format else None
 
 
-def make_formatter(db: Database, profile: Profile, *, jev=None, claude_client=None, budget_usd: float = 25.0):
+def make_formatter(db: Database, profile: Profile, *, jev=None, claude_client=None, breaker: SpendBreaker | None = None):
     """The callable the clip pipeline uses: formatter(clip, job, out_path). Clients are built when first needed."""
 
     def formatter(clip: dict, job: dict, out_path: pathlib.Path) -> dict:
@@ -93,6 +93,6 @@ def make_formatter(db: Database, profile: Profile, *, jev=None, claude_client=No
         return format_clip(db, profile, claude_client=claude_client or claude._client(),
                            jev=jev or Jev(secrets.get(secrets.JEV)), video_id=job["video_id"],
                            start_s=clip["start_s"], end_s=clip["end_s"], out_path=out_path,
-                           episode=row["title"] if row else "the episode", budget_usd=budget_usd)
+                           episode=row["title"] if row else "the episode", breaker=breaker)
 
     return formatter

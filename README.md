@@ -1,6 +1,6 @@
 # VilloMillo
 
-A research-first system that finds videos worth clipping, makes vertical clips from the ones you have the rights to,
+A research-first system that finds videos worth clipping, makes vertical clips from the ones worth clipping,
 checks and grades them, and plans the posts. It runs on your own PC, and a local dashboard is the only interface.
 
 VilloMillo is built on a fork of the open-source Clips Kitty engine (AGPL-3.0-or-later, by ColinGPT9), which stays in this
@@ -9,9 +9,9 @@ repository as the clipping engine. VilloMillo's own code is in [`villomillo/`](v
 ## What it does
 
 1. **Research.** Finds videos on watched channels and topics through the YouTube API, grades each one with AI
-   (Jev first, Claude for second opinions on borderline ones), and tracks growth. Daily and monthly caps keep the quota
-   and the AI spend in bounds.
-2. **Clip.** Hands a video you have the rights to to the clipping engine, collects the clips it makes, and checks each one
+   (Jev first, Claude for second opinions on borderline ones), and tracks growth. YouTube's daily allowance is tracked, and a
+   spend breaker pauses everything when AI spending since your last approval reaches $25 (Claude) or $5 (Jev).
+2. **Clip.** Hands a video to the clipping engine, collects the clips it makes, and checks each one
    (length, picture, loudness, campaign rules).
 3. **Look.** Renders clips in a format recipe (framing, captions, hook title, progress bar) from
    [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml). See [docs/FORMAT-BLUEPRINTS.md](docs/FORMAT-BLUEPRINTS.md).
@@ -20,8 +20,8 @@ repository as the clipping engine. VilloMillo's own code is in [`villomillo/`](v
    through the platform's API or leaves it for you to post by hand. Platforms stay manual until their audit is recorded.
 6. **Learn.** Self-checks whether the grades point the right way on past uploads and writes a weekly review.
 
-Only videos whose rights are known get clipped: yours, licensed to you, Creative Commons, or listed by a clipping
-campaign's own instructions (`rights_gate: strict`).
+VilloMillo does not check rights: any link you paste is clipped. See [docs/AUTOPILOT-PLAN.md](docs/AUTOPILOT-PLAN.md) for where the
+system is going and [docs/CODE-AUDIT.md](docs/CODE-AUDIT.md) for what each module is for.
 
 ## Run it
 
@@ -85,9 +85,9 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 
 | Command | What it does |
 |---|---|
-| `status` | counts by stage and today's quota and AI spend |
+| `status` | counts by stage, today's YouTube quota and AI spend since your last approval |
 | `once` | run one research cycle now |
-| `rights` / `campaign` | record what you have permission to clip |
+| `approve-spend` | approve more spending after the breaker paused work, or after topping up an empty account |
 | `clip` | clip one video now and wait for the engine |
 | `copy` | write title and caption options for planned posts |
 | `accounts` / `account` / `audit` | channel routes, audits, pause and resume |
@@ -96,7 +96,7 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 
 ## Settings
 
-- [`config/villomillo/app.yaml`](config/villomillo/app.yaml): budgets, schedule, dashboard port, database path.
+- [`config/villomillo/app.yaml`](config/villomillo/app.yaml): YouTube allowances, spend breaker, schedule, dashboard port, database path.
 - [`config/villomillo/channels/`](config/villomillo/channels/): one file per channel (niche, rules, format, platforms).
 - [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml): the format recipes.
 
