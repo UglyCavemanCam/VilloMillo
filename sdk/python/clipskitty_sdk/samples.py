@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Test media for developing a plugin, and a frame grab to measure a screen.
 
 `python -m clipskitty_sdk sample OUT.mp4`, `run --sample` and `frame` use

@@ -21,7 +21,6 @@ Full instructions for each step are in [MSSTORE.md](MSSTORE.md).
 - [x] **Store tiles generated**: `python scripts/build_appx_assets.py`
 - [x] **Updates are distribution-aware**. A Store copy never runs the NSIS
       updater
-- [x] **Donations open in the system browser** on Store builds (policy 10.8.2)
 - [x] **Privacy policy published**: required by policy 10.5.1, and Partner
       Center will not accept a submission without the URL
 - [x] **Store listing copy drafted**. [store-listing.md](store-listing.md)
@@ -102,8 +101,6 @@ The full list below is for a first submission.
       `https://colingpt9.github.io/clips-studio/privacy.html`
 - [ ] System requirements entered: **16 GB RAM minimum**, x64, Windows 10 1809+
 - [ ] Product declaration: **live generative AI** ticked (policy 11.16)
-- [ ] Product declaration: **third-party purchase API** ticked, for the PayPal
-      donate link (policy 10.8.2)
 - [ ] Age rating questionnaire completed
 - [ ] Package uploaded (`release/*.appx`)
 - [ ] Listing: description, feature bullets, search terms

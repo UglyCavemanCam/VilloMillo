@@ -1,4 +1,4 @@
-/* Clips Kitty website — the desktop app's own design tokens.
+/* VilloMillo website — the desktop app's own design tokens.
    Kept byte-identical to ui/src/renderer/src/theme.css so the site and the
    app are recognisably the same product. Update both together. */
 
@@ -137,22 +137,6 @@ nav.site a {
 nav.site a:hover,
 nav.site a[aria-current='page'] {
   color: var(--ink);
-  text-decoration: none;
-}
-/* Donate sits in the sticky header so it is reachable from anywhere on the
-   page, not only by someone who scrolled to the end. Styled as an outlined
-   pill rather than a solid button so it never competes with the download. */
-nav.site a.donate {
-  color: var(--accent);
-  border: 1px solid rgb(56 189 248 / 0.45);
-  background: rgb(56 189 248 / 0.1);
-  border-radius: 999px;
-  padding: 3px 13px;
-  font-weight: 600;
-}
-nav.site a.donate:hover {
-  color: var(--base);
-  background: var(--accent);
   text-decoration: none;
 }
 

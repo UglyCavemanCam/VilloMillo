@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """The core of `python -m clipskitty_sdk run`: what a developer's run of a
 plugin hands it, built the way VilloMillo builds it (clipskitty_sdk.host),
 and what it answered.

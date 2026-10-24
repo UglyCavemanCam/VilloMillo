@@ -1,7 +1,7 @@
 """The plugin SDK (sdk/python/clipskitty_sdk): the contract and its helpers.
 
 Standard library only, like the SDK itself, so these run in CI's bare
-environment. The SDK is put on the path the way Clips Kitty puts it on a
+environment. The SDK is put on the path the way VilloMillo puts it on a
 plugin's: as a folder, not an installed package.
 """
 
@@ -949,7 +949,7 @@ CALLS = {"quark burst": 15, "triple bloom": 25, "arena wipe": 40}
 
 
 def main(job):
-    for m in job.moments:                           # found by Clips Kitty, Sports or a pipeline
+    for m in job.moments:                           # found by VilloMillo, Sports or a pipeline
         said = job.text(m).lower()                  # what is said during the moment
         bonus = sum(points for call, points in CALLS.items() if call in said)
         if bonus:
@@ -1054,7 +1054,7 @@ def test_run_hands_sample_moments_to_any_moment_run(tmp_path, capsys):
     assert seen["limits"] == {"max_clips": None, "min_duration": 10.0, "max_duration": 60.0, "min_score": 55.0}
     assert [(m["id"], m["start"], m["end"], m["score"], m["found_score"], m["found_by"]) for m in seen["moments"]] \
         == [(f"m{k}", 100.0 * k, 100.0 * k + 20, 60, 60, "clipskitty") for k in range(1, 6)]
-    assert "Rate: 5 of 5 moment(s) answered, as Clips Kitty would use them:" in out
+    assert "Rate: 5 of 5 moment(s) answered, as VilloMillo would use them:" in out
     assert "m1   100.0s-120.0s  score 60 -> 70  seen by the grader\nm2   200.0s" in out
     assert "log: understand ignored: this job didn't ask for notes" in out and "notes: graded" in out
 
@@ -1157,7 +1157,7 @@ def test_run_does_a_context_finders_find_run(tmp_path, capsys):
         assert code == 0, out + err
         assert seen["steps"] == ["find", "understand"] and "moments" not in seen
         assert "min_score" not in seen["limits"] and seen["video"]["duration"] == 120.0
-        assert "2 moment(s), as Clips Kitty would take them:" in out
+        assert "2 moment(s), as VilloMillo would take them:" in out
         assert ("      30.0s      50.0s  score 100  Burst at 30\n"
                 "       why: graded\n"
                 "       note: First quark burst of the match\n"
@@ -1176,7 +1176,7 @@ def test_run_all_in_one_default(tmp_path, capsys):
     out, err = capsys.readouterr()
     assert code == 0, out + err
     assert seen["steps"] == ["find", "understand"] and "moments" not in seen  # the run a Pipeline gets
-    assert "2 moment(s), as Clips Kitty would take them:" in out and "note: First quark burst of the match" in out
+    assert "2 moment(s), as VilloMillo would take them:" in out and "note: First quark burst of the match" in out
     assert "sample moments" not in err
 
     code, seen = _dev_run(tmp_path, grader, "--video", str(video), "--duration", "300", "--steps", "understand,rate",
@@ -1185,7 +1185,7 @@ def test_run_all_in_one_default(tmp_path, capsys):
     assert code == 0, out + err
     assert seen["steps"] == ["understand", "rate"] and len(seen["moments"]) == 5
     assert seen["video"]["path"] == str(video.resolve()) and seen["limits"]["min_score"] == 55
-    assert "Understand and rate: 5 of 5 moment(s) answered, as Clips Kitty would use them:" in out
+    assert "Understand and rate: 5 of 5 moment(s) answered, as VilloMillo would use them:" in out
     assert "m1   50.0s-70.0s  score 60 -> 70  seen by the grader\n       note: Something happens in m1\n" in out
     assert "ignored:" not in out
 

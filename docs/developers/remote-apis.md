@@ -1,8 +1,8 @@
 # Remote APIs
 
-A pipeline doesn't have to run its AI on the user's PC. It can call your own hosted model, a Hugging Face Inference Provider, Replicate, OpenRouter or any other service. Clips Kitty still downloads the video, transcribes it, cuts, frames and captions the clips; your pipeline decides which moments, and part of that work happens elsewhere.
+A pipeline doesn't have to run its AI on the user's PC. It can call your own hosted model, a Hugging Face Inference Provider, Replicate, OpenRouter or any other service. VilloMillo still downloads the video, transcribes it, cuts, frames and captions the clips; your pipeline decides which moments, and part of that work happens elsewhere.
 
-Status: **built** in plugin contract 1: `remote` and `hybrid` pipelines, their declarations, the warnings users see, and keys stored for the plugin. Clips Kitty does not proxy, filter or meter a plugin's network traffic; what leaves the PC is what your code sends, and your declaration is what users are shown.
+Status: **built** in plugin contract 1: `remote` and `hybrid` pipelines, their declarations, the warnings users see, and keys stored for the plugin. VilloMillo does not proxy, filter or meter a plugin's network traffic; what leaves the PC is what your code sends, and your declaration is what users are shown.
 
 ## Declare what leaves the PC
 
@@ -33,7 +33,7 @@ The user sees each `sends` entry as a warning, word for word, on the listing car
 >
 > ⚠ Sends frames from your video to Example Cloud, when the "Look at the picture" setting is on
 
-Declare honestly and completely. Clips Kitty can't check it at run time, and a user who finds an undeclared upload has every reason to report the plugin for the block list ([Security](security.md)).
+Declare honestly and completely. VilloMillo can't check it at run time, and a user who finds an undeclared upload has every reason to report the plugin for the block list ([Security](security.md)).
 
 ## Keys
 
@@ -47,7 +47,7 @@ if not key:
 
 A secret never goes in `job.json`, never in a job's settings, and never travels to a render PC. Other software running as the user can read the store, so treat it as a convenience, not a vault.
 
-Clips Kitty's own cloud AI keys (OpenRouter and the like, set in Settings → AI) are never handed to a plugin. If your pipeline uses OpenRouter, the user gives your plugin its own key.
+VilloMillo's own cloud AI keys (OpenRouter and the like, set in Settings → AI) are never handed to a plugin. If your pipeline uses OpenRouter, the user gives your plugin its own key.
 
 ## Sending data
 
@@ -62,7 +62,7 @@ Use https. Set timeouts, retry a little, and fail with a sentence the user under
 
 ## Charging for it
 
-Clips Kitty takes no part in payments: no fees, no revenue share, no checkout. Charge for your service however you like, on your own site. `service.url` and `service.pricing` are shown to the user so they know before installing; `links.funding` can point at a sponsor page.
+VilloMillo takes no part in payments: no fees, no revenue share, no checkout. Charge for your service however you like, on your own site. `service.url` and `service.pricing` are shown to the user so they know before installing; `links.funding` can point at a sponsor page.
 
 ## A remote-only pipeline
 

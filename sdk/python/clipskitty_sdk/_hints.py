@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Private: how the SDK's hints name the command to type.
 
 A module of its own so that job.py can use it without importing devrun,

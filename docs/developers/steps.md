@@ -1,10 +1,10 @@
 # Steps: find, understand, rate, edit
 
-Clips Kitty turns a video into clips in a fixed order. Plugins can take over or add to the steps that work on the video's moments and clips: **find** picks the moments, **understand** says what happens in each one, **rate** gives each one a new score, and **edit** suggests an edit for each clip Clips Kitty is about to make. Clips Kitty does every step no plugin does, so a job that names no plugin runs exactly as it always has.
+VilloMillo turns a video into clips in a fixed order. Plugins can take over or add to the steps that work on the video's moments and clips: **find** picks the moments, **understand** says what happens in each one, **rate** gives each one a new score, and **edit** suggests an edit for each clip VilloMillo is about to make. VilloMillo does every step no plugin does, so a job that names no plugin runs exactly as it always has.
 
-Status: **built** in plugin contract 1 for find, understand and rate (SDK 1.1.0, `tests/test_plugin_steps.py`) and for edit (SDK 1.3.0, `tests/test_plugin_steps.py` and `tests/test_plugin_edit_*.py`). An edit plugin suggests edits that wait for the creator in the editor; it changes no clip by itself ([Suggest edits](#suggest-edits-the-edit-step)). Posting isn't a plugin step: Clips Kitty posts clips itself, and through [WoopSocial](https://woopsocial.com/?via=clipskitty) it can post to many sites at once on the creator's own account ([Publish to every platform at once](../../README.md#publish-to-every-platform-at-once)). `job.wants("export")` answers `False`.
+Status: **built** in plugin contract 1 for find, understand and rate (SDK 1.1.0, `tests/test_plugin_steps.py`) and for edit (SDK 1.3.0, `tests/test_plugin_steps.py` and `tests/test_plugin_edit_*.py`). An edit plugin suggests edits that wait for the creator in the editor; it changes no clip by itself ([Suggest edits](#suggest-edits-the-edit-step)). Posting isn't a plugin step: VilloMillo posts clips itself, and through [WoopSocial](https://woopsocial.com/) it can post to many sites at once on the creator's own account ([Publish to every platform at once](../../README.md#publish-to-every-platform-at-once)). `job.wants("export")` answers `False`.
 
-<sub>Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.</sub>
+<sub>Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you.</sub>
 
 In a manifest, `kind: publisher` is refused: plugins don't post.
 
@@ -13,21 +13,21 @@ In a manifest, `kind: publisher` is refused: plugins don't post.
 ```text
 download → transcribe → [find] → [understand] → [rate] → [edit] → titles, cut, frame, caption, render
                            │           │            │        │
-                 Clips Kitty, Sports,  up to 3      up to 3  up to 3 plugins, in order,
+                 VilloMillo, Sports,  up to 3      up to 3  up to 3 plugins, in order,
                  Gaming scoring, or    plugins,     plugins, on the clips that will be made;
                  one pipeline          in order     in order their suggestions wait in the editor
 ```
 
 | Step | What it does | Who does it | Where the creator chooses it |
 |---|---|---|---|
-| **Find** | Picks the video's moments, each with a score | Clips Kitty's own scoring, Sports, Gaming scoring, or one pipeline plugin | **Pipeline** when adding a video (`pipeline` in the API) |
+| **Find** | Picks the video's moments, each with a score | VilloMillo's own scoring, Sports, Gaming scoring, or one pipeline plugin | **Pipeline** when adding a video (`pipeline` in the API) |
 | **Understand** | Says what happens in each moment. The notes go to the AI that writes each clip's title, description and hashtags. | Up to 3 plugins, one after the other. Without one, the titles come from what is said, as always. | **Rate & understand** when adding a video (`understand` in the API) |
 | **Rate** | Gives each moment a new score. Scores decide which clips are made and their order. | Up to 3 plugins, one after the other. Without one, each moment keeps the score it was found with. | **Rate & understand** when adding a video (`rate` in the API) |
 | **Edit** | Suggests an edit for each clip that will be made: cuts, mutes, volume, fades, speed, a hook title or the layout. Each suggestion waits for the creator in the editor. | Up to 3 plugins, one after the other. Without one, nothing is suggested and no clip is edited, as always. | **Suggest edits** when adding a video (`edit` in the API) |
 
-Every understander runs before any rater, so a rater sees every note. A plugin chosen for both steps, with the same version and settings, runs once, at its place among the raters, and is asked to do both. Each time a plugin understands or rates, it is one **moment run**: Clips Kitty starts it once, with all the moments in one job folder, and reads its answer when it exits.
+Every understander runs before any rater, so a rater sees every note. A plugin chosen for both steps, with the same version and settings, runs once, at its place among the raters, and is asked to do both. Each time a plugin understands or rates, it is one **moment run**: VilloMillo starts it once, with all the moments in one job folder, and reads its answer when it exits.
 
-Understand and rate work on the moments whoever found them: Clips Kitty, Sports, Gaming scoring or a pipeline. They can't be combined with Longform, which picks and writes its clips its own way. A job can't name its own pipeline again under Rate & understand: a pipeline that also rates or describes its moments does that in its find run (below).
+Understand and rate work on the moments whoever found them: VilloMillo, Sports, Gaming scoring or a pipeline. They can't be combined with Longform, which picks and writes its clips its own way. A job can't name its own pipeline again under Rate & understand: a pipeline that also rates or describes its moments does that in its find run (below).
 
 Edit comes last, after rating, the minimum score and the clip limit, and before the titles are written, so an edit plugin is handed exactly the clips that will be made. Each time a plugin suggests edits, it is one **edit run**, never combined with another step. It changes nothing about which clips are made, their scores, their order or their titles. Suggest edits can't be combined with Longform either. A job's own pipeline may be named under Suggest edits, because a find run is never asked to edit, and a plugin chosen under both Rate & understand and Suggest edits runs twice: it rates every moment, then suggests edits for the clips that are kept.
 
@@ -41,7 +41,7 @@ There is no field for it. A plugin's role follows from words its manifest alread
 | `ranges` | `outputs` | It finds moments: it can be a job's Pipeline. |
 | `context` | `outputs` | It says what happens in moments. |
 | `ratings` | `outputs` | It scores moments. |
-| `edits` | `outputs` | It suggests edits for the clips Clips Kitty makes. It needs `moments` in `inputs`, because the clips are handed over the way moments are. |
+| `edits` | `outputs` | It suggests edits for the clips VilloMillo makes. It needs `moments` in `inputs`, because the clips are handed over the way moments are. |
 
 | Role | `inputs` | `outputs` | Chosen as |
 |---|---|---|---|
@@ -52,7 +52,7 @@ There is no field for it. A plugin's role follows from words its manifest alread
 | One plugin, all three | `[video, transcript, moments]` | `[ranges, context, ratings]` | Pipeline, or Rate & understand |
 | Editor | `[moments, transcript]` | `[edits]` | Suggest edits |
 
-`kind` stays `pipeline` and `capability` stays `highlight_detection`, so raters, understanders and editors are listed under Pipelines in the Marketplace. Pills on each listing say what it does: **Finds moments**, **Understands moments**, **Understands what it finds** (a finder with `context` and no `moments` input), **Rates moments** and **Suggests edits**. A plugin that only rates or understands is never offered as a Pipeline, and a job that names it as one is refused with "pipeline: the pipeline {name} doesn't find moments: it rates or understands moments others found. Choose it under Rate & understand instead"; a plugin that only suggests edits gets "… doesn't find moments: it suggests edits for the clips Clips Kitty makes. Choose it under Suggest edits instead". A plugin named under Rate & understand that can't do that step is refused with, for example, "rate[0]: the pipeline Quarkbloom Notes can't rate moments others found: its manifest needs moments in inputs and ratings in outputs", and one named under Suggest edits with "edit[0]: the pipeline Quarkbloom Notes can't suggest edits for clips: its manifest needs moments in inputs and edits in outputs".
+`kind` stays `pipeline` and `capability` stays `highlight_detection`, so raters, understanders and editors are listed under Pipelines in the Marketplace. Pills on each listing say what it does: **Finds moments**, **Understands moments**, **Understands what it finds** (a finder with `context` and no `moments` input), **Rates moments** and **Suggests edits**. A plugin that only rates or understands is never offered as a Pipeline, and a job that names it as one is refused with "pipeline: the pipeline {name} doesn't find moments: it rates or understands moments others found. Choose it under Rate & understand instead"; a plugin that only suggests edits gets "… doesn't find moments: it suggests edits for the clips VilloMillo makes. Choose it under Suggest edits instead". A plugin named under Rate & understand that can't do that step is refused with, for example, "rate[0]: the pipeline Quarkbloom Notes can't rate moments others found: its manifest needs moments in inputs and ratings in outputs", and one named under Suggest edits with "edit[0]: the pipeline Quarkbloom Notes can't suggest edits for clips: its manifest needs moments in inputs and edits in outputs".
 
 The validator ties the words together with four rules. It never gives two of them for one manifest, and a manifest that uses these words gets no new warning:
 
@@ -60,10 +60,10 @@ The validator ties the words together with four rules. It never gives two of the
 |---|---|
 | `ratings` in outputs without `moments` in inputs | `outputs[i]: ratings score moments found before this plugin runs: add moments to inputs (a pipeline's own ranges carry their score already)` |
 | `moments` in inputs with none of `ratings`, `context` or `edits` in outputs | `inputs[i]: a plugin given moments answers about them: add ratings, context or edits to outputs` |
-| `edits` in outputs without `moments` in inputs (and without `ratings` in outputs, which the first rule covers) | `outputs[i]: edits are suggested for the clips Clips Kitty makes from moments: add moments to inputs` |
+| `edits` in outputs without `moments` in inputs (and without `ratings` in outputs, which the first rule covers) | `outputs[i]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs` |
 | `context` in outputs with no `ranges` in outputs, no `moments` in inputs and neither `ratings` nor `edits` in outputs | `outputs[i]: context describes moments: add ranges to outputs, or moments to inputs` |
 
-Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1}` like any pipeline. Rate and understand come in the same release as the Marketplace, so every Clips Kitty that can install a plugin can run them. Editors declare `">=2.0"` too, for now: a Clips Kitty without the edit step refuses to install a plugin with `outputs: [edits]`, so it never runs an editor wrongly ([Versioning](versioning.md#the-edit-step-and-older-clips-kitty)).
+Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1}` like any pipeline. Rate and understand come in the same release as the Marketplace, so every VilloMillo that can install a plugin can run them. Editors declare `">=2.0"` too, for now: a VilloMillo without the edit step refuses to install a plugin with `outputs: [edits]`, so it never runs an editor wrongly ([Versioning](versioning.md#the-edit-step-and-older-clips-kitty)).
 
 ## `job.json` in a moment run
 
@@ -80,11 +80,11 @@ Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1
 ```
 
 - **`steps`** is what this run is asked for: `["understand"]`, `["rate"]` or `["understand", "rate"]`.
-- **`moments`** are in Clips Kitty's order, with ids `m1`, `m2`… At most 200 are handed over; any after the first 200 keep their scores.
+- **`moments`** are in VilloMillo's order, with ids `m1`, `m2`… At most 200 are handed over; any after the first 200 keep their scores.
 - **`score`** is the moment's score now, after any plugin that rated it before yours. **`found_score`** is the score it was found with.
 - **`found_by`** is `clipskitty` (Sports and Gaming scoring included) or the id of the pipeline that found it.
 - **`label`** is the pipeline's or the sport's label for the moment, else `""`.
-- **`signals`** are Clips Kitty's own numeric scores for the moment, each sent only when it has one: `text`, `audio`, `visual`, `engagement`, `game`, and `reaction` **only when it was measured**. Without a measurement Clips Kitty uses a neutral placeholder, which is no evidence, so it isn't sent.
+- **`signals`** are VilloMillo's own numeric scores for the moment, each sent only when it has one: `text`, `audio`, `visual`, `engagement`, `game`, and `reaction` **only when it was measured**. Without a measurement VilloMillo uses a neutral placeholder, which is no evidence, so it isn't sent.
 - **`title`** (the line the moment was picked for), **`reason`** and **`context`** (what earlier plugins said happens in it) all come from what was said, so they are sent only with `transcript.read`.
 - **`limits.max_clips`** is the creator's own clip limit, and **`limits.min_score`** the creator's minimum score. `min_score` is only in moment runs.
 - `video`, `transcript`, `tools`, `models` and `settings` follow your permissions and manifest exactly as in a find run ([Pipeline development](pipeline-development.md)).
@@ -115,14 +115,14 @@ Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1
 |---|---|
 | Answers in one result | at most 200 |
 | An answer's `id` | text of 1 to 32 characters, one answer for each id |
-| `score` | 0 to 100, or left out. Clips Kitty rounds it to a whole number. |
+| `score` | 0 to 100, or left out. VilloMillo rounds it to a whole number. |
 | `reason` | at most 500 characters |
 | `context` | at most 5 notes from one run for one moment, each 1 to 160 characters |
 | Notes kept for one moment | 8, from every plugin together (below) |
 
 Check an answer with `check_result(data, steps=job_json.get("steps"))`, as `Job.finish()` and the app do. Without `steps` it is checked as a find run's answer, exactly as it always was, so a finder's stray `context` or `moments` key changes nothing. Any problem refuses the whole answer, and nothing of it is used.
 
-What Clips Kitty uses is decided by the SDK's `host.read_answers`, the same function `python -m clipskitty_sdk run` uses:
+What VilloMillo uses is decided by the SDK's `host.read_answers`, the same function `python -m clipskitty_sdk run` uses:
 - `score` and `reason` are used only when the run was asked to rate, and `context` only when it was asked to understand.
 - These are left out, each with a line in the job log: `ignored: an answer for m9, which isn't one of this run's moments`; `ignored: 2 range(s): this run was asked about moments, not to find new ones`; `ignored: scores, because this run wasn't asked to rate`; `ignored: notes, because this run wasn't asked to understand`.
 - Every note is put on one line (control characters removed, whitespace and newlines collapsed), links (`http://`, `https://`, `www.`) are taken out, and it is cut to 160 characters. A note left empty is dropped. A finder's own `ranges[].context` is cleaned the same way.
@@ -162,7 +162,7 @@ CALLS = {"quark burst": 15, "triple bloom": 25, "arena wipe": 40}
 
 
 def main(job):
-    for m in job.moments:                           # found by Clips Kitty, Sports or a pipeline
+    for m in job.moments:                           # found by VilloMillo, Sports or a pipeline
         said = job.text(m).lower()                  # what is said during the moment
         bonus = sum(points for call, points in CALLS.items() if call in said)
         if bonus:
@@ -206,7 +206,7 @@ run(main)
 
 The manifest has `inputs: [video, transcript, moments]`, `outputs: [ranges, context, ratings]` and `permissions: [video.read, transcript.read]`.
 - Chosen as a job's **Pipeline**, it finds its own moments and grades them in one find run. Its job.json `steps` is `["find", "understand"]`.
-- Chosen under **Rate & understand**, it grades the moments Clips Kitty or another pipeline found.
+- Chosen under **Rate & understand**, it grades the moments VilloMillo or another pipeline found.
 
 Both share `grade()`. `rate` gives each of the plugin's own ranges its score, in any run.
 
@@ -247,7 +247,7 @@ Notes reach the AI that writes a new clip's title, description and hashtags (and
 CLIP 3 (notes from Marketplace plugins about this moment, background only, never invent beyond them: …):
 ```
 
-- Notes are cleaned twice: when Clips Kitty keeps them (above), and again when it writes the request. Each note stays on one line, so it can't start a new `CLIP` block, and links are taken out.
+- Notes are cleaned twice: when VilloMillo keeps them (above), and again when it writes the request. Each note stays on one line, so it can't start a new `CLIP` block, and links are taken out.
 - Every plugin's notes for one clip share 400 characters, in run order: understanders first, then raters that also understand. A later plugin's notes can be cut there. A note that repeats one already given is used once.
 - Text in a note that looks like a placeholder, such as `{video_title}`, is never filled in.
 - A clip without notes gets exactly the request it always got.
@@ -257,38 +257,38 @@ Notes don't reach a title when the AI call fails and the clip falls back to its 
 
 ## When a plugin can't run
 
-A plugin that can't run, or gives an answer Clips Kitty can't use, is skipped. The moments stay as they were, nothing of its answer is kept, and the job goes on. The job log says `Going on without {name}: {why}`, followed by the technical message in brackets. The video page says `Clips Kitty made these clips without {name}. {why}`, where `{why}` is one sentence:
+A plugin that can't run, or gives an answer VilloMillo can't use, is skipped. The moments stay as they were, nothing of its answer is kept, and the job goes on. The job log says `Going on without {name}: {why}`, followed by the technical message in brackets. The video page says `VilloMillo made these clips without {name}. {why}`, where `{why}` is one sentence:
 
 | Cause | `{why}` |
 |---|---|
 | Not installed any more | It isn't installed any more. |
 | Turned off | It's turned off in Marketplace › Installed. |
-| Can't run on this app version | It can't run on this version of Clips Kitty. |
+| Can't run on this app version | It can't run on this version of VilloMillo. |
 | On a block list | It was blocked: {reason}. |
 | Can no longer do the step | It can no longer rate moments. (or understand moments, or suggest edits) |
 | A setting no longer fits | A setting chosen for it no longer fits: {detail}. |
 | No command in its manifest | Its files are damaged. Install it again. |
 | No Python | It needs Python, and none was found on this PC. |
 | A model missing | A model it needs isn't on this PC. Get it in Marketplace › Installed. |
-| Ran out of time | It took longer than its {n} minute limit, so Clips Kitty stopped it. |
+| Ran out of time | It took longer than its {n} minute limit, so VilloMillo stopped it. |
 | Stopped with an error line | It said: {your last error line that isn't blank}. |
 | Stopped without one, or with only blank ones | It stopped before it finished. |
-| Couldn't be started | Clips Kitty couldn't start it. |
-| An answer it can't use, or a `result.json` that can't be read (a folder, nested too deep, a number too large) | Clips Kitty couldn't use its answer. |
+| Couldn't be started | VilloMillo couldn't start it. |
+| An answer it can't use, or a `result.json` that can't be read (a folder, nested too deep, a number too large) | VilloMillo couldn't use its answer. |
 
 Report problems with `job.fail("...")` in words a creator understands: that line is what the video page shows.
 
 For an edit plugin the video page says `No edit suggestions from {name}. {why}` instead: the clips are made exactly as they would be without it.
 
 **What waits for the creator.** When a plugin the job named under Rate & understand didn't run, two kinds of posting wait:
-- A watched channel that posts automatically holds the video's clips for the creator instead: "Clips Kitty made these clips without {names}, so they weren't posted automatically. Check them and publish, or turn off Rate & understand in this channel's settings." A channel that asks first says "Clips Kitty made these clips without {names}. Check them before you publish."
-- A job told to publish its clips when it finishes (`"then": {"action": "publish"}`) skips publishing, and its log says so: "Publish skipped: Clips Kitty made these clips without {names}, so they wait for you to publish them."
+- A watched channel that posts automatically holds the video's clips for the creator instead: "VilloMillo made these clips without {names}, so they weren't posted automatically. Check them and publish, or turn off Rate & understand in this channel's settings." A channel that asks first says "VilloMillo made these clips without {names}. Check them before you publish."
+- A job told to publish its clips when it finishes (`"then": {"action": "publish"}`) skips publishing, and its log says so: "Publish skipped: VilloMillo made these clips without {names}, so they wait for you to publish them."
 
 The command-line daily upload is not held: it schedules clips one by one, not by run. A job that named no plugin is never held, whatever an earlier run of the same video left behind. A plugin named under Suggest edits that didn't run holds nothing either: its suggestions change no clip, so there is nothing to wait for.
 
 When a rater scores every moment under the minimum, the video has no clips, and the reason names the rater: "Quarkbloom Rater rated every moment under your minimum score (55). Lower the minimum score, or turn off Rate & understand for this video."
 
-Holding the posting is about Clips Kitty's own posting. A plugin is a program running as the user, like any other, so nothing stops one from posting by itself. What it declares, its labels and the block list are the protection ([Security](security.md)).
+Holding the posting is about VilloMillo's own posting. A plugin is a program running as the user, like any other, so nothing stops one from posting by itself. What it declares, its labels and the block list are the protection ([Security](security.md)).
 
 ## A rater decides what is posted
 
@@ -306,9 +306,9 @@ Where only the best few clips go out, scores decide which ones: a watched channe
 
 An edit plugin never changes a clip. It **suggests** an edit for each clip, and the suggestion waits on that clip for the creator. In the timeline editor the creator can **Use** it, **Hide** it, or later **Take it back**. The Suggest edits switch, the Marketplace and these pages say it in the same sentence:
 
-> Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload).
+> VilloMillo doesn’t put a suggestion into a clip until you use it in the editor and apply your edits (Apply edits, or Apply edits & upload).
 
-So a video's first run renders every clip with exactly the options it would have without the plugin (a test pins that), and Clips Kitty's own automatic posting posts what it would post without it. That describes what Clips Kitty does with your answer; it is not a sandbox. A plugin runs as the user, like any program, so nothing stops one from changing clip files or posting by itself ([Security](security.md)).
+So a video's first run renders every clip with exactly the options it would have without the plugin (a test pins that), and VilloMillo's own automatic posting posts what it would post without it. That describes what VilloMillo does with your answer; it is not a sandbox. A plugin runs as the user, like any program, so nothing stops one from changing clip files or posting by itself ([Security](security.md)).
 
 ### `job.json` in an edit run
 
@@ -329,8 +329,8 @@ So a video's first run renders every clip with exactly the options it would have
 ```
 
 - **`steps`** is always exactly `["edit"]`.
-- **`moments`** are the clips that will be made, in Clips Kitty's order, handed over as a moment run hands over moments (ids `m1`, `m2`…, at most 200). `start` and `end` are each clip's window, in seconds of the video. Nothing between this run and the render moves a window.
-- **`suggested`** is what the edit plugins before yours in the same job suggested for that clip, as Clips Kitty keeps it ([below](#how-clips-kitty-fits-a-suggestion)): `by` (that plugin's id), `name`, `edit` and `reason`. It is read-only, and absent when there is nothing. Another plugin's `reason` and hook title may come from what was said, so without `transcript.read` they are left out, as `title`, `reason` and `context` are.
+- **`moments`** are the clips that will be made, in VilloMillo's order, handed over as a moment run hands over moments (ids `m1`, `m2`…, at most 200). `start` and `end` are each clip's window, in seconds of the video. Nothing between this run and the render moves a window.
+- **`suggested`** is what the edit plugins before yours in the same job suggested for that clip, as VilloMillo keeps it ([below](#how-clips-kitty-fits-a-suggestion)): `by` (that plugin's id), `name`, `edit` and `reason`. It is read-only, and absent when there is nothing. Another plugin's `reason` and hook title may come from what was said, so without `transcript.read` they are left out, as `title`, `reason` and `context` are.
 - **`limits.crops`** lists the layouts this job's clips can use ([Layouts](#layouts)). It is only in edit runs.
 - **`limits.min_score`** is not sent: the clips are already chosen.
 
@@ -352,7 +352,7 @@ At most one answer for each clip's id. A clip you leave out gets no suggestion f
 
 ### What a plugin may suggest
 
-Each field is one the timeline editor already has. A value outside its limit refuses the whole answer, as in a moment run, and nothing of it is used. A value inside it is never refused: Clips Kitty fits it to the clip and to the editor's own controls ([below](#how-clips-kitty-fits-a-suggestion)).
+Each field is one the timeline editor already has. A value outside its limit refuses the whole answer, as in a moment run, and nothing of it is used. A value inside it is never refused: VilloMillo fits it to the clip and to the editor's own controls ([below](#how-clips-kitty-fits-a-suggestion)).
 
 | Field | What it is | Limit |
 |---|---|---|
@@ -365,9 +365,9 @@ Each field is one the timeline editor already has. A value outside its limit ref
 | `crop` | The layout: `track` (the editor's **Auto (AI)**), `center` or `letterbox` | text of at most 32 characters |
 | `reason` | Why, in one line the creator sees | at most 160 characters |
 
-Clips Kitty never takes anything else from a plugin: no music, watermark, caption change, look, or new start or end for the clip. Any other field is ignored with a line in the job log, never refused, so a later contract can add fields. `keep` and `hook` get a line saying to write `cuts` and `title_overlay` instead, and `muted_words` is left out because Clips Kitty works out from the transcript which words a mute hides.
+VilloMillo never takes anything else from a plugin: no music, watermark, caption change, look, or new start or end for the clip. Any other field is ignored with a line in the job log, never refused, so a later contract can add fields. `keep` and `hook` get a line saying to write `cuts` and `title_overlay` instead, and `muted_words` is left out because VilloMillo works out from the transcript which words a mute hides.
 
-### How Clips Kitty fits a suggestion
+### How VilloMillo fits a suggestion
 
 The SDK's `host.read_edits` reads the answer, the same function `python -m clipskitty_sdk run` uses:
 - **Cuts and mutes** are clamped to the clip and joined where they overlap. A span wholly outside the clip is left out.
@@ -387,21 +387,21 @@ Each thing changed or left out is one line in the job log, prefixed with your pl
 - `ignored: m2's speed: at 2x the clip would be 8.0 s, under this job's 10 s shortest clip` (or over its longest clip)
 - `ignored: m5's title_overlay: no text is left once web addresses and line breaks are taken out`
 - `ignored: m1's crop "center": this job's clips don't use a layout` (or `… don't use "bias_left"`)
-- `ignored: music, watermark in m2's edit: Clips Kitty doesn't take them from a plugin`
+- `ignored: music, watermark in m2's edit: VilloMillo doesn't take them from a plugin`
 - `ignored: m2's keep: write the spans to take out as cuts` (and `hook`: write the hook title as `title_overlay`)
 - `ignored: m6's edit changes nothing`
 - the lines a moment run gives too: an answer for an id that isn't one of the run's clips, ranges, scores and notes.
 
 A run that rates or understands and answers with `edit` gets `ignored: edits, because this run wasn't asked to suggest edits`; the rest of its answer is used as before. [Troubleshooting](troubleshooting.md#suggest-edits) says what to do about each line.
 
-**What Clips Kitty keeps.** Each suggestion becomes one entry in the clip's saved scores, `plugin_edits`, beside `plugin_ratings` and `plugin_notes`: `{id, plugin, version, name, window, min_length, edit, reason, state}`. `window` is the clip's window the suggestion was made for, rounded to 2 decimals as the clip's own start and end are, and `min_length` the shortest length the cuts were held to. `id` is worked out from your plugin's id and the fitted edit, so the same suggestion gets the same id in every version of your plugin and every run of the video. `state` is `new`, `used` or `hidden` ([API](../API.md#get-videosvideo_idclips)).
+**What VilloMillo keeps.** Each suggestion becomes one entry in the clip's saved scores, `plugin_edits`, beside `plugin_ratings` and `plugin_notes`: `{id, plugin, version, name, window, min_length, edit, reason, state}`. `window` is the clip's window the suggestion was made for, rounded to 2 decimals as the clip's own start and end are, and `min_length` the shortest length the cuts were held to. `id` is worked out from your plugin's id and the fitted edit, so the same suggestion gets the same id in every version of your plugin and every run of the video. `state` is `new`, `used` or `hidden` ([API](../API.md#get-videosvideo_idclips)).
 
 ### Writing an editor with the SDK
 
 | Call | What it does |
 |---|---|
 | `job.wants("edit")` | `True` in an edit run |
-| `job.moments` | The clips Clips Kitty will make, as `Moment`s |
+| `job.moments` | The clips VilloMillo will make, as `Moment`s |
 | `job.limits.crops` | The layouts the clips can use, a tuple; `()` outside an edit run |
 | `m.suggested` | What the edit plugins before yours suggested for the clip: a tuple of `Suggested(by, name, edit, reason)`, read-only |
 | `s = job.suggest_edit(m)` | This clip's suggestion: the same one on every call for `m`, so calls add up |
@@ -416,13 +416,13 @@ A run that rates or understands and answers with `edit` gets `ignored: edits, be
 | `s.crop(mode)` | A layout from `job.limits.crops` |
 | `s.reason(text)` | One line the creator sees |
 | `s.cuts`, `s.mutes` | What is set so far, as tuples |
-| `s.length` | The seconds left after the cuts and the speed, as Clips Kitty measures them |
+| `s.length` | The seconds left after the cuts and the speed, as VilloMillo measures them |
 
 Each method returns the suggestion, so calls chain: `job.suggest_edit(m).cut(815.0, 821.5).fade(fade_out=0.5).reason("Cuts the wait")`. Times are seconds of the video, like `m.start`, `m.end` and what `text.said()` gives.
 - **Checked at the call.** A value the contract refuses raises `ContractError`, naming what was given: `suggest_edit: speed must be a number from 0.5 to 3 (got 4)`, `suggest_edit: cut needs start < end, in seconds of the video (got 830.0 to 820.0)`, `suggest_edit: at most 20 cuts for one clip`.
-- **Logged once, not raised,** for what depends on the job or the editor: `m4: cut 950.0-955.0 s is outside the clip (900.0-925.0 s), so it isn't kept`; `m1: crop 'bias_left' will be ignored: this job's clips use track, center or letterbox` (the crop is kept, and Clips Kitty leaves it out); `m1: fade_out 0.7 s will be 0.5 s, the nearest the editor offers`.
-- **In a run not asked to edit,** the call logs `suggest_edit ignored: this job didn't ask for edits` and nothing is kept; on one of your own ranges it logs `suggest_edit ignored on r1: Clips Kitty asks for edits on the clips it hands over (job.moments)`. So one shared function can serve every run.
-- **At `job.finish()`**, a clip whose cuts or speed would leave less than the job's shortest clip gets a line such as `m1: cuts leave 4.0 s, under this job's 10 s shortest clip: Clips Kitty will ignore the cuts`. The suggestion is written as you set it; Clips Kitty fits it when it reads the answer, so a `result.json` you write by hand is fitted the same way.
+- **Logged once, not raised,** for what depends on the job or the editor: `m4: cut 950.0-955.0 s is outside the clip (900.0-925.0 s), so it isn't kept`; `m1: crop 'bias_left' will be ignored: this job's clips use track, center or letterbox` (the crop is kept, and VilloMillo leaves it out); `m1: fade_out 0.7 s will be 0.5 s, the nearest the editor offers`.
+- **In a run not asked to edit,** the call logs `suggest_edit ignored: this job didn't ask for edits` and nothing is kept; on one of your own ranges it logs `suggest_edit ignored on r1: VilloMillo asks for edits on the clips it hands over (job.moments)`. So one shared function can serve every run.
+- **At `job.finish()`**, a clip whose cuts or speed would leave less than the job's shortest clip gets a line such as `m1: cuts leave 4.0 s, under this job's 10 s shortest clip: VilloMillo will ignore the cuts`. The suggestion is written as you set it; VilloMillo fits it when it reads the answer, so a `result.json` you write by hand is fitted the same way.
 
 `job.suggest_edit` is new in SDK 1.3.0. Don't ship your own copy of the SDK in your plugin's folder: an older copy there comes first on the path, lacks `suggest_edit`, and the run fails.
 
@@ -463,7 +463,7 @@ def main(job):
     muted = said(job, words_of(job.settings["mute_words"]))  # (start, end, word), in seconds of the video
     waits = said(job, ["respawn timer"])
     blooms = said(job, ["triple bloom"])
-    for m in job.moments:                                   # the clips Clips Kitty will make
+    for m in job.moments:                                   # the clips VilloMillo will make
         s = job.suggest_edit(m)
         for start, end, _ in muted:
             if m.start <= start < m.end:
@@ -484,7 +484,7 @@ run(main)
 It mutes the words the creator lists, a teammate's name say, because that is what a creator would use it for. A mute a little wider than the word hides the word in the burned captions too, once the creator uses it. Given the rater's three moments as the clips, a transcript with word times that says "respawn timer" at 815.6 s, "Sam, a triple bloom" at 830.5 s and "triple bloom" again at 1003 s, and `--set mute_words=Sam`, `run --steps edit` prints:
 
 ```text
-Suggest edits: 2 of 3 clip(s) given a suggestion, as Clips Kitty would keep them:
+Suggest edits: 2 of 3 clip(s) given a suggestion, as VilloMillo would keep them:
 m1   812.0s-841.5s  29.5 s -> 24.5 s  cut 815.6-820.6, mute 830.4-830.9, hook title "Triple bloom!" (3 s)
      Mutes the words you listed and cuts the respawn wait
 m2   900.0s-925.0s  no suggestion
@@ -497,7 +497,7 @@ m3   1000.0s-1012.0s  12.0 s  hook title "Triple bloom!" (3 s)
 
 - A job may name up to 3, each once, and they run one after another in the creator's order.
 - Each sees the same clips, plus `suggested`: every earlier plugin's suggestion for each clip. Yours can build on them, for example by leaving alone a clip another plugin already trims, or ignore them.
-- One suggestion is kept for each plugin and clip, each apart, shown as its own card in run order. Clips Kitty never merges them, so every card says exactly what one plugin said, and the creator settles any conflict.
+- One suggestion is kept for each plugin and clip, each apart, shown as its own card in run order. VilloMillo never merges them, so every card says exactly what one plugin said, and the creator settles any conflict.
 
 ### What the creator sees
 
@@ -511,7 +511,7 @@ Your reason and hook title are shown as you wrote them, never translated, and la
 
 ### Posting
 
-Clips Kitty's three ways of posting without a click (a watched channel that posts automatically, a job told to publish when it finishes, and the command-line daily upload) post the clip's file as Clips Kitty made it: with exactly the options it would have without your plugin, and, when a re-run makes a clip the creator had edited, with the creator's own edits. Edit plugins don't touch scores either, so which clips go out is unchanged too. Once the creator uses a suggestion and applies their edits, it is their own edit and goes out as any of their edits does: with Apply edits & upload, Publish, or a later re-send of that clip, and in the file a re-run makes. Posts that already went out stay as they were. A plugin that fails holds no posting: its suggestions change no clip.
+VilloMillo's three ways of posting without a click (a watched channel that posts automatically, a job told to publish when it finishes, and the command-line daily upload) post the clip's file as VilloMillo made it: with exactly the options it would have without your plugin, and, when a re-run makes a clip the creator had edited, with the creator's own edits. Edit plugins don't touch scores either, so which clips go out is unchanged too. Once the creator uses a suggestion and applies their edits, it is their own edit and goes out as any of their edits does: with Apply edits & upload, Publish, or a later re-send of that clip, and in the file a re-run makes. Posts that already went out stay as they were. A plugin that fails holds no posting: its suggestions change no clip.
 
 Each edit plugin makes the clips wait for its answer, up to its time limit, before they are made. The watch panel tells the creator so, and the Marketplace shows each plugin's limit.
 
@@ -540,13 +540,13 @@ Cuts, mutes, volume, fades, speed and the hook title work on every kind. With `r
 
 ## Time limits and job folders
 
-- A moment run or an edit run is stopped after **10 minutes** unless the manifest's `run.timeout_minutes` says otherwise (up to 24 hours). That value applies to every run of the plugin, find runs included; a find run's default is 60 minutes. The Marketplace shows the limit: "Clips Kitty stops it after 10 minutes when it rates or understands a video’s moments.", "… when it suggests edits for a video’s clips." or "… when it rates or understands a video’s moments or suggests edits for its clips."
+- A moment run or an edit run is stopped after **10 minutes** unless the manifest's `run.timeout_minutes` says otherwise (up to 24 hours). That value applies to every run of the plugin, find runs included; a find run's default is 60 minutes. The Marketplace shows the limit: "VilloMillo stops it after 10 minutes when it rates or understands a video’s moments.", "… when it suggests edits for a video’s clips." or "… when it rates or understands a video’s moments or suggests edits for its clips."
 - Cancelling the job stops the plugin, as in a find run.
 - A moment run's folder is `<data folder>/plugins/runs/<video id>-<date>-<time>-rate` (or `-understand`, or `-understand-rate`), and an edit run's ends in `-edit`. Only the newest **5** run folders are kept, counted across every plugin, find runs, moment runs and edit runs alike, so a job's later runs can remove the folder of its own find run. To keep a run's folder for a closer look, use `python -m clipskitty_sdk run --job-dir DIR`.
 
 ## Progress
 
-A moment run's progress lines show as "Rating moments with {name}", or "Understanding moments with {name}" for a run asked only to understand. Those steps sit at 65 to 70 percent of the bar, which never moves back. Clips Kitty's own scoring can already have passed that point, so the bar may not move during your run; the label says your plugin is working. The progress events carry `plugin` (your plugin's name) and the stage `ranking` or `understand` ([API](../API.md#websocket-events)). An edit run shows as "Suggesting edits with {name}", at 70 to 78 percent of the bar, with the stage `edit`.
+A moment run's progress lines show as "Rating moments with {name}", or "Understanding moments with {name}" for a run asked only to understand. Those steps sit at 65 to 70 percent of the bar, which never moves back. VilloMillo's own scoring can already have passed that point, so the bar may not move during your run; the label says your plugin is working. The progress events carry `plugin` (your plugin's name) and the stage `ranking` or `understand` ([API](../API.md#websocket-events)). An edit run shows as "Suggesting edits with {name}", at 70 to 78 percent of the bar, with the stage `edit`.
 
 ## Trying it on your own PC
 

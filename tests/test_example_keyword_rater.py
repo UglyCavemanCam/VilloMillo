@@ -2,7 +2,7 @@
 
 It must work the way an outside developer's plugin would: installed through
 the plugin manager on this app's version, run through the app's own runner,
-importing nothing from Clips Kitty but the SDK, and answering only about the
+importing nothing from VilloMillo but the SDK, and answering only about the
 moments where one of the creator's words is said. Every game named is
 Quarkbloom Arena, a made-up game.
 """
@@ -116,7 +116,7 @@ def test_it_installs_on_this_apps_version(tmp_path):
     assert not plan["warnings"] and not plan["technical"], (plan["warnings"], plan["technical"])
     assert plan["plugin"]["id"] == PLUGIN_ID
     assert plan["details"]["steps"] == ["Understands moments", "Rates moments"]
-    assert plan["details"]["time_limit"] == ("Clips Kitty stops it after 10 minutes when it rates or "
+    assert plan["details"]["time_limit"] == ("VilloMillo stops it after 10 minutes when it rates or "
                                              "understands a video’s moments.")
 
 

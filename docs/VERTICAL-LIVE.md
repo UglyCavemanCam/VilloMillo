@@ -8,7 +8,7 @@ TikTok live. The streamer already placed the gameplay, the webcam and the chat
 on a 9:16 canvas. Their recording is a finished vertical video, and there is
 nothing to reframe.
 
-Turn on **Vertical Live** for one of those, and Clips Kitty keeps the stream's
+Turn on **Vertical Live** for one of those, and VilloMillo keeps the stream's
 own layout. It finds the moments exactly as it always does, and cuts each clip
 from the whole frame at 1080×1920.
 
@@ -44,7 +44,7 @@ are already vertical: untick it, and a 16:9 video makes 9:16 Shorts." Press
 ## Where the vertical video comes from
 
 - **A YouTube vertical live.** Its replay is a vertical video; paste its link.
-  Clips Kitty downloads the 9:16 version at 1080×1920. (Standard processing
+  VilloMillo downloads the 9:16 version at 1080×1920. (Standard processing
   downloads vertical videos at a lower size; Vertical Live asks for 1080 on the
   short side.)
 - **Streamlabs Dual Output to YouTube.** It makes two broadcasts, and the
@@ -52,14 +52,14 @@ are already vertical: untick it, and a 16:9 video makes 9:16 Shorts." Press
   watch the channel with Vertical Live on.
 - **YouTube's own dual stream** (horizontal and vertical from the Live Control
   Room) is one video. YouTube doesn't say whether its replay keeps the vertical
-  version. If it doesn't, Clips Kitty says "YouTube has no vertical version of
+  version. If it doesn't, VilloMillo says "YouTube has no vertical version of
   this video" rather than clipping the horizontal one.
 - **Twitch Dual Format.** Twitch says Dual Format gives "both a horizontal and a
   vertical version of your Clips and VODs", and the vertical VOD expires 7 days
-  after the stream (Streamlabs' guide). Clips Kitty asks for the vertical version
+  after the stream (Streamlabs' guide). VilloMillo asks for the vertical version
   of the VOD. When it tested this in September 2026, Twitch didn't hand the
   vertical version to the downloader at all, so for now **download the vertical
-  recording and add it as a file**. If a VOD has no vertical version, Clips Kitty
+  recording and add it as a file**. If a VOD has no vertical version, VilloMillo
   says so rather than using the horizontal one.
 - **A downloaded live MP4** from Instagram, TikTok, YouTube, Twitch or anywhere
   else: add it as a file with Vertical Live on. The platform doesn't matter once
@@ -90,7 +90,7 @@ Kept:
 - publishing and scheduling through WoopSocial or your other connected
   services.
 
-## In Clips Kitty Web
+## In VilloMillo Web
 
 The browser tool has the same switch and the same rules. It never crops or
 reframes anyway (it cuts clips straight out of the recording, with no

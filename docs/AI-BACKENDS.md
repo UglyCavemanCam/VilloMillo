@@ -2,7 +2,7 @@
 
 **Local first. Cloud when you need it. OpenRouter is the easiest cloud path.**
 
-Clips Kitty uses AI for two jobs: the language model that picks clips, writes
+VilloMillo uses AI for two jobs: the language model that picks clips, writes
 titles and descriptions, learns about creators, translates, edits clips on
 request and answers the assistant; and transcription. Each can run in one of
 three places, chosen in **Settings → AI**:
@@ -19,7 +19,7 @@ Every mode uses the AI chosen here, the same way: standard clips, Longform, Podc
 [Vertical Live](VERTICAL-LIVE.md) all pick their moments with it.
 
 Every cloud option is **bring your own key**. The key is yours and so is the
-bill: the provider charges your account for what you use. Clips Kitty has no key
+bill: the provider charges your account for what you use. VilloMillo has no key
 of its own, sells no credits, and runs no server in between; requests go from
 your PC straight to the provider.
 
@@ -30,7 +30,7 @@ your PC straight to the provider.
 Out of the box everything runs on your computer. Ollama runs the language model
 and Whisper does the transcription. There is no API key, nothing is sent
 anywhere, and there is nothing to pay. On a computer with a capable graphics
-card this is the best fit for Clips Kitty, and it stays the default.
+card this is the best fit for VilloMillo, and it stays the default.
 
 The Models page lists the local models, recommends one for your graphics card,
 and warns you when a model is too big for it.
@@ -53,12 +53,12 @@ to a provider directly; it makes it simpler.
 
 1. In **Settings → AI**, choose **🚀 OpenRouter**, then **Sign in with
    OpenRouter**. Your browser opens OpenRouter: sign in (or create an account)
-   and approve Clips Kitty. OpenRouter hands Clips Kitty a key of your own,
-   named "Clips Kitty" in your OpenRouter key list, which spends your
+   and approve VilloMillo. OpenRouter hands VilloMillo a key of your own,
+   named "VilloMillo" in your OpenRouter key list, which spends your
    OpenRouter credits; there is nothing to copy or paste. Add credit on
    OpenRouter first, or start with its free models. (This is OpenRouter's
    OAuth sign-in with PKCE: no app secret, a fresh one-time code each time,
-   and the browser comes back to Clips Kitty on this PC. The key is checked
+   and the browser comes back to VilloMillo on this PC. The key is checked
    and stored exactly as a pasted one is.)
    - It connects whichever OpenRouter account that browser is signed in to.
      For another account, **Copy sign-in link** and open it in a private
@@ -97,7 +97,7 @@ does not say which models give it, so:
   switches to it.
 - The Whisper models known to return word timings are listed first and chosen
   straight away.
-- Any other voice model is checked when you pick it: Clips Kitty sends it a
+- Any other voice model is checked when you pick it: VilloMillo sends it a
   three-second test clip once (a tiny fraction of a cent on your key) and only
   switches to it if word timings come back. If they don't, it says so and
   nothing changes.
@@ -162,7 +162,7 @@ PC.
 | "doesn't offer that model to your key" | No provider on OpenRouter currently serves that model with JSON output. Pick another model. |
 | "isn't answering right now" | OpenRouter or the model's providers are down. Try again later. |
 
-A failing provider stops the job with that message. Clips Kitty never switches
+A failing provider stops the job with that message. VilloMillo never switches
 to another provider, or back to the local model, on its own.
 
 ### Attribution
@@ -170,12 +170,12 @@ to another provider, or back to the local model, on its own.
 Every request made to OpenRouter carries three headers:
 
 ```
-HTTP-Referer: https://colingpt9.github.io/clips-studio/
-X-OpenRouter-Title: Clips Kitty
+HTTP-Referer: https://uglycavemancam.github.io/VilloMillo/
+X-OpenRouter-Title: VilloMillo
 X-OpenRouter-Categories: video-gen
 ```
 
-They credit the usage to Clips Kitty in OpenRouter's app rankings. They identify
+They credit the usage to VilloMillo in OpenRouter's app rankings. They identify
 the app, not you. `video-gen` is the category in OpenRouter's Creative section
 that fits; a bare `creative` is not a category, and OpenRouter drops values it
 does not recognise. They are built in one place, `llm/providers/openrouter.py`,
@@ -202,7 +202,7 @@ something only their API offers.
 | Qwen (Alibaba Cloud) | Yes, through Model Studio | Not yet | Alibaba Cloud Model Studio console |
 
 - **Qwen keys belong to one region.** An Alibaba Cloud Model Studio key only
-  works in the region it was made in. When you save one, Clips Kitty tries it in
+  works in the region it was made in. When you save one, VilloMillo tries it in
   Singapore, US (Virginia), China (Beijing) and China (Hong Kong), in that order,
   keeps the region that accepts it, and shows it beside the key. Keys from the
   Frankfurt and Tokyo regions need a workspace-specific address and don't work
@@ -225,9 +225,9 @@ something only their API offers.
 People ask whether a Claude, ChatGPT or Google AI subscription can run Clips
 Kitty instead of an API key. Only where the provider officially lets another app
 use the plan, through the provider's own software, with the sign-in held by that
-software and never seen by Clips Kitty. As of September 2026:
+software and never seen by VilloMillo. As of September 2026:
 
-| Plan | Can Clips Kitty use it? | Why |
+| Plan | Can VilloMillo use it? | Why |
 |---|---|---|
 | **ChatGPT** (Plus, Pro, Business…) | **Yes, experimental** | OpenAI documents its Codex SDK for building Codex into other apps, with "Sign in with ChatGPT" run by Codex itself. |
 | **Claude** Pro or Max | No, use a Claude API key | Anthropic: it does not permit third-party developers to offer Claude.ai login or to route requests through Free, Pro or Max plans ([legal and compliance](https://code.claude.com/docs/en/legal-and-compliance)). |
@@ -250,7 +250,7 @@ ChatGPT plan**:
   much is used, as OpenAI reports it. A two-hour video is a few dozen requests.
 - **It never spends ChatGPT credits.** Once a plan's included usage is used up,
   OpenAI spends any credits you have bought, and it gives other apps no switch to
-  prevent that. So before every request Clips Kitty checks the plan's limits and
+  prevent that. So before every request VilloMillo checks the plan's limits and
   stops the job at 100%, saying when the limit resets. A request already running
   when the limit is reached may be finished by OpenAI.
 - **Watched channels only use it if you allow it** ("Let Watched channels use
@@ -271,7 +271,7 @@ How it is kept to what OpenAI documents:
   reuses a Codex login you already have. API-key environment variables are
   blanked for it, so only the plan is used.
 - Codex stores the sign-in itself, encrypted, with its key in Windows Credential
-  Manager. Clips Kitty never handles a token, and nothing about it goes into the
+  Manager. VilloMillo never handles a token, and nothing about it goes into the
   settings file, logs, bug reports or the MCP server.
 - Codex can't run commands, search the web, load plugins, update itself or send
   analytics here. Each request is a one-off, read-only task in an empty folder,
@@ -297,7 +297,7 @@ it.
 
 Each provider handles what it receives under its own privacy policy, which can
 differ between free and paid plans. The full list of everything the app sends
-anywhere is in the [privacy policy](https://colingpt9.github.io/clips-studio/privacy.html).
+anywhere is in the [privacy policy](https://uglycavemancam.github.io/VilloMillo/privacy.html).
 
 **Your key** is stored in the app's credential store (encrypted with Windows
 DPAPI, tied to your Windows account; an owner-only file elsewhere), the same as

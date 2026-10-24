@@ -268,18 +268,8 @@ Policy 11.16 requires it. The app writes clip titles with a language model in
 response to user input, and it requires the metadata to disclose it and a way
 for users to report bad output. The in-app Feedback Hub covers the last part.
 
-**Do not declare a third-party purchase API.** An earlier version of this page
-said to, and that was wrong. Nothing in Clips Kitty is for sale: the donate
-button is optional, it buys nothing, and in Store builds it hands PayPal to the
-*system browser* rather than opening a payment page inside the app (see
-`ui/src/main/distribution.ts`). No purchase API is used and no transaction
-happens in the app, so there is nothing to declare: declaring one would invite
-questions about a payment flow that does not exist.
-
-The browser handoff is still the right behaviour and stays: policy 10.8.2 is
-explicit that "users may be directed to a browser to complete registration or
-transactions", and it means a certification tester never has to assess a
-payment page hosted inside the app.
+**Do not declare a third-party purchase API.** Nothing in VilloMillo is for sale and no
+purchase API is used, so there is nothing to declare.
 
 ### Age rating
 
@@ -340,9 +330,6 @@ the tester will see on first run is unusual:
 > then names whichever model was installed. It is not expected to name any
 > particular model, and a name that differs from any documentation is correct
 > rather than a failure.
->
-> The donate button opens PayPal in the system browser. It is an optional
-> donation: nothing is sold in the app, and no purchase API is used.
 
 The AI-model paragraph is there because its absence cost a cycle. The
 **10.1.2.10** rejection was a tester who downloaded the model setup recommended
@@ -387,7 +374,6 @@ reality:
 | | Standalone | Store |
 |---|---|---|
 | Updates | electron-updater, Hugging Face feed | the Store installs them; the app asks the Store's catalog which version it offers and, when this copy is behind, says so with a button to the Store page (`ui/src/main/storeVersion.ts`) |
-| Donate button | PayPal in a locked-down in-app window | PayPal in the system browser |
 
 Everything else (the engine, the models, the pipeline, the data directory) is
 identical.

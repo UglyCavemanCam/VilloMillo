@@ -1,6 +1,6 @@
 # Loud moments, cut on scene changes
 
-An example [Clips Kitty](https://github.com/UglyCavemanCam/VilloMillo) pipeline plugin, laid out the way a plugin's own repository would be. Copy this folder to start your own.
+An example [VilloMillo](https://github.com/UglyCavemanCam/VilloMillo) pipeline plugin, laid out the way a plugin's own repository would be. Copy this folder to start your own.
 
 ## What it does
 

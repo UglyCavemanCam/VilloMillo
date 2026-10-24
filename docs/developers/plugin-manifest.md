@@ -1,6 +1,6 @@
 # Plugin manifest
 
-Every plugin has one manifest, `clipskitty.yaml`, at the root of its folder (or of the subfolder its registry listing names). It is data: Clips Kitty reads it and never evaluates anything in it. JSON with the same fields works too.
+Every plugin has one manifest, `clipskitty.yaml`, at the root of its folder (or of the subfolder its registry listing names). It is data: VilloMillo reads it and never evaluates anything in it. JSON with the same fields works too.
 
 Status: **built**, manifest version 1 (`sdk/python/clipskitty_sdk/manifest.py`). Check yours with:
 
@@ -61,7 +61,7 @@ Required fields are in bold.
 | Field | What it is | Rules |
 |---|---|---|
 | **`manifest_version`** | The manifest format | `1` |
-| **`id`** | `publisher/name` | lower case letters, digits and hyphens; publisher up to 39 characters, name up to 64. The publisher `clipskitty` is reserved for the modes that ship with the app. For a listed plugin the publisher must be the repository's GitHub owner (checked by the catalog's index build; only the Clips Kitty project's own repositories may list examples under another name, such as `clips-kitty-examples`). |
+| **`id`** | `publisher/name` | lower case letters, digits and hyphens; publisher up to 39 characters, name up to 64. The publisher `clipskitty` is reserved for the modes that ship with the app. For a listed plugin the publisher must be the repository's GitHub owner (checked by the catalog's index build; only the VilloMillo project's own repositories may list examples under another name, such as `clips-kitty-examples`). |
 | **`name`** | What users see | up to 60 characters |
 | **`version`** | This release | SemVer, `1.2.0` or `1.2.0-beta.1` |
 | **`kind`** | What sort of plugin | `pipeline`. `caption-style`, `source`, `integration`, `provider` and `component` are planned and refused with a message saying so. `kind: publisher` is refused: plugins don't post. |
@@ -75,7 +75,7 @@ Required fields are in bold.
 | `run.python_requirements` | A requirements file in the plugin | accepted with a warning: per-plugin Python packages are **planned** ([Pipeline development](pipeline-development.md)) |
 | **`execution`** | Where the work happens | `local`, `remote` or `hybrid` |
 | **`inputs`** | What it needs handed over | `video`, `transcript`, `moments`. `video` and `transcript` each need their permission; `moments` (the moments found before it runs) needs none. |
-| **`outputs`** | What it returns | `ranges` (moments it finds), `context` (what happens in moments), `ratings` (scores for moments others found), `edits` (suggested edits for the clips Clips Kitty makes). Together with `inputs` they say which steps the plugin does ([below](#inputs-and-outputs-which-steps-a-plugin-does)). `clips` (finished files) is planned, and refused with a message saying so. |
+| **`outputs`** | What it returns | `ranges` (moments it finds), `context` (what happens in moments), `ratings` (scores for moments others found), `edits` (suggested edits for the clips VilloMillo makes). Together with `inputs` they say which steps the plugin does ([below](#inputs-and-outputs-which-steps-a-plugin-does)). `clips` (finished files) is planned, and refused with a message saying so. |
 | **`permissions`** | What it asks for | see [Permissions](permissions.md) |
 | `network` | Hosts it connects to | host names, optionally with a port; required with the `network` permission, and for `remote` and `hybrid` |
 | `sends` | What leaves the computer | `video`, `video_link`, `audio`, `frames`, `transcript`, or `{data, to, when}` when it depends on a setting. Required for `remote` and `hybrid`; a `local` pipeline sends nothing. Shown to the user as a ⚠ warning. |
@@ -116,7 +116,7 @@ Four rules tie the words together. The validator never gives two of them for one
 |---|---|
 | `ratings` in outputs without `moments` in inputs | `outputs[i]: ratings score moments found before this plugin runs: add moments to inputs (a pipeline's own ranges carry their score already)` |
 | `moments` in inputs with none of `ratings`, `context` or `edits` in outputs | `inputs[i]: a plugin given moments answers about them: add ratings, context or edits to outputs` |
-| `edits` in outputs with no `moments` in inputs and no `ratings` in outputs | `outputs[i]: edits are suggested for the clips Clips Kitty makes from moments: add moments to inputs` |
+| `edits` in outputs with no `moments` in inputs and no `ratings` in outputs | `outputs[i]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs` |
 | `context` in outputs with no `ranges` in outputs, no `moments` in inputs and neither `ratings` nor `edits` in outputs | `outputs[i]: context describes moments: add ranges to outputs, or moments to inputs` |
 
 `clipskitty_sdk.manifest` answers the same questions in code: `steps_of(m)` (what the plugin does), `offers(m)` (what a job may name it for), `find_steps(m)` (what its find run is asked for) and `step_problem(m, step)` (why a job can't name it for a step).
@@ -137,7 +137,7 @@ settings:
 | `number` | `minimum`, `maximum` | a number |
 | `boolean` | | true or false |
 | `choice` | `options` (required) | one of the options |
-| `secret` | | entered by the user and stored by Clips Kitty; never has a default and never travels in a job (see [Pipeline development](pipeline-development.md)) |
+| `secret` | | entered by the user and stored by VilloMillo; never has a default and never travels in a job (see [Pipeline development](pipeline-development.md)) |
 
 Every type takes `title` and `description`; all but `secret` take `default`, which must fit the type. A setting's name is lower case letters, digits and `_`, starting with a letter. A job's settings are checked against these when the job is added: an unknown setting, a `secret`, or a value that does not fit is refused with 400 and a message naming the setting.
 
@@ -151,7 +151,7 @@ models:
   - {name: speech, source: bundled, id: example-bundled-model}
 ```
 
-A Hugging Face model must be pinned to a full commit hash, because a branch or tag can change under the user; a `url` model needs its SHA-256. Pickle-format files (`.bin`, `.pt`, `.pth`, `.ckpt`, `.pkl`) can run code when loaded and produce a warning; the app will ask before downloading them. Clips Kitty finds each one on the PC, downloads Hugging Face and `url` models into one folder every plugin shares when the user presses Download, and stops a run whose models aren't there yet ([Model references](model-references.md)).
+A Hugging Face model must be pinned to a full commit hash, because a branch or tag can change under the user; a `url` model needs its SHA-256. Pickle-format files (`.bin`, `.pt`, `.pth`, `.ckpt`, `.pkl`) can run code when loaded and produce a warning; the app will ask before downloading them. VilloMillo finds each one on the PC, downloads Hugging Face and `url` models into one folder every plugin shares when the user presses Download, and stops a run whose models aren't there yet ([Model references](model-references.md)).
 
 ## Based on other projects
 
@@ -174,4 +174,4 @@ All four are required in each entry; any other key is ignored with a warning. Na
 
 ## The official modes
 
-Clips Kitty's own modes have manifests too, in [`plugins/builtin/`](../../plugins/builtin/): `clipskitty/shorts`, `clipskitty/gaming` and `clipskitty/sports`, with `run: builtin`. They exist so the Marketplace can list the official modes beside community pipelines and so the schema is tested on real pipelines. Only manifests shipped inside the app may use the `clipskitty` publisher or `run: builtin`.
+VilloMillo's own modes have manifests too, in [`plugins/builtin/`](../../plugins/builtin/): `clipskitty/shorts`, `clipskitty/gaming` and `clipskitty/sports`, with `run: builtin`. They exist so the Marketplace can list the official modes beside community pipelines and so the schema is tested on real pipelines. Only manifests shipped inside the app may use the `clipskitty` publisher or `run: builtin`.

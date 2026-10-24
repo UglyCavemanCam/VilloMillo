@@ -22,8 +22,8 @@ from llm.spec import is_local, parse_spec
 
 KEY = "sk-or-v1-" + "a1b2c3d4" * 8
 ATTRIBUTION = {
-    "HTTP-Referer": "https://colingpt9.github.io/clips-studio/",
-    "X-OpenRouter-Title": "Clips Kitty",
+    "HTTP-Referer": "https://github.com/UglyCavemanCam/VilloMillo/",
+    "X-OpenRouter-Title": "VilloMillo",
     "X-OpenRouter-Categories": "video-gen",
 }
 

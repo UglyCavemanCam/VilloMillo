@@ -2,7 +2,7 @@
 
 It says what the code does: the SDK picture's boxes are the ones in
 sdk/python/README.md, every step is marked built and none is coming later,
-posting isn't a plugin step (Clips Kitty posts clips itself, and WoopSocial
+posting isn't a plugin step (VilloMillo posts clips itself, and WoopSocial
 posts to many sites at once, linked as the site's other pages link it, with
 its affiliate note), each building block names what it needs, and the
 sentence about which release runs plugins (kept in
@@ -11,7 +11,7 @@ questions, in the root README's "Write a plugin" section, in llms.txt and on
 the roadmap. It names no real game as our example, claims no sandbox, and
 links only to pages that exist in this checkout.
 
-It reads the names of real games from Clips Kitty's own registry, so it is an
+It reads the names of real games from VilloMillo's own registry, so it is an
 engine test, not one of the SDK's own (tests/test_plugin_sdk_*.py).
 """
 
@@ -36,20 +36,20 @@ from plugins import registry  # noqa: E402
 
 SITE = ROOT / "site"
 PAGE = SITE / "developers.html"
-URL = "https://colingpt9.github.io/clips-studio/developers.html"
+URL = "https://uglycavemancam.github.io/VilloMillo/developers.html"
 REPO = "https://github.com/UglyCavemanCam/VilloMillo"
 TUTORIAL = ROOT / "docs" / "developers" / "first-game-pipeline.md"
 CAPTION = ("posts when the creator clicks Publish, or on a schedule or automatic posting the creator "
            "switched on")
-NO_SANDBOX = ("Every plugin runs on the creator's PC with their rights, like any program; Clips Kitty "
+NO_SANDBOX = ("Every plugin runs on the creator's PC with their rights, like any program; VilloMillo "
               "doesn't sandbox it. The install screen says what it declares.")
-POSTING = ("Posting isn't a plugin step: Clips Kitty posts clips itself, and through WoopSocial it can post to "
+POSTING = ("Posting isn't a plugin step: VilloMillo posts clips itself, and through WoopSocial it can post to "
            "many sites at once on the creator's own account.")
 NO_PUBLISHER = "kind: publisher is refused: plugins don't post."
 # The WoopSocial link exactly as the site's other pages have it, and the note that goes with it.
-WOOPSOCIAL = ('<a href="https://woopsocial.com/?via=clipskitty" target="_blank" '
+WOOPSOCIAL = ('<a href="https://woopsocial.com/" target="_blank" '
               'rel="noopener noreferrer sponsored">WoopSocial</a>')
-AFFILIATE_NOTE = ('<p class="note">Affiliate link - Clips Kitty may earn a commission if you sign up through it, '
+AFFILIATE_NOTE = ('<p class="note">Affiliate link - VilloMillo may earn a commission if you sign up through it, '
                   'at no extra cost to you.</p>')
 # A sentence that names export or publisher plugins, and one that says they are still to come.
 POSTING_PLUGINS = re.compile(r"\bexport\b|kind: publisher|\bpublishers\b|\bpublisher plugins?\b", re.I)
@@ -129,13 +129,13 @@ def md_anchors(path: Path) -> set[str]:
 
 def test_the_page_exists_with_its_title_and_canonical():
     text = page()
-    assert "<title>Clips Kitty SDK</title>" in text
+    assert "<title>VilloMillo SDK</title>" in text
     assert f'<link rel="canonical" href="{URL}" />' in text
     assert f'<meta property="og:url" content="{URL}" />' in text
-    assert "<h1>Clips Kitty SDK</h1>" in text
+    assert "<h1>VilloMillo SDK</h1>" in text
     lead = visible(hero(text))
-    assert ("Teach Clips Kitty your game. Write a small Python plugin that finds, understands or rates the "
-            "moments in a video. Clips Kitty does the rest.") in lead
+    assert ("Teach VilloMillo your game. Write a small Python plugin that finds, understands or rates the "
+            "moments in a video. VilloMillo does the rest.") in lead
     buttons = re.findall(r'<a class="btn[^"]*" href="([^"]+)"[^>]*>(.*?)</a>', hero(text))
     assert buttons == [(f"{REPO}/blob/main/docs/developers/first-game-pipeline.md", "Start building")]
 
@@ -143,7 +143,7 @@ def test_the_page_exists_with_its_title_and_canonical():
     data = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', text, re.S).group(1))
     graph = {node["@type"]: node for node in data["@graph"]}
     assert graph["WebPage"]["url"] == URL
-    assert graph["WebPage"]["name"] == "Clips Kitty SDK"
+    assert graph["WebPage"]["name"] == "VilloMillo SDK"
     assert graph["BreadcrumbList"]["itemListElement"][-1]["item"] == URL
     faq = section(text, "faq")
     shown = [(visible(q), visible(a)) for q, a in re.findall(r"<h3>(.*?)</h3>\s*<p>(.*?)</p>", faq, re.S)]
@@ -171,7 +171,7 @@ def test_every_page_links_it_in_the_nav_and_footer():
 def _readme_picture() -> tuple[list, list]:
     """The boxes and steps of the SDK picture, as sdk/python/README.md draws it."""
     text = (SDK / "README.md").read_text(encoding="utf-8")
-    block = text.split("```text\nClips Kitty SDK\n", 1)[1].split("```", 1)[0]
+    block = text.split("```text\nVilloMillo SDK\n", 1)[1].split("```", 1)[0]
     boxes, steps = [], []
     for line in block.splitlines():
         if not line.strip() or line.strip() == "↓":
@@ -203,14 +203,14 @@ def test_every_step_is_built_and_posting_is_not_a_plugin_step():
         "edit": ("", "built", "built"),
     }
     fits = visible(section(page(), "how-it-fits"))
-    assert "Clips Kitty SDK" in fits
+    assert "VilloMillo SDK" in fits
     assert "Edit plugins suggest edits that wait for the creator in the editor" in fits
     assert POSTING in fits and NO_PUBLISHER in fits
     faq = visible(section(page(), "faq"))
     assert "What about edit and posting? Edit is built, and posting isn't a plugin step." in faq
     assert "Edit plugins suggest edits that wait for the creator in the editor" in faq
     assert SUGGESTION_PROMISE in faq
-    assert ("Clips Kitty posts clips itself, and through WoopSocial it can post to many sites at once on the "
+    assert ("VilloMillo posts clips itself, and through WoopSocial it can post to many sites at once on the "
             "creator's own account. A manifest that asks for a publisher (kind: publisher) is refused: plugins "
             "don't post.") in faq
 
@@ -238,10 +238,10 @@ def test_no_page_says_export_or_publisher_plugins_are_coming():
     assert POSTING.removesuffix(".") + " ([Publish to every platform at once](#publish-to-every-platform-at-once))." in readme
     assert NO_PUBLISHER in readme
     llms = flat(llms_section())
-    assert "Posting isn't a plugin step: Clips Kitty posts clips itself, and through WoopSocial" in llms
+    assert "Posting isn't a plugin step: VilloMillo posts clips itself, and through WoopSocial" in llms
     # A plain-text page: the referral address follows the name, and the note follows the sentence.
-    assert ("through WoopSocial (https://woopsocial.com/?via=clipskitty) it can post to many sites at once on "
-            "the creator's own account. Affiliate link - Clips Kitty may earn a commission if you sign up "
+    assert ("through WoopSocial (https://woopsocial.com/) it can post to many sites at once on "
+            "the creator's own account. Affiliate link - VilloMillo may earn a commission if you sign up "
             "through it, at no extra cost to you.") in llms
     assert "coming later" not in llms
 
@@ -260,7 +260,7 @@ def test_the_woopsocial_link_is_the_sites_own_with_its_note():
     assert text.count(AFFILIATE_NOTE) == 1
     # Only that one WoopSocial address, anywhere on the page.
     addresses = set(re.findall(r"https?://[^\s\"<>]*woopsocial[^\s\"<>]*", text))
-    assert addresses == {"https://woopsocial.com/?via=clipskitty"}
+    assert addresses == {"https://woopsocial.com/"}
 
 
 def test_the_caption_is_exact():
@@ -342,7 +342,7 @@ def _md_target_ok(rel: str, anchor: str) -> bool:
     return not anchor or path.suffix != ".md" or anchor in md_anchors(path)
 
 
-# Awesome Clips Kitty is its own repository (D36), so this checkout can't
+# Awesome VilloMillo is its own repository (D36), so this checkout can't
 # back its pages: its front page, its Wanted list, its sections file and its
 # contributing page, each fetched (HTTP 200) on 2026-10-08.
 CATALOG = "https://github.com/ColinGPT9/awesome-clips-kitty"
@@ -356,12 +356,10 @@ def check_url(url: str) -> str | None:
         return None
     if url in CATALOG_PAGES:
         return None
-    if url == "https://paypal.me/clipsstudio":
-        return None  # the donate link every page already has
-    if url == "https://woopsocial.com/?via=clipskitty":
+    if url == "https://woopsocial.com/":
         return None  # the WoopSocial link the home page, the roadmap and the privacy policy already have
-    if url.startswith("https://colingpt9.github.io/clips-studio/"):
-        rel = url.removeprefix("https://colingpt9.github.io/clips-studio/") or "index.html"
+    if url.startswith("https://uglycavemancam.github.io/VilloMillo/"):
+        rel = url.removeprefix("https://uglycavemancam.github.io/VilloMillo/") or "index.html"
         return None if (SITE / rel).is_file() else f"no site/{rel}"
     if url in (REPO, f"{REPO}/discussions", f"{REPO}/issues"):
         return None
@@ -411,7 +409,7 @@ def test_its_links_resolve_and_external_ones_open_safely():
 
 def test_llms_txt_and_the_sitemap_list_it():
     llms = llms_section()
-    assert f"[Clips Kitty SDK]({URL})" in llms
+    assert f"[VilloMillo SDK]({URL})" in llms
     assert release_sentence() in flat(llms)
     sitemap = (SITE / "sitemap.xml").read_text(encoding="utf-8")
     entry = re.search(rf"<url>\s*<loc>{re.escape(URL)}</loc>\s*<lastmod>[\d-]+</lastmod>\s*"
@@ -429,7 +427,7 @@ def test_llms_txt_and_the_sitemap_list_it():
 
 def test_it_says_which_release_runs_plugins():
     sentence = release_sentence()
-    assert sentence.startswith("Clips Kitty 2.1.0 is the first release that runs plugins")
+    assert sentence.startswith("VilloMillo 2.1.0 is the first release that runs plugins")
     text = page()
     for where, part in (("hero", hero(text)), ("quickstart", section(text, "quickstart")),
                         ("faq", section(text, "faq"))):

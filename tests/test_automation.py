@@ -1,4 +1,4 @@
-"""Watched channels: a creator posts and Clips Kitty clips it, once.
+"""Watched channels: a creator posts and VilloMillo clips it, once.
 
 The promises pinned here: adding a channel never queues its back catalogue, a
 video becomes at most one job however it is seen (twice in one feed, by two
@@ -1183,9 +1183,9 @@ def test_auto_mode_holds_clips_when_a_chosen_step_failed(env):
     item = env.item("newnewnew01")
     assert item["publish_state"] == "ask"
     assert item["publish_error"] == (
-        "Clips Kitty made these clips without Quarkbloom Rater, so they weren't posted automatically. "
+        "VilloMillo made these clips without Quarkbloom Rater, so they weren't posted automatically. "
         "Check them and publish, or turn off Rate & understand in this channel's settings.")
-    assert ("Clips of “Video newnewnew01” are ready, but Clips Kitty made them without Quarkbloom "
+    assert ("Clips of “Video newnewnew01” are ready, but VilloMillo made them without Quarkbloom "
             "Rater, so they weren't posted automatically.") in feed_lines(env)
     # A person's go-ahead sends them.
     assert env.client.post(f"/automation/items/{item['id']}/publish").status_code == 200
@@ -1201,7 +1201,7 @@ def test_ask_mode_says_a_chosen_step_failed(env):
     env.later(5)
     item = env.item("newnewnew01")
     assert item["publish_state"] == "ask" and env.published == []
-    assert item["publish_error"] == ("Clips Kitty made these clips without Quarkbloom Notes, Quarkbloom Rater. "
+    assert item["publish_error"] == ("VilloMillo made these clips without Quarkbloom Notes, Quarkbloom Rater. "
                                      "Check them before you publish.")
     assert "Clips of “Video newnewnew01” are ready. Waiting for you to publish them." in feed_lines(env)
     env.client.post(f"/automation/items/{item['id']}/publish")

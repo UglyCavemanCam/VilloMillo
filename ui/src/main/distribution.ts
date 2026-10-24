@@ -8,11 +8,6 @@
 //   * Updates. A Store copy is updated by the Store. Downloading and running
 //     the NSIS installer over the top of a package Windows manages would at
 //     best do nothing and at worst leave two installs fighting.
-//   * Paying. Store policy 10.8.2 allows a third-party payment API but is
-//     explicit that "users may be directed to a browser to complete
-//     registration or transactions". Handing PayPal to the system browser is
-//     the route the policy names, and it means a certification tester never
-//     has to assess a payment page hosted inside the app.
 //
 // Detection is the runtime fact rather than a build flag. `process.windowsStore`
 // is set by Electron itself when the app is running from an appx/MSIX package,

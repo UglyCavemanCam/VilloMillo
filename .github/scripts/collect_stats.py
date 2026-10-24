@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-REPO = os.environ.get("REPO", "ColinGPT9/clips-studio")
+REPO = os.environ.get("REPO", "UglyCavemanCam/VilloMillo")
 TOKEN = os.environ.get("GH_TOKEN", "")
 OUT = Path("docs/stats")
 

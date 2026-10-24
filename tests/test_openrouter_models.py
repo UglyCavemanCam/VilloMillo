@@ -260,7 +260,7 @@ def test_sign_in_sends_the_browser_to_openrouter_with_a_challenge_and_a_local_ca
     query = {k: v[0] for k, v in parse_qs(page.query).items()}
     assert f"{page.scheme}://{page.netloc}{page.path}" == "https://openrouter.ai/auth"
     assert query["code_challenge_method"] == "S256" and len(query["code_challenge"]) == 43
-    assert query["key_label"] == "Clips Kitty"
+    assert query["key_label"] == "VilloMillo"
     assert query["callback_url"].startswith("http://localhost:") and "/ai/providers/openrouter/callback/" in query["callback_url"]
     assert "verifier" not in url                        # only its hash leaves this PC before the exchange
     assert env.client.get("/ai").json()["providers"][1]["oauth"] is True

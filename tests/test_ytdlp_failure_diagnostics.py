@@ -1,7 +1,7 @@
 """A download failure that says which yt-dlp produced it.
 
 Twitch, Kick and YouTube change things regularly and yt-dlp fixes them within
-days, but the copy inside Clips Kitty is frozen at build time
+days, but the copy inside VilloMillo is frozen at build time
 (clips-studio.spec). So the one useful fact about a download that stopped
 working — the version — is not in the failure at all, and "Kick stopped
 working" arrives with nothing to triage it. See issue #39 and KNOWN-ISSUES.md.
@@ -116,7 +116,7 @@ def test_a_video_that_needs_a_sign_in_is_not_told_to_update():
 def test_an_unrecognised_failure_gets_the_version_and_no_claim():
     note = ytdlp_common.failure_note(RuntimeError("ERROR: something new"))
 
-    assert note == f"Clips Kitty's bundled yt-dlp is {ytdlp_common.installed_version()}."
+    assert note == f"VilloMillo's bundled yt-dlp is {ytdlp_common.installed_version()}."
 
 
 def test_the_versions_own_hint_outranks_a_403_in_the_same_message():

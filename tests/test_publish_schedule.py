@@ -1,6 +1,6 @@
 """Scheduling times.
 
-The rule these enforce: Clips Kitty never holds a schedule. It uploads the
+The rule these enforce: VilloMillo never holds a schedule. It uploads the
 video now, private, with a publishAt, and YouTube publishes it later whether or
 not this computer is switched on. So the only thing to get right here is the
 instant itself.

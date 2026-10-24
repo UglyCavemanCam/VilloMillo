@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Warnings about a plugin's Python code that would work on the developer's
 PC and fail on a creator's: `python -m clipskitty_sdk validate` and `run`
 print them. VilloMillo itself never runs this (the manifest checks in

@@ -2,7 +2,7 @@
 
 ChatGPT runs through OpenAI's Codex SDK. These tests stand a fake Codex in
 for the real one (which is 400 MB and needs an account), and check what
-Clips Kitty itself promises: its own Codex folder, the plan's limits read
+VilloMillo itself promises: its own Codex folder, the plan's limits read
 before every task, unattended jobs only with the user's say-so, OpenAI's raw
 error text never passed on, and Codex never started for someone who hasn't
 signed in.
@@ -220,7 +220,7 @@ def test_codex_runs_as_clips_kitty_in_its_own_folder_with_api_keys_blanked(tmp_p
     plan = ChatGPTPlan(tmp_path)
     plan.start()
     config = fake_sdk["config"]
-    assert config["client_name"] == "clips_kitty" and config["client_title"] == "Clips Kitty"
+    assert config["client_name"] == "clips_kitty" and config["client_title"] == "VilloMillo"
     assert config["env"]["CODEX_HOME"] == str(tmp_path / "codex")  # never ~/.codex
     for name in BLANKED_ENV:
         assert config["env"][name] == ""  # a key in the environment can't stand in for the plan
@@ -308,7 +308,7 @@ def test_a_task_is_an_ephemeral_read_only_codex_thread_held_to_the_schema(env):
     assert generate_json(backend, "pick clips", SCHEMA) == '{"clips": []}'
     thread = env.world.threads[-1]
     assert thread["ephemeral"] is True and thread["sandbox"] == "read-only"
-    assert thread["model"] == "gpt-6-luna" and "Clips Kitty" in thread["developer_instructions"]
+    assert thread["model"] == "gpt-6-luna" and "VilloMillo" in thread["developer_instructions"]
     assert env.world.prompts[-1] == ("pick clips", SCHEMA)
 
 

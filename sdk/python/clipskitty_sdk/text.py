@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Words in what is said: a words setting, matching whole words, and when in
 the video a word is said.
 

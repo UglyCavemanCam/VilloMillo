@@ -243,7 +243,7 @@ def test_an_editor_needs_moments_in_inputs():
     assert report.ok, report.errors
     assert report.warnings == []
     assert mf.validate(_fixture("quarkbloom-rater", inputs=["transcript"], outputs=["edits"])).errors == [
-        "outputs[0]: edits are suggested for the clips Clips Kitty makes from moments: add moments to inputs"]
+        "outputs[0]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs"]
     assert mf.validate(_fixture("quarkbloom-rater", outputs=["ranges"])).errors == [
         "inputs[0]: a plugin given moments answers about them: add ratings, context or edits to outputs"]
     # With ratings too, the ratings rule speaks, and adding moments fixes both.
@@ -252,7 +252,7 @@ def test_an_editor_needs_moments_in_inputs():
          "own ranges carry their score already)")]
     # With edits, the context rule stands down: adding moments fixes both.
     assert mf.validate(_fixture("quarkbloom-rater", inputs=["transcript"], outputs=["context", "edits"])).errors == [
-        "outputs[1]: edits are suggested for the clips Clips Kitty makes from moments: add moments to inputs"]
+        "outputs[1]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs"]
     assert mf.validate(_fixture("quarkbloom-rater", outputs=["context", "edits"])).ok
     assert mf.validate(_fixture("finds-understands-rates", outputs=["ranges", "context", "ratings", "edits"])).ok
 
@@ -261,7 +261,7 @@ def test_the_moment_rules_never_give_two_errors_with_edits():
     """The validator's promise holds with the new word: whatever a manifest
     lists of ranges, ratings, context and edits, with or without moments,
     it gets at most one of the rules' errors."""
-    rules = (*STEP_RULES, "edits are suggested for the clips Clips Kitty makes from moments")
+    rules = (*STEP_RULES, "edits are suggested for the clips VilloMillo makes from moments")
     words_out = ("ranges", "ratings", "context", "edits")
     for given in (False, True):
         inputs = ["video", "transcript", *(["moments"] if given else [])]
@@ -279,7 +279,7 @@ def test_an_edit_only_plugin_is_pointed_to_suggest_edits():
     Rate & understand."""
     editor = _fixture("quarkbloom-rater", outputs=["edits"])
     assert mf.step_problem(editor, "find") == (
-        "doesn't find moments: it suggests edits for the clips Clips Kitty makes. "
+        "doesn't find moments: it suggests edits for the clips VilloMillo makes. "
         "Choose it under Suggest edits instead")
     assert mf.step_problem(editor, "edit") is None
     for step in ("understand", "rate"):

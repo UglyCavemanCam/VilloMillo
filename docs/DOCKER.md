@@ -61,11 +61,11 @@ docker compose run --rm engine python tests/assets/make_sample_video.py
 
 ## What this is for
 
-Working on Clips Kitty without installing Python, FFmpeg, PyTorch, OpenCV,
+Working on VilloMillo without installing Python, FFmpeg, PyTorch, OpenCV,
 Node and the rest on your own machine, and letting someone on Linux or
 macOS contribute to a project whose app only ships for Windows.
 
-**It is not how anyone installs Clips Kitty.** Creators use the Windows
+**It is not how anyone installs VilloMillo.** Creators use the Windows
 installer. Nothing here replaces that.
 
 ## The one piece that is not in the container: Electron
@@ -77,7 +77,7 @@ that through X or VNC costs more than it gives.
 
 In a browser everything that talks to the engine works normally, because that
 is all HTTP to `:8765`. What is missing is the handful of things that live in
-Electron's preload: native file pickers, the donate window, opening external
+Electron's preload: native file pickers, opening external
 links. Rather than crashing on those, the renderer installs a stand-in
 (`ui/src/renderer/src/lib/browserShim.ts`) that logs what it cannot do. Open
 the console and you will see exactly which call it was.

@@ -131,7 +131,7 @@ def _keys_and_text(value) -> set:
 
 def test_a_range_s_unknown_keys_never_reach_the_clip(tmp_path, install_plugin, video):
     """A find run is never asked to edit: edits are suggested only by a run of
-    their own, for the clips Clips Kitty makes (plugins/steps.py), and wait
+    their own, for the clips VilloMillo makes (plugins/steps.py), and wait
     for the creator. So nothing a plugin adds to a range may change how a
     clip is made. The runner copies only the keys it knows into a
     ClipCandidate: start, end, score, title or label as the hook, reason, and
@@ -323,7 +323,7 @@ def test_settings_the_manifest_does_not_declare_are_refused(echo, video):
 @pytest.mark.parametrize("mode, message", [
     ("fail", "Echo failed: the kill feed could not be read"),
     ("crash", "Echo failed: boom inside the plugin"),
-    ("bad", "Echo gave an answer Clips Kitty can't use: .*needs 0 <= start < end"),
+    ("bad", "Echo gave an answer VilloMillo can't use: .*needs 0 <= start < end"),
     ("silent", "exited without writing result.json"),
 ])
 def test_a_failed_run_says_what_went_wrong(echo, video, mode, message):
@@ -358,7 +358,7 @@ def test_a_plugin_that_stops_without_saying_why_gets_a_plain_sentence(tmp_path, 
     (folder / "clipskitty.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
     with pytest.raises(runner.PluginError) as e:
         _run(data_dir, video)
-    assert str(e.value).startswith("Clips Kitty couldn't start Echo. Try again;")
+    assert str(e.value).startswith("VilloMillo couldn't start Echo. Try again;")
     assert "not-there" not in str(e.value) and "not-there" in caplog.text
 
 
@@ -590,7 +590,7 @@ def test_choice_problems_carry_a_code_and_todays_message(tmp_path, install_plugi
     install_plugin(data_dir, ECHO)
     with monkeypatch.context() as m:
         m.setattr(store, "app_version", lambda: "1.9.0")
-        assert problem() == ("incompatible", ("the pipeline Echo can't run here: it needs Clips Kitty >=2.0, "
+        assert problem() == ("incompatible", ("the pipeline Echo can't run here: it needs VilloMillo >=2.0, "
                                               "and this is 1.9.0"))
     with monkeypatch.context() as m:
         m.setattr(registry, "blocked_check", lambda data_dir: lambda pid, version: {
@@ -621,7 +621,7 @@ def test_moment_runs_default_to_a_ten_minute_limit():
 
 
 def test_the_runner_and_the_sdk_share_one_time_limit_rule():
-    """`python -m clipskitty_sdk run` stops a plugin when Clips Kitty would:
+    """`python -m clipskitty_sdk run` stops a plugin when VilloMillo would:
     the runner's timeout_seconds is a thin wrapper over the SDK's rule
     (host.timeout_seconds), with the same numbers. The runner keeps its own
     name, which scripts/check_compatibility.py and a test replace."""
@@ -679,7 +679,7 @@ def test_the_shared_run_steps_tag_the_folder_and_name_the_plugin_only_when_asked
         runner._execute(plugin, command, python, folder, video=video, data_dir=echo, stage="analyze", timeout=1.5)
 
 
-# ---- an edit run: suggestions for the clips Clips Kitty makes ---------------------------
+# ---- an edit run: suggestions for the clips VilloMillo makes ---------------------------
 
 TRIMMER_ID = "fixture-dev/trimmer"
 # Two clips as plugins/steps.py hands them over.
@@ -755,8 +755,8 @@ def test_an_edit_run_stops_at_its_limit(trimmer, video, monkeypatch):
     with pytest.raises(runner.PluginError) as e:
         _edit_run(trimmer, video, mode="sleep")
     assert asked == [runner.MOMENT_TIMEOUT_MINUTES]  # a moment run's limit, unless its manifest sets one
-    assert e.value.why == "It took longer than its 1 minute limit, so Clips Kitty stopped it."
-    assert str(e.value) == "Trimmer took longer than its 1 minute limit, so Clips Kitty stopped it."
+    assert e.value.why == "It took longer than its 1 minute limit, so VilloMillo stopped it."
+    assert str(e.value) == "Trimmer took longer than its 1 minute limit, so VilloMillo stopped it."
 
 
 def test_an_edit_run_that_cannot_start_says_it_can_no_longer_suggest_edits(echo, video, install_plugin):
@@ -775,7 +775,7 @@ def test_an_edit_run_that_cannot_start_says_it_can_no_longer_suggest_edits(echo,
     assert not (echo / "plugins" / "runs").exists()  # nothing ran
 
 
-# ---- dogfooding: Clips Kitty's own scorer behind the contract -------------------
+# ---- dogfooding: VilloMillo's own scorer behind the contract -------------------
 
 
 def test_the_first_party_adapter_satisfies_the_contract(tmp_path, install_plugin, sample_transcript):

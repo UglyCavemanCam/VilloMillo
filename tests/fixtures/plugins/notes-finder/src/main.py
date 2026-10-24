@@ -1,6 +1,6 @@
 """Test plugin: finds two moments and says what happens in the first.
 
-Its notes hold a link and, in `raw` mode, newlines and a tab: Clips Kitty
+Its notes hold a link and, in `raw` mode, newlines and a tab: VilloMillo
 takes those out itself before a note reaches a clip. `raw` writes
 result.json by hand, as a plugin without the SDK would.
 """

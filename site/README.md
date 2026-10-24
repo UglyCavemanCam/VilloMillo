@@ -1,5 +1,5 @@
 ---
-title: Clips Kitty
+title: VilloMillo
 emoji: 🐱
 colorFrom: blue
 colorTo: indigo
@@ -42,13 +42,13 @@ models:
   - GabrieleGiudici/E-BARD-detection-models
 ---
 
-# Clips Kitty
+# VilloMillo
 
 Free, open-source AI video clipping that runs on your own computer. Paste a
 Twitch, Kick or YouTube link and get vertical clips with captions and titles,
 no upload, no subscription, no per-clip fee.
 
-**This Space is the project website.** Clips Kitty is a Windows desktop
+**This Space is the project website.** VilloMillo is a Windows desktop
 application; it cannot run inside a Space, because it needs a local GPU, FFmpeg
 and your own files.
 
@@ -74,12 +74,12 @@ The trade is honest: it needs Windows, 16 GB of RAM and ideally an NVIDIA
 graphics card. If you clip occasionally, or from a phone or a Mac, a browser
 tool is the better answer.
 
-**[Full comparison, with current prices](https://colingpt9.github.io/clips-studio/opus-clip-alternative.html)**
+**[Full comparison, with current prices](https://uglycavemancam.github.io/VilloMillo/opus-clip-alternative.html)**
 
 ## Links
 
 - **Download and source:** <https://github.com/ColinGPT9/clips-studio>
-- **Website:** <https://colingpt9.github.io/clips-studio/>
+- **Website:** <https://uglycavemancam.github.io/VilloMillo/>
 
 ---
 

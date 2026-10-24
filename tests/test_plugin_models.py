@@ -256,7 +256,7 @@ TRY_AGAIN = "Try again; if it happens again, send a bug report from Feedback (it
     (OSError(errno.ENOSPC, "No space left on device"),  # writing the .part file; models can be many GB
      "Couldn't save model.onnx: this PC's disk is full (the file is 1 KB). Free up some space and try again."),
     (PermissionError(errno.EACCES, "Permission denied"),
-     f"Couldn't save model.onnx in Clips Kitty's model folder. {TRY_AGAIN}"),
+     f"Couldn't save model.onnx in VilloMillo's model folder. {TRY_AGAIN}"),
     (OSError(errno.EIO, "Input/output error"), f"Couldn't download model.onnx. {TRY_AGAIN}"),
 ])
 def test_each_kind_of_failed_download_says_its_own_cause(tmp_path, caplog, error, said):
@@ -297,7 +297,7 @@ def test_a_full_disk_after_the_download_names_the_size_it_knows(tmp_path, monkey
     monkeypatch.setattr(models.os, "replace", denied)
     with pytest.raises(models.ModelError) as e:
         models.download(tmp_path, ref, fetcher=hub.fetcher, fetch_json=hub.fetch_json)
-    assert str(e.value) == f"Couldn't save model.onnx in Clips Kitty's model folder. {TRY_AGAIN}"
+    assert str(e.value) == f"Couldn't save model.onnx in VilloMillo's model folder. {TRY_AGAIN}"
     assert models.status(tmp_path, ref)["installed"] is False
 
 
@@ -382,8 +382,8 @@ def test_a_gated_model_that_isnt_here_is_not_sent_to_a_download_button_it_doesnt
     handed, missing = models.for_job(tmp_path, data)
     assert handed == {}
     assert missing == [("Its AI model 'faces' is shared only with people its makers give access to on Hugging Face, "
-                        "so Clips Kitty can't download it for you yet."),
-                       ("Its AI model 'weights' is shared only with people its makers give access to, so Clips Kitty "
+                        "so VilloMillo can't download it for you yet."),
+                       ("Its AI model 'weights' is shared only with people its makers give access to, so VilloMillo "
                         "can't download it for you yet.")]
     assert not any("Download" in line for line in missing)
 

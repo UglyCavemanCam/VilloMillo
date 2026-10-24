@@ -1,4 +1,4 @@
-"""Write the Clips Kitty mascot PNGs and the Windows icon.
+"""Write the VilloMillo mascot PNGs and the Windows icon.
 
     python scripts/make_mascot.py
 

@@ -1,4 +1,4 @@
-"""Build the Awesome Clips Kitty catalog: index.json for the app, README.md for people.
+"""Build the Awesome VilloMillo catalog: index.json for the app, README.md for people.
 
     python scripts/build_registry_index.py                  # write index.json and README.md
     python scripts/build_registry_index.py --check          # fail if either is out of date or an entry is refused

@@ -1,7 +1,7 @@
 /** Finding the moments worth clipping — the same way the desktop app does.
  *
  *  This is a port of `analysis/highlights.py`, not a fresh take on the same
- *  idea. That matters: this page exists to show what Clips Kitty's judgement
+ *  idea. That matters: this page exists to show what VilloMillo's judgement
  *  is like, so if it scored differently it would be advertising a product
  *  nobody can download. The prompt below is copied byte-for-byte from
  *  `config/prompts/score_clips.txt`, and the parser mirrors

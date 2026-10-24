@@ -63,7 +63,7 @@ def run(cmd: list[str], cwd: Path, what: str) -> None:
 
 
 def app_python() -> tuple[int, int]:
-    """The Python Clips Kitty's plugins are promised: APP_PYTHON in
+    """The Python VilloMillo's plugins are promised: APP_PYTHON in
     sdk/python/clipskitty_sdk/host.py, the one place it is written."""
     if str(SDK) not in sys.path:
         sys.path.insert(0, str(SDK))
@@ -73,14 +73,14 @@ def app_python() -> tuple[int, int]:
 
 
 def python_problem(version_info) -> str | None:
-    """Why this Python can't build Clips Kitty, or None. Plugins run on the
+    """Why this Python can't build VilloMillo, or None. Plugins run on the
     Python frozen into the app, and the docs and the SDK's checks promise
     them APP_PYTHON, so a build on another minor version would break that
     promise without anyone noticing."""
     have, promised = tuple(version_info[:2]), app_python()
     if have == promised:
         return None
-    return (f"This build uses Python {have[0]}.{have[1]}, but Clips Kitty's plugins are promised Python "
+    return (f"This build uses Python {have[0]}.{have[1]}, but VilloMillo's plugins are promised Python "
             f"{promised[0]}.{promised[1]} (APP_PYTHON in sdk/python/clipskitty_sdk/host.py). Build with "
             f"{promised[0]}.{promised[1]}, or change APP_PYTHON and the docs that name it.")
 
@@ -319,7 +319,7 @@ def package_installer() -> None:
         "                     install that reads it starts downloading at once.\n"
         "      GitHub release the Web Setup .exe and the notes. Nothing else\n"
         "                     fits; the payload upload is rejected outright.\n"
-        "    The .zip is the offline alternative: unzip and run Clips Kitty.exe."
+        "    The .zip is the offline alternative: unzip and run VilloMillo.exe."
     )
 
 

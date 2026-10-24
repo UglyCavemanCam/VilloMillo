@@ -1,8 +1,8 @@
-"""clipskitty_sdk.testing: running a plugin from a test the way Clips Kitty
+"""clipskitty_sdk.testing: running a plugin from a test the way VilloMillo
 would, and making the job folder it would make.
 
 Like every tests/test_plugin_sdk_*.py file, this needs only pytest and
-PyYAML and imports nothing from Clips Kitty's engine, so it also runs in CI's
+PyYAML and imports nothing from VilloMillo's engine, so it also runs in CI's
 SDK (Windows) job. Only the test that makes the sample video needs FFmpeg;
 the transcript tests clear PATH of it, so they run everywhere.
 """
@@ -110,7 +110,7 @@ def main(job):
         if job.wants("understand") and m.context:
             job.understand(m, "Earlier: " + m.context[0])
     job.log("found by " + ", ".join(sorted({m.found_by for m in job.moments})))
-    job.add_range(0, 12, label="extra")  # not asked for in this run: Clips Kitty ignores it
+    job.add_range(0, 12, label="extra")  # not asked for in this run: VilloMillo ignores it
 
 
 run(main)
@@ -293,7 +293,7 @@ def test_run_plugin_returns_moments_answers_and_notes(tmp_path):
                                tmp_path=tmp_path / "runs")
     assert found.ok and found.error == ""
     assert found.steps == ("find", "understand")
-    # Best first, fitted to the 40-second video, numbered as Clips Kitty hands them on.
+    # Best first, fitted to the 40-second video, numbered as VilloMillo hands them on.
     assert [(m.id, m.start, m.end, m.score, m.found_score, m.found_by, m.label, m.title, m.reason, m.notes)
             for m in found.moments] == [
         ("m1", 17.0, 40.0, 80.0, 80.0, "example-dev/quarkbloom-words", "words_said", "",
@@ -358,7 +358,7 @@ def _editor(tmp_path) -> Path:
 
 
 def test_run_plugin_returns_the_edits_clips_kitty_keeps(tmp_path):
-    """An edit run's `edits` are each clip's suggestion fitted as Clips Kitty
+    """An edit run's `edits` are each clip's suggestion fitted as VilloMillo
     keeps it (host.read_edits), with its changed: and ignored: lines in the
     log; `moments` are the clips it was handed."""
     pytest.importorskip("yaml")
@@ -419,7 +419,7 @@ def test_run_plugin_reports_the_plugins_error_in_words(tmp_path):
 
     quiet = run("quiet")
     assert (quiet.ok, quiet.error) == (
-        False, "it gave an answer Clips Kitty can't use: result: the plugin exited without writing result.json")
+        False, "it gave an answer VilloMillo can't use: result: the plugin exited without writing result.json")
 
     crashed = run("crash")
     assert (crashed.ok, crashed.error) == (False, "the plugin stopped with exit code 3")
@@ -496,7 +496,7 @@ run(main)
 
 def test_run_plugin_hands_over_a_local_model_and_secrets(tmp_path, capsys):
     """As `run --ollama-model --ollama-host --secret` does: without a model
-    the job names none, as when Clips Kitty's AI runs at a cloud provider."""
+    the job names none, as when VilloMillo's AI runs at a cloud provider."""
     pytest.importorskip("yaml")
     asked = []
 
@@ -522,7 +522,7 @@ def test_run_plugin_hands_over_a_local_model_and_secrets(tmp_path, capsys):
     try:
         run = testing.run_plugin(plugin, duration=40, tmp_path=tmp_path / "runs")
         assert not run.ok
-        assert run.error == ("No local model is set in Clips Kitty (its AI may run at a cloud provider), and this "
+        assert run.error == ("No local model is set in VilloMillo (its AI may run at a cloud provider), and this "
                              "helper only uses a model on this PC")
         run = testing.run_plugin(plugin, duration=40, tmp_path=tmp_path / "runs", ollama_host=address,
                                  ollama_model="test-model", secrets={"api_key": "abc123"})
@@ -555,7 +555,7 @@ def test_sample_video_skips_without_ffmpeg_under_pytest(tmp_path, monkeypatch):
         testing.sample_video(tmp_path / "media")
     assert str(e.value) == (
         "the sample video needs FFmpeg, and there is none on PATH. Install FFmpeg, or add the folder holding it to "
-        "PATH. An installed Clips Kitty has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was "
+        "PATH. An installed VilloMillo has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was "
         "installed to.")
     assert isinstance(e.value, samples.SampleError)
     # As in a script that doesn't use pytest: no pytest is imported.
@@ -569,7 +569,7 @@ def test_sample_video_skips_without_ffmpeg_under_pytest(tmp_path, monkeypatch):
                           env={**os.environ, "PYTHONPATH": str(SDK), "PYTEST_CURRENT_TEST": "a test"}, timeout=60)
     assert done.stdout == "unavailable: False\n", done.stderr
     assert not (tmp_path / "media").exists()
-    # Never inside a plugin's folder, which Clips Kitty copies on install.
+    # Never inside a plugin's folder, which VilloMillo copies on install.
     plugin = _words_finder(tmp_path)
     with pytest.raises(ValueError, match="inside a plugin's folder"):
         testing.sample_video(plugin / "tests")

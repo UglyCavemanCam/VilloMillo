@@ -11,15 +11,6 @@
 > Diese README wurde von einer KI aus der [englischen README](../../README.md) übersetzt. Die englische
 > Fassung ist die Referenz und wird zuerst aktualisiert. Korrekturen von Muttersprachlern sind sehr willkommen.
 >
-> 🌐 [Die Website auf Deutsch](https://colingpt9.github.io/clips-studio/de.html)
-
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="Clips Kitty im Microsoft Store holen" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
 [![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)

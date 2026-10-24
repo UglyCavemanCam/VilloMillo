@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """The core of `python -m clipskitty_sdk listing`: the file that lists a
 plugin in Awesome VilloMillo, the catalog VilloMillo's Marketplace reads,
 made from the plugin's folder and its git repository.
@@ -55,7 +55,7 @@ CATALOG_FOLDER = "registry/pipelines"
 SECTION_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)?$"
 # The VilloMillo project's own GitHub owners, whose repositories may list
 # plugins under other publisher names (its examples).
-OFFICIAL_OWNERS = ("colingpt9",)
+OFFICIAL_OWNERS = ("colingpt9", "uglycavemancam")
 MAX_ALIASES = 10
 MAX_ALIAS_LENGTH = 40
 README_FILE = "README.md"

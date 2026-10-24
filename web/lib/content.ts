@@ -39,7 +39,7 @@ export const SITE_URL: string = "https://clips-kitty-web.vercel.app";
 
 export const LINKS = {
 	download: `https://github.com/UglyCavemanCam/VilloMillo/releases/download/v${VERSION}/ClipsKitty-Web-Setup-${VERSION}.exe`,
-	site: "https://colingpt9.github.io/clips-studio/",
+	site: "https://uglycavemancam.github.io/VilloMillo/",
 	github: "https://github.com/UglyCavemanCam/VilloMillo",
 	/** The Microsoft Store listing. Canonical URL with no query string on
 	 *  purpose: the share link Microsoft hands you carries hl=en-us&gl=US,
@@ -47,9 +47,6 @@ export const LINKS = {
 	 *  ships 19 languages — plus an ocid= share-tracking parameter that means
 	 *  nothing coming from our own pages. */
 	msstore: "https://apps.microsoft.com/detail/9NB6XT7DSQZZ",
-	/** Same destination as the desktop app's donate button and the website, so
-	 *  there is one place money goes. See DONATE_NOTE for what it funds. */
-	donate: "https://paypal.me/clipsstudio",
 	openRouterCredits: "https://openrouter.ai/settings/credits",
 } as const;
 
@@ -142,24 +139,7 @@ export const DESKTOP_ONLY: { title: string; body: string }[] = [
  *  call, and copy here should describe what is true now rather than commit
  *  them to anything. */
 export const DESKTOP_IS_FREE =
-	"Clips Kitty for Windows is completely free to run. It is open source, there is no subscription, no credits and no watermark, and because the AI runs on your own PC, clipping a hundred VODs costs exactly nothing. Only this browser version needs paid API credits, because a browser cannot run the model itself.";
-
-/** The donate copy, taken VERBATIM from the desktop app and the website.
- *
- *  `ui/src/renderer/src/pages/Dashboard.tsx` and `site/index.html` already say
- *  this, word for word, and this is the third surface — so it is copied rather
- *  than rewritten. Brand voice is the maintainer's to set, and an earlier
- *  version of this file did not copy it: it invented "free and always will
- *  be", which is a PROMISE ABOUT THE FUTURE nobody had made and which is not
- *  true. Note what the real copy does instead — "keep it free for everyone" is
- *  an aspiration donations support, not a guarantee.
- *
- *  If the wording changes in the app or on the site, change it here too. Do
- *  not improve it here. */
-export const DONATE_TITLE = "Clips Kitty is free & open source ❤️";
-
-export const DONATE_NOTE =
-	"It runs entirely on your PC with no fees. Please consider donating to help cover development costs and keep it free for everyone.";
+	"VilloMillo for Windows is completely free to run. It is open source, there is no subscription, no credits and no watermark, and because the AI runs on your own PC, clipping a hundred VODs costs exactly nothing. Only this browser version needs paid API credits, because a browser cannot run the model itself.";
 
 /** Said before anyone signs in, because it is the thing people are wary of.
  *

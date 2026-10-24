@@ -2,7 +2,7 @@
 
 Small recipes for reading a game's video: what is on one part of the screen, how bright or loud it is, where the scenes cut, what is said, and what the creator's local model sees. Each recipe is a whole `src/main.py` that runs as written, and each says what it found on the SDK's sample video, how long that took, and how it fails.
 
-> Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
+> VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
 
 Every recipe here **needs SDK 1.2.0**, which added `media`, `signals`, `text` and `local_model` ([changelog](../../sdk/python/CHANGELOG.md)).
 
@@ -12,7 +12,7 @@ Every recipe here **needs SDK 1.2.0**, which added `media`, `signals`, `text` an
 
 **The costs** were measured on the sample, on the Linux PC these pages were checked on, with FFmpeg 6.1.1. They grow with the length of the video.
 
-**The rules every recipe keeps.** It imports only the standard library and `clipskitty_sdk`, at the top of the file. Clips Kitty runs plugins on its own Python, which has nothing else. From SDK 1.2.0 on, a plugin that imports a module the SDK of the Clips Kitty running it doesn't have stops as soon as it starts, with "This pipeline needs a newer version of Clips Kitty. Update Clips Kitty, or ask the pipeline's developer which version it needs." Its error lines are plain sentences, because creators see them.
+**The rules every recipe keeps.** It imports only the standard library and `clipskitty_sdk`, at the top of the file. VilloMillo runs plugins on its own Python, which has nothing else. From SDK 1.2.0 on, a plugin that imports a module the SDK of the VilloMillo running it doesn't have stops as soon as it starts, with "This pipeline needs a newer version of VilloMillo. Update VilloMillo, or ask the pipeline's developer which version it needs." Its error lines are plain sentences, because creators see them.
 
 ## A region's frames
 
@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
 ## Words said
 
-`text.said` says when each word or phrase is said in the transcript Clips Kitty made, as whole words in any case or spacing. It needs no FFmpeg.
+`text.said` says when each word or phrase is said in the transcript VilloMillo made, as whole words in any case or spacing. It needs no FFmpeg.
 
 ```yaml
 inputs: [transcript]
@@ -245,7 +245,7 @@ if __name__ == "__main__":
 
 ## Asking the local model about a frame
 
-`local_model.ask` asks the creator's local model, the one they chose in Clips Kitty, with pictures when `local_model.can_see` says it can look at them. This recipe understands moments others found: it says what happens on screen in each one, and the notes reach the AI that writes the clips' titles ([Steps](steps.md)).
+`local_model.ask` asks the creator's local model, the one they chose in VilloMillo, with pictures when `local_model.can_see` says it can look at them. This recipe understands moments others found: it says what happens on screen in each one, and the notes reach the AI that writes the clips' titles ([Steps](steps.md)).
 
 ```yaml
 inputs: [moments, video]
@@ -272,11 +272,11 @@ if __name__ == "__main__":
     run(main)
 ```
 
-- **Needs:** SDK 1.2.0; `moments` and `video` in `inputs`, `context` in `outputs`, and `video.read`, `ffmpeg` and `ollama` in `permissions`; and a local model in the creator's Clips Kitty.
-- **To try it:** `run my-recipe --sample` alone names no local model, as Clips Kitty does when its AI runs at a cloud provider, so it stops with the sentence below. With Ollama running on this PC, add `--ollama-model` and the name of a model you have in it that can look at pictures: `py -m clipskitty_sdk run my-recipe --sample --ollama-model <the model's name>` (bash: `python -m clipskitty_sdk run …`). `--ollama-host` changes the address, which is `http://localhost:11434` unless you pass it. In a test, `testing.run_plugin` takes `ollama_model=` and `ollama_host=` ([SDK reference](sdk.md)).
-- **It needs the creator to use a local model in Clips Kitty.** When Clips Kitty's AI runs at a cloud provider, the job names no local model and this refuses: "No local model is set in Clips Kitty (its AI may run at a cloud provider), and this helper only uses a model on this PC". It talks only to a model on this PC (127.0.0.1, localhost or ::1), refuses an address anywhere else, never falls back to another address and never calls a cloud service. Its requests ignore proxy settings on purpose, so the frames never leave the PC. The model is always the one Clips Kitty names; a plugin can't choose another here.
+- **Needs:** SDK 1.2.0; `moments` and `video` in `inputs`, `context` in `outputs`, and `video.read`, `ffmpeg` and `ollama` in `permissions`; and a local model in the creator's VilloMillo.
+- **To try it:** `run my-recipe --sample` alone names no local model, as VilloMillo does when its AI runs at a cloud provider, so it stops with the sentence below. With Ollama running on this PC, add `--ollama-model` and the name of a model you have in it that can look at pictures: `py -m clipskitty_sdk run my-recipe --sample --ollama-model <the model's name>` (bash: `python -m clipskitty_sdk run …`). `--ollama-host` changes the address, which is `http://localhost:11434` unless you pass it. In a test, `testing.run_plugin` takes `ollama_model=` and `ollama_host=` ([SDK reference](sdk.md)).
+- **It needs the creator to use a local model in VilloMillo.** When VilloMillo's AI runs at a cloud provider, the job names no local model and this refuses: "No local model is set in VilloMillo (its AI may run at a cloud provider), and this helper only uses a model on this PC". It talks only to a model on this PC (127.0.0.1, localhost or ::1), refuses an address anywhere else, never falls back to another address and never calls a cloud service. Its requests ignore proxy settings on purpose, so the frames never leave the PC. The model is always the one VilloMillo names; a plugin can't choose another here.
 - **On the sample,** with a stand-in for the model that answers every question with one sentence: each of the 5 sample moments gets that sentence as its note. No real model was run for this page.
 - **Cost:** 0.45 s for the 5 frames and the stand-in's answers. A real model's own time comes on top, for each moment, and depends on the model and the PC; it wasn't measured.
 - **How it fails:** without `ollama` in the permissions it stops with "This pipeline doesn't ask for the local model: add ollama to permissions in clipskitty.yaml"; when Ollama isn't running, with "The local model didn't answer at …: is Ollama running?", naming the address. A model that can't look at pictures gets no question here. A model's answer can be wrong, and a note is cut to 160 characters. With `json=True`, `ask` asks for JSON only (read it with `json.loads`).
 
-There is no recipe for reading text on screen (OCR): it needs packages Clips Kitty can't install for a plugin yet ([Pipeline development](pipeline-development.md)).
+There is no recipe for reading text on screen (OCR): it needs packages VilloMillo can't install for a plugin yet ([Pipeline development](pipeline-development.md)).

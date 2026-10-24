@@ -161,12 +161,12 @@ Details: [`docs/API.md` › Plugins](../API.md#plugins).
 | Route | Label | What it is for |
 |---|---|---|
 | `GET /marketplace` | experimental | Listed plugins from the registry indexes, searched and filtered, with what is installed. |
-| `GET /marketplace/catalog` | experimental | Awesome Clips Kitty's entries built with Clips Kitty (integrations, apps and tools), searched, with their sections, labels and numbers. |
+| `GET /marketplace/catalog` | experimental | Awesome VilloMillo's entries built with VilloMillo (integrations, apps and tools), searched, with their sections, labels and numbers. |
 | `GET /marketplace/counting` | experimental | Whether installs from the Marketplace are counted, and what counting sends. |
 | `PUT /marketplace/counting` | experimental | Switch install counting on or off for this PC. Session header. |
-| `GET /marketplace/online` | experimental | Whether the Marketplace checks Clips Kitty's online list by itself, when it last fetched it and how the last try went. |
-| `PUT /marketplace/online` | experimental | Switch the Marketplace's automatic checks of Clips Kitty's online list on or off for this PC. Session header. |
-| `POST /marketplace/refresh` | experimental | Fetch Clips Kitty's online list and the registry index addresses set in settings into the cache; automatic: the online list only, when a day old. Session header. |
+| `GET /marketplace/online` | experimental | Whether the Marketplace checks VilloMillo's online list by itself, when it last fetched it and how the last try went. |
+| `PUT /marketplace/online` | experimental | Switch the Marketplace's automatic checks of VilloMillo's online list on or off for this PC. Session header. |
+| `POST /marketplace/refresh` | experimental | Fetch VilloMillo's online list and the registry index addresses set in settings into the cache; automatic: the online list only, when a day old. Session header. |
 | `GET /plugin-models` | experimental | Every model the installed plugins list, once: where it is, its licence and size, and which plugins use it. |
 | `POST /plugin-models/download` | experimental | Download one plugin's model into the shared model folder, checked against its size and SHA-256. Session header. |
 | `POST /plugin-models/plan` | experimental | What downloading one plugin's model would fetch, from Hugging Face's metadata; downloads nothing. Session header. |

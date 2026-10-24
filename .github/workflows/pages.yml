@@ -6,12 +6,9 @@
 
 name: Publish website
 
+# Manual only: GitHub Pages isn't switched on for this repository, so a push
+# would fail the deploy. Switch Pages on, then run this by hand.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'site/**'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:

@@ -1,4 +1,4 @@
-"""Awesome Clips Kitty: directory entries, sections, labels, numbers, the
+"""Awesome VilloMillo: directory entries, sections, labels, numbers, the
 README, the install counter's settings, the metrics job and the
 compatibility check.
 
@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TODAY = "2026-10-07"
 
 SECTIONS = {
-    "app": {"sections": [{"id": "built-with", "title": "Built with Clips Kitty", "relationship": "built-with"},
-                         {"id": "works-with", "title": "Work with Clips Kitty"},
+    "app": {"sections": [{"id": "built-with", "title": "Built with VilloMillo", "relationship": "built-with"},
+                         {"id": "works-with", "title": "Work with VilloMillo"},
                          {"id": "video-clipping", "title": "Video clipping",
                           "description": "Apps that cut long videos into short ones."},
                          {"id": "gaming", "title": "Gaming"}],
@@ -106,9 +106,9 @@ def test_an_entry_goes_into_the_index_with_its_labels_and_numbers(cat):
     ({"license": "NOASSERTION"}, "license: the project's licence"),
     ({"license": "Proprietary licence"}, "license: the project's licence"),
     ({"relationship": "built-for"}, "built-for is for installable plugins"),
-    ({"relationship": "related"}, "relationship: built-with (it uses Clips Kitty's API or SDK)"),
+    ({"relationship": "related"}, "relationship: built-with (it uses VilloMillo's API or SDK)"),
     ({"relationship": "related"}, "A project that doesn't is not an entry"),
-    ({"uses": None}, "uses: what it uses of Clips Kitty"),
+    ({"uses": None}, "uses: what it uses of VilloMillo"),
     ({"section": "nowhere"}, "section: one of built-with, works-with, video-clipping, gaming"),
     ({"section": "works-with"}, "adapter: an app in works-with names the listed pipeline"),
     ({"source": {}}, "source: github, huggingface or url"),
@@ -375,7 +375,7 @@ def test_an_adapter_must_be_a_listing_in_the_same_catalog(cat):
 
 def test_official_featured_and_stale(cat):
     cat.write("tools/clips-kitty-sdk.yaml", {
-        "name": "Clips Kitty SDK", "description": "Write plugins.", "section": "developer",
+        "name": "VilloMillo SDK", "description": "Write plugins.", "section": "developer",
         "relationship": "built-with", "uses": "api", "license": "MIT", "added": TODAY,
         "source": {"github": "https://github.com/UglyCavemanCam/VilloMillo", "path": "sdk/python"}})
     cat.write("apps/old-clipper.yaml", {**APP, "name": "Old Clipper",
@@ -429,7 +429,7 @@ def test_the_readme_is_generated_between_the_markers_and_the_rest_is_kept(cat):
     assert "### Not yet checked (apps)" in body and "[Unchecked Clipper]" in body.split("### Not yet checked")[1]
     assert "  ⚠ Downloads from sites whose terms may not allow it." in body
     assert "Licence note: The cloud/ folder has its own licence." in body
-    assert "### Work with Clips Kitty" not in body  # empty sections are left out
+    assert "### Work with VilloMillo" not in body  # empty sections are left out
     assert "- **Pipelines › Example Game**: Wins and close calls." in body
     readme = f"# Title\n\nIntro.\n\n{catalog.GENERATED_START}\nstale text\n{catalog.GENERATED_END}\n\n## Licence\n"
     out = catalog.write_readme(readme, body)
@@ -519,7 +519,7 @@ def test_only_the_bundled_index_gives_labels_or_counts_installs():
 
 
 def test_a_link_to_another_project_is_not_an_entry_whatever_a_list_says():
-    """Only what is built with Clips Kitty is shown. The build refuses any
+    """Only what is built with VilloMillo is shown. The build refuses any
     other entry (the parametrized cases above); the app drops one that
     arrives in a fetched list, and one that says nothing of itself."""
     for said in ({"relationship": "related"}, {"relationship": "built-for"}, {}):

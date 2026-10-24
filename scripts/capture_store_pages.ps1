@@ -1,4 +1,4 @@
-﻿# Capture Clips Kitty's people-free pages for the Microsoft Store listing.
+﻿# Capture VilloMillo's people-free pages for the Microsoft Store listing.
 #
 #     powershell -ExecutionPolicy Bypass -File scripts\capture_store_pages.ps1
 #
@@ -68,10 +68,10 @@ if ($All) {
 }
 $sidebarX = 110
 
-$proc = Get-Process -Name "Clips Kitty" -ErrorAction SilentlyContinue |
+$proc = Get-Process -Name "VilloMillo" -ErrorAction SilentlyContinue |
         Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } |
         Select-Object -First 1
-if (-not $proc) { Write-Output "Clips Kitty is not running."; exit 1 }
+if (-not $proc) { Write-Output "VilloMillo is not running."; exit 1 }
 $h = $proc.MainWindowHandle
 
 $outDir = Join-Path $PSScriptRoot "..\docs\store-screenshots"

@@ -86,7 +86,7 @@ def test_moment_runs_name_the_plugin_in_the_label(worker):
     assert snap["percent"] == round((0.65 + 0.05 * 0.5) * 100)
     worker._record_progress(7, {"stage": "understand", "fraction": 0.5, "plugin": "Quarkbloom Notes"})
     assert worker.progress_snapshot(7)["label"] == "Understanding moments with Quarkbloom Notes"
-    # Clips Kitty's own ranking carries no plugin, and keeps its label.
+    # VilloMillo's own ranking carries no plugin, and keeps its label.
     worker._record_progress(7, {"stage": "ranking", "current": 2, "total": 3})
     assert worker.progress_snapshot(7)["label"] == "Ranking the best moments"
     worker._record_progress(7, {"stage": "understand", "fraction": 0.2})

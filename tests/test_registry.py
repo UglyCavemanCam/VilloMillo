@@ -261,7 +261,7 @@ def test_a_listing_that_rates_needs_no_extra_rule(reg):
     assert (rates["inputs"], rates["outputs"]) == (["moments", "transcript"], ["ratings"])
     details = permissions.describe(rates, tier=registry.listing_tier(rates))
     assert details["steps"] == ["Rates moments"]
-    assert details["time_limit"] == ("Clips Kitty stops it after 5 minutes when it rates or understands a "
+    assert details["time_limit"] == ("VilloMillo stops it after 5 minutes when it rates or understands a "
                                      "video’s moments.")
     assert permissions.describe(found, tier=registry.listing_tier(found))["steps"] == ["Finds moments"]
 
@@ -424,7 +424,7 @@ def test_the_list_that_ships_with_the_app_is_one_the_app_reads_whole():
     assert [p["id"] for p in kept["plugins"]] == [p["id"] for p in raw["plugins"]] != []
     assert [e["id"] for e in kept["catalog"]] == [e["id"] for e in raw["catalog"]] != []
     assert catalog.check_sections(raw["sections"]) == []
-    # Only what is built with Clips Kitty (D35).
+    # Only what is built with VilloMillo (D35).
     assert {e["relationship"] for e in raw["catalog"]} == {"built-with"}
 
 
@@ -515,7 +515,7 @@ def test_a_plugin_in_two_indexes_comes_from_the_first(catalogue, tmp_path):
     assert found[other["plugins"][0]["id"]]["name"] != "Imposter" and found[other["plugins"][0]["id"]]["index"] == "bundled"
 
 
-# ---- Clips Kitty's online list ---------------------------------------------------------------------
+# ---- VilloMillo's online list ---------------------------------------------------------------------
 
 
 def _listing(name, *versions, owner=OWNER, **extra):
@@ -531,7 +531,7 @@ def _index(plugins=(), *, catalog=(), blocklist=(), metrics_at="2026-10-05", **e
 
 
 def _online(data, index):
-    """Put `index` in the cache as Clips Kitty's online list, the way the app fetches it."""
+    """Put `index` in the cache as VilloMillo's online list, the way the app fetches it."""
     status = registry.refresh_online(data, fetcher=lambda u, p: Path(p).write_text(json.dumps(index)))
     assert status == {"url": registry.ONLINE_URL, "ok": True, "error": None}
 
@@ -737,7 +737,7 @@ def test_a_fetched_list_cant_vouch_for_a_download_on_someone_elses_site():
     """A download on the homepage's site must be on exactly its name or its
     www twin: a homepage on www.com, www.co.uk or github.io would otherwise
     vouch for other people's sites, and the app would say the link is in
-    Clips Kitty's list."""
+    VilloMillo's list."""
     code = "https://github.com/someone/clipper"
     cases = [
         ("https://www.com/", "https://evil-site.com/get", False),
@@ -853,7 +853,8 @@ def test_the_online_list_is_the_catalogs_index_on_the_main_branch():
     """The address is the index's own place on the main branch of the
     catalog's repository, so what it serves is exactly what was merged there
     (D29, D36). The copy the app ships with is a file of this repository."""
-    assert registry.ONLINE_URL == f"https://raw.githubusercontent.com/{registry.CATALOG_REPOSITORY}/main/index.json"
+    assert registry.ONLINE_URL == ("https://raw.githubusercontent.com/UglyCavemanCam/VilloMillo/main/"
+                                   "plugins/catalog_index.json")
     import importlib
 
     from plugins._sdk import clipskitty_sdk  # the SDK, on the path the engine puts it on

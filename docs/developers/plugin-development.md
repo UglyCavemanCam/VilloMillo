@@ -8,15 +8,15 @@ Status: the plugin manager is **built** in the engine (`plugins/manager.py`, `pl
 
 | Step | What happens | Where |
 |---|---|---|
-| **Plan** | Clips Kitty fetches the files into a staging folder, validates the manifest, checks it is for this Clips Kitty, and says what installing would do: the permissions with their labels, any ⚠ data warnings, requirements, and for an update what changes. Nothing is installed. | `POST /plugins/plan` |
+| **Plan** | VilloMillo fetches the files into a staging folder, validates the manifest, checks it is for this VilloMillo, and says what installing would do: the permissions with their labels, any ⚠ data warnings, requirements, and for an update what changes. Nothing is installed. | `POST /plugins/plan` |
 | **Install** | The staged files are checked again and moved into place. The plugin is on. | `POST /plugins/install` |
 | **Use** | A job names it with `pipeline: {"id": "publisher/name"}`, or under `rate`, `understand` or `edit`; the engine runs it at the find step, after it to understand and rate, or on the clips that will be made to suggest edits ([Pipeline development](pipeline-development.md), [Steps](steps.md)). | `POST /jobs` |
 | **Update** | A new version is planned and installed the same way, beside the old one, and becomes active once it validates. The old version is kept. | plan, install |
 | **Roll back** | The previous version becomes active again (and the newer one previous, so you can go forward again). The Marketplace's button is **Go back to …**. | `POST /plugins/{publisher}/{name}/rollback` |
 | **Turn off / on** | A plugin that is off can't be chosen for a job. | `.../disable`, `.../enable` |
 | **Pin** | The Marketplace stops offering this plugin's updates. Installing a version by hand still works. Its buttons are **Keep this version (no update offers)** and **Offer updates again**. | `.../pin`, `.../unpin` |
-| **Keys** | `secret` settings are stored in Clips Kitty's secrets store and handed only to this plugin's process. | `PUT .../secrets` |
-| **Remove** | Every version Clips Kitty installed and the plugin's stored keys are deleted. | `DELETE /plugins/{publisher}/{name}` |
+| **Keys** | `secret` settings are stored in VilloMillo's secrets store and handed only to this plugin's process. | `PUT .../secrets` |
+| **Remove** | Every version VilloMillo installed and the plugin's stored keys are deleted. | `DELETE /plugins/{publisher}/{name}` |
 
 Only two versions are kept: the active one and the one before it. Installing a third deletes the oldest.
 
@@ -28,19 +28,19 @@ Only two versions are kept: the active one and the one before it. Installing a t
 ```
 
 - **A folder** is copied; `.git` and `__pycache__` are left out. This is the developer's loop: change your code, plan and install again. Installing the same version again replaces its files.
-- **A Git commit** must be the full hash: a branch or tag can change after the user looked at it, a commit can't. With Git installed, Clips Kitty fetches that one commit into an empty repository of its own and writes the files out of Git's object store, so every file is the one the commit names. Without Git, a `github.com` repository is downloaded as GitHub's archive of that commit (GitHub's word for what the commit holds, not checked against the hash), and any other address says Git is needed.
+- **A Git commit** must be the full hash: a branch or tag can change after the user looked at it, a commit can't. With Git installed, VilloMillo fetches that one commit into an empty repository of its own and writes the files out of Git's object store, so every file is the one the commit names. Without Git, a `github.com` repository is downloaded as GitHub's archive of that commit (GitHub's word for what the commit holds, not checked against the hash), and any other address says Git is needed.
 
 In the desktop app both are under **For developers: install a pipeline you're writing**, a link at the bottom of Marketplace › Browse. It isn't a tab: creators find pipelines in Browse.
 
 ## What installing does not do
 
-Installing **runs nothing** from your plugin: no `setup.py`, no install script, no Git hook, no Git filter (Git LFS included: an LFS file arrives as its small pointer, and the plan warns about it). Your code first runs when a job uses it. `tests/test_plugin_manager.py` checks this with a plugin whose `setup.py` and code would leave a mark if run, and Git hooks and a filter in the user's own Git settings that would leave one if Clips Kitty checked the files out.
+Installing **runs nothing** from your plugin: no `setup.py`, no install script, no Git hook, no Git filter (Git LFS included: an LFS file arrives as its small pointer, and the plan warns about it). Your code first runs when a job uses it. `tests/test_plugin_manager.py` checks this with a plugin whose `setup.py` and code would leave a mark if run, and Git hooks and a filter in the user's own Git settings that would leave one if VilloMillo checked the files out.
 
 A plugin is refused if it contains a symbolic link, a Git submodule, a path that would land outside its folder, a `.git` entry, a name Windows can't create, two names that differ only in case, more than 5000 files or more than 1 GB. Ship models separately ([Model references](model-references.md)).
 
-## For this Clips Kitty
+## For this VilloMillo
 
-`requires.clips_kitty` is checked when the plugin is planned, installed or rolled back to, and again when a job is added and when it runs. A plugin an app update leaves behind stays installed, shows why it can't run, and is refused with that reason. `requires.plugin_api` must be one this Clips Kitty supports. See [Versioning](versioning.md).
+`requires.clips_kitty` is checked when the plugin is planned, installed or rolled back to, and again when a job is added and when it runs. A plugin an app update leaves behind stays installed, shows why it can't run, and is refused with that reason. `requires.plugin_api` must be one this VilloMillo supports. See [Versioning](versioning.md).
 
 ## On disk
 
@@ -53,13 +53,13 @@ A plugin is refused if it contains a symbolic link, a Git submodule, a path that
     session.secret                                  the session secret, for scripts
 ```
 
-The data folder is `%LOCALAPPDATA%\Clips Studio\data` in the installed app, `data/` in a source checkout. Versions live in separate folders and the active one is a pointer in `installed.json`, so nothing is overwritten in place; a file Windows keeps open during an update is removed on a later install. Untested on Windows.
+The data folder is `%LOCALAPPDATA%\VilloMillo\data` in the installed app, `data/` in a source checkout. Versions live in separate folders and the active one is a pointer in `installed.json`, so nothing is overwritten in place; a file Windows keeps open during an update is removed on a later install. Untested on Windows.
 
 ## Doing it from a script
 
 The routes that fetch, install, change or remove plugins need the session secret in an `X-Clips-Kitty-Session` header. The desktop app makes one at each start; the engine writes it to `session.secret`. It keeps out web pages and scripts that don't know it, not programs running as you: any program running as the user can read that file, plugins included. Why the header exists is in [Security](security.md).
 
-To install a plugin you're writing, the SDK's `install` command does the plan and the install for you, in the Clips Kitty running on this PC: it prints Clips Kitty's install screen as text and asks first ([SDK › Installing it into Clips Kitty](sdk.md#installing-it-into-clips-kitty)). PowerShell:
+To install a plugin you're writing, the SDK's `install` command does the plan and the install for you, in the VilloMillo running on this PC: it prints VilloMillo's install screen as text and asks first ([SDK › Installing it into VilloMillo](sdk.md#installing-it-into-villomillo)). PowerShell:
 
 ```powershell
 py -m clipskitty_sdk install my-plugin
@@ -79,9 +79,9 @@ Everything else, and the calls `install` makes, are in [`docs/API.md` › Plugin
 
 | Tier | Means |
 |---|---|
-| Official | Ships inside Clips Kitty (Shorts, Gaming, Sports, described by `plugins/builtin/`) |
-| ✓ Official · made by the Clips Kitty project | Installed from a listing in the index that comes with Clips Kitty, in one of the project's own repositories (the build checked each commit is on that repository's branches) |
-| Community · not reviewed by a person | Installed from any other listing, in Awesome Clips Kitty or another index the user set up, whose automated checks passed; nobody has read its code |
-| Not listed · Clips Kitty has not checked this | Installed from a folder or a Git address |
+| Official | Ships inside VilloMillo (Shorts, Gaming, Sports, described by `plugins/builtin/`) |
+| ✓ Official · made by the VilloMillo project | Installed from a listing in the index that comes with VilloMillo, in one of the project's own repositories (the build checked each commit is on that repository's branches) |
+| Community · not reviewed by a person | Installed from any other listing, in Awesome VilloMillo or another index the user set up, whose automated checks passed; nobody has read its code |
+| Not listed · VilloMillo has not checked this | Installed from a folder or a Git address |
 
-Listings can also carry ✓ Compatible (a version passed the automated compatibility checks: a technical label, not a review) and ★ Featured (picked by a maintainer); see [Marketplace publishing](marketplace-publishing.md). There is no "Verified" tier: nobody reviews plugin code, and Clips Kitty does not say otherwise. See [Security](security.md).
+Listings can also carry ✓ Compatible (a version passed the automated compatibility checks: a technical label, not a review) and ★ Featured (picked by a maintainer); see [Marketplace publishing](marketplace-publishing.md). There is no "Verified" tier: nobody reviews plugin code, and VilloMillo does not say otherwise. See [Security](security.md).

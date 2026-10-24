@@ -1,4 +1,4 @@
-# Clips Kitty
+# VilloMillo
 
 > Free, open-source AI video clipping software and Opus Clip alternative that
 > runs entirely on your own Windows PC.
@@ -7,7 +7,7 @@
 > word-synced captions and writes the titles. No uploads, no subscription, no
 > per-clip fee. AGPL-3.0.
 
-Clips Kitty is a desktop application, not a web service. Everything (the
+VilloMillo is a desktop application, not a web service. Everything (the
 transcription, the clip selection, the subject tracking and the language model)
 runs on the user's own machine by default. When the PC is too old, OpenRouter,
 signed in with the user's own account, can run the language model or the
@@ -17,7 +17,7 @@ pay per video or upload their footage to someone else's server.
 
 ## Mission
 
-Clips Kitty is a free, open-source AI video editor built to help small
+VilloMillo is a free, open-source AI video editor built to help small
 streamers and creators turn their long-form videos and livestreams into
 short-form content without hiring an editor or spending hours editing footage
 themselves.
@@ -30,7 +30,7 @@ themselves.
   whole video to its servers before processing.
 - **Limits:** no clip cap, no watermark, no export expiry. Opus Clip's free
   tier watermarks, caps at 1080p and expires exports after three days.
-- **The catch:** Clips Kitty needs Windows, 16 GB of RAM and ideally an NVIDIA
+- **The catch:** VilloMillo needs Windows, 16 GB of RAM and ideally an NVIDIA
   GPU. Opus Clip runs in any browser, including on a phone. If you have no
   suitable PC, or you clip only occasionally, Opus Clip is the better choice.
 
@@ -51,7 +51,7 @@ themselves.
   (Vertical Live).
 - **Watches channels**: new videos on a YouTube, Twitch or Kick channel are
   spotted (YouTube's through its RSS feed) and clipped by themselves.
-- **Takes requests in a sentence**: the Ask Clips Kitty box at the bottom of the
+- **Takes requests in a sentence**: the Ask VilloMillo box at the bottom of the
   app queues a video, takes what the clips should be about and how they should
   look. It needs a Gemma 4 model (`gemma4:e4b`, or `gemma4:e2b` under 6 GB of
   VRAM), installed from the app's Models page, or the cloud model the user chose.
@@ -86,71 +86,71 @@ or from a terminal: `winget install ColinGPT9.ClipsKitty`.
 
 ## For developers
 
-The Clips Kitty SDK (`clipskitty_sdk`, Python, MIT) is for writing a small
+The VilloMillo SDK (`clipskitty_sdk`, Python, MIT) is for writing a small
 plugin that finds, understands or rates the moments in a video, for one game
-or one kind of show; Clips Kitty does the rest: the download, the transcript,
+or one kind of show; VilloMillo does the rest: the download, the transcript,
 and cutting, framing and captioning the clips. Every step is optional: one
 plugin can find the moments, and up to 3 can understand and up to 3 can rate
 them. Up to 3 can suggest edits for the clips, which wait for the creator in
-the editor. Posting isn't a plugin step: Clips Kitty posts clips itself, and
-through WoopSocial (https://woopsocial.com/?via=clipskitty) it can post to
-many sites at once on the creator's own account. Affiliate link - Clips Kitty
+the editor. Posting isn't a plugin step: VilloMillo posts clips itself, and
+through WoopSocial (https://woopsocial.com/) it can post to
+many sites at once on the creator's own account. Affiliate link - VilloMillo
 may earn a commission if you sign up through it, at no extra cost to you.
-A plugin runs on Clips Kitty's own Python 3.11, with the standard
+A plugin runs on VilloMillo's own Python 3.11, with the standard
 library (minus a few modules it leaves out) and the SDK, on the creator's PC
-with the creator's rights, like any program: Clips Kitty doesn't sandbox it,
+with the creator's rights, like any program: VilloMillo doesn't sandbox it,
 and its install screen shows what the plugin declares. The templates and
 tutorial use Quarkbloom Arena, a made-up game.
 
-Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
+VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
 
-- [Clips Kitty SDK](https://colingpt9.github.io/clips-studio/developers.html)
+- [VilloMillo SDK](https://uglycavemancam.github.io/VilloMillo/developers.html)
 - [Your first game pipeline](https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/first-game-pipeline.md)
 - [The SDK's README](https://github.com/ColinGPT9/clips-studio/blob/main/sdk/python/README.md)
 - [Developer docs](https://github.com/ColinGPT9/clips-studio/blob/main/docs/developers/README.md)
 
 ## Links
 
-- [Website](https://colingpt9.github.io/clips-studio/)
+- [Website](https://uglycavemancam.github.io/VilloMillo/)
 - [Source on GitHub](https://github.com/ColinGPT9/clips-studio)
 - [Download](https://github.com/ColinGPT9/clips-studio/releases)
-- [Clips Kitty Web](https://clips-kitty-web.vercel.app/): the clip picking in a
+- [VilloMillo Web](https://clips-kitty-web.vercel.app/): the clip picking in a
   browser, on a Twitch or Kick VOD or a local file, billed to the visitor's own
   OpenRouter account. No vertical framing or captions; those are the desktop app.
 - [Architecture](https://github.com/ColinGPT9/clips-studio/blob/main/ARCHITECTURE.md)
-- [Changelog](https://colingpt9.github.io/clips-studio/changelog.html)
-- [Roadmap](https://colingpt9.github.io/clips-studio/roadmap.html)
+- [Changelog](https://uglycavemancam.github.io/VilloMillo/changelog.html)
+- [Roadmap](https://uglycavemancam.github.io/VilloMillo/roadmap.html)
 - [Known issues](https://github.com/ColinGPT9/clips-studio/blob/main/KNOWN-ISSUES.md)
-- [Twitch clip generator: Twitch VODs into TikTok clips, Shorts and Reels](https://colingpt9.github.io/clips-studio/twitch.html)
-- [Kick clip generator: Kick VODs into TikTok clips, Shorts and Reels](https://colingpt9.github.io/clips-studio/kick.html)
-- [Clipping YouTube](https://colingpt9.github.io/clips-studio/youtube.html)
-- [Game stream clips](https://colingpt9.github.io/clips-studio/gaming.html)
-- [Soccer and basketball highlight clips](https://colingpt9.github.io/clips-studio/sports.html)
-- [Local vs cloud clipping](https://colingpt9.github.io/clips-studio/local-vs-cloud.html)
-- [Opus Clip alternative](https://colingpt9.github.io/clips-studio/opus-clip-alternative.html)
-- [Descript alternative](https://colingpt9.github.io/clips-studio/descript-alternative.html)
+- [Twitch clip generator: Twitch VODs into TikTok clips, Shorts and Reels](https://uglycavemancam.github.io/VilloMillo/twitch.html)
+- [Kick clip generator: Kick VODs into TikTok clips, Shorts and Reels](https://uglycavemancam.github.io/VilloMillo/kick.html)
+- [Clipping YouTube](https://uglycavemancam.github.io/VilloMillo/youtube.html)
+- [Game stream clips](https://uglycavemancam.github.io/VilloMillo/gaming.html)
+- [Soccer and basketball highlight clips](https://uglycavemancam.github.io/VilloMillo/sports.html)
+- [Local vs cloud clipping](https://uglycavemancam.github.io/VilloMillo/local-vs-cloud.html)
+- [Opus Clip alternative](https://uglycavemancam.github.io/VilloMillo/opus-clip-alternative.html)
+- [Descript alternative](https://uglycavemancam.github.io/VilloMillo/descript-alternative.html)
 
 ## In other languages
 
 The same overview, written in each language the app supports:
-[Español](https://colingpt9.github.io/clips-studio/es.html) ·
-[Português](https://colingpt9.github.io/clips-studio/pt.html) ·
-[Français](https://colingpt9.github.io/clips-studio/fr.html) ·
-[Deutsch](https://colingpt9.github.io/clips-studio/de.html) ·
-[हिन्दी](https://colingpt9.github.io/clips-studio/hi.html) ·
-[Bahasa Indonesia](https://colingpt9.github.io/clips-studio/id.html) ·
-[日本語](https://colingpt9.github.io/clips-studio/ja.html) ·
-[Русский](https://colingpt9.github.io/clips-studio/ru.html) ·
-[العربية](https://colingpt9.github.io/clips-studio/ar.html) ·
-[简体中文](https://colingpt9.github.io/clips-studio/zh.html) ·
-[Tiếng Việt](https://colingpt9.github.io/clips-studio/vi.html) ·
-[Filipino](https://colingpt9.github.io/clips-studio/tl.html) ·
-[Türkçe](https://colingpt9.github.io/clips-studio/tr.html) ·
-[اردو](https://colingpt9.github.io/clips-studio/ur.html) ·
-[বাংলা](https://colingpt9.github.io/clips-studio/bn.html) ·
-[ไทย](https://colingpt9.github.io/clips-studio/th.html) ·
-[한국어](https://colingpt9.github.io/clips-studio/ko.html) ·
-[Italiano](https://colingpt9.github.io/clips-studio/it.html)
+[Español](https://uglycavemancam.github.io/VilloMillo/es.html) ·
+[Português](https://uglycavemancam.github.io/VilloMillo/pt.html) ·
+[Français](https://uglycavemancam.github.io/VilloMillo/fr.html) ·
+[Deutsch](https://uglycavemancam.github.io/VilloMillo/de.html) ·
+[हिन्दी](https://uglycavemancam.github.io/VilloMillo/hi.html) ·
+[Bahasa Indonesia](https://uglycavemancam.github.io/VilloMillo/id.html) ·
+[日本語](https://uglycavemancam.github.io/VilloMillo/ja.html) ·
+[Русский](https://uglycavemancam.github.io/VilloMillo/ru.html) ·
+[العربية](https://uglycavemancam.github.io/VilloMillo/ar.html) ·
+[简体中文](https://uglycavemancam.github.io/VilloMillo/zh.html) ·
+[Tiếng Việt](https://uglycavemancam.github.io/VilloMillo/vi.html) ·
+[Filipino](https://uglycavemancam.github.io/VilloMillo/tl.html) ·
+[Türkçe](https://uglycavemancam.github.io/VilloMillo/tr.html) ·
+[اردو](https://uglycavemancam.github.io/VilloMillo/ur.html) ·
+[বাংলা](https://uglycavemancam.github.io/VilloMillo/bn.html) ·
+[ไทย](https://uglycavemancam.github.io/VilloMillo/th.html) ·
+[한국어](https://uglycavemancam.github.io/VilloMillo/ko.html) ·
+[Italiano](https://uglycavemancam.github.io/VilloMillo/it.html)
 
 ## Status
 

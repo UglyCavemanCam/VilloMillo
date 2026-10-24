@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Reading the video with VilloMillo's FFmpeg: its size, a part of the
 screen frame by frame, one frame as a JPEG, its loudness and its scene cuts.
 

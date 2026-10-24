@@ -91,9 +91,9 @@ def test_newer_means_a_later_version_and_nothing_else(tmp_path):
 
 def test_the_ids_are_the_ones_the_package_and_the_readme_use():
     source = (MAIN / "storeVersion.ts").read_text(encoding="utf-8")
-    product = re.search(r"STORE_PRODUCT_ID = '([A-Z0-9]+)'", source).group(1)
+    assert re.search(r"STORE_PRODUCT_ID = '([A-Z0-9]+)'", source)
     identity = re.search(r"STORE_IDENTITY = '([\w.]+)'", source).group(1)
-    assert f"apps.microsoft.com/detail/{product}" in (ROOT / "README.md").read_text(encoding="utf-8")
+    # The README no longer links to the Store listing, which belongs to the original project.
     builder = (ROOT / "ui" / "electron-builder.yml").read_text(encoding="utf-8")
     assert re.search(rf"^\s*identityName: {re.escape(identity)}\s*$", builder, re.M)
     # The Store's own page and catalog, by that id, and nowhere else.

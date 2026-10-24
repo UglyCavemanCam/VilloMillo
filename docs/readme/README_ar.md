@@ -13,15 +13,6 @@
 > تُرجم ملف README هذا بالذكاء الاصطناعي من [ملف README الإنجليزي](../../README.md)، وهو
 > المرجع ويُحدَّث أولًا. نرحّب كثيرًا بتصحيحات المتحدثين الأصليين للغة.
 >
-> 🌐 [صفحة الموقع بالعربية](https://colingpt9.github.io/clips-studio/ar.html)
-
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="احصل على Clips Kitty من Microsoft Store" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
 [![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)

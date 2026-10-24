@@ -43,7 +43,7 @@ services:
   # This serves the RENDERER, not Electron. Electron needs a display, so the
   # desktop shell still runs on your host — see docs/DOCKER.md. In a browser
   # the interface works and talks to the engine; only the native bits
-  # (file pickers, the donate window, external links) are unavailable,
+  # (file pickers, external links) are unavailable,
   # because those live in Electron's preload.
   ui:
     image: node:20-slim

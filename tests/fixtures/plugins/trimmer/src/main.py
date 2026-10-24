@@ -2,8 +2,8 @@
 
 `edits` is JSON: an edit for each moment id, or for `*` (every clip), with
 the times of its cuts and mutes counted from the clip's start, so one edit
-fits every clip. The answer is written as the plugin gives it; Clips Kitty
-fits it. `mode` makes it fail, write an answer Clips Kitty can't use (a speed
+fits every clip. The answer is written as the plugin gives it; VilloMillo
+fits it. `mode` makes it fail, write an answer VilloMillo can't use (a speed
 of 9), or run until it is stopped. With `trace`, each run adds one line to
 that file: the plugin, its steps, the clips it was handed and its limits.
 """

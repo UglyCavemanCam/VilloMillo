@@ -9,7 +9,7 @@ no real game, says which release runs plugins, and its picture, commands,
 output and template README are the ones the SDK and the tutorial have. The
 drafted workflow stays out of .github/workflows/.
 
-It reads the names of real games from Clips Kitty's own registry, so it is
+It reads the names of real games from VilloMillo's own registry, so it is
 an engine test, not one of the SDK's own (tests/test_plugin_sdk_*.py).
 """
 
@@ -43,7 +43,7 @@ LICENCE_SENTENCE = ("Contributions to `sdk/python/` and the MIT examples are und
 
 # Pages outside this repository that the drafts may link, each fetched (HTTP 200) and read on 2026-10-08.
 CONFIRMED = {
-    # Awesome Clips Kitty's Wanted list, in its own repository since D36.
+    # Awesome VilloMillo's Wanted list, in its own repository since D36.
     "https://github.com/ColinGPT9/awesome-clips-kitty/blob/main/README.md#wanted",
     "https://news.ycombinator.com/showhn.html",
     "https://news.ycombinator.com/newsguidelines.html",
@@ -56,9 +56,9 @@ CONFIRMED = {
     "https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-categories-for-discussions",
     "https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-template-repository",
     "https://shields.io/badges/static-badge",
-    "https://img.shields.io/badge/built_for-Clips_Kitty-0ea5e9",  # the badge itself: an SVG reading "built for: Clips Kitty"
+    "https://img.shields.io/badge/built_for-Clips_Kitty-0ea5e9",  # the badge itself: an SVG reading "built for: VilloMillo"
     "https://docs.pypi.org/trusted-publishers/",
-    "https://woopsocial.com/?via=clipskitty",  # the referral link every page that names WoopSocial carries
+    "https://woopsocial.com/",  # the referral link every page that names WoopSocial carries
     "https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/",
     "https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/",
 }
@@ -286,7 +286,7 @@ def test_the_licence_sentence_says_or_later():
     # It waits for Colin: CONTRIBUTING.md's Licence section isn't changed.
     contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert LICENCE_SENTENCE not in contributing
-    assert "Clips Kitty is **AGPL-3.0**, and contributions are accepted under the same" in contributing
+    assert "VilloMillo is **AGPL-3.0**, and contributions are accepted under the same" in contributing
     # What "or-later" rests on.
     assert "or (at your\noption) any later version" in (ROOT / "NOTICE").read_text(encoding="utf-8")
     # The MIT examples it names are MIT, and the one it says isn't, isn't.
@@ -358,7 +358,7 @@ CLAIMS = (
     re.compile(r"\bplugins? (?:work|run)s? (?:today|now)\b", re.I),
     re.compile(r"\bnext release\b", re.I),
 )
-NO_SANDBOX = ("Every plugin runs on the creator's PC with their rights, like any program; Clips Kitty doesn't "
+NO_SANDBOX = ("Every plugin runs on the creator's PC with their rights, like any program; VilloMillo doesn't "
               "sandbox it. The install screen says what it declares.")
 
 
@@ -372,7 +372,7 @@ def test_it_claims_no_sandbox_and_says_which_release_runs_plugins():
         assert NO_SANDBOX in where
         said = where.lower()
         assert "edit plugins suggest edits that wait for the creator in the editor" in said
-        # No export plugins (D34): Clips Kitty posts clips itself.
+        # No export plugins (D34): VilloMillo posts clips itself.
         assert "clips kitty posts clips itself" in said and "plugins don't post" in said
         assert "coming later" not in said
 
@@ -386,14 +386,14 @@ def test_no_draft_says_export_or_publisher_plugins_are_coming():
     still_to_come = re.compile(r"(?<!not )\b(?:coming later|later|planned|still to come|coming soon)\b", re.I)
     found = [s for s in sentences if posting_plugins.search(s) and still_to_come.search(s)]
     assert not found, found
-    posting = ("Posting isn't a plugin step: Clips Kitty posts clips itself, and through WoopSocial it can post to "
+    posting = ("Posting isn't a plugin step: VilloMillo posts clips itself, and through WoopSocial it can post to "
                "many sites at once on the creator's own account")
     assert posting in flat(section("Show HN")) and posting in flat(dev_post())
     # The page names WoopSocial, so it carries the referral link and its note once, outside the drafted
     # posts: those keep the plain name, as written to each channel's rules.
     page = flat(outside_blocks(text()))
-    assert "[WoopSocial](https://woopsocial.com/?via=clipskitty)" in page
-    assert ("<sub>Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost "
+    assert "[WoopSocial](https://woopsocial.com/)" in page
+    assert ("<sub>Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost "
             "to you.</sub>") in page
     assert "woopsocial.com" not in dev_post()
     assert "`kind: publisher` is refused: plugins don't post." in flat(section("Show HN"))
@@ -401,9 +401,9 @@ def test_no_draft_says_export_or_publisher_plugins_are_coming():
 
 def test_the_picture_is_the_sdks():
     readme = (SDK / "README.md").read_text(encoding="utf-8")
-    picture = [body for lang, body in fenced(readme) if lang == "text" and body.startswith("Clips Kitty SDK\n")]
+    picture = [body for lang, body in fenced(readme) if lang == "text" and body.startswith("VilloMillo SDK\n")]
     assert len(picture) == 1
-    drawn = [body for lang, body in fenced(dev_post()) if lang == "text" and body.startswith("Clips Kitty SDK\n")]
+    drawn = [body for lang, body in fenced(dev_post()) if lang == "text" and body.startswith("VilloMillo SDK\n")]
     assert drawn == picture
 
 
@@ -417,7 +417,7 @@ def test_the_commands_and_output_are_the_tutorials():
         ours = [line for lang, body in shown if lang == shell for line in body.splitlines() if line.strip()]
         assert len(ours) == 3, shell
         assert not [line for line in ours if line not in theirs], shell
-    outputs = [body for lang, body in shown if lang == "text" and not body.startswith("Clips Kitty SDK\n")]
+    outputs = [body for lang, body in shown if lang == "text" and not body.startswith("VilloMillo SDK\n")]
     assert len(outputs) == 1
     assert any(outputs[0] in body for lang, body in tutorial if lang == "text")
 

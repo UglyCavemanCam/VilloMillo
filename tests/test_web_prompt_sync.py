@@ -5,7 +5,7 @@
 `web/lib/score.ts` as a template literal instead.
 
 That duplication is the point of this test. The web page exists to show a
-stranger what Clips Kitty's judgement is like before they download it. If the
+stranger what VilloMillo's judgement is like before they download it. If the
 prompt improves here and the copy over there silently stays behind, the demo
 starts advertising a product that no longer exists, and nothing fails — the
 page keeps working, just worse than the thing it is selling. Nobody would

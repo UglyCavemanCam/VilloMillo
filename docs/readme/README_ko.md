@@ -10,15 +10,6 @@
 
 > 이 README는 [영어 README](../../README.md)를 AI로 번역한 것입니다. 기준이 되는 문서는 영어 README이며, 항상 영어판이 먼저 업데이트됩니다. 원어민분들의 수정 제안을 언제든 환영합니다.
 >
-> 🌐 [웹사이트 한국어 페이지](https://colingpt9.github.io/clips-studio/ko.html)
-
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="Microsoft Store에서 Clips Kitty 받기" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
 [![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)

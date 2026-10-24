@@ -838,7 +838,7 @@ def test_the_promise_sentence_is_in_the_switch_title():
     marketplace = (LIB / "marketplace.ts").read_text(encoding="utf-8")
     promise = re.search(r"export const SUGGESTION_PROMISE =\s*'([^']*)'", marketplace)
     assert promise
-    assert promise.group(1) == ("Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and "
+    assert promise.group(1) == ("VilloMillo doesn’t put a suggestion into a clip until you use it in the editor and "
                                 "apply your edits (Apply edits, or Apply edits & upload).")
     form = _source("queue/AddVideos.tsx")
     switch = re.search(r"key: 'edit',\s*label: 'Suggest edits',\s*hint: '\(Marketplace\)',\s*title:\s*'([^']*)'", form)

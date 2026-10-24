@@ -11,9 +11,9 @@
 
 name: Mirror
 
+# Manual only: this mirrors the code to a Hugging Face Space, which VilloMillo
+# doesn't have. Run it by hand if you set HF_TOKEN and HF_SPACE.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Least privilege. Without this the job inherits whatever the repository

@@ -10,15 +10,6 @@
 
 > 本 README 由 AI 根据[英文 README](../../README.md) 翻译而成，英文版是基准，并且总是最先更新。非常欢迎母语使用者指正。
 >
-> 🌐 [网站中文页面](https://colingpt9.github.io/clips-studio/zh.html)
-
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="从 Microsoft Store 获取 Clips Kitty" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
 [![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)

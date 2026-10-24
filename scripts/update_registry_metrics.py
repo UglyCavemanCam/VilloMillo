@@ -1,4 +1,4 @@
-"""Refresh the numbers Awesome Clips Kitty shows: stats/metrics.json in the catalog.
+"""Refresh the numbers Awesome VilloMillo shows: stats/metrics.json in the catalog.
 
     python scripts/update_registry_metrics.py              # read every number, write metrics.json
     python scripts/update_registry_metrics.py --dry-run    # print what would be written
@@ -10,7 +10,7 @@ Each number comes from its own source and is stored apart from the others:
   discussions there are (that one needs a token: GITHUB_TOKEN or GH_TOKEN).
 - Hugging Face, for every model an entry or a listing names: downloads in
   the last 30 days (Hugging Face's own figure) and likes.
-- Clips Kitty installs, from the install counter: when registry/catalog.yaml
+- VilloMillo installs, from the install counter: when registry/catalog.yaml
   names a counter address of the form
   https://github.com/<owner>/<repo>/releases/download/<tag>/{asset},
   the download count of each listing's file in that release.

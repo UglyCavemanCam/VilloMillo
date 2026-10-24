@@ -1,5 +1,5 @@
 """The SDK's helpers for a first game pipeline: media (reading the video with
-Clips Kitty's FFmpeg), signals (turning numbers and frames into moments),
+VilloMillo's FFmpeg), signals (turning numbers and frames into moments),
 text (words in the transcript) and local_model (the creator's model on this
 PC), plus the "newer version" sentence job.run() gives for an SDK import
 inside main().
@@ -8,7 +8,7 @@ The media tests run on the SDK's 40-second sample video (clipskitty_sdk.
 samples) and skip without FFmpeg. The local-model tests talk to a fake model
 server on 127.0.0.1, and check that proxy settings never route a request to
 this PC through a proxy. Like every tests/test_plugin_sdk_*.py file, this
-needs only pytest and PyYAML and imports nothing from Clips Kitty's engine,
+needs only pytest and PyYAML and imports nothing from VilloMillo's engine,
 so it also runs in CI's SDK (Windows) job.
 """
 
@@ -58,7 +58,7 @@ BANNER = media.Region.parse(samples.BANNER_REGION)
 
 def _job(tmp_path, permissions, *, name="job", video=None, transcript=None, limits=None, ollama=None,
          ffmpeg=FFMPEG, ffprobe=FFPROBE):
-    """A job folder as Clips Kitty writes it (host.build_job), read as a plugin reads it."""
+    """A job folder as VilloMillo writes it (host.build_job), read as a plugin reads it."""
     manifest = {"id": "example-dev/quarkbloom-helpers", "version": "1.0.0", "permissions": list(permissions)}
     data, said = host.build_job(manifest, video=video, transcript=transcript, limits=limits, ollama=ollama,
                                 ffmpeg=ffmpeg, ffprobe=ffprobe, output_dir=tmp_path / name / "out")
@@ -136,7 +136,7 @@ def test_media_names_the_missing_permission(tmp_path, call):
         assert str(refused.value) == message
     # Both permissions, but no FFmpeg was found for this run.
     job = _job(tmp_path, ["video.read", "ffmpeg"], name="not-found", video=given, ffmpeg=None, ffprobe=None)
-    with pytest.raises(media.MediaError, match=r"^Clips Kitty couldn't find FF(mpeg|probe) on this PC"):
+    with pytest.raises(media.MediaError, match=r"^VilloMillo couldn't find FF(mpeg|probe) on this PC"):
         call(job)
     assert issubclass(media.MediaError, RuntimeError)
     assert not issubclass(media.MediaError, job_module.PROGRAMMING_ERRORS)  # creators see its words
@@ -498,7 +498,7 @@ def test_ask_refuses_an_address_off_this_pc(tmp_path, servers):
         for call in ASKING[:2]:
             with pytest.raises(local_model.LocalModelError) as refused:
                 call(job)
-            assert str(refused.value) == (f"Clips Kitty's model address {address} isn't on this PC, and this "
+            assert str(refused.value) == (f"VilloMillo's model address {address} isn't on this PC, and this "
                                           "helper only talks to a model on this PC")
     assert ollama.requests == []  # never a fallback to another address
     assert [_loopback.is_this_pc(url) for url in ("http://127.0.0.1:11434", "http://localhost:11434",
@@ -509,7 +509,7 @@ def test_ask_refuses_an_address_off_this_pc(tmp_path, servers):
 
 def test_ask_follows_no_redirect_to_another_address(tmp_path, servers):
     """A redirect to another address, even one on this PC, isn't followed:
-    the model's answer comes only from the address Clips Kitty gave."""
+    the model's answer comes only from the address VilloMillo gave."""
     elsewhere = servers(_ollama(response="an answer from elsewhere"))
     redirecting = servers(lambda path, body: (302, None, {"Location": elsewhere.url + path}))
     job = _model_job(tmp_path, redirecting.url, name="redirected")
@@ -569,7 +569,7 @@ def test_ask_says_when_the_answer_cant_be_read(tmp_path):
         assert str(refused.value) == "The local model gave an answer this helper can't read"
     with pytest.raises(local_model.LocalModelError) as refused:
         local_model.ask(_model_job(tmp_path, "http://localhost:11x34", name="bad-port"), "Say hi")
-    assert str(refused.value) == "Clips Kitty's model address http://localhost:11x34 has a port this helper can't use"
+    assert str(refused.value) == "VilloMillo's model address http://localhost:11x34 has a port this helper can't use"
 
 
 def test_ask_refuses_an_empty_model(tmp_path, servers):
@@ -579,7 +579,7 @@ def test_ask_refuses_an_empty_model(tmp_path, servers):
         for call in ASKING:
             with pytest.raises(local_model.LocalModelError) as refused:
                 call(job)
-            assert str(refused.value) == ("No local model is set in Clips Kitty (its AI may run at a cloud "
+            assert str(refused.value) == ("No local model is set in VilloMillo (its AI may run at a cloud "
                                           "provider), and this helper only uses a model on this PC")
     assert ollama.requests == []
 
@@ -587,7 +587,7 @@ def test_ask_refuses_an_empty_model(tmp_path, servers):
 def test_ask_needs_the_ollama_permission(tmp_path, servers):
     ollama = servers(_ollama())
     job = _model_job(tmp_path, ollama.url, permissions=("transcript.read",))
-    assert job.tools.ollama is None  # Clips Kitty hands the model over only with the permission
+    assert job.tools.ollama is None  # VilloMillo hands the model over only with the permission
     for call in ASKING:
         with pytest.raises(local_model.LocalModelError) as refused:
             call(job)
@@ -706,7 +706,7 @@ def test_run_says_newer_version_for_an_sdk_import_inside_main(tmp_path):
         run = _run_it(tmp_path, _importing_plugin(tmp_path, f"plugin-{i}", statement))
         assert not run.ok
         assert run.error == job_module.NEWER_VERSION == (
-            "This pipeline needs a newer version of Clips Kitty. Update Clips Kitty, or ask the pipeline's "
+            "This pipeline needs a newer version of VilloMillo. Update VilloMillo, or ask the pipeline's "
             "developer which version it needs.")
         assert "Traceback (most recent call last):" in run.log  # the original, for the developer
         assert [line for line in run.log if line.startswith(("ImportError: ", "ModuleNotFoundError: "))

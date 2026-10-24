@@ -38,7 +38,6 @@ Nothing about the pipeline is unverified any more.
 ## Do not forget at submission time
 
 - Tick **live generative AI** (policy 11.16)
-- Tick **third-party purchase API** for the PayPal donate link (policy 10.8.2)
 - Set **manual publish**, so the certification report can be read first
 - Next release uses **Start update** on the same product, never a new one
 

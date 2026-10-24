@@ -11,15 +11,6 @@
 > Isinalin ng AI ang README na ito mula sa [README sa English](../../README.md), na siyang
 > batayan at unang ina-update. Malugod naming tinatanggap ang mga pagwawasto mula sa mga native speaker.
 >
-> 🌐 [Ang website sa Filipino](https://colingpt9.github.io/clips-studio/tl.html)
-
-<a href="https://apps.microsoft.com/detail/9NB6XT7DSQZZ">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://get.microsoft.com/images/en-us%20dark.svg">
-    <img alt="Kunin ang Clips Kitty sa Microsoft Store" src="https://get.microsoft.com/images/en-us%20light.svg" height="52">
-  </picture>
-</a>
-
 [![Latest release](https://badgen.net/github/tag/ColinGPT9/clips-studio?label=release)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Downloads](https://img.shields.io/github/downloads/ColinGPT9/clips-studio/total?label=downloads)](https://github.com/UglyCavemanCam/VilloMillo/releases)
 [![Licence](https://img.shields.io/github/license/ColinGPT9/clips-studio)](../../LICENSE)

@@ -1,7 +1,7 @@
 """The example external pipeline, examples/pipelines/scene-cut-highlights.
 
 It must work the way an outside developer's plugin would: through the app's
-runner, importing nothing from Clips Kitty but the SDK, and finding what it
+runner, importing nothing from VilloMillo but the SDK, and finding what it
 says it finds. The test video is made with FFmpeg: four colours with hard cuts
 at 10, 20 and 30 seconds, and a tone that is loud only from 22 to 27 seconds.
 """

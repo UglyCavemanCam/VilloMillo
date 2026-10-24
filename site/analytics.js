@@ -88,7 +88,6 @@ var MEASUREMENT_ID = ''
         return host === domain || host.endsWith('.' + domain)
       }
       var isGitHub = onHost('github.com')
-      var isPayPal = onHost('paypal.me') || onHost('paypal.com')
 
       // A whole path SEGMENT, so /ColinGPT9/clips-studio/releases matches and
       // so does /releases/latest, while a repository called "releases-notes"
@@ -98,8 +97,6 @@ var MEASUREMENT_ID = ''
       var name =
         isGitHub && isReleases
           ? 'download_click'
-          : isPayPal
-            ? 'donate_click'
             : isGitHub
               ? 'github_click'
               : null

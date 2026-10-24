@@ -9,9 +9,9 @@ import "./globals.css";
  *  time — and this app is meant to be deployable anywhere without config.
  *  The marketing site already serves this exact file for the same purpose
  *  (see the og:image in site/index.html), so it is one asset, one place. */
-const OG_IMAGE = "https://colingpt9.github.io/clips-studio/assets/mascot.png";
+const OG_IMAGE = "https://uglycavemancam.github.io/VilloMillo/assets/mascot.png";
 
-const TITLE = "Clips Kitty Web: find your best clips in the browser";
+const TITLE = "VilloMillo Web: find your best clips in the browser";
 const DESCRIPTION =
 	"Paste a Twitch or Kick VOD, or drop in a recording, and get the moments worth clipping: cut and ready to edit. Runs entirely in your browser. Nothing to install, and your video is never uploaded.";
 
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
 	openGraph: {
 		title: TITLE,
 		description: DESCRIPTION,
-		siteName: "Clips Kitty",
+		siteName: "VilloMillo",
 		type: "website",
-		images: [{ url: OG_IMAGE, width: 1024, height: 1024, alt: "Clips Kitty" }],
+		images: [{ url: OG_IMAGE, width: 1024, height: 1024, alt: "VilloMillo" }],
 	},
 	twitter: {
 		card: "summary_large_image",

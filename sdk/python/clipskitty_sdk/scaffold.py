@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """Starting a plugin from a template: `python -m clipskitty_sdk new`.
 
     python -m clipskitty_sdk new quarkbloom-bursts --template game-events --publisher your-github-name

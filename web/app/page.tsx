@@ -36,8 +36,6 @@ import {
 	COST_NOTE,
 	DESKTOP_IS_FREE,
 	DESKTOP_ONLY,
-	DONATE_NOTE,
-	DONATE_TITLE,
 	LINKS,
 	PREFERRED_SCORE_MODEL,
 	PREFERRED_TRANSCRIBE_MODEL,
@@ -557,7 +555,7 @@ function Header({
 					className="h-11 w-11 shrink-0 sm:h-13 sm:w-13"
 				/>
 				<div>
-					<h1 className="text-2xl font-bold sm:text-3xl">Clips Kitty Web</h1>
+					<h1 className="text-2xl font-bold sm:text-3xl">VilloMillo Web</h1>
 					<p className="mt-1 text-sm" style={{ color: "var(--cs-muted)" }}>
 						Find the moments worth clipping, in your browser.{" "}
 						{/* Said up here, not only in the footer. A good share of the
@@ -614,7 +612,7 @@ function SignIn() {
 			</button>
 
 			<p className="mt-4 text-xs" style={{ color: "var(--cs-muted)" }}>
-				You will be asked to authorise Clips Kitty Web on your own OpenRouter
+				You will be asked to authorise VilloMillo Web on your own OpenRouter
 				account. We never see your key. It is stored in this browser only.
 			</p>
 
@@ -1170,7 +1168,7 @@ function DesktopPitch() {
 
 			<div className="mt-6 flex flex-wrap gap-3">
 				<a href={LINKS.download} className="cs-btn px-5 py-2.5 text-sm">
-					Download Clips Kitty for free
+					Download VilloMillo for free
 				</a>
 				<a href={LINKS.msstore} className="cs-btn-quiet px-5 py-2.5 text-sm">
 					Get it from Microsoft Store
@@ -1178,22 +1176,8 @@ function DesktopPitch() {
 				<a href={LINKS.github} className="cs-btn-quiet px-5 py-2.5 text-sm">
 					Source on GitHub
 				</a>
-				<a href={LINKS.donate} className="cs-btn-quiet px-5 py-2.5 text-sm">
-					Donate
-				</a>
 			</div>
 
-			{/* Word for word what the desktop app and the website say. Copied,
-			    not rewritten. See the note in content.ts. */}
-			<div className="cs-card mt-6 p-4">
-				<p className="text-sm font-semibold">{DONATE_TITLE}</p>
-				<p
-					className="mt-1 text-sm leading-relaxed"
-					style={{ color: "var(--cs-muted)" }}
-				>
-					{DONATE_NOTE}
-				</p>
-			</div>
 
 			<p className="mt-4 text-xs" style={{ color: "var(--cs-muted)" }}>
 				Needs Windows and 16 GB of RAM. An NVIDIA graphics card makes it much

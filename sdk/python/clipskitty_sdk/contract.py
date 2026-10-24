@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 ColinGPT9. The Clips Kitty SDK; see sdk/python/LICENSE.
+# Copyright (c) 2026 ColinGPT9. The VilloMillo SDK; see sdk/python/LICENSE.
 """The plugin contract, version 1: what goes into a plugin and what comes out.
 
 VilloMillo hands a plugin a job folder with `job.json` in it, starts the

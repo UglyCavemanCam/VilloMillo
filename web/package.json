@@ -2,7 +2,7 @@
 	"name": "clips-kitty-web",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Browser-only free tier for Clips Kitty. Runs on the visitor's own OpenRouter account; no server, no inference cost.",
+	"description": "Browser-only free tier for VilloMillo. Runs on the visitor's own OpenRouter account; no server, no inference cost.",
 	"scripts": {
 		"postinstall": "node scripts/copy-ffmpeg-core.mjs",
 		"dev": "next dev --turbopack",

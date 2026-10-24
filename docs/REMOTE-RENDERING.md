@@ -21,7 +21,7 @@ It works for every kind of clip: standard, Gaming / Reaction, Vertical Live
 
 ## Setting it up
 
-You need Clips Kitty on both computers, the **same version**, and both on the
+You need VilloMillo on both computers, the **same version**, and both on the
 same home network, or both on the same [Tailscale](https://tailscale.com)
 tailnet (see below for PCs in different places).
 
@@ -30,7 +30,7 @@ tailnet (see below for PCs in different places).
 1. Settings → **Advanced settings** → turn on **Remote rendering**.
 2. Press **Add a render PC**. It shows this PC's address, a pairing code
    (`ABCD-EFGH`, good once, for ten minutes) and its certificate.
-3. Windows asks whether Clips Kitty may accept connections on your network.
+3. Windows asks whether VilloMillo may accept connections on your network.
    Allow it on **private** networks.
 
 **On the render PC:**
@@ -39,7 +39,7 @@ tailnet (see below for PCs in different places).
 2. Under **Use this PC as a render worker**, enter the main PC's address and the
    code, and press **Pair**. It shows the certificate it connected to; it should
    match the one on the main PC.
-3. Leave Clips Kitty open. While it runs, it renders whatever the main PC sends.
+3. Leave VilloMillo open. While it runs, it renders whatever the main PC sends.
 
 For an always-on box without anyone at it, the render worker also runs on its
 own, with no window:
@@ -103,7 +103,7 @@ FFmpeg shows CPU encoding), whether it can do face tracking, and its version.
 - **"Worker update required"**: the two PCs run different versions. Install the
   same version on both.
 - **Can't reach the main PC**: check both are on the same network (or tailnet),
-  that Windows allowed Clips Kitty on private networks on the main PC, and the
+  that Windows allowed VilloMillo on private networks on the main PC, and the
   port (8766 by default).
 
 ## PCs in different places
@@ -112,7 +112,7 @@ Remote rendering never needs your router opened. For two PCs on different
 networks, put both on the same [Tailscale](https://tailscale.com) tailnet (free
 for personal use): each gets a private address that works from anywhere,
 encrypted, visible only to your own devices. Use the main PC's tailnet address
-(the one starting 100.) when pairing. Clips Kitty has no server of its own in
+(the one starting 100.) when pairing. VilloMillo has no server of its own in
 between, and there is no cloud rendering.
 
 ## Security
@@ -125,7 +125,7 @@ between, and there is no cloud rendering.
 - Pairing codes work once, for ten minutes, and five wrong tries void them.
   Every render PC gets its own credential; the main PC stores only a hash of it.
 - A render job is a description of the clip to make, never a command. The
-  render PC only ever runs Clips Kitty's own rendering on it.
+  render PC only ever runs VilloMillo's own rendering on it.
 - What a render PC receives: the clip's stretch of video, the transcript lines
   inside it (for captions), the render settings (caption style, layout,
   filters, end card), and a watermark image if you use one. Never your AI keys,

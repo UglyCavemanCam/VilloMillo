@@ -17,7 +17,7 @@ Last assessed: **2026-07-26**, against electron 31.7.7 / electron-builder
 | `brace-expansion` | No: build tooling | No | Transitive |
 | `esbuild`, `vite` | No: dev server only | No | Dev-time only |
 
-Only the first row can reach anyone who installs Clips Kitty. Everything
+Only the first row can reach anyone who installs VilloMillo. Everything
 else lives in tooling that produces the installer and is never inside it.
 
 ## electron 31.7.7: the one that matters
@@ -34,14 +34,11 @@ app has almost none:
 
 - The main window loads **local files only**, under a CSP of
   `default-src 'self'` with a `connect-src` limited to the local engine.
-- The one window that loads **remote** content is the PayPal donate popup in
-  `ui/src/main/index.ts`, and it is about as locked down as Electron allows:
-  `sandbox: true`, `nodeIntegration: false`, `contextIsolation: true`, no
-  preload, `window.open` denied, and `will-navigate` refuses anything that is
-  not `paypal.com` / `paypal.me`.
+- No window loads **remote** content. Links to other sites open in the system
+  browser, not inside the app.
 
-So the sandboxed remote-content window is the realistic surface, and it has
-no bridge into the app. That is mitigation, not a fix. A renderer sandbox
+So the local renderer under that CSP is the realistic surface. That is mitigation,
+not a fix. A renderer sandbox
 escape is exactly what several of these advisories describe.
 
 **The upgrade is a real piece of work, not a version bump.** Electron 31 to

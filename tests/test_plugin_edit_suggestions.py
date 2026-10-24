@@ -264,7 +264,7 @@ def test_patch_hides_and_shows_a_suggestion(studio):
         r = patch({"suggestion": {"id": SID, "state": state}, "title": "Not this"})
         assert r.status_code == 409
         assert r.json()["detail"] == ("suggestion: some of it is still in the clip's saved edit. Take it back and "
-                                      "apply your edits, and Clips Kitty hides it then")
+                                      "apply your edits, and VilloMillo hides it then")
     clip = studio.clip()
     assert clip["scores"]["plugin_edits"] == [USED] and clip["title"] == "Quark burst"
     assert clip["render_opts"] == with_it and studio.jobs() == 0

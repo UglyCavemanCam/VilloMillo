@@ -1,4 +1,4 @@
-# expect: run: 'builtin' is only for pipelines that ship inside Clips Kitty
+# expect: run: 'builtin' is only for pipelines that ship inside VilloMillo
 manifest_version: 1
 id: example-dev/loud-moments
 name: Loud moments

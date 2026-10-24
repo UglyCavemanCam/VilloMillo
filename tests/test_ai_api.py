@@ -93,8 +93,8 @@ def test_no_route_can_change_the_openrouter_attribution(env):
     for route in [r for r in env.client.app.routes if getattr(r, "path", "").startswith("/ai")]:
         assert "attribution" not in route.path and "header" not in route.path
     assert openrouter.attribution_headers() == before == {
-        "HTTP-Referer": "https://colingpt9.github.io/clips-studio/",
-        "X-OpenRouter-Title": "Clips Kitty",
+        "HTTP-Referer": "https://github.com/UglyCavemanCam/VilloMillo/",
+        "X-OpenRouter-Title": "VilloMillo",
         "X-OpenRouter-Categories": "video-gen",
     }
 

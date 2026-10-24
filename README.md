@@ -6,7 +6,7 @@
 
 # VilloMillo: the free, open-source Opus Clip alternative for chatting, gaming and sports, on your own PC
 
-> **VilloMillo is a fork of [VilloMillo](https://github.com/UglyCavemanCam/VilloMillo)** (commit `92f72a8`, 2.1.0), by ColinGPT9, licensed AGPL-3.0. The original licence, copyright notices and credits are kept. Most of the code below still says VilloMillo until the rename is finished.
+> **VilloMillo is a fork of [Clips Kitty](https://github.com/ColinGPT9/clips-studio)** (commit `92f72a8`, 2.1.0) by ColinGPT9, licensed AGPL-3.0. The original licence, copyright notices and credits are kept.
 
 <a href="https://youtu.be/g1dMqrq-YaI"><img src="https://github.com/user-attachments/assets/2a1bdd85-723e-46d6-b74b-00579c71b6a7" alt="VilloMillo turning an NBA broadcast into a 9:16 clip that follows the ball" width="100%"></a>
 
@@ -713,7 +713,7 @@ there, step by step, to a plugin installed in VilloMillo and listed in its Marke
 The [Signals cookbook](docs/developers/signals-cookbook.md) has recipes for reading a
 game's video, the [SDK reference](docs/developers/sdk.md) has every command and call,
 and the [developer docs](docs/developers/README.md) have everything else. The website's
-[VilloMillo SDK](https://colingpt9.github.io/clips-studio/developers.html) page is the
+[VilloMillo SDK](docs/developers/README.md) page is the
 short version.
 
 ## Build on it
@@ -823,14 +823,9 @@ Packaging and release documentation:
   installer, which is the primary channel
 - **[docs/MSSTORE.md](docs/MSSTORE.md)**: the Microsoft Store package, from
   creating a developer account through to certification
-- **[packaging/winget/](packaging/winget/)**: the winget manifests, which point at
-  the installer above
-- **[whop-app/](whop-app/)**: the Whop app, which puts VilloMillo in front of
-  members of clipping communities. Marketing pages only: it does not process
-  video, store anything, or talk to the desktop app
 - **[docs/DOCKER.md](docs/DOCKER.md)**: running the engine without installing
   Python, FFmpeg and PyTorch yourself
-- **[PRIVACY](https://colingpt9.github.io/clips-studio/privacy.html)**: what the
+- **[PRIVACY](site/privacy.html)**: what the
   app stores and what can leave your machine (short answer: nothing, unless you
   submit a bug report)
 
@@ -911,10 +906,10 @@ Still built to be modified: swap models, tune prompts, add platforms.
 
 Thank you to everyone who stars, shares, reports bugs and translates VilloMillo.
 
-<a href="https://www.star-history.com/#ColinGPT9/clips-studio&amp;Date">
+<a href="https://www.star-history.com/#UglyCavemanCam/VilloMillo&amp;Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date&amp;theme=dark&amp;legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date&amp;legend=top-left" />
-    <img alt="VilloMillo GitHub star history" src="https://api.star-history.com/chart?repos=ColinGPT9/clips-studio&amp;type=date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=UglyCavemanCam/VilloMillo&amp;type=date&amp;theme=dark&amp;legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=UglyCavemanCam/VilloMillo&amp;type=date&amp;legend=top-left" />
+    <img alt="VilloMillo GitHub star history" src="https://api.star-history.com/chart?repos=UglyCavemanCam/VilloMillo&amp;type=date" />
   </picture>
 </a>

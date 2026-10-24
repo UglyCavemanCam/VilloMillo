@@ -1,6 +1,6 @@
-# Architecture: Clips Kitty
+# Architecture: VilloMillo
 
-Clips Kitty is a local-first AI clipping engine with a desktop front end. It ingests a
+VilloMillo is a local-first AI clipping engine with a desktop front end. It ingests a
 long video, finds the moments worth posting using an LLM plus multimodal signal
 analysis, renders speaker-tracked captioned vertical clips, and hands them to a review
 and editing studio. By default nothing is sent to a cloud AI service and there is no
@@ -36,7 +36,7 @@ document: design notes that used to live separately have been folded in here.
 ```
 ┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
 │ Desktop app              │  │ Watched channels,        │  │ Assistants               │
-│ Electron + React + Vite  │  │ streamer-tool hand-offs  │  │ Ask Clips Kitty · MCP    │
+│ Electron + React + Vite  │  │ streamer-tool hand-offs  │  │ Ask VilloMillo · MCP    │
 └────────────┬─────────────┘  └────────────┬─────────────┘  └────────────┬─────────────┘
              └─────────────────────────────┼─────────────────────────────┘
                                            │  HTTP + WebSocket (127.0.0.1:8765)
@@ -82,7 +82,7 @@ Three things add network paths, and each is off until the user turns it on: **cl
 (the transcript, or the audio for cloud transcription, goes to the provider the user
 signed in to), **publishing** (finished clips go to the platforms, directly or through a
 publishing service) and **remote rendering** (one clip's stretch of video goes to the
-user's own render PC, [10.3](#103-remote-rendering)). Two plain file fetches run on their own, carry nothing about the user, and can each be switched off: the desktop app's update check and Clips Kitty's online list of pipelines (`plugins/registry.py` `ONLINE_URL`, once a day when the Marketplace opens or the app starts with a pipeline installed; `docs/platform/DECISIONS.md` D29).
+user's own render PC, [10.3](#103-remote-rendering)). Two plain file fetches run on their own, carry nothing about the user, and can each be switched off: the desktop app's update check and VilloMillo's online list of pipelines (`plugins/registry.py` `ONLINE_URL`, once a day when the Marketplace opens or the app starts with a pipeline installed; `docs/platform/DECISIONS.md` D29).
 
 ### End to end
 
@@ -259,7 +259,7 @@ clips-studio/
 │   ├── feedback.py             # in-app bug reports + diagnostics
 │   ├── ai_api.py               # Settings → AI: local or cloud, which model
 │   ├── automation.py           # watched channels: new video → clips → publish
-│   ├── agent.py                # the Ask Clips Kitty assistant
+│   ├── agent.py                # the Ask VilloMillo assistant
 │   ├── mcp.py                  # the same tools over MCP (stdio)
 │   ├── integrations.py         # streamer tools hand over a finished livestream
 │   ├── webhooks.py             # tell another program a job finished
@@ -916,11 +916,11 @@ Rules worth knowing before changing this:
 
 ### 10.2 The assistant and MCP
 
-The **Ask Clips Kitty** box at the bottom of the app talks to `server/agent.py`
+The **Ask VilloMillo** box at the bottom of the app talks to `server/agent.py`
 (`/agent/chat`): the same LLM as the clips, given the app's tools (queue videos with
 their settings, a clip direction, sport options and match events, and more).
 `server/mcp.py` offers the same tools over MCP on stdio, so Claude, Cursor and other
-assistants can drive Clips Kitty too.
+assistants can drive VilloMillo too.
 
 ### 10.3 Remote rendering
 

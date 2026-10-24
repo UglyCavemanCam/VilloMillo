@@ -1,4 +1,4 @@
-# A rater: it gives a new score to each moment found by Clips Kitty or a pipeline.
+# A rater: it gives a new score to each moment found by VilloMillo or a pipeline.
 manifest_version: 1
 id: example-dev/quarkbloom-rater
 name: Quarkbloom Rater

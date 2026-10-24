@@ -277,10 +277,9 @@ so a problem in either cannot affect it.
 ### Microsoft Store
 
 `python scripts/build_msix.py` produces an appx from the same source. It is a
-different wrapper, not a different app: the only runtime differences are that a
-Store copy is updated by the Store rather than by `electron-updater`, and its
-donate button opens the system browser. Both are decided at runtime in
-`ui/src/main/distribution.ts`.
+different wrapper, not a different app: the only runtime difference is that a
+Store copy is updated by the Store rather than by `electron-updater`. That is decided
+at runtime in `ui/src/main/distribution.ts`.
 
 The package version is **not** the app version. The Store forbids a major of
 0, so 0.1.2 ships as package `1.1.2.0`. The script computes that; do not set it

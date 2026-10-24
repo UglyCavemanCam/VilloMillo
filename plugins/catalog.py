@@ -68,7 +68,7 @@ BADGE_MEANING = {
 }
 
 # GitHub owners whose projects are the VilloMillo project's own.
-OFFICIAL_OWNERS = ("colingpt9",)
+OFFICIAL_OWNERS = ("colingpt9", "uglycavemancam")
 
 PLATFORMS = ("windows", "macos", "linux", "web", "android", "ios")
 RUNS = ("local", "cloud", "both")

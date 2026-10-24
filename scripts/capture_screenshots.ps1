@@ -1,4 +1,4 @@
-# Capture the running Clips Kitty window for the Microsoft Store listing.
+# Capture the running VilloMillo window for the Microsoft Store listing.
 #
 #     powershell -ExecutionPolicy Bypass -File scripts\capture_screenshots.ps1
 #
@@ -36,12 +36,12 @@ public class WinCap {
 }
 "@
 
-$proc = Get-Process -Name "Clips Kitty" -ErrorAction SilentlyContinue |
+$proc = Get-Process -Name "VilloMillo" -ErrorAction SilentlyContinue |
         Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } |
         Select-Object -First 1
 
 if (-not $proc) {
-    Write-Output "Clips Kitty is not running with a visible window."
+    Write-Output "VilloMillo is not running with a visible window."
     Write-Output "Start it, open the page you want, then run this again."
     exit 1
 }

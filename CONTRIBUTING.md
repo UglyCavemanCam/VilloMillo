@@ -1,6 +1,6 @@
-# Contributing to Clips Kitty
+# Contributing to VilloMillo
 
-Thanks for helping! Clips Kitty is a local-first AI clipping app. Python
+Thanks for helping! VilloMillo is a local-first AI clipping app. Python
 FastAPI backend + Electron/React UI. Issues labeled
 [`good-first-issue`](../../labels/good-first-issue) are small and
 well-scoped if you want a place to start.
@@ -32,7 +32,7 @@ npm run dev                      # starts Electron + the backend together
 
 Working on the interface only? `npm run dev:web` serves it in a browser
 instead, with no Electron and no rebuild loop. The Electron-only calls
-(file pickers, the donate window) are stubbed there. See
+(file pickers) are stubbed there. See
 `ui/src/renderer/src/lib/browserShim.ts`.
 
 Before a PR:
@@ -86,7 +86,7 @@ alternative is a full transcribe-and-render per attempt.
 
 ## Building on the app rather than in it
 
-You do not have to change Clips Kitty to use it. The desktop window is one
+You do not have to change VilloMillo to use it. The desktop window is one
 client of a local HTTP API, and anything else can be another. A bot, a batch
 runner, a different interface entirely.
 
@@ -101,7 +101,7 @@ way to get it moved from internal to supported.
 ### Write a plugin
 
 A plugin finds, understands or rates the moments in a video, for one game,
-sport or kind of show, without changing Clips Kitty. Three commands start one
+sport or kind of show, without changing VilloMillo. Three commands start one
 and run it on a test video (in PowerShell, write `py -m` for `python -m`):
 
 ```bash
@@ -110,7 +110,7 @@ python -m clipskitty_sdk new my-plugin --template game-events --publisher your-g
 python -m clipskitty_sdk run my-plugin --sample
 ```
 
-Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0. The walk-through is
+VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0. The walk-through is
 [docs/developers/first-game-pipeline.md](docs/developers/first-game-pipeline.md),
 and everything else for plugin developers is in
 [docs/developers/](docs/developers/README.md). The SDK is MIT, so your plugin
@@ -179,7 +179,7 @@ canonical issue so reactions concentrate in one place.
 
 ## Licence
 
-Clips Kitty is **AGPL-3.0**, and contributions are accepted under the same
+VilloMillo is **AGPL-3.0**, and contributions are accepted under the same
 terms: opening a PR means you are licensing your change that way.
 
 Practically: your work stays available to the creators this was built for,

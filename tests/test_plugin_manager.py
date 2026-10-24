@@ -108,11 +108,11 @@ def test_a_plan_shows_permissions_and_what_leaves_the_pc_before_anything_install
     assert plan["ok"] and plan["plan_id"] and plan["update"] is None
     d = plan["details"]
     assert d["notice"] == "This pipeline is a program from the internet. It can do anything you can do on this PC."
-    assert d["tier_text"] == "Not listed · Clips Kitty has not checked this"
+    assert d["tier_text"] == "Not listed · VilloMillo has not checked this"
     assert {p["id"]: (p["label"], p["enforcement"]) for p in d["permissions"]} == {
-        "video.read": ("Reads the video you process", "Clips Kitty hands this over"),
+        "video.read": ("Reads the video you process", "VilloMillo hands this over"),
         "network": ("Connects to: api.example.com", "the developer says so"),
-        "ffmpeg": ("Uses Clips Kitty's FFmpeg", "Clips Kitty hands this over"),
+        "ffmpeg": ("Uses VilloMillo's FFmpeg", "VilloMillo hands this over"),
     }
     assert d["data_warnings"] == ["⚠ Sends your video to Example Cloud, when you choose Cloud",
                                   "⚠ Sends your video's transcript off this computer"]
@@ -120,7 +120,7 @@ def test_a_plan_shows_permissions_and_what_leaves_the_pc_before_anything_install
     assert d["requirements"][0] == "A graphics card is recommended, 6 GB of video memory"
     text = permissions.render_text(plan)
     assert "⚠ Sends your video to Example Cloud, when you choose Cloud" in text
-    assert "Reads the video you process (Clips Kitty hands this over)" in text
+    assert "Reads the video you process (VilloMillo hands this over)" in text
     assert "Connects to: api.example.com (the developer says so)" in text
     assert permissions.ENFORCEMENT_NOTE in text
     assert not (store.root(data) / store.STATE_FILE).exists()
@@ -192,7 +192,7 @@ def test_an_invalid_plugin_is_refused_with_every_reason_and_nothing_is_kept(data
 def test_a_plugin_for_another_clips_kitty_is_refused(data, plugin_source):
     manifest = plugin_source.manifest(requires={"clips_kitty": ">=3.0", "plugin_api": 1})
     plan = _plan(data, {"kind": "folder", "path": str(plugin_source.folder(manifest=manifest))})
-    assert plan["errors"] == ["Can't install: it needs Clips Kitty >=3.0, and this is 2.0.0"]
+    assert plan["errors"] == ["Can't install: it needs VilloMillo >=3.0, and this is 2.0.0"]
 
 
 def test_a_source_must_be_well_formed(data):
@@ -216,7 +216,7 @@ def test_a_source_must_be_well_formed(data):
     ("plugins/x.", "('plugins/x.') that Windows can't create"),
     ("plugins\\x", "('plugins\\\\x') with \\ or : in its name, which Windows doesn't allow"),
     ("../elsewhere", "('../elsewhere') outside its own files"),
-    ("plugins/.git/x", ("('plugins/.git/x') inside a .git folder of version history, which Clips Kitty doesn't "
+    ("plugins/.git/x", ("('plugins/.git/x') inside a .git folder of version history, which VilloMillo doesn't "
                         "install")),
 ])
 def test_a_listed_folder_that_cant_be_installed_says_why_and_who_fixes_it(data, path, said):
@@ -256,7 +256,7 @@ def test_the_outer_folder_of_a_download_zip_installs_from_the_one_folder_inside(
     view = _install(data, {"kind": "folder", "path": str(outer)})
     assert view["source"] == {"kind": "folder", "path": str(inner)}
     assert (store.get(data, "fixture-dev/manager-test").folder / "src/main.py").read_text() == "x\n"
-    # Two folders with a clipskitty.yaml: Clips Kitty doesn't guess.
+    # Two folders with a clipskitty.yaml: VilloMillo doesn't guess.
     plugin_source.write(outer / "another", plugin_source.manifest(id="fixture-dev/another"))
     plan = _plan(data, {"kind": "folder", "path": str(outer)})
     assert plan["errors"] == [f"The folder you chose ({outer}) has no clipskitty.yaml in it."]
@@ -296,7 +296,7 @@ def test_a_symbolic_link_in_the_repository_refuses_the_plugin(data, plugin_sourc
     plugin_source.git(repo, "update-index", "--add", "--cacheinfo", f"120000,{blob},src/secrets")
     plugin_source.git(repo, "commit", "-q", "-m", "link")
     commit = plugin_source.git(repo, "rev-parse", "HEAD")
-    with pytest.raises(manager.ManagerError, match=r"it contains a shortcut \(src/secrets\), which Clips Kitty "
+    with pytest.raises(manager.ManagerError, match=r"it contains a shortcut \(src/secrets\), which VilloMillo "
                                                     r"doesn't install\. Its developer needs to replace it"):
         _plan(data, _git_source(repo, commit))
 
@@ -534,7 +534,7 @@ def test_a_symbolic_link_in_a_folder_refuses_it(data, plugin_source, tmp_path):
 def test_a_plugin_over_the_size_limits_is_refused(data, plugin_source, monkeypatch):
     monkeypatch.setattr(sources, "MAX_FILES", 2)
     folder = plugin_source.folder(files={"a.txt": "a", "b.txt": "b"})
-    with pytest.raises(manager.ManagerError, match="it has more than 2 files, more than Clips Kitty installs"):
+    with pytest.raises(manager.ManagerError, match="it has more than 2 files, more than VilloMillo installs"):
         _plan(data, {"kind": "folder", "path": str(folder)})
 
 
@@ -897,7 +897,7 @@ def test_a_folder_that_cant_be_read_is_named_not_a_crash(data, plugin_source, mo
     assert sources.plugin_folder(folder) == folder
     with pytest.raises(manager.ManagerError) as e:
         _plan(data, {"kind": "folder", "path": str(folder)})
-    assert str(e.value) == ("Couldn't install this pipeline: Clips Kitty couldn't read clipskitty.yaml in that "
+    assert str(e.value) == ("Couldn't install this pipeline: VilloMillo couldn't read clipskitty.yaml in that "
                             "folder. If another program has it open, close it and try again.")
     assert list((store.root(data) / manager.STAGING).iterdir()) == []
 
@@ -914,7 +914,7 @@ def test_a_file_that_cant_be_read_while_copying_is_named(data, plugin_source, mo
     monkeypatch.setattr(Path, "read_bytes", locked)
     with pytest.raises(manager.ManagerError) as e:
         _plan(data, {"kind": "folder", "path": str(folder)})
-    assert str(e.value) == ("Couldn't install this pipeline: Clips Kitty couldn't read src/main.py in that "
+    assert str(e.value) == ("Couldn't install this pipeline: VilloMillo couldn't read src/main.py in that "
                             "folder. If another program has it open, close it and try again.")
     assert "The process cannot access the file" in caplog.text
 
@@ -933,7 +933,7 @@ def test_a_subfolder_that_cant_be_opened_is_named(data, plugin_source, monkeypat
     monkeypatch.setattr(os, "scandir", scandir)
     with pytest.raises(manager.ManagerError) as e:
         _plan(data, {"kind": "folder", "path": str(folder)})
-    assert str(e.value) == ("Couldn't install this pipeline: Clips Kitty couldn't open the folder private in that "
+    assert str(e.value) == ("Couldn't install this pipeline: VilloMillo couldn't open the folder private in that "
                             "folder. Check that you can open it yourself, then try again.")
 
 
@@ -979,7 +979,7 @@ def test_a_junction_in_a_folder_refuses_it(data, plugin_source, monkeypatch):
         return real_lstat(path, *a, **k)
 
     monkeypatch.setattr(os, "lstat", lstat)
-    with pytest.raises(manager.ManagerError, match=r"it contains a shortcut \(linked\), which Clips Kitty doesn't "
+    with pytest.raises(manager.ManagerError, match=r"it contains a shortcut \(linked\), which VilloMillo doesn't "
                                                    r"install\. Its developer needs to replace it with the real "
                                                    r"folder\."):
         _plan(data, {"kind": "folder", "path": str(folder)})
@@ -1000,7 +1000,7 @@ def test_the_listing_shows_installed_plugins_and_the_official_modes(data, plugin
     listing = manager.listing(data, app_version=APP)
     (entry,) = listing["plugins"]
     assert entry["id"] == "fixture-dev/manager-test" and entry["enabled"] and not entry["builtin"]
-    assert entry["details"]["tier_text"] == "Not listed · Clips Kitty has not checked this"
+    assert entry["details"]["tier_text"] == "Not listed · VilloMillo has not checked this"
     assert entry["problem"] is None and entry["flag"] is None
     assert sorted(b["id"] for b in listing["builtin"]) == ["clipskitty/gaming", "clipskitty/shorts",
                                                            "clipskitty/sports"]
@@ -1012,10 +1012,10 @@ def test_a_plugin_an_app_update_left_behind_says_why(data, plugin_source, monkey
     _install(data, {"kind": "folder", "path": str(plugin_source.folder(manifest=manifest))})
     pid = "fixture-dev/manager-test"
     assert manager.view(data, pid, app_version="2.4.0")["problem"] is None
-    assert manager.view(data, pid, app_version="3.0.0")["problem"] == "it needs Clips Kitty >=2.0, <3, and this is 3.0.0"
+    assert manager.view(data, pid, app_version="3.0.0")["problem"] == "it needs VilloMillo >=2.0, <3, and this is 3.0.0"
     # ...and a job naming it is refused with that reason, at submit and at run.
     monkeypatch.setattr(store, "app_version", lambda: "3.0.0")
-    with pytest.raises(ValueError, match=r"can't run here: it needs Clips Kitty >=2\.0, <3, and this is 3\.0\.0"):
+    with pytest.raises(ValueError, match=r"can't run here: it needs VilloMillo >=2\.0, <3, and this is 3\.0\.0"):
         store.installed_choice(data, {"id": pid})
 
 
@@ -1079,7 +1079,7 @@ def test_details_carry_steps_and_a_time_limit(plugin_source):
     }
     got = {name: (d["steps"], d["time_limit"])
            for name, d in ((name, permissions.describe(m)) for name, m in manifests.items())}
-    limit = "Clips Kitty stops it after {} when it rates or understands a video’s moments."
+    limit = "VilloMillo stops it after {} when it rates or understands a video’s moments."
     assert got == {
         "finder": (["Finds moments"], None),
         "notes finder": (["Finds moments", "Understands what it finds"], None),

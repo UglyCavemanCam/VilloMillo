@@ -133,7 +133,7 @@ file) and **Choose a layout** opens:
   a different shape out of the middle of the box. The box as drawn is kept, so
   going back and forth doesn't wear it down; with **Whole** the game is shown
   whole, so the box stays as drawn. The Game box starts on the area the
-  layout takes the game from; move it and it's yours (**Let Clips Kitty pick
+  layout takes the game from; move it and it's yours (**Let VilloMillo pick
   the game area** gives it back). The dashed line inside is exactly what the
   layout will show. **Snap to the webcam's border** pulls the webcam box out to
   the overlay's own edge. The stream's solid panels are hatched **Left out**;
@@ -156,7 +156,7 @@ file) and **Choose a layout** opens:
   the frame), *Find it* (by who is talking, when processing) or *None*.
   **Game**: *Whole* or *Zoom to fill* (and then Left, Centre or Right).
 
-When it opens, the webcam box is moved onto the webcam when Clips Kitty finds
+When it opens, the webcam box is moved onto the webcam when VilloMillo finds
 one: a person in the same spot on at least four of the five frames, no more
 than a third of the picture, with a real border round at least two of its
 inner sides. A game character moves between frames minutes apart, chat has no

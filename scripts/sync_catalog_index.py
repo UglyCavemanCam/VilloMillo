@@ -1,4 +1,4 @@
-"""Refresh the copy of Awesome Clips Kitty's index that ships with the app.
+"""Refresh the copy of Awesome VilloMillo's index that ships with the app.
 
     python scripts/sync_catalog_index.py            # fetch it and write plugins/catalog_index.json
     python scripts/sync_catalog_index.py --check    # exit 1 if the shipped copy isn't the catalog's

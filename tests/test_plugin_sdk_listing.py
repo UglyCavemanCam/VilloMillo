@@ -1,5 +1,5 @@
 """`python -m clipskitty_sdk listing`: the file that lists a finished plugin
-in Awesome Clips Kitty, made from its folder and its git repository
+in Awesome VilloMillo, made from its folder and its git repository
 (clipskitty_sdk.listing).
 
 Each test makes a git repository whose remote is named
@@ -7,7 +7,7 @@ https://github.com/test-owner/word-moments, with a push address of a bare
 repository in the test's own folder, so pushing works and nothing reaches
 the network. Git runs with an empty global configuration. Like every
 tests/test_plugin_sdk_*.py file, this needs only pytest, PyYAML and git, and
-imports nothing from Clips Kitty's engine, so it also runs in CI's SDK
+imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 (Windows) job. tests/test_registry.py checks a listing made here with the
 registry's own rules.
 """
@@ -75,7 +75,7 @@ NEXT = [
     "  2. open a pull request with that one file.",
     "Its check builds the catalog with your file and says why if it is refused. Leave index.json and README.md",
     "alone: a job rebuilds both after the merge.",
-    "Once that is done, Clips Kitty versions with the Marketplace see it after Check for new pipelines.",
+    "Once that is done, VilloMillo versions with the Marketplace see it after Check for new pipelines.",
 ]
 
 
@@ -205,9 +205,9 @@ def test_listing_checks_its_arguments_and_where_it_writes(repo, capsys, monkeypa
         assert (code, _errors(err)) == (2, [f"error: {message}"]), args
     assert not (repo.root.parent / f"{NAME}.yaml").exists()
 
-    # Never inside a plugin's folder, which Clips Kitty copies on install. The
+    # Never inside a plugin's folder, which VilloMillo copies on install. The
     # example is outside it from its src folder too, so following it works.
-    inside = ("error: that is inside a plugin's folder, and Clips Kitty copies everything there on install. Write "
+    inside = ("error: that is inside a plugin's folder, and VilloMillo copies everything there on install. Write "
               "the listing somewhere else, for example: --out {}")
     monkeypatch.chdir(repo.folder / "src")
     example = os.path.join("..", "..", f"{NAME}.yaml")
@@ -311,7 +311,7 @@ def test_listing_checks_the_remote_and_the_publisher(repo, capsys):
     git(repo.root, "remote", "set-url", "origin", "https://github.com/someone-else/word-moments")
     assert refused() == (2, [("error: the id's publisher is test-owner, but the repository's owner is someone-else: "
                               "they must be the same")])
-    # ... except in the Clips Kitty project's own repositories, which list its examples.
+    # ... except in the VilloMillo project's own repositories, which list its examples.
     git(repo.root, "remote", "set-url", "origin", "https://github.com/UglyCavemanCam/VilloMillo")
     assert listed()["repository"] == "https://github.com/UglyCavemanCam/VilloMillo"
 

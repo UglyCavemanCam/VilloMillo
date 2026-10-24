@@ -1,7 +1,7 @@
-"""The SDK's templates (`python -m clipskitty_sdk new`) in Clips Kitty itself.
+"""The SDK's templates (`python -m clipskitty_sdk new`) in VilloMillo itself.
 
 A plugin made from a template must plan cleanly in the plugin manager on this
-app's version, run through the app's own runner, and run on Clips Kitty's own
+app's version, run through the app's own runner, and run on VilloMillo's own
 Python: main.py's script host with PYTHONPATH set to the repository's SDK
 alone, as the installed app starts it, so a template that imports a part of
 the SDK the app doesn't bundle fails here. The runs on the sample video need
@@ -44,7 +44,7 @@ ANSWERS = {
     "understander": {"m1": {"context": ['The commentary says "round one" here']},
                      "m3": {"context": ["The quark burst banner shows from 22.0 s"]}},
 }
-# What the editor suggests for the 5 sample clips, as Clips Kitty keeps it.
+# What the editor suggests for the 5 sample clips, as VilloMillo keeps it.
 EDITS = {"m3": {"edit": {"title_overlay": {"text": "Quark burst!", "seconds": 3}},
                 "reason": 'Adds a hook title where the commentary says "quark burst"'}}
 CONFIG = {"clips": {"min_score": 55, "min_duration": 10, "max_duration": 60, "max_clips_per_video": 0},

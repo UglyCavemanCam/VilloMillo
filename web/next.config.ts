@@ -1,4 +1,4 @@
-/** Clips Kitty Web — a static, client-only bundle.
+/** VilloMillo Web — a static, client-only bundle.
  *
  *  Deliberately its own Next app rather than a route inside `whop-app/`:
  *  that one is a Whop marketplace app (`withWhopAppConfig`, Whop SDK,

@@ -2,11 +2,11 @@
 # Names and ids are placeholders.
 manifest_version: 1
 id: example-dev/open-shorts
-name: Open Shorts for Clips Kitty
+name: Open Shorts for VilloMillo
 version: 1.0.0
 kind: pipeline
 capability: highlight_detection
-description: Lets Open Shorts pick the moments, then Clips Kitty titles, crops, captions and files them.
+description: Lets Open Shorts pick the moments, then VilloMillo titles, crops, captions and files them.
 author: {name: Example Developer, url: https://github.com/example-dev}
 repository: https://github.com/example-dev/clips-kitty-open-shorts
 license: MIT

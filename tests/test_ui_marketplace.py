@@ -100,7 +100,7 @@ def test_install_asks_for_what_the_plugin_is_and_does(tmp_path):
     got = _run(tmp_path, "return data.map((p) => m.confirmations(p))", plans)
     assert got[0] == []
     assert len(got[1]) == 1 and "has not checked it" in got[1][0]
-    assert got[2] == [("I understand nobody at Clips Kitty has read this pipeline’s code, "
+    assert got[2] == [("I understand nobody at VilloMillo has read this pipeline’s code, "
                        "and it can do anything I can do on this PC.")]
     assert len(got[3]) == 3 and "sends data off this PC" in got[3][1] and "account" in got[3][2]
 
@@ -156,7 +156,7 @@ def test_python_and_the_engines_problems_join_the_needs(tmp_path):
     details = permissions.describe(_manifest(run={"command": ["{python}", "main.py"]}))
     assert details["needs_python"] and not any("Python" in line for line in details["requirements"])
     missing = [{"need": "python", "text": "It needs Python 3.10 or newer, and none was found on this PC"},
-               {"need": "app", "text": "It needs Clips Kitty >=9.0, and this is 2.0.0"}]
+               {"need": "app", "text": "It needs VilloMillo >=9.0, and this is 2.0.0"}]
     got = _run(tmp_path, "return [null, [], data[1]].map((p) => m.needLines(undefined, null, data[0], p))",
                [details, missing])
     assert got[0] == [] and got[1] == []
@@ -201,7 +201,7 @@ def test_only_the_checks_the_index_build_runs_are_shown_and_a_failed_one_stays(t
     got = _run(tmp_path, "return m.checkLines(data)", built)
     assert len(got) == 4 and all(line["ok"] for line in got)
     # another index can send anything: an unknown claim is not a tick, a failure isn't dropped
-    other = {"Security audited by the Clips Kitty team": True, "manifest_valid": False, "commit_pinned": True}
+    other = {"Security audited by the VilloMillo team": True, "manifest_valid": False, "commit_pinned": True}
     got = _run(tmp_path, "return m.checkLines(data)", other)
     assert [line["ok"] for line in got] == [False, True]
     assert not any("audit" in line["text"].lower() for line in got)
@@ -213,7 +213,7 @@ def test_only_the_checks_the_index_build_runs_are_shown_and_a_failed_one_stays(t
 def test_only_pipelines_that_can_run_are_offered(tmp_path):
     base = {"kind": "pipeline", "enabled": True, "problem": None, "flag": None}
     plugins = [{**base, "id": "a/ok"}, {**base, "id": "a/off", "enabled": False},
-               {**base, "id": "a/broken", "problem": "it needs Clips Kitty >=9"},
+               {**base, "id": "a/broken", "problem": "it needs VilloMillo >=9"},
                {**base, "id": "a/blocked", "flag": {"severity": "blocked"}},
                {**base, "id": "a/delisted", "flag": {"severity": "delisted"}},
                {**base, "id": "a/caption", "kind": "caption-style"}]
@@ -279,12 +279,12 @@ def test_each_step_pill_says_where_it_is_chosen(tmp_path):
     assert [(b["label"], b["tone"]) for b in got] == [(w, "info") for w in words]
     titles = dict(zip(words, (b["title"] for b in got), strict=True))
     assert titles == {
-        "Finds moments": "It picks a video’s moments itself, in place of Clips Kitty’s own scoring. "
+        "Finds moments": "It picks a video’s moments itself, in place of VilloMillo’s own scoring. "
                          "Turn on Pipeline when you add a video to use it.",
-        "Understands moments": "It says what happens in each moment found by Clips Kitty or a pipeline, and "
-                               "Clips Kitty uses that when writing titles. Turn on Rate & understand when you "
+        "Understands moments": "It says what happens in each moment found by VilloMillo or a pipeline, and "
+                               "VilloMillo uses that when writing titles. Turn on Rate & understand when you "
                                "add a video.",
-        "Rates moments": "It scores each moment found by Clips Kitty or a pipeline. Turn on Rate & understand "
+        "Rates moments": "It scores each moment found by VilloMillo or a pipeline. Turn on Rate & understand "
                          "when you add a video.",
         "Suggests edits": "It suggests cuts, fades, a hook title or a layout for each clip. Turn on Suggest edits "
                           "when you add a video.",
@@ -296,13 +296,13 @@ def test_each_step_pill_says_where_it_is_chosen(tmp_path):
     rater_line = ("Its scores decide which clips are made and their order, and which are posted when a channel "
                   "posts only the best few.")
     notes_line = "What it says about a moment goes into the request that writes your titles."
-    limit = "Clips Kitty stops it after 10 minutes when it rates or understands a video’s moments."
+    limit = "VilloMillo stops it after 10 minutes when it rates or understands a video’s moments."
     assert lines == [[], [notes_line], [notes_line, limit], [rater_line, limit], [rater_line, notes_line, limit]]
     assert [d["time_limit"] for d in details] == [None, None, limit, limit, limit]
 
 
 def test_an_editor_shows_suggests_edits(tmp_path):
-    """A plugin that suggests edits for the clips Clips Kitty makes gets its
+    """A plugin that suggests edits for the clips VilloMillo makes gets its
     own pill, with its title, beside any other step it offers. It is never
     offered as the job's Pipeline."""
     editor = _manifest(inputs=["moments", "transcript"], outputs=["edits"], permissions=["transcript.read"])
@@ -321,10 +321,10 @@ def test_an_editor_shows_suggests_edits(tmp_path):
     # When a suggestion reaches a clip, in the words the Suggest edits switch
     # uses; then the time limit the app stops it at, in the edit run's words.
     # One that also rates or understands gets one time line for both.
-    promise = ("Clips Kitty doesn’t put a suggestion into a clip until you use it in the editor and apply your "
+    promise = ("VilloMillo doesn’t put a suggestion into a clip until you use it in the editor and apply your "
                "edits (Apply edits, or Apply edits & upload).")
     assert got[1] == [f"Its suggestions wait in the editor. {promise}",
-                      "Clips Kitty stops it after 10 minutes when it suggests edits for a video’s clips."]
+                      "VilloMillo stops it after 10 minutes when it suggests edits for a video’s clips."]
     assert details["time_limit"] == got[1][1]
     form = (LIB.parent / "components" / "queue" / "AddVideos.tsx").read_text(encoding="utf-8")
     switch = re.search(r"key: 'edit',\s*label: 'Suggest edits',\s*hint: '\(Marketplace\)',\s*title:\s*'([^']*)'", form)
@@ -333,7 +333,7 @@ def test_an_editor_shows_suggests_edits(tmp_path):
     assert _run(tmp_path, "return m.stepLines({steps: ['Rates moments']})") == [
         ("Its scores decide which clips are made and their order, and which are posted when a channel posts only "
          "the best few.")]
-    assert permissions.describe({**rater_editor, "run": {"timeout_minutes": 1}})["time_limit"] == ("Clips Kitty stops it after 1 minute when it rates or understands a video’s moments or "
+    assert permissions.describe({**rater_editor, "run": {"timeout_minutes": 1}})["time_limit"] == ("VilloMillo stops it after 1 minute when it rates or understands a video’s moments or "
                           "suggests edits for its clips.")
     assert permissions.describe(finder_editor)["time_limit"] == got[1][1]
     base = {"kind": "pipeline", "enabled": True, "problem": None, "flag": None}
@@ -464,8 +464,8 @@ def test_index_ages_sizes_and_slugs_read_as_words(tmp_path):
     assert _run(tmp_path, "return data.map((n) => m.formatBytes(n))", sizes) == [
         models.size_text(int(n)) for n in sizes]
     assert got[2] == ["Team wipe", "Big play"]
-    assert got[3] == ["The list that came with Clips Kitty", "Clips Kitty’s online list",
-                      "A list from example.com (not Clips Kitty’s)"]
+    assert got[3] == ["The list that came with VilloMillo", "VilloMillo’s online list",
+                      "A list from example.com (not VilloMillo’s)"]
 
 
 def test_clips_kittys_online_list_is_named_and_described_plainly(tmp_path):
@@ -491,19 +491,19 @@ def test_clips_kittys_online_list_is_named_and_described_plainly(tmp_path):
     assert got[0] == registry.ONLINE_URL
     assert got[1] == [True, True, False, False]
     assert got[2] == [
-        "This shows the list that came with Clips Kitty. Check for new pipelines to get the online list.",
-        "This shows the list that came with Clips Kitty. Check for new pipelines to get the online list.",
-        "This shows the list that came with Clips Kitty. The Clips Kitty desktop app gets the online list.",
-        "Clips Kitty’s online list, updated 3 hours ago.",
+        "This shows the list that came with VilloMillo. Check for new pipelines to get the online list.",
+        "This shows the list that came with VilloMillo. Check for new pipelines to get the online list.",
+        "This shows the list that came with VilloMillo. The VilloMillo desktop app gets the online list.",
+        "VilloMillo’s online list, updated 3 hours ago.",
         f"The check for new pipelines 20 minutes ago didn’t work. {offline} This shows its copy from 3 hours ago.",
         (f"The check for new pipelines 20 minutes ago didn’t work. {registry.WHY_NOT_FOUND} "
-         "This shows the list that came with Clips Kitty."),
-        "This shows the list that came with Clips Kitty, which is newer than its online copy.",
+         "This shows the list that came with VilloMillo."),
+        "This shows the list that came with VilloMillo, which is newer than its online copy.",
         (f"The check for new pipelines 20 minutes ago didn’t work. {offline} "
-         "This shows the list that came with Clips Kitty.")]
+         "This shows the list that came with VilloMillo.")]
 
 
-# ---- Awesome Clips Kitty: labels, numbers and credits ---------------------------------------
+# ---- Awesome VilloMillo: labels, numbers and credits ---------------------------------------
 
 
 def test_the_directory_kinds_and_relationships_match_the_catalog(tmp_path):
@@ -541,10 +541,10 @@ def test_each_number_is_its_own_line(tmp_path):
     got = _run(tmp_path, "return [m.metricLines(data), m.metricLines({installs: 1}), m.metricLines(undefined), "
                          "[0, 999, 1000, 1250, 1999999].map(m.shortCount)]", metrics)
     assert [line["text"] for line in got[0]] == [
-        "12,482 Clips Kitty installs", "★ 1.2k on GitHub", "3 discussions on GitHub",
+        "12,482 VilloMillo installs", "★ 1.2k on GitHub", "3 discussions on GitHub",
         "example-org/speech on Hugging Face: 52k downloads a month, 40 likes", "⚠ Archived by its authors"]
     assert got[0][-1]["tone"] == "warn"
-    assert [line["text"] for line in got[1]] == ["1 Clips Kitty install"] and got[2] == []
+    assert [line["text"] for line in got[1]] == ["1 VilloMillo install"] and got[2] == []
     assert got[3] == ["0", "999", "1k", "1.3k", "2M"]
 
 
@@ -591,13 +591,13 @@ def test_an_entry_card_says_it_opens_a_website_and_the_dialog_says_whose_list_it
     page = (UI / "pages" / "Marketplace.tsx").read_text(encoding="utf-8")
     card = re.search(r"function EntryCard\(.*?\n\}\n", page, re.S).group(0)
     assert "t(link.label)" in card and "link.host" in card
-    assert "t('Not installed by Clips Kitty · opens a website')" in card
+    assert "t('Not installed by VilloMillo · opens a website')" in card
     assert "t('Needs technical setup (command line or Python)')" in card
     assert "openPluginLink" not in card and "<OutLink" not in card  # its links go through the catalog's dialog
     main = (UI.parent.parent / "main" / "index.ts").read_text(encoding="utf-8")
     assert "ipcMain.handle('open-catalog-link'" in main
-    assert "This link is in Clips Kitty's list. It opens a website outside Clips Kitty." in main
-    assert "This link comes from the pipeline's developer, not from Clips Kitty." in main
+    assert "This link is in VilloMillo's list. It opens a website outside VilloMillo." in main
+    assert "This link comes from the pipeline's developer, not from VilloMillo." in main
     preload = (UI.parent.parent / "preload" / "index.ts").read_text(encoding="utf-8")
     assert "ipcRenderer.invoke('open-catalog-link', url, ours)" in preload
 
@@ -662,9 +662,9 @@ def test_where_a_listing_and_an_install_come_from_in_a_few_words(tmp_path):
                              "listed_in": "https://lists.example.com/index.json"},
                             {"kind": "git", "url": "https://github.com/example-dev/demo", "commit": COMMIT},
                             {"kind": "folder", "path": "C:/dev/demo"}, None]})
-    assert got[0] == ["In the list that came with Clips Kitty.", "In Clips Kitty’s online list (updated 3 hours ago).",
-                      "In Clips Kitty’s online list.", "In a list from lists.example.com (not Clips Kitty’s)."]
-    assert got[1] == ["From Clips Kitty’s list", "From a list on lists.example.com (not Clips Kitty’s)", "From a link",
+    assert got[0] == ["In the list that came with VilloMillo.", "In VilloMillo’s online list (updated 3 hours ago).",
+                      "In VilloMillo’s online list.", "In a list from lists.example.com (not VilloMillo’s)."]
+    assert got[1] == ["From VilloMillo’s list", "From a list on lists.example.com (not VilloMillo’s)", "From a link",
                       "From a folder on this PC", ""]
 
 
@@ -675,7 +675,7 @@ JARGON = re.compile(r"commit|repositor|manifest|\bforks?\b|registry|checksum|pic
                     re.I)
 SHOUTED = re.compile(r"\bPATH\b")  # the environment variable; "path" in a sentence is a plain word
 # "Plugin" is the developers' word; a creator reads "pipeline". The one exception is the name of a
-# real folder they may have to open, in quotes: Clips Kitty’s “plugins” folder.
+# real folder they may have to open, in quotes: VilloMillo’s “plugins” folder.
 PLUGIN_WORD = re.compile(r"(?<!“)\bplug-?ins?\b(?!”)", re.I)
 T_CALL = re.compile(r"\bt\(\s*(['\"`])((?:(?!\1)[^\\]|\\.)*)\1")
 
@@ -741,7 +741,7 @@ def test_the_words_a_creator_reads_are_plain(tmp_path):
 
 def test_creators_get_two_tabs_and_developers_a_section_of_their_own():
     """Browse and Installed are the tabs. Installing from a folder or a link,
-    which Clips Kitty hasn't checked, is For developers, opened from a quiet
+    which VilloMillo hasn't checked, is For developers, opened from a quiet
     link at the bottom of Browse, and nothing on a creator's screen sends
     them there."""
     page = (UI / "pages" / "Marketplace.tsx").read_text(encoding="utf-8")
@@ -752,7 +752,7 @@ def test_creators_get_two_tabs_and_developers_a_section_of_their_own():
     assert "MarketplaceTab = 'browse' | 'installed' | 'developers'" in (LIB / "plugins.ts").read_text(encoding="utf-8")
     developers = (UI / "pages" / "MarketplaceDevelopers.tsx").read_text(encoding="utf-8")
     assert "t('For developers')" in developers
-    assert "t('Clips Kitty hasn’t checked pipelines installed here. To find pipelines, use Browse.')" in developers
+    assert "t('VilloMillo hasn’t checked pipelines installed here. To find pipelines, use Browse.')" in developers
     for name in ("pages/Marketplace.tsx", "components/PipelineFields.tsx"):
         strings = [m.group(2) for m in T_CALL.finditer((UI / name).read_text(encoding="utf-8"))]
         assert [s for s in strings if re.search(r"folder or a (GitHub )?link|Add from", s)] == [], name
@@ -800,7 +800,7 @@ def test_the_engines_words_a_creator_reads_say_pipeline():
     import pkgutil
 
     from plugins import counter, models
-    assert PLUGIN_WORD.search("a public count for that plugin") and not PLUGIN_WORD.search("Clips Kitty’s “plugins” folder")
+    assert PLUGIN_WORD.search("a public count for that plugin") and not PLUGIN_WORD.search("VilloMillo’s “plugins” folder")
     keys = set()
     for path in (UI / "locales").glob("*.json"):
         keys |= set(json.loads(path.read_text(encoding="utf-8")))
@@ -819,28 +819,28 @@ def test_the_engines_words_a_creator_reads_say_pipeline():
 def test_the_marketplace_says_only_what_is_true_and_says_it_in_every_language():
     """The counting switch, a pipeline installed switched off, its models,
     the Community label and where a listing's code is: each line claims only
-    what Clips Kitty knows, and is translated in every locale file."""
+    what VilloMillo knows, and is translated in every locale file."""
     from plugins import counter
     page = (UI / "pages" / "Marketplace.tsx").read_text(encoding="utf-8")
     strings = {m.group(2) for m in T_CALL.finditer(page)}
     # plugins.count_installs is in this Windows account's own settings.yaml (core/paths.py), not the PC's
-    switched_off = "Switched off in your Clips Kitty settings file."
-    # a gated model is one Clips Kitty can't download (plugins/models.py GATED)
+    switched_off = "Switched off in your VilloMillo settings file."
+    # a gated model is one VilloMillo can't download (plugins/models.py GATED)
     models_line = ("Some of its AI models may not be on this PC yet. Installed shows which ones, and whether "
-                   "Clips Kitty can download them.")
+                   "VilloMillo can download them.")
     # an update or reinstall keeps the creator's Off switch, and the Generate bar offers only pipelines that are on
     installed_off = "It is switched off, so the Generate bar doesn’t offer it. Switch it on under Installed."
-    # another list's checks are what that list reports; Clips Kitty only knows nobody there read the code
+    # another list's checks are what that list reports; VilloMillo only knows nobody there read the code
     community = next(s for s in strings if s.startswith("Community: "))
-    assert "Its page says which automatic checks its list reports. Nobody at Clips Kitty has read its code." \
+    assert "Its page says which automatic checks its list reports. Nobody at VilloMillo has read its code." \
         in community
     # the address of the code is what the list build checked; the author's name is the developer's own words
     code, name = "Its code is on GitHub at", "Its developer gives their name as"
-    # Clips Kitty can only know nobody *at Clips Kitty* read the code, and an Official pipeline's code is its own
-    automatic = "These checks are automatic. Nobody at Clips Kitty has read this pipeline’s code."
+    # VilloMillo can only know nobody *at VilloMillo* read the code, and an Official pipeline's code is its own
+    automatic = "These checks are automatic. Nobody at VilloMillo has read this pipeline’s code."
     # the footer sends people to the listing page for its checks, so a list that reports none says so there
-    no_checks = ("This list doesn’t report any automatic checks that Clips Kitty knows about. "
-                 "Nobody at Clips Kitty has read this pipeline’s code.")
+    no_checks = ("This list doesn’t report any automatic checks that VilloMillo knows about. "
+                 "Nobody at VilloMillo has read this pipeline’s code.")
     lines = {switched_off, models_line, installed_off, community, code, name, automatic, no_checks}
     assert lines <= strings
     assert not [s for s in strings if re.search(r"everyone on this PC|how to get them|checked its listing", s)]
@@ -861,7 +861,7 @@ def test_the_marketplace_says_only_what_is_true_and_says_it_in_every_language():
     header = re.search(r"<h3[^>]*>\{listing\.name\}</h3>(.*?)</p>", listing_page, re.S).group(1)
     assert "author" not in re.sub(r"\{/\*.*?\*/\}", "", header, flags=re.S) and "{listing.id}" in header
     assert page.count("listing.author") == listing_page.count("listing.author") == 2  # the guard and the one line
-    # the "nobody at Clips Kitty has read it" lines are left out for an Official listing (code that is ours)
+    # the "nobody at VilloMillo has read it" lines are left out for an Official listing (code that is ours)
     assert "const official = listing.details?.tier === 'listed-official'" in listing_page
     assert re.search(r"\{!official && \(\s*<li>\{t\('" + re.escape(automatic) + r"'\)\}</li>", listing_page)
     assert re.search(r"\{checks\.length === 0 && !official && \(\s*<p[^>]*>\s*\{t\(\s*'" + re.escape(no_checks),

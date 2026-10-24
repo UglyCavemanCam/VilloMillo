@@ -1,4 +1,4 @@
-"""What Clips Kitty sends to Ollama.
+"""What VilloMillo sends to Ollama.
 
 The models setup installs have been run against real streams with one exact
 request. Reasoning models (DeepSeek-R1, gpt-oss, Nemotron 3) need extra fields,

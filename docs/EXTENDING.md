@@ -1,7 +1,7 @@
-# Extending Clips Kitty
+# Extending VilloMillo
 
 > **Writing a plugin?** To find, understand or rate the moments in a video for a game,
-> a sport or a kind of show, you don't need to change Clips Kitty: write a plugin with
+> a sport or a kind of show, you don't need to change VilloMillo: write a plugin with
 > the SDK. Start with [Your first game pipeline](developers/first-game-pipeline.md) and
 > the [developer docs](developers/README.md). This page is for changing the app itself.
 
@@ -106,7 +106,7 @@ enforces this.
 
 ## Bring your own model
 
-Clips Kitty already runs YOLOv8 (ultralytics), OpenCV and TalkNet-ASD locally.
+VilloMillo already runs YOLOv8 (ultralytics), OpenCV and TalkNet-ASD locally.
 If you care about a kind of footage it does not understand, you do not need
 permission or a redesign. You need one array.
 

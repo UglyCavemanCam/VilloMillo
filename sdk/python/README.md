@@ -1,8 +1,8 @@
-# Clips Kitty SDK (`clipskitty_sdk`)
+# VilloMillo SDK (`clipskitty_sdk`)
 
-A small Python package for writing [Clips Kitty](https://github.com/UglyCavemanCam/VilloMillo) plugins: read the job, report progress, find moments or rate and describe the moments found, and check a plugin's manifest. It uses the Python standard library only (reading a YAML manifest also needs PyYAML).
+A small Python package for writing [VilloMillo](https://github.com/UglyCavemanCam/VilloMillo) plugins: read the job, report progress, find moments or rate and describe the moments found, and check a plugin's manifest. It uses the Python standard library only (reading a YAML manifest also needs PyYAML).
 
-**Licence: MIT** ([LICENSE](https://github.com/UglyCavemanCam/VilloMillo/blob/main/sdk/python/LICENSE)). Clips Kitty itself is AGPL-3.0-or-later; the SDK is MIT so that a plugin, app or tool built on it can use any licence its author chooses, open or closed. Using the SDK does not put your code under the AGPL.
+**Licence: MIT** ([LICENSE](https://github.com/UglyCavemanCam/VilloMillo/blob/main/sdk/python/LICENSE)). VilloMillo itself is AGPL-3.0-or-later; the SDK is MIT so that a plugin, app or tool built on it can use any licence its author chooses, open or closed. Using the SDK does not put your code under the AGPL.
 
 ## Install
 
@@ -18,13 +18,13 @@ bash (macOS, Linux):
 python -m pip install "clipskitty-sdk[yaml] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
 ```
 
-Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
+VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
 
 How to run it from source: [From source](https://github.com/UglyCavemanCam/VilloMillo#from-source). Which release runs plugins: [Versioning](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/versioning.md#which-release-runs-plugins).
 
 The `yaml` extra adds PyYAML, for reading manifests. Write `[yaml,test]` in place of `[yaml]` to add pytest too, for your plugin's own tests.
 
-Inside the app you never install it. Clips Kitty bundles the SDK from the commit it is built from and puts that copy on your plugin's path, where it wins over one installed with pip.
+Inside the app you never install it. VilloMillo bundles the SDK from the commit it is built from and puts that copy on your plugin's path, where it wins over one installed with pip.
 
 ## Try it
 
@@ -49,11 +49,11 @@ python -m clipskitty_sdk run path/to/your-plugin --video video.mp4
 ## How a plugin fits in
 
 ```text
-Clips Kitty SDK
+VilloMillo SDK
 
 Input                      a link or a video file
   ↓
-Video                      Clips Kitty downloads it and writes down what is said
+Video                      VilloMillo downloads it and writes down what is said
   ↓
 Your plugin                every step is optional
   ├── find                 picks the moments                  built
@@ -61,26 +61,26 @@ Your plugin                every step is optional
   ├── rate                 scores each moment                 built
   └── edit                 suggests edits for the creator     built
   ↓
-Clips Kitty                does every step no plugin does, then cuts, frames and captions the clips
+VilloMillo                does every step no plugin does, then cuts, frames and captions the clips
   ↓
 Creator / Social Platform  posts when the creator clicks Publish, or on a schedule or automatic posting the creator switched on
 ```
 
-- One plugin can find moments for a video; it replaces Clips Kitty's own finding.
+- One plugin can find moments for a video; it replaces VilloMillo's own finding.
 - Up to 3 plugins can understand and up to 3 can rate, after any finder.
 - A plugin's role comes from `inputs` and `outputs` in its manifest ([Steps](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/steps.md)).
 - Up to 3 plugins can suggest edits for the clips that will be made: `job.wants("edit")` answers `True` in that run.
 - Edit plugins suggest edits that wait for the creator in the editor ([Steps](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/steps.md#suggest-edits-the-edit-step)).
-- Posting isn't a plugin step: Clips Kitty posts clips itself, and through [WoopSocial](https://woopsocial.com/?via=clipskitty) it can post to many sites at once on the creator's own account ([Publish to every platform at once](https://github.com/UglyCavemanCam/VilloMillo#publish-to-every-platform-at-once)). `job.wants("export")` answers `False`, and `kind: publisher` is refused: plugins don't post.
-  <sub>Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you.</sub>
+- Posting isn't a plugin step: VilloMillo posts clips itself, and through [WoopSocial](https://woopsocial.com/) it can post to many sites at once on the creator's own account ([Publish to every platform at once](https://github.com/UglyCavemanCam/VilloMillo#publish-to-every-platform-at-once)). `job.wants("export")` answers `False`, and `kind: publisher` is refused: plugins don't post.
+  <sub>Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you.</sub>
 
 ## Get listed
 
-When your plugin works, list it in Awesome Clips Kitty, the catalog Clips Kitty's Marketplace reads: [Getting listed](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/marketplace-publishing.md#getting-listed).
+When your plugin works, list it in Awesome VilloMillo, the catalog VilloMillo's Marketplace reads: [Getting listed](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/marketplace-publishing.md#getting-listed).
 
 ## Documentation
 
-- [Your first game pipeline](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/first-game-pipeline.md): from `new` to a plugin in Clips Kitty, step by step
+- [Your first game pipeline](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/first-game-pipeline.md): from `new` to a plugin in VilloMillo, step by step
 - [Signals cookbook](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/signals-cookbook.md): recipes for frames, colours, loudness, scene cuts, words and the local model
 - [SDK reference](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/sdk.md)
 - [Developer docs](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/README.md)

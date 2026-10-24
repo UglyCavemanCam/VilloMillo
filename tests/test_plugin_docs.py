@@ -59,11 +59,11 @@ OUR_EXAMPLES = sorted(p for p in [*DEV_DOCS.glob("*.md"), *SDK.rglob("*"), *(ROO
                       and "__pycache__" not in p.parts)
 
 PICTURE = """\
-Clips Kitty SDK
+VilloMillo SDK
 
 Input                      a link or a video file
   ↓
-Video                      Clips Kitty downloads it and writes down what is said
+Video                      VilloMillo downloads it and writes down what is said
   ↓
 Your plugin                every step is optional
   ├── find                 picks the moments                  built
@@ -71,7 +71,7 @@ Your plugin                every step is optional
   ├── rate                 scores each moment                 built
   └── edit                 suggests edits for the creator     built
   ↓
-Clips Kitty                does every step no plugin does, then cuts, frames and captions the clips
+VilloMillo                does every step no plugin does, then cuts, frames and captions the clips
   ↓
 Creator / Social Platform  posts when the creator clicks Publish, or on a schedule or automatic posting the creator switched on
 """
@@ -459,20 +459,20 @@ def test_no_page_says_a_plugin_cannot_post_or_is_sandboxed():
     local = flat((DEV_DOCS / "local-apis.md").read_text(encoding="utf-8"))
     assert ("It keeps out web pages and scripts that don't know it, not programs running as you: any program "
             "running as the user can read the file that holds it, plugins included. A plugin must not install "
-            "or remove plugins; Clips Kitty can't stop one that tries.") in local
+            "or remove plugins; VilloMillo can't stop one that tries.") in local
 
 
 # A sentence that names export or publisher plugins, and one that says they are still to come.
 POSTING_PLUGINS = re.compile(r"\bexport\b|kind: publisher|`publisher`|\bpublishers\b|\bpublisher plugins?\b", re.I)
 STILL_TO_COME = re.compile(r"(?<!not )\b(?:coming later|later|planned|still to come|coming soon)\b", re.I)
 # What the pages say instead (D34).
-POSTING = ("Posting isn't a plugin step: Clips Kitty posts clips itself, and through WoopSocial it can post to "
+POSTING = ("Posting isn't a plugin step: VilloMillo posts clips itself, and through WoopSocial it can post to "
            "many sites at once on the creator's own account")
 # Every page that names WoopSocial links it with the referral address and has the note beside it. The
 # README has both once, in its publishing section; on the other pages the name itself is the link.
-REFERRAL = "https://woopsocial.com/?via=clipskitty"
+REFERRAL = "https://woopsocial.com/"
 POSTING_LINKED = POSTING.replace("WoopSocial", f"[WoopSocial]({REFERRAL})")
-AFFILIATE = "Affiliate link - Clips Kitty may earn a commission if you sign up through it, at no extra cost to you."
+AFFILIATE = "Affiliate link - VilloMillo may earn a commission if you sign up through it, at no extra cost to you."
 NO_PUBLISHER = "`kind: publisher` is refused: plugins don't post."
 
 
@@ -585,8 +585,8 @@ def test_the_promise_sentence_is_the_apps():
         text = flat((DEV_DOCS / name).read_text(encoding="utf-8"))
         assert promise in text, name
         assert not re.search(r"\bplugins? (?:can't|cannot|can not) (?:change|edit) (?:a |the )?clips?\b", text, re.I), name
-    # What it is, and what it isn't: a description of what Clips Kitty does, not a wall.
-    assert "That describes what Clips Kitty does with your answer; it is not a sandbox." in flat(
+    # What it is, and what it isn't: a description of what VilloMillo does, not a wall.
+    assert "That describes what VilloMillo does with your answer; it is not a sandbox." in flat(
         STEPS.read_text(encoding="utf-8"))
 
 
@@ -626,7 +626,7 @@ def test_powershell_blocks_use_py():
 
 def test_the_tutorial_and_cookbook_say_which_release_runs_plugins():
     sentence = release_sentence()
-    assert sentence.startswith("Clips Kitty 2.1.0 is the first release that runs plugins")
+    assert sentence.startswith("VilloMillo 2.1.0 is the first release that runs plugins")
     said = sentence.removesuffix(".")  # a page may end it with a link in brackets
     for page in (TUTORIAL, COOKBOOK, DEV_DOCS / "getting-started.md", DEV_DOCS / "sdk.md", DEV_DOCS / "README.md",
                  SDK / "README.md", ROOT / "CONTRIBUTING.md"):
@@ -678,7 +678,7 @@ def test_the_picture_caption_is_exact():
     pictures = []
     for page in PAGES:
         for block in blocks(page):
-            if block.lines and block.lines[0] == "Clips Kitty SDK":
+            if block.lines and block.lines[0] == "VilloMillo SDK":
                 assert block.text == PICTURE, f"{page.relative_to(ROOT)} line {block.line}"
                 pictures.append(page)
     assert {SDK / "README.md", DEV_DOCS / "README.md"} <= set(pictures)

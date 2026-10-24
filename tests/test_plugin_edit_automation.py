@@ -166,7 +166,7 @@ def test_a_failed_rater_beside_it_still_holds_the_post_and_names_only_the_rater(
     item = env.item("newnewnew01")
     assert item["publish_state"] == "ask"
     assert item["publish_error"] == (
-        "Clips Kitty made these clips without Quarkbloom Rater, so they weren't posted automatically. "
+        "VilloMillo made these clips without Quarkbloom Rater, so they weren't posted automatically. "
         "Check them and publish, or turn off Rate & understand in this channel's settings.")
 
 
@@ -220,5 +220,5 @@ def test_then_publish_after_a_failed_rater_names_only_the_rater(monkeypatch, tmp
     db = _OutcomeDB([{"id": 1}, {"id": 2}], {"clips": 2, "steps": steps})
     worker._run_follow_up(db, {"video_id": "abc"}, {"then": PUBLISH, "rate": [RATER], "edit": [TRIMMER]})
     assert called == {}
-    assert capsys.readouterr().out == ("  Publish skipped: Clips Kitty made these clips without Quarkbloom Rater, "
+    assert capsys.readouterr().out == ("  Publish skipped: VilloMillo made these clips without Quarkbloom Rater, "
                                        "so they wait for you to publish them.\n")

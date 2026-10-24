@@ -36,4 +36,4 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
-Sitemap: https://colingpt9.github.io/clips-studio/sitemap.xml
+Sitemap: https://uglycavemancam.github.io/VilloMillo/sitemap.xml

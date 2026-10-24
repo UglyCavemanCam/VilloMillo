@@ -28,7 +28,7 @@ and none of its code runs.
 
   The whole match is always clipped. To ask for particular moments in your own
   words, or to give the [match events](#match-events-the-goals-as-you-have-them),
-  use Ask Clips Kitty, the box at the bottom.
+  use Ask VilloMillo, the box at the bottom.
 - **A match streamed 9:16**: tick **Vertical Live** and choose **⚽ Soccer /
   Football** or **🏀 Basketball** as its content, after Talking / IRL and Gaming / reaction.
 - **A queued video**: the same, in its **Settings**.
@@ -214,7 +214,7 @@ On club or phone footage:
 
 ## Match events: the goals as you have them
 
-Tell **Ask Clips Kitty**, the box at the bottom, the match's goals and other
+Tell **Ask VilloMillo**, the box at the bottom, the match's goals and other
 moments as you already have them, with the link, one per line: from your club
 app (Veo tags its goals), the match report, or the video's own description.
 Each one becomes a clip, and it's certain: "from your match events".
@@ -255,7 +255,7 @@ It belongs to one video: the next video in the Generate list starts without it.
 ## Story reels: the match in one video
 
 **Also make** in the Sports row joins the match's clips into longer videos (Ask
-Clips Kitty can ask for them too):
+VilloMillo can ask for them too):
 
 - **Match recap**: every named moment (the goals, cards, saves and chances the
   evidence confirmed), in match order, titled with the score read ("HOM 2-1
@@ -350,7 +350,7 @@ stoppage, with no basket in them. (Soccer's Best moments keeps its talk.) A plai
 free throw is none of a game's best moments either.
 
 **Teams or players** works as for soccer ("Lakers", "Curry"): clips where the
-commentary names them get extra points, and nobody is guessed. Ask Clips Kitty
+commentary names them get extra points, and nobody is guessed. Ask VilloMillo
 is told the choices, so "find Curry's best threes" can be asked as Threes with
 Curry, and a reactions choice also takes words ("fans reacting to the biggest
 dunks").

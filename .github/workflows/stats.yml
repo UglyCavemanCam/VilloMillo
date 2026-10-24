@@ -17,11 +17,9 @@
 
 name: Stats
 
+# Manual only for now: the daily schedule committed this repository's traffic
+# numbers back to it, which isn't wanted until VilloMillo has releases.
 on:
-  schedule:
-    # 05:00 UTC. After midnight in every timezone the traffic API buckets by,
-    # so a day is complete before it is recorded.
-    - cron: '0 5 * * *'
   workflow_dispatch:
 
 # Deliberately NOT on push. A stats job firing on every commit is noise, and

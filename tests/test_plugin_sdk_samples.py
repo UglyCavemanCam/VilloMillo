@@ -2,7 +2,7 @@
 `run --sample`) and the frame grab (`frame`), from clipskitty_sdk.samples.
 
 Like every tests/test_plugin_sdk_*.py file, this needs only pytest and
-PyYAML and imports nothing from Clips Kitty's engine, so it also runs in CI's
+PyYAML and imports nothing from VilloMillo's engine, so it also runs in CI's
 SDK (Windows) job. Tests that make or read video skip without FFmpeg; the
 ones that check what happens without it clear PATH, so they run everywhere.
 """
@@ -276,7 +276,7 @@ def test_run_sample_needs_no_video(tmp_path, capsys):
     assert json.loads((job / "transcript.json").read_text(encoding="utf-8"))["segments"] == \
         samples.sample_transcript()["segments"]
     assert {"sample.mp4", "sample.transcript.json"} <= {p.name for p in job.iterdir()}
-    assert "1 moment(s), as Clips Kitty would take them:\n      22.0s      27.0s  score  90  quark_burst\n" in out
+    assert "1 moment(s), as VilloMillo would take them:\n      22.0s      27.0s  score  90  quark_burst\n" in out
     assert _files(finder) == before  # nothing was written into the plugin's folder
 
     # A run that rates gets the 5 sample moments of a 40-second video.
@@ -299,7 +299,7 @@ def test_sample_refuses_a_plugin_folder(tmp_path, capsys, monkeypatch):
     before = _files(plugin)
 
     def refusal(example):
-        return ("error: that is inside a plugin's folder, and Clips Kitty copies everything there on install. "
+        return ("error: that is inside a plugin's folder, and VilloMillo copies everything there on install. "
                 f"Write the sample somewhere else, for example: {python_command()} sample {example}\n")
 
     # From outside the plugin's folder, the place beside it, in full.
@@ -346,7 +346,7 @@ def test_sample_without_ffmpeg_says_how_to_get_it(tmp_path, capsys, monkeypatch)
     pytest.importorskip("yaml")
     _no_ffmpeg(tmp_path, monkeypatch)
     refusal = ("error: --sample needs FFmpeg to make the test video. Install FFmpeg, or pass --ffmpeg and "
-               "--ffprobe. An installed Clips Kitty has both, in resources\\backend\\_internal\\ffmpeg inside the "
+               "--ffprobe. An installed VilloMillo has both, in resources\\backend\\_internal\\ffmpeg inside the "
                "folder it was installed to.\n")
     # One that reads the video, and one that only runs FFmpeg.
     ffmpeg_only = _plugin(tmp_path, "quarkbloom-cuts", inputs="transcript", outputs="ranges",
@@ -376,7 +376,7 @@ def test_sample_without_ffmpeg_runs_a_plugin_that_never_reads_the_video(tmp_path
     assert _run(tmp_path, _words_finder(tmp_path), "--sample") == 0
     out, err = capsys.readouterr()
     assert err.splitlines()[0] == note and "no --transcript given" not in err
-    assert out.endswith("1 moment(s), as Clips Kitty would take them:\n"
+    assert out.endswith("1 moment(s), as VilloMillo would take them:\n"
                         "      17.0s      40.0s  score  80  words_said\n"  # fitted to the 40-second length
                         '       why: the commentary says "quark burst"\n')
     assert "video" not in _seen(tmp_path) and not (tmp_path / "job" / "sample.mp4").exists()
@@ -384,7 +384,7 @@ def test_sample_without_ffmpeg_runs_a_plugin_that_never_reads_the_video(tmp_path
     assert _run(tmp_path, _words_rater(tmp_path), "--sample", job="rate") == 0
     out, err = capsys.readouterr()
     assert err.splitlines()[0] == note
-    assert "Rate: 2 of 5 moment(s) answered, as Clips Kitty would use them:\n" in out
+    assert "Rate: 2 of 5 moment(s) answered, as VilloMillo would use them:\n" in out
     assert 'm3   20.0s-26.7s  score 60 -> 75  the commentary says "quark burst"\n' in out
     assert 'm5   33.3s-40.0s  score 60 -> 10  the commentary says "waiting"\n' in out
 
@@ -475,7 +475,7 @@ def test_frame_refuses_a_plugin_folder(tmp_path, capsys, monkeypatch):
     before = _files(plugin)
 
     def refusal(example):
-        return ("error: that is inside a plugin's folder, and Clips Kitty copies everything there on install. "
+        return ("error: that is inside a plugin's folder, and VilloMillo copies everything there on install. "
                 f"Write the frame somewhere else, for example: --out {example}\n")
 
     for out in (plugin / "frame.png", plugin / "src" / "shots" / "frame.png"):

@@ -41,7 +41,7 @@ const VERIFIER_STORAGE = "clipskitty-openrouter-verifier";
 function attribution(): Record<string, string> {
 	return {
 		"HTTP-Referer": typeof window === "undefined" ? "" : window.location.origin,
-		"X-OpenRouter-Title": "Clips Kitty Web",
+		"X-OpenRouter-Title": "VilloMillo Web",
 		"X-OpenRouter-Categories": "video-gen",
 	};
 }

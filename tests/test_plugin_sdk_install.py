@@ -1,11 +1,11 @@
 """`python -m clipskitty_sdk install`: a plugin you're writing, put into the
-Clips Kitty running on this PC (clipskitty_sdk.installer).
+VilloMillo running on this PC (clipskitty_sdk.installer).
 
-The tests talk to a stand-in for Clips Kitty's API on 127.0.0.1 that answers
+The tests talk to a stand-in for VilloMillo's API on 127.0.0.1 that answers
 the way plugins/api.py does: /health, /plugins, and the plan and install
 routes, which need the session header and otherwise answer 403 naming the
 session file. Like every tests/test_plugin_sdk_*.py file, this needs only
-pytest and PyYAML and imports nothing from Clips Kitty's engine, so it also
+pytest and PyYAML and imports nothing from VilloMillo's engine, so it also
 runs in CI's SDK (Windows) job. tests/test_plugin_api.py checks the same
 "nothing new" rule against the app's real plans.
 """
@@ -41,7 +41,7 @@ pytest.importorskip("yaml")  # install checks clipskitty.yaml first
 SECRET = "test-session-secret-0123456789"
 PLUGIN_ID = "your-github-name/quarkbloom-bursts"
 APP_TEXT = ("Install Quarkbloom Bursts 0.1.0?\nyour-github-name/quarkbloom-bursts · the folder ... · MIT\n"
-            "Not listed · Clips Kitty has not checked this\n\nIt will\n  Reads its transcript (Clips Kitty hands "
+            "Not listed · VilloMillo has not checked this\n\nIt will\n  Reads its transcript (VilloMillo hands "
             "this over)")
 NOTHING_NEW = {"from": "0.1.0", "direction": "reinstall", "added_permissions": [], "removed_permissions": [],
                "added_hosts": [], "removed_hosts": [], "added_data_warnings": [], "execution_changed": False,
@@ -49,12 +49,12 @@ NOTHING_NEW = {"from": "0.1.0", "direction": "reinstall", "added_permissions": [
 
 
 def _plan(**changes) -> dict:
-    """A plan as Clips Kitty's POST /plugins/plan answers it (plugins/manager.py plan)."""
+    """A plan as VilloMillo's POST /plugins/plan answers it (plugins/manager.py plan)."""
     plan = {"plan_id": "0123456789abcdef", "ok": True, "errors": [], "warnings": [], "technical": [],
             "plugin": {"id": PLUGIN_ID, "name": "Quarkbloom Bursts", "version": "0.1.0"},
             "source": {"kind": "folder"}, "source_text": "the folder ...",
             "details": {"permissions": [{"id": "transcript.read", "label": "Reads its transcript",
-                                         "enforcement": "Clips Kitty hands this over"}],
+                                         "enforcement": "VilloMillo hands this over"}],
                         "data_warnings": []},
             "update": None, "text": APP_TEXT}
     plan.update(changes)
@@ -62,7 +62,7 @@ def _plan(**changes) -> dict:
 
 
 class FakeApp:
-    """Clips Kitty's API on 127.0.0.1, as far as install uses it. It records
+    """VilloMillo's API on 127.0.0.1, as far as install uses it. It records
     every request, with its headers. `secrets` are the session secrets it
     accepts; `session_path` is the file its 403 answer names; `plans` are
     the answers to POST /plugins/plan, in turn (the last one repeats);
@@ -138,7 +138,7 @@ def _session_file(folder: Path, secret: str = SECRET) -> Path:
 
 @pytest.fixture(autouse=True)
 def _no_installed_app(tmp_path, monkeypatch):
-    """No installed Clips Kitty on the test's PC: LOCALAPPDATA is an empty folder."""
+    """No installed VilloMillo on the test's PC: LOCALAPPDATA is an empty folder."""
     empty = tmp_path / "localappdata"
     empty.mkdir()
     monkeypatch.setenv("LOCALAPPDATA", str(empty))
@@ -161,8 +161,8 @@ def apps():
 
 @pytest.fixture
 def data_dir(tmp_path):
-    """Clips Kitty's data folder, with the session file it writes for scripts."""
-    folder = tmp_path / "Clips Studio" / "data"
+    """VilloMillo's data folder, with the session file it writes for scripts."""
+    folder = tmp_path / "VilloMillo" / "data"
     _session_file(folder)
     return folder
 
@@ -202,17 +202,17 @@ def _closed_port() -> str:
         return f"http://127.0.0.1:{s.getsockname()[1]}"
 
 
-# ---- this PC, a running Clips Kitty, one that can install plugins ---------------------
+# ---- this PC, a running VilloMillo, one that can install plugins ---------------------
 
 
 def test_install_refuses_an_api_off_this_pc(capsys, monkeypatch, plugin):
     for api in ("http://192.168.1.20:8765", "https://example.com", "http://127.0.0.2:8765", "http://my-pc:8765"):
         code, out, err, _ = _install(capsys, monkeypatch, plugin, "--api", api)
         assert code == 2, api
-        assert err.splitlines()[-1] == ("error: install only talks to Clips Kitty on this PC (127.0.0.1, localhost "
+        assert err.splitlines()[-1] == ("error: install only talks to VilloMillo on this PC (127.0.0.1, localhost "
                                         "or ::1)"), api
     # The one function that sends anything refuses too, before any request.
-    with pytest.raises(installer.InstallRefused, match="only talks to Clips Kitty on this PC"):
+    with pytest.raises(installer.InstallRefused, match="only talks to VilloMillo on this PC"):
         installer._call("http://example.com", "GET", "/health")
     for api in ("http://127.0.0.1:8765", "http://localhost:8765", "http://[::1]:8765"):
         assert _loopback.is_this_pc(api)
@@ -222,7 +222,7 @@ def test_install_says_when_clips_kitty_isnt_running(capsys, monkeypatch, plugin,
     api = _closed_port()
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", api, "--data-dir", data_dir)
     assert code == 2 and asked == []
-    assert err.splitlines()[-1] == (f"error: Clips Kitty isn't running: nothing answered at {api}. Open the app, "
+    assert err.splitlines()[-1] == (f"error: VilloMillo isn't running: nothing answered at {api}. Open the app, "
                                     "then run this again.")
 
 
@@ -237,8 +237,8 @@ def test_install_says_when_the_app_is_older_than_plugin_support(capsys, monkeypa
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", old.url, "--data-dir", data_dir)
     assert code == 2 and asked == []
     assert err.splitlines()[-1] == (
-        "error: This Clips Kitty (2.0.0) can't install plugins: it came out before plugin support. Use a newer "
-        "Clips Kitty, or run it from source: https://github.com/UglyCavemanCam/VilloMillo#from-source")
+        "error: This VilloMillo (2.0.0) can't install plugins: it came out before plugin support. Use a newer "
+        "VilloMillo, or run it from source: https://github.com/UglyCavemanCam/VilloMillo#from-source")
     assert old.calls() == [("GET", "/health"), ("GET", "/plugins")]
 
 
@@ -268,7 +268,7 @@ def _read_request(conn) -> None:
 @pytest.fixture
 def raw_servers():
     """Servers on 127.0.0.1 that answer every request with the same bytes,
-    then hang up: what something that isn't Clips Kitty, or a Clips Kitty
+    then hang up: what something that isn't VilloMillo, or a VilloMillo
     closing part way through an answer, sends."""
     made = []
 
@@ -322,13 +322,13 @@ def test_install_says_what_is_wrong_with_an_answer_that_isnt_clips_kittys(capsys
     for path in ("/health", "/plugins/plan"):
         with pytest.raises(installer.InstallRefused) as refused:
             installer._call(cut, "POST", path, {})
-        assert str(refused.value) == f"Clips Kitty's answer to POST {path} stopped part way: is it still running?"
+        assert str(refused.value) == f"VilloMillo's answer to POST {path} stopped part way: is it still running?"
     out, err = io.StringIO(), io.StringIO()
     session = data_dir / "plugins" / "session.secret"
     watching = installer._reinstall(cut, plugin, session, out=out, err=err)
     assert watching is True
     assert err.getvalue().splitlines() == [
-        "error: Clips Kitty's answer to POST /plugins/plan stopped part way: is it still running?",
+        "error: VilloMillo's answer to POST /plugins/plan stopped part way: is it still running?",
         "Still watching: save again to try again."]
 
 
@@ -341,7 +341,7 @@ def test_install_follows_no_redirect_to_another_address(capsys, monkeypatch, app
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", app.url, "--data-dir", data_dir,
                                      answers=["y"])
     assert (code, asked) == (1, [])
-    assert err.splitlines()[-1] == "error: Clips Kitty answered 302 to the plan"
+    assert err.splitlines()[-1] == "error: VilloMillo answered 302 to the plan"
     assert app.calls() == [("GET", "/health"), ("GET", "/plugins"), ("POST", "/plugins/plan")]
     assert elsewhere.requests == []
     # One to the same address (a framework's added or removed slash) is followed.
@@ -362,7 +362,7 @@ def test_install_checks_the_plugin_before_talking_to_clips_kitty(capsys, monkeyp
     code, out, err, _ = _install(capsys, monkeypatch, plugin, "--api", app.url, "--data-dir", data_dir)
     assert code == 2
     assert "error: version: YAML read this as the number 0.1; write a version like 0.1.0" in err
-    assert err.splitlines()[-1] == "error: fix the manifest first; Clips Kitty would refuse to install this plugin"
+    assert err.splitlines()[-1] == "error: fix the manifest first; VilloMillo would refuse to install this plugin"
     assert app.requests == []
     code, _, err, _ = _install(capsys, monkeypatch, plugin.parent, "--api", app.url)
     assert code == 2 and "is this the plugin's folder?" in err and app.requests == []
@@ -375,7 +375,7 @@ def test_the_secret_comes_from_data_dir_then_the_403_then_localappdata(capsys, m
                                                                         _no_installed_app):
     given = _session_file(tmp_path / "given", "secret-from-data-dir-0123")
     named = _session_file(tmp_path / "named by the app", "secret-the-app-names-0123")
-    installed = _session_file(_no_installed_app / "Clips Studio" / "data", "secret-of-the-installed-app")
+    installed = _session_file(_no_installed_app / "VilloMillo" / "data", "secret-of-the-installed-app")
     assert installer.installed_app_file() == installed
 
     def used(app, *args):
@@ -403,14 +403,14 @@ def test_the_secret_comes_from_data_dir_then_the_403_then_localappdata(capsys, m
     app = apps(secrets=everything, session_path=tmp_path / "gone" / "plugins" / "session.secret")
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", app.url)
     assert code == 2 and asked == []
-    assert err.splitlines()[-1] == ("error: couldn't find Clips Kitty's session file. Pass --data-dir with Clips "
+    assert err.splitlines()[-1] == ("error: couldn't find VilloMillo's session file. Pass --data-dir with Clips "
                                     "Kitty's data folder (the one holding plugins/session.secret)")
     assert ("POST", "/plugins/plan") not in app.calls()
 
 
 def test_a_403_path_that_isnt_a_session_file_is_ignored(capsys, monkeypatch, apps, plugin, tmp_path,
                                                          _no_installed_app):
-    real = _session_file(tmp_path / "Clips Studio" / "data")
+    real = _session_file(tmp_path / "VilloMillo" / "data")
     other = tmp_path / "data" / "plugins" / "other.secret"
     other.parent.mkdir(parents=True)
     other.write_text(SECRET, encoding="utf-8")
@@ -427,7 +427,7 @@ def test_a_403_path_that_isnt_a_session_file_is_ignored(capsys, monkeypatch, app
     assert installer.path_from_403(None) is None and installer.path_from_403({"detail": str(real)}) is None
 
     # Through the command: a 403 naming the wrong file falls through to the installed app's.
-    installed = _session_file(_no_installed_app / "Clips Studio" / "data", "secret-of-the-installed-app")
+    installed = _session_file(_no_installed_app / "VilloMillo" / "data", "secret-of-the-installed-app")
     app = apps(secrets=(SECRET, "secret-of-the-installed-app"), session_path=other)
     code, _, err, _ = _install(capsys, monkeypatch, plugin, "--api", app.url, answers=["y"])
     assert code == 0, err
@@ -449,12 +449,12 @@ def test_the_secret_is_never_printed_or_on_a_command_line(capsys, monkeypatch, a
     stale = apps(secrets=("a-different-secret-0123",), session_path=data_dir / "plugins" / "session.secret")
     code, out2, err2, _ = _install(capsys, monkeypatch, plugin, "--api", stale.url, "--data-dir", data_dir)
     assert code == 2
-    assert err2.splitlines()[-1].startswith("error: Clips Kitty didn't accept the session file ")
-    # A file holding something that isn't a secret Clips Kitty writes is never sent or shown.
+    assert err2.splitlines()[-1].startswith("error: VilloMillo didn't accept the session file ")
+    # A file holding something that isn't a secret VilloMillo writes is never sent or shown.
     odd = tmp_path / "odd"
     _session_file(odd, "not a secret\nwith two lines")
     code, out3, err3, _ = _install(capsys, monkeypatch, plugin, "--api", app.url, "--data-dir", odd)
-    assert code == 2 and "couldn't find Clips Kitty's session file" in err3
+    assert code == 2 and "couldn't find VilloMillo's session file" in err3
 
     shown = out + err + out2 + err2 + out3 + err3
     assert SECRET not in shown and "with two lines" not in shown
@@ -504,7 +504,7 @@ def test_install_shows_the_apps_text_and_asks(capsys, monkeypatch, apps, app, pl
                                      answers=["y"])
     assert code == 0, err
     assert asked == ["Install it? [y/N] "]
-    assert out == (APP_TEXT + "\nInstalled your-github-name/quarkbloom-bursts 0.1.0. Choose it in Clips Kitty: "
+    assert out == (APP_TEXT + "\nInstalled your-github-name/quarkbloom-bursts 0.1.0. Choose it in VilloMillo: "
                    "Pipeline (to find moments) or Rate & understand.\n")
     assert app.requests[2]["body"] == {"source": {"kind": "folder", "path": str(plugin.resolve())}}
     assert app.requests[3]["body"] == {"plan_id": "0123456789abcdef"}
@@ -524,14 +524,14 @@ def test_install_shows_the_apps_text_and_asks(capsys, monkeypatch, apps, app, pl
     assert out.splitlines()[:4] == ["Install Quarkbloom Bursts 0.1.0?", "It will", "  Reads its transcript",
                                     "! No longer listed: test"]
 
-    # A plan Clips Kitty refuses is shown, and nothing is asked.
-    refused = apps(plans=[_plan(ok=False, plan_id=None, errors=["Can't install: it needs Clips Kitty >=9.0"],
-                                text="Install Quarkbloom Bursts 0.1.0?\n✗ Can't install: it needs Clips Kitty "
+    # A plan VilloMillo refuses is shown, and nothing is asked.
+    refused = apps(plans=[_plan(ok=False, plan_id=None, errors=["Can't install: it needs VilloMillo >=9.0"],
+                                text="Install Quarkbloom Bursts 0.1.0?\n✗ Can't install: it needs VilloMillo "
                                      ">=9.0")])
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", refused.url, "--data-dir", data_dir)
     assert code == 1 and asked == []
-    assert "✗ Can't install: it needs Clips Kitty >=9.0" in out
-    assert err.splitlines()[-1] == "error: Clips Kitty won't install it, for the reasons above"
+    assert "✗ Can't install: it needs VilloMillo >=9.0" in out
+    assert err.splitlines()[-1] == "error: VilloMillo won't install it, for the reasons above"
     assert ("POST", "/plugins/install") not in refused.calls()
 
 
@@ -571,14 +571,14 @@ def test_yes_refuses_when_something_is_new(capsys, monkeypatch, apps, plugin, da
                       ("added_steps", "steps")):
         update = {k: v for k, v in NOTHING_NEW.items() if k != key}
         assert installer.what_is_new(_plan(update=update)) == [
-            f"{what} (this Clips Kitty's plan doesn't say, so it counts as new)"]
+            f"{what} (this VilloMillo's plan doesn't say, so it counts as new)"]
         assert yes(update)[::2] == (1, False), key
     assert installer.what_is_new(_plan(update={**NOTHING_NEW, "execution_changed": None})) == [
-        "where it runs (this Clips Kitty's plan doesn't say, so it counts as new)"]
+        "where it runs (this VilloMillo's plan doesn't say, so it counts as new)"]
     code, err, installed = yes(None)
     assert (code, installed) == (1, False)
-    assert "this adds: a plugin that isn't installed in this Clips Kitty yet." in err
-    assert installer.what_is_new({"ok": True}) == ["a plugin that isn't installed in this Clips Kitty yet"]
+    assert "this adds: a plugin that isn't installed in this VilloMillo yet." in err
+    assert installer.what_is_new({"ok": True}) == ["a plugin that isn't installed in this VilloMillo yet"]
 
 
 def test_watch_reinstalls_on_save_and_stops_when_something_is_new(apps, plugin, data_dir):
@@ -609,7 +609,7 @@ def test_watch_reinstalls_on_save_and_stops_when_something_is_new(apps, plugin, 
                          sleep=sleep)
     assert code == 1, err.getvalue()
     lines = out.getvalue().splitlines()
-    assert lines[-3] == "Installed your-github-name/quarkbloom-bursts 0.1.0. Choose it in Clips Kitty: Pipeline " \
+    assert lines[-3] == "Installed your-github-name/quarkbloom-bursts 0.1.0. Choose it in VilloMillo: Pipeline " \
                         "(to find moments) or Rate & understand."
     assert lines[-2] == f"Watching {plugin.resolve()} for saves; Ctrl+C stops."
     assert re.fullmatch(r"Reinstalled your-github-name/quarkbloom-bursts 0\.1\.0 at \d\d:\d\d:\d\d", lines[-1])
@@ -652,7 +652,7 @@ def test_watch_keeps_watching_after_a_save_clips_kitty_refuses(apps, plugin, dat
                          sleep=sleep) == 0
     assert err.getvalue().splitlines() == [
         "error: run.command: src/missing.py is not in the plugin's folder",
-        "error: Clips Kitty won't install it, for the reasons above",
+        "error: VilloMillo won't install it, for the reasons above",
         "Still watching: save again to try again."]
     assert [line.split(" at ")[0] for line in out.getvalue().splitlines()[-2:]] == [
         "Reinstalled your-github-name/quarkbloom-bursts 0.1.0", "Stopped watching."]
@@ -667,7 +667,7 @@ def test_install_refuses_dev_folders_and_symlinks(capsys, monkeypatch, app, plug
         (plugin / name / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
         code, out, err, _ = _install(capsys, monkeypatch, plugin, "--api", app.url, "--data-dir", data_dir)
         assert code == 2
-        assert err.splitlines()[-1] == (f"error: {name} is inside the plugin's folder, and Clips Kitty would copy "
+        assert err.splitlines()[-1] == (f"error: {name} is inside the plugin's folder, and VilloMillo would copy "
                                         "it into every install. Move it next to the folder, then run this again.")
         (plugin / name / "pyvenv.cfg").unlink()
         (plugin / name).rmdir()
@@ -684,9 +684,9 @@ def test_install_refuses_dev_folders_and_symlinks(capsys, monkeypatch, app, plug
                                  answers=["y"])
     assert code == 0, err
     assert [line for line in err.splitlines() if line.startswith("warning:")] == [
-        ("warning: .clipskitty is inside the plugin's folder; Clips Kitty copies everything there except .git and "
+        ("warning: .clipskitty is inside the plugin's folder; VilloMillo copies everything there except .git and "
          "__pycache__."),
-        ("warning: media/my-match.mp4 is inside the plugin's folder; Clips Kitty copies everything there except "
+        ("warning: media/my-match.mp4 is inside the plugin's folder; VilloMillo copies everything there except "
          ".git and __pycache__.")]
     big.unlink()
     app.requests.clear()
@@ -700,13 +700,13 @@ def test_install_refuses_dev_folders_and_symlinks(capsys, monkeypatch, app, plug
         pytest.skip("this PC can't make symbolic links")
     code, out, err, _ = _install(capsys, monkeypatch, plugin, "--api", app.url, "--data-dir", data_dir)
     assert code == 2
-    assert err.splitlines()[-1] == ("error: src/data.json is a symbolic link, and Clips Kitty refuses to install a "
+    assert err.splitlines()[-1] == ("error: src/data.json is a symbolic link, and VilloMillo refuses to install a "
                                     "folder that has one")
     (plugin / "src" / "data.json").unlink()
     linked = tmp_path / "linked-plugin"
     os.symlink(plugin, linked, target_is_directory=True)
     code, out, err, _ = _install(capsys, monkeypatch, linked, "--api", app.url, "--data-dir", data_dir)
-    assert code == 2 and err.splitlines()[-1] == (f"error: {linked} is a symbolic link, and Clips Kitty refuses to "
+    assert code == 2 and err.splitlines()[-1] == (f"error: {linked} is a symbolic link, and VilloMillo refuses to "
                                                   "install a folder that has one")
     # A virtual environment holds symbolic links: it is named for what it is.
     (plugin / ".venv" / "bin").mkdir(parents=True)

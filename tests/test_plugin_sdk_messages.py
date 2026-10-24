@@ -4,7 +4,7 @@ plugin's code, and the lines a plugin's own run() writes.
 Plain words where a creator reads them (a plugin's error line); precise words
 for developers (log lines, and the command line). Like every
 tests/test_plugin_sdk_*.py file, this needs only pytest and PyYAML and
-imports nothing from Clips Kitty's engine, so it also runs in CI's SDK
+imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 (Windows) job. Nothing here needs FFmpeg.
 """
 
@@ -208,7 +208,7 @@ def test_errors_carry_their_yaml_line(tmp_path, capsys):
                                                                                "{plugin_api: 1}")
     (folder / "clipskitty.yaml").write_text(text, encoding="utf-8")
     assert _cli("validate", folder) == 1
-    assert "error: requires.clips_kitty: is required: the Clips Kitty versions it works with, e.g. \">=2.0\" " \
+    assert "error: requires.clips_kitty: is required: the VilloMillo versions it works with, e.g. \">=2.0\" " \
            "(clipskitty.yaml line 9)\n" in capsys.readouterr().out
     # Only the command line adds marks: the shared report, which the app uses, has none.
     _, report = manifest.validate_folder(folder)
@@ -244,7 +244,7 @@ def test_a_numeric_version_says_how_to_write_it():
 def test_python_requirements_warning_names_clips_kittys_python():
     report = manifest.validate({"run": {"command": ["{python}", "src/main.py"], "python_requirements": "req.txt"}})
     assert ("run.python_requirements: per-plugin Python packages are planned; until then a pipeline runs on "
-            "Clips Kitty's own Python with only the standard library and clipskitty_sdk, so these packages "
+            "VilloMillo's own Python with only the standard library and clipskitty_sdk, so these packages "
             "won't be there") in report.warnings
 
 
@@ -266,12 +266,12 @@ def test_lint_warns_about_imports_clips_kitty_doesnt_promise(tmp_path):
         "def main():\n"
         "    import yaml\n")})
     assert problems == [
-        ("src/main.py line 2: imports numpy. Pipelines run on Clips Kitty's own Python, which promises only the "
+        ("src/main.py line 2: imports numpy. Pipelines run on VilloMillo's own Python, which promises only the "
          "standard library and clipskitty_sdk, so this may fail on creators' PCs"),
-        ("src/main.py line 3: imports core, which is Clips Kitty's own code: pipelines can't use it, and Clips "
+        ("src/main.py line 3: imports core, which is VilloMillo's own code: pipelines can't use it, and Clips "
          "Kitty stops a run that tries"),
-        "src/main.py line 4: imports tkinter, which Clips Kitty's Python leaves out",
-        ("src/main.py line 12: imports yaml. Pipelines run on Clips Kitty's own Python, which promises only the "
+        "src/main.py line 4: imports tkinter, which VilloMillo's Python leaves out",
+        ("src/main.py line 12: imports yaml. Pipelines run on VilloMillo's own Python, which promises only the "
          "standard library and clipskitty_sdk, so this may fail on creators' PCs"),
     ]
 
@@ -289,7 +289,7 @@ def test_lint_allows_the_plugins_own_modules(tmp_path):
     })
     assert problems == [
         ("src/main.py line 4: imports helpers, but helpers.py is at the plugin's root, which isn't on the path "
-         "when Clips Kitty runs src/main.py: move it into src/"),
+         "when VilloMillo runs src/main.py: move it into src/"),
     ]
     # A plugin whose script is at its root has the root on its path.
     assert _lint(tmp_path / "flat", {"main.py": "import helpers\n", "helpers.py": ""},
@@ -298,7 +298,7 @@ def test_lint_allows_the_plugins_own_modules(tmp_path):
 
 def test_lint_warns_about_modules_windows_lacks(tmp_path):
     assert _lint(tmp_path, {"src/main.py": "import fcntl\nimport os.path\n"}) == [
-        "src/main.py line 1: imports fcntl, which isn't on Windows, where Clips Kitty runs"]
+        "src/main.py line 1: imports fcntl, which isn't on Windows, where VilloMillo runs"]
     assert lint.NOT_ON_WINDOWS <= lint.NOT_BUNDLED and not lint.NOT_ON_WINDOWS & lint.APP_LEAVES_OUT
     assert lint.NOT_ON_WINDOWS <= sys.stdlib_module_names
 
@@ -318,7 +318,7 @@ def test_lint_skips_tests(tmp_path):
 def test_lint_warns_about_syntax_newer_than_clips_kittys_python(tmp_path):
     assert host.APP_PYTHON == (3, 11)
     assert _lint(tmp_path, {"src/main.py": "import json\n\ntype Seconds = float\n"}) == [
-        ("src/main.py line 3: this needs a newer Python than Clips Kitty's (3.11): Type statement is only "
+        ("src/main.py line 3: this needs a newer Python than VilloMillo's (3.11): Type statement is only "
          "supported in Python 3.12 and greater")]
 
 
@@ -343,7 +343,7 @@ def test_lint_warns_about_text_files_without_encoding(tmp_path):
         "zipfile.ZipFile('a.zip').open('notes.txt')\n"
         "open('a.txt', mode)\n"
         "open('a.txt', **options)\n")})
-    said = ("without encoding=. Clips Kitty's Python doesn't use UTF-8 mode, so on Windows text files would "
+    said = ("without encoding=. VilloMillo's Python doesn't use UTF-8 mode, so on Windows text files would "
             'use the PC\'s own code page: pass encoding="utf-8"')
     assert problems == [f"src/main.py line {line}: {call} {said}" for line, call in (
         (3, "open()"), (4, "open()"), (8, "read_text()"), (10, "write_text()"), (12, "open()"), (13, "open()"),
@@ -474,14 +474,14 @@ def test_steps_edit_runs_and_shows_each_clip_as_clips_kitty_keeps_it(tmp_path, c
     assert job["limits"]["crops"] == ["track", "center", "letterbox"] and "min_score" not in job["limits"]
     assert [(m["id"], m["start"], m["end"]) for m in job["moments"]][:2] == [("m1", 20.0, 40.0), ("m2", 40.0, 60.0)]
     out = capsys.readouterr().out
-    assert "Suggest edits: 5 of 5 clip(s) given a suggestion, as Clips Kitty would keep them:\n" in out
+    assert "Suggest edits: 5 of 5 clip(s) given a suggestion, as VilloMillo would keep them:\n" in out
     assert ("m1   20.0s-40.0s  20.0 s -> 18.0 s  cut 21.0-23.0, fade out 0.5 s, layout center\n"
             "     Starts on the action\n") in out
     # What the SDK prints itself is ASCII, so any console can show it (a Windows
     # console on code page 932 can't print a middle dot).
     assert out.isascii()
     assert "changed: m1's fade_out 0.45 s to 0.5 s, the nearest the editor offers\n" in out
-    # The editor's own log says the same before Clips Kitty reads the answer.
+    # The editor's own log says the same before VilloMillo reads the answer.
     assert "m1: fade_out 0.45 s will be 0.5 s, the nearest the editor offers" in out
 
 
@@ -600,11 +600,11 @@ def test_run_uses_clips_kittys_time_limit(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(host, "run_plugin", stopped)
     for plugin, args, seconds, line in (
             (capped, ["--video", video], 5 * 60,
-             "failed: the plugin ran past its 5 minute limit, as Clips Kitty would stop it\n"),
+             "failed: the plugin ran past its 5 minute limit, as VilloMillo would stop it\n"),
             (finder, ["--video", video], 60 * 60,
-             "failed: the plugin ran past its 60 minute limit, as Clips Kitty would stop it\n"),
+             "failed: the plugin ran past its 60 minute limit, as VilloMillo would stop it\n"),
             (rater, ["--duration", "60"], 10 * 60,
-             "failed: the plugin ran past its 10 minute limit, as Clips Kitty would stop it\n"),
+             "failed: the plugin ran past its 10 minute limit, as VilloMillo would stop it\n"),
             (finder, ["--video", video, "--timeout", "90"], 90,
              "failed: the plugin ran past the 90 second limit --timeout set\n")):
         asked.clear()
@@ -714,7 +714,7 @@ def test_running_main_py_directly_explains_and_exits_2(tmp_path, monkeypatch):
                           text=True, encoding="utf-8", timeout=60)
     assert done.returncode == 2 and done.stdout == ""
     assert done.stderr == no_job_folder_text() == (
-        "This is a Clips Kitty plugin: Clips Kitty starts it with a job folder.\n"
+        "This is a VilloMillo plugin: VilloMillo starts it with a job folder.\n"
         f"To try it, run: {python_command()} run <the plugin's folder> --sample\n"
         "(no job folder: pass it as the first argument or set CLIPSKITTY_JOB)\n")
     # read_job's own message is unchanged.
@@ -790,7 +790,7 @@ def test_programming_errors_get_a_plain_line_and_a_log_line(tmp_path, capsys, mo
         "def worded(job):\n"
         "    raise ValueError('the kill feed could not be read')\n", encoding="utf-8")
     folder = _job(tmp_path)
-    monkeypatch.chdir(plugin)  # where Clips Kitty starts a plugin
+    monkeypatch.chdir(plugin)  # where VilloMillo starts a plugin
     code = _load(plugin / "src" / "main.py")
     for main, logged in ((code.lookup, "KeyError: 'frame' (src/main.py line 2)"),
                          (code.types, 'TypeError: can only concatenate str (not "int") to str (src/main.py line 4)'),

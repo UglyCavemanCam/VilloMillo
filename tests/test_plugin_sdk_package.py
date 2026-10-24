@@ -2,7 +2,7 @@
 README's links, what the SDK imports, and the wheel.
 
 Like every tests/test_plugin_sdk_*.py file, this needs only pytest and PyYAML
-and imports nothing from Clips Kitty's engine, so it also runs in CI's SDK
+and imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 (Windows) job. test_sdk_test_files_import_nothing_from_the_engine keeps it so.
 """
 
@@ -27,14 +27,14 @@ from clipskitty_sdk import PLUGIN_API_VERSION, __version__  # noqa: E402
 from clipskitty_sdk.__main__ import main, version_line  # noqa: E402
 
 REPO = "https://github.com/UglyCavemanCam/VilloMillo"
-# The one sentence that says which Clips Kitty runs plugins. It lives under
+# The one sentence that says which VilloMillo runs plugins. It lives under
 # "Which release runs plugins" in versioning.md; other pages repeat it word
 # for word.
-RELEASE_SENTENCE = "Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0."
+RELEASE_SENTENCE = "VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0."
 # The newest release in CHANGELOG.md when that sentence was written.
 NEWEST_RELEASE_WHEN_WRITTEN = "2.1.0"
-CHANGELOG_TOP = ("No version is on PyPI yet. Clips Kitty bundles the SDK from the commit it is built from, "
-                 "so a plugin always runs with the SDK of the Clips Kitty it runs in.")
+CHANGELOG_TOP = ("No version is on PyPI yet. VilloMillo bundles the SDK from the commit it is built from, "
+                 "so a plugin always runs with the SDK of the VilloMillo it runs in.")
 # The SDK imports only the standard library, apart from these lazy imports,
 # each inside a function of the one module named.
 LAZY_IMPORTS = {"manifest.py": {"yaml"}, "testing.py": {"pytest"}}
@@ -247,7 +247,7 @@ def test_versioning_says_which_release_runs_plugins():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     newest = re.search(r"^## (\d+\.\d+\.\d+)\b", changelog, re.M).group(1)
     assert newest == NEWEST_RELEASE_WHEN_WRITTEN, (
-        "A Clips Kitty release was added to CHANGELOG.md: update 'Which release runs plugins' in "
+        "A VilloMillo release was added to CHANGELOG.md: update 'Which release runs plugins' in "
         "docs/developers/versioning.md and the pages that repeat it"
     )
 

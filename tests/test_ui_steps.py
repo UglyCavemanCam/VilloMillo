@@ -95,7 +95,7 @@ def test_step_plugins_are_offered_only_for_steps_they_can_do(tmp_path):
         _plugin("example-dev/off-rater", ["moments"], ["ratings"], enabled=False),
         _plugin("example-dev/blocked-rater", ["moments"], ["ratings"], flag={"severity": "blocked"}),
         _plugin("example-dev/delisted-rater", ["moments"], ["ratings"], flag={"severity": "delisted"}),
-        _plugin("example-dev/broken-notes", ["moments"], ["context"], problem="it needs Clips Kitty >=9"),
+        _plugin("example-dev/broken-notes", ["moments"], ["context"], problem="it needs VilloMillo >=9"),
         _plugin("example-dev/caption-rater", ["moments"], ["ratings"], kind="caption-style"),
         _plugin("example-dev/old-plugin", None, None),
     ]
@@ -128,7 +128,7 @@ def test_edit_plugins_are_offered_only_where_the_engine_would_ask_them(tmp_path)
         _plugin("example-dev/edits-only", no_moments["inputs"], no_moments["outputs"]),
         _plugin("example-dev/off-trimmer", ["moments"], ["edits"], enabled=False),
         _plugin("example-dev/blocked-trimmer", ["moments"], ["edits"], flag={"severity": "blocked"}),
-        _plugin("example-dev/broken-trimmer", ["moments"], ["edits"], problem="it needs Clips Kitty >=9"),
+        _plugin("example-dev/broken-trimmer", ["moments"], ["edits"], problem="it needs VilloMillo >=9"),
         _plugin("example-dev/caption-trimmer", ["moments"], ["edits"], kind="caption-style"),
     ]
     got = _run(tmp_path, "return [m.usableFor(data, 'edit'), m.editPlugins(data), m.stepPlugins(data)]"
@@ -171,7 +171,7 @@ def test_the_marketplace_never_says_every_pipeline_finds_moments():
     page = (UI / "pages" / "Marketplace.tsx").read_text(encoding="utf-8")
     assert "each one finds a video’s moments" not in page
     assert ("'Pipelines made by other developers: some find a video’s moments their own way, and others rate the "
-            "moments found or say what happens in them. Clips Kitty cuts, frames and captions the clips as usual.")\
+            "moments found or say what happens in them. VilloMillo cuts, frames and captions the clips as usual.")\
         in page
     assert "{(done.outputs ?? ['ranges']).includes('ranges')" in page
     assert "t('Ready. Add a video in the Generate bar, tick Rate & understand and choose')" in page
@@ -293,9 +293,9 @@ def test_edit_posting_lines_say_suggestions_wait_and_clips_wait_for_every_plugin
     does; one that asks says to check them; each says the clips wait for
     every plugin's answer. Through t(), like the steps' posting lines."""
     kept = {"edit": [{"id": "fixture-dev/trimmer"}]}
-    auto = ("This channel posts clips as Clips Kitty made them, without waiting for you. Suggested edits wait in "
-            "the editor, and Clips Kitty doesn’t put one into a clip until you use it and apply your edits. Using "
-            "one later changes the clip in Clips Kitty. Posts that already went out stay as they were, and a later "
+    auto = ("This channel posts clips as VilloMillo made them, without waiting for you. Suggested edits wait in "
+            "the editor, and VilloMillo doesn’t put one into a clip until you use it and apply your edits. Using "
+            "one later changes the clip in VilloMillo. Posts that already went out stay as they were, and a later "
             "re-send of that clip sends the edited one.")
     ask = "Suggested edits wait for you in the editor. Check them before you publish."
     wait = ("Clips are made after every plugin has answered. Each one can add up to its time limit (shown in the "
@@ -402,7 +402,7 @@ def test_the_video_page_says_what_each_plugin_did_in_plain_words(tmp_path):
         _run_entry(),
         _run_entry(ok=False, error="It isn't installed any more."),
         _run_entry(ok=False, error="It said: the arena feed was empty."),
-        _run_entry(name="", ok=False, error="It took longer than its 10 minute limit, so Clips Kitty stopped it."),
+        _run_entry(name="", ok=False, error="It took longer than its 10 minute limit, so VilloMillo stopped it."),
     ]
     got = _run(tmp_path, "return data.map((r) => m.stepRunText(r, 55))", runs)
     assert got == [
@@ -413,10 +413,10 @@ def test_the_video_page_says_what_each_plugin_did_in_plain_words(tmp_path):
          "were set aside."),
         "Quarkbloom Rater looked at the moments and changed nothing.",
         "Quarkbloom Rater looked at the moments and changed nothing.",
-        "Clips Kitty made these clips without Quarkbloom Rater. It isn't installed any more.",
-        "Clips Kitty made these clips without Quarkbloom Rater. It said: the arena feed was empty.",
-        ("Clips Kitty made these clips without example-dev/quarkbloom-rater. It took longer than its 10 minute "
-         "limit, so Clips Kitty stopped it."),
+        "VilloMillo made these clips without Quarkbloom Rater. It isn't installed any more.",
+        "VilloMillo made these clips without Quarkbloom Rater. It said: the arena feed was empty.",
+        ("VilloMillo made these clips without example-dev/quarkbloom-rater. It took longer than its 10 minute "
+         "limit, so VilloMillo stopped it."),
     ]
     assert not any(".." in line or "bug" in line.lower() for line in got)
     # the plugins named when a rater set every moment aside: each once, as core/outcome.py names them
@@ -442,7 +442,7 @@ def test_the_video_page_says_what_each_edit_plugin_suggested(tmp_path):
         {**trimmer, "ok": False, "suggested": 0, "error": "It isn't installed any more."},
         {**trimmer, "ok": False, "suggested": 0, "error": "It said: the arena feed was empty."},
         {**trimmer, "ok": False, "suggested": 0},
-        {**trimmer, "name": "", "ok": False, "suggested": 0, "error": "Clips Kitty couldn't use its answer."},
+        {**trimmer, "name": "", "ok": False, "suggested": 0, "error": "VilloMillo couldn't use its answer."},
         # A rater beside it reads as before.
         _run_entry(rated=12),
     ]
@@ -453,7 +453,7 @@ def test_the_video_page_says_what_each_edit_plugin_suggested(tmp_path):
         "No edit suggestions from Quarkbloom Trimmer. It isn't installed any more.",
         "No edit suggestions from Quarkbloom Trimmer. It said: the arena feed was empty.",
         "No edit suggestions from Quarkbloom Trimmer.",
-        "No edit suggestions from example-dev/quarkbloom-trimmer. Clips Kitty couldn't use its answer.",
+        "No edit suggestions from example-dev/quarkbloom-trimmer. VilloMillo couldn't use its answer.",
         "Quarkbloom Rater rated 12 of 12 moments.",
     ]
     assert not any(".." in line or "moments and changed nothing" in line for line in got[:6])
@@ -469,20 +469,20 @@ def test_the_rate_and_understand_switch_reads_as_designed():
     are unchanged."""
     form = (UI / "components" / "queue" / "AddVideos.tsx").read_text(encoding="utf-8")
     assert "label: 'Rate & understand',\n    hint: '(Marketplace)'," in form
-    assert ("'Plugins you installed from the Marketplace look at the moments once they’re found, by Clips Kitty, "
+    assert ("'Plugins you installed from the Marketplace look at the moments once they’re found, by VilloMillo, "
             "Sports, Gaming scoring or a pipeline. One that understands says what happens in each moment, so the "
             "titles, descriptions and hashtags can say it. One that rates gives each moment its own score, which "
-            "decides which clips are made and their order. Clips Kitty does any step you leave to it. Not with "
+            "decides which clips are made and their order. VilloMillo does any step you leave to it. Not with "
             "Longform.'") in form
     assert "if (key === 'steps') return Boolean(o.rate?.length || o.understand?.length)" in form
     assert "{t('Fix the pipeline setting marked in red first.')}" in form
     fields = (UI / "components" / "queue" / "StepFields.tsx").read_text(encoding="utf-8")
     for words in ("Moments found by", "Understand them with", "and with", "Rate them with", "then with",
-                  "Clips Kitty (from what’s said)", "Clips Kitty’s own scores", "Choose a plugin", "Add another",
+                  "VilloMillo (from what’s said)", "VilloMillo’s own scores", "Choose a plugin", "Add another",
                   "Up to 3 plugins for each step",
                   ("They rate in this order: each one sees the score the one before it gave. The last one’s score "
                    "is the one that counts."),
-                  "Clips Kitty can use what each of them says (up to 8 notes for each moment).",
+                  "VilloMillo can use what each of them says (up to 8 notes for each moment).",
                   ("Rating decides which clips are made and their order, and which are posted when only the best "
                    "few are."),
                   "This plugin isn’t installed and turned on any more. Choose another, or remove it."):

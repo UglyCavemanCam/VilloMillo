@@ -325,7 +325,7 @@ def test_then_publish_is_skipped_when_a_step_failed(monkeypatch, tmp_path, capsy
     payload = {"then": _PUBLISH, "rate": [{"id": "example-dev/quarkbloom-rater"}]}
     worker._run_follow_up(_OutcomeDB([{"id": 1}, {"id": 2}], _FAILED_STEP), {"video_id": "abc"}, payload)
     assert called == {}
-    assert capsys.readouterr().out == ("  Publish skipped: Clips Kitty made these clips without Quarkbloom Rater, "
+    assert capsys.readouterr().out == ("  Publish skipped: VilloMillo made these clips without Quarkbloom Rater, "
                                        "so they wait for you to publish them.\n")
     # When every chosen step ran, it publishes as asked.
     ran = {"clips": 2, "steps": [{**_FAILED_STEP["steps"][0], "ok": True, "rated": 2}]}

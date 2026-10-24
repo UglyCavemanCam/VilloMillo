@@ -1,4 +1,4 @@
-# expect: outputs[1]: edits are suggested for the clips Clips Kitty makes from moments: add moments to inputs
+# expect: outputs[1]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs
 manifest_version: 1
 id: example-dev/quarkbloom-trimmer
 name: Quarkbloom Trimmer

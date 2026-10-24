@@ -1,4 +1,4 @@
-"""Run a pipeline's Python script on the Python inside Clips Kitty.
+"""Run a pipeline's Python script on the Python inside VilloMillo.
 
 The installed app has no python.exe: its engine is Python frozen by
 PyInstaller into api.exe. A pipeline's manifest says `run: ["{python}",
@@ -17,8 +17,8 @@ PYTHONUNBUFFERED and the rest of the PYTHON* variables:
 
 - sys.path: the script's folder, then each PYTHONPATH entry (the SDK and the
   pipeline's own folders), ahead of everything bundled with the app;
-- output is line-buffered UTF-8, so progress lines reach Clips Kitty at once;
-- Clips Kitty's own packages (core, plugins, video...) can't be imported from
+- output is line-buffered UTF-8, so progress lines reach VilloMillo at once;
+- VilloMillo's own packages (core, plugins, video...) can't be imported from
   the bundle: they are not part of the plugin API, they change with every
   release, and keeping them out keeps a pipeline a separate program (D13).
   A pipeline's own folder of the same name still wins;
@@ -46,7 +46,7 @@ import types
 MARKER = "CLIPSKITTY_SCRIPT_HOST"
 SCRIPT = "CLIPSKITTY_SCRIPT"  # the running script, for multiprocessing children
 
-# Clips Kitty's own top-level packages and modules. tests/test_script_host.py
+# VilloMillo's own top-level packages and modules. tests/test_script_host.py
 # checks this against the repository, so a new engine package can't be missed.
 ENGINE_PACKAGES = frozenset({
     "analysis", "core", "creator", "gaming", "llm", "longform", "main", "multilingual", "plugins",
@@ -118,12 +118,12 @@ def parse(argv: list[str]) -> tuple[str, str | None, list[str]]:
                         raise UsageError(f"-{ch} needs a value")
                     return mode, argv[i + 1], argv[i + 2:]
                 if ch not in _FLAGS:
-                    raise UsageError(f"option {arg!r} isn't supported by Clips Kitty's Python")
+                    raise UsageError(f"option {arg!r} isn't supported by VilloMillo's Python")
                 j += 1
             i += 1
             continue
         if arg == "-":
-            raise UsageError("reading a script from standard input isn't supported by Clips Kitty's Python")
+            raise UsageError("reading a script from standard input isn't supported by VilloMillo's Python")
         return "script", arg, argv[i + 1:]
     raise UsageError("no script to run")
 
@@ -156,7 +156,7 @@ def _under(path: str, roots: list[str]) -> bool:
 
 
 class EngineGuard(importlib.abc.MetaPathFinder):
-    """Refuses Clips Kitty's own packages unless the pipeline's own folders
+    """Refuses VilloMillo's own packages unless the pipeline's own folders
     have a module of that name, which then wins. The pipeline's folders are
     the ones it was started with plus any sys.path entry outside the engine's
     own (a pipeline may add a folder of its own at run time)."""
@@ -175,7 +175,7 @@ class EngineGuard(importlib.abc.MetaPathFinder):
         if spec is not None:
             return spec
         raise ModuleNotFoundError(
-            f"No module named {fullname!r}: Clips Kitty's own code isn't available to pipelines", name=fullname)
+            f"No module named {fullname!r}: VilloMillo's own code isn't available to pipelines", name=fullname)
 
 
 def _setup_output() -> None:
@@ -203,7 +203,7 @@ def _say_error(message: str) -> None:
 # copy doesn't have. The SDK's run() says the same for an import inside
 # main() (sdk/python/clipskitty_sdk/job.py NEWER_VERSION); written here so
 # this module needs nothing from the SDK.
-NEWER_VERSION = ("This pipeline needs a newer version of Clips Kitty. Update Clips Kitty, or ask the pipeline's "
+NEWER_VERSION = ("This pipeline needs a newer version of VilloMillo. Update VilloMillo, or ask the pipeline's "
                  "developer which version it needs.")
 
 
@@ -219,9 +219,9 @@ def needs_newer_sdk(error: BaseException) -> bool:
 def missing_module_message(error: ModuleNotFoundError) -> str:
     name = (error.name or "").partition(".")[0] or "a module"
     if name in ENGINE_PACKAGES:
-        return (f"This pipeline tried to use Clips Kitty's own code ({name}), which pipelines can't use. "
+        return (f"This pipeline tried to use VilloMillo's own code ({name}), which pipelines can't use. "
                 "Ask its developer to update it.")
-    return (f"This pipeline needs {name}, which this version of Clips Kitty doesn't include. "
+    return (f"This pipeline needs {name}, which this version of VilloMillo doesn't include. "
             "Ask its developer to update it.")
 
 
@@ -264,7 +264,7 @@ def main(argv: list[str]) -> int:
     try:
         mode, target, rest = parse(argv)
     except UsageError as e:
-        _say_error(f"Clips Kitty's Python: {e}")
+        _say_error(f"VilloMillo's Python: {e}")
         return 2
 
     own = _python_path()
@@ -291,14 +291,14 @@ def main(argv: list[str]) -> int:
             runpy.run_module(target, run_name="__main__", alter_sys=True)
         else:
             if not os.path.isfile(script):
-                _say_error(f"Clips Kitty's Python: can't find the script {target!r}")
+                _say_error(f"VilloMillo's Python: can't find the script {target!r}")
                 return 2
             sys.argv = [target, *rest]
             runpy.run_path(script, run_name="__main__")
     except SystemExit:
         raise
     except UsageError as e:
-        _say_error(f"Clips Kitty's Python: {e}")
+        _say_error(f"VilloMillo's Python: {e}")
         return 2
     except ImportError as e:
         traceback.print_exc()

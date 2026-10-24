@@ -98,7 +98,7 @@ def test_install_update_turn_off_roll_back_and_remove_through_the_api(api, plugi
     plan = plan.json()
     assert plan["ok"] and plan["plugin"]["id"] == PID
     assert plan["details"]["permissions"] == [
-        {"id": "video.read", "label": "Reads the video you process", "enforcement": "Clips Kitty hands this over"}]
+        {"id": "video.read", "label": "Reads the video you process", "enforcement": "VilloMillo hands this over"}]
     assert client.get("/plugins").json()["plugins"] == []  # planned, not installed
 
     r = client.post("/plugins/install", json={"plan_id": plan["plan_id"]}, headers=HEADERS)
@@ -147,7 +147,7 @@ def test_a_plan_carries_the_install_screen_as_text(api, plugin_source):
         assert text == permissions.render_text(plan)
         texts.append(text)
     assert texts[0].splitlines()[0] == "Install Manager test 1.0.0?"
-    assert "  Reads the video you process (Clips Kitty hands this over)" in texts[0].splitlines()
+    assert "  Reads the video you process (VilloMillo hands this over)" in texts[0].splitlines()
     assert texts[1].splitlines()[-1] == "✗ inputs[0]: the video input needs the video.read permission"
 
 
@@ -167,7 +167,7 @@ def test_an_edit_plugin_installs_through_the_api_and_is_named_under_edit(api, pl
         if name == "editor":
             assert plan["details"]["steps"] == ["Suggests edits"]
             assert plan["details"]["time_limit"] == (
-                "Clips Kitty stops it after 5 minutes when it suggests edits for a video’s clips.")
+                "VilloMillo stops it after 5 minutes when it suggests edits for a video’s clips.")
             assert "What it does: Suggests edits" in plan["text"].splitlines()
         assert client.post("/plugins/install", json={"plan_id": plan["plan_id"]}, headers=HEADERS).status_code == 200
     url = "https://www.youtube.com/watch?v=aB3dEfGhIjK"
@@ -318,7 +318,7 @@ def test_the_marketplace_searches_the_bundled_index_and_installs_from_it(tmp_pat
     # what would stop it running here, said before installing
     assert item["problems_here"] == [] and item["versions"][0]["problem_here"] is None
     assert item["details"]["needs_python"] and not any("Python" in r for r in item["details"]["requirements"])
-    assert item["versions"][1]["problem_here"] == "it needs Clips Kitty >=9.0, and this is 2.0.0"
+    assert item["versions"][1]["problem_here"] == "it needs VilloMillo >=9.0, and this is 2.0.0"
     with monkeypatch.context() as m:
         m.setattr(plugins_api.runner, "python_for", lambda plugin, config: None)
         assert client.get("/marketplace", params={"q": "NHL"}).json()["plugins"][0]["problems_here"] == [
@@ -437,7 +437,7 @@ def test_install_counting_can_be_switched_off_and_skips_updates(tmp_path, monkey
 
 
 def test_the_marketplace_checks_clips_kittys_online_list_once_a_day(tmp_path, monkeypatch):
-    """Opening the Marketplace checks Clips Kitty's online list when its copy
+    """Opening the Marketplace checks VilloMillo's online list when its copy
     is a day old, unless switched off; Check for new pipelines checks it, and
     the addresses in settings, at once. Both need the session header. What
     the online list adds is Community and installs as a plain listing. A fake
@@ -537,7 +537,7 @@ def test_the_catalog_route_lists_the_directory_with_honest_labels(tmp_path, monk
          "description": "Speech to text.", "section": "speech", "relationship": "built-with", "uses": "api", "license": "Apache-2.0",
          "source": {"huggingface": "example-org/example-speech"}, "badges": ["community"], "added": "2026-10-07",
          "metrics": {"models": {"example-org/example-speech": {"downloads": 1200, "likes": 30}}}},
-        {"id": "tools/clips-kitty-sdk", "kind": "tool", "slug": "clips-kitty-sdk", "name": "Clips Kitty SDK",
+        {"id": "tools/clips-kitty-sdk", "kind": "tool", "slug": "clips-kitty-sdk", "name": "VilloMillo SDK",
          "description": "Write plugins.", "section": "developer", "relationship": "built-with", "uses": "api",
          "license": "MIT", "source": {"github": "https://github.com/UglyCavemanCam/VilloMillo", "path": "sdk/python"},
          "badges": ["official"], "added": "2026-10-07"},
@@ -603,7 +603,7 @@ def test_a_listing_from_the_projects_own_repository_is_official(tmp_path, monkey
     found = {p["id"]: p for p in client.get("/marketplace").json()["plugins"]}
     official, other = found["clips-kitty-examples/demo"], found["example-dev/claims-official"]
     assert official["badges"] == ["official"] and official["details"]["tier"] == "listed-official"
-    assert official["details"]["tier_text"] == "✓ Official · made by the Clips Kitty project"
+    assert official["details"]["tier_text"] == "✓ Official · made by the VilloMillo project"
     assert other["badges"] == ["community"] and other["details"]["tier"] == "listed"
 
 

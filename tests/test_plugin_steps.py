@@ -296,11 +296,11 @@ def test_a_failing_step_is_reported_and_nothing_partial_lands(data_dir, video, a
     assert "plugin_notes" not in found[0].subscores and "plugin_ratings" not in found[0].subscores
     assert [(r["name"], r["ok"], r.get("error")) for r in report] == [
         ("Stepper", False, "It said: the arena feed could not be read."),
-        ("Stepper", False, "Clips Kitty couldn't use its answer."),
+        ("Stepper", False, "VilloMillo couldn't use its answer."),
         ("Rater C", True, None)]
     out = capsys.readouterr().out
-    assert "      Going on without Stepper: Clips Kitty couldn't use its answer.\n" in out
-    assert ("      (Stepper gave an answer Clips Kitty can't use: result: moments[1]: score must be a number "
+    assert "      Going on without Stepper: VilloMillo couldn't use its answer.\n" in out
+    assert ("      (Stepper gave an answer VilloMillo can't use: result: moments[1]: score must be a number "
             "from 0 to 100, or left out)") in out
 
 
@@ -312,15 +312,15 @@ def test_a_failing_step_is_reported_and_nothing_partial_lands(data_dir, video, a
 def test_an_answer_that_cant_even_be_read_is_skipped_and_the_job_goes_on(data_dir, video, capsys, mode, logged):
     """result.json made a folder, a score too large for a float, notes nested
     too deep to parse: each used to escape as a Python error and fail the job.
-    Each is an answer Clips Kitty can't use, so the run is skipped and reported."""
+    Each is an answer VilloMillo can't use, so the run is skipped and reported."""
     found = [_cand(10, 70), _cand(100, 60)]
     kept, _rejections, report = _after(data_dir, video, found, rate=[_choice(mode=mode)])
     assert [(c.start, c.score) for c in kept] == [(10, 70), (100, 60)]
     assert "plugin_ratings" not in found[0].subscores
-    assert [(r["ok"], r["error"]) for r in report] == [(False, "Clips Kitty couldn't use its answer.")]
+    assert [(r["ok"], r["error"]) for r in report] == [(False, "VilloMillo couldn't use its answer.")]
     out = capsys.readouterr().out
-    assert "      Going on without Stepper: Clips Kitty couldn't use its answer.\n" in out
-    assert f"      (Stepper gave an answer Clips Kitty can't use: {logged}" in out
+    assert "      Going on without Stepper: VilloMillo couldn't use its answer.\n" in out
+    assert f"      (Stepper gave an answer VilloMillo can't use: {logged}" in out
 
 
 def test_anything_else_reading_an_answer_raises_is_a_skip_too(data_dir, video, capsys, monkeypatch):
@@ -333,8 +333,8 @@ def test_anything_else_reading_an_answer_raises_is_a_skip_too(data_dir, video, c
     found = [_cand(10, 70)]
     kept, _rejections, report = _after(data_dir, video, found, rate=[_choice(scores="*=99")])
     assert [(c.start, c.score) for c in kept] == [(10, 70)]
-    assert [(r["ok"], r["error"]) for r in report] == [(False, "Clips Kitty couldn't use its answer.")]
-    assert ("      (Stepper gave an answer Clips Kitty couldn't read: OSError: the disk went away)"
+    assert [(r["ok"], r["error"]) for r in report] == [(False, "VilloMillo couldn't use its answer.")]
+    assert ("      (Stepper gave an answer VilloMillo couldn't read: OSError: the disk went away)"
             in capsys.readouterr().out)
 
 
@@ -382,7 +382,7 @@ def test_failure_reasons_read_in_creator_words(tmp_path, data_dir, video, add_st
         (lambda m: None, {"rate": ["fixture-dev/gone"]}, "It isn't installed any more."),
         (lambda m: None, {"rate": [off]}, "It's turned off in Marketplace › Installed."),
         (lambda m: m.setattr(store, "app_version", lambda: "1.9.0"), {"rate": [_choice()]},
-         "It can't run on this version of Clips Kitty."),
+         "It can't run on this version of VilloMillo."),
         (lambda m: m.setattr(registry, "blocked_check", lambda d: lambda pid, version: {
             "severity": "blocked", "reason": "it sends videos it does not declare."}), {"rate": [_choice()]},
          "It was blocked: it sends videos it does not declare."),
@@ -397,7 +397,7 @@ def test_failure_reasons_read_in_creator_words(tmp_path, data_dir, video, add_st
         (lambda m: m.setattr(runner.plugin_models, "for_job", lambda *a, **k: ({}, ["The arena model is missing."])),
          {"rate": [_choice()]}, "A model it needs isn't on this PC. Get it in Marketplace › Installed."),
         (lambda m: _fake_outcome(m, exit_code=-9, timed_out=True), {"rate": [_choice()]},
-         "It took longer than its 5 minute limit, so Clips Kitty stopped it."),
+         "It took longer than its 5 minute limit, so VilloMillo stopped it."),
         (lambda m: None, {"rate": [_choice(mode="fail")]}, "It said: the arena feed could not be read."),
         (lambda m: None, {"rate": [_choice(mode="fail", message="The arena feed is down.")]},
          "It said: The arena feed is down."),
@@ -409,8 +409,8 @@ def test_failure_reasons_read_in_creator_words(tmp_path, data_dir, video, add_st
         (lambda m: _fake_outcome(m, exit_code=3, error="half way"), {"rate": [_choice()]},
          "It stopped before it finished."),
         (lambda m: _fake_outcome(m, exit_code=None, error="could not start the plugin"), {"rate": [_choice()]},
-         "Clips Kitty couldn't start it."),
-        (lambda m: None, {"rate": [_choice(mode="bad")]}, "Clips Kitty couldn't use its answer."),
+         "VilloMillo couldn't start it."),
+        (lambda m: None, {"rate": [_choice(mode="bad")]}, "VilloMillo couldn't use its answer."),
     ]
     for patch, chosen, expected in cases:
         with monkeypatch.context() as m:
@@ -572,7 +572,7 @@ TRIM = {"cuts": [[2, 6.5]], "mutes": [[8.25, 8.75]], "fade_out": 0.45, "crop": "
 
 
 def _trimmed(start: float) -> dict:
-    """TRIM for the clip starting at `start`, as Clips Kitty keeps it: in seconds
+    """TRIM for the clip starting at `start`, as VilloMillo keeps it: in seconds
     of the video, the fade set to the nearest the editor offers, the reason apart."""
     return {"cuts": [[start + 2, start + 6.5]], "mutes": [[start + 8.25, start + 8.75]], "fade_out": 0.5,
             "title_overlay": {"text": "Quark burst!", "seconds": 3}, "crop": "center"}
@@ -677,11 +677,11 @@ def test_a_failed_edit_plugin_changes_no_clip_and_keeps_earlier_suggestions(data
     assert [e["plugin"] for e in clips[1].subscores["plugin_edits"]] == [late]
     assert "      Going on without Broken Trimmer: It said: the arena feed could not be read.\n" in capsys.readouterr().out
 
-    # An answer Clips Kitty can't use is refused whole: nothing of it is kept,
+    # An answer VilloMillo can't use is refused whole: nothing of it is kept,
     # and a clip with no suggestion keeps its subscores as they were.
     untouched = [_cand(10, 80, text=61), _cand(100, 70)]
     report = _suggest(data_dir, video, untouched, edit=[_trim(first, {"*": TRIM}, mode="bad")])
-    assert report == [_edit_entry(ok=False, suggested=0, error="Clips Kitty couldn't use its answer.")]
+    assert report == [_edit_entry(ok=False, suggested=0, error="VilloMillo couldn't use its answer.")]
     assert [c.subscores for c in untouched] == [{"text": 61}, None]
     # Nothing to suggest for: no run is started.
     runs = len(list((data_dir / "plugins" / "runs").iterdir()))

@@ -2,7 +2,7 @@
 
 `scores` and `notes` say what to answer for which moment (`*` for every
 one); a note of `{said}` is what is said during the moment. `mode` makes it
-fail, write an answer Clips Kitty can't use, answer for moments it wasn't
+fail, write an answer VilloMillo can't use, answer for moments it wasn't
 handed, add ranges, or run until it is stopped. Three more modes write a
 result.json that can't even be read as one: a folder (`folder`), a score of
 400 digits (`huge`) and notes nested too deep to parse (`deep`). With

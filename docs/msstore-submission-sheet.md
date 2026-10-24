@@ -36,10 +36,6 @@ anyone can install it.
 - ☑ **This product uses live generative AI**: required by policy 11.16,
   because clip titles are written by a language model from user input. The
   in-app Feedback Hub is the reporting route it also requires.
-- ☑ **This product uses a third-party purchase API**. The donate button opens
-  PayPal. Policy 10.8.2 requires the declaration, and requires making clear
-  Microsoft is not the fundraiser. Store builds open it in the system browser
-  rather than in-app, which is the route the policy names.
 
 **System requirements:**
 
@@ -193,9 +189,6 @@ channel. It is off by default and must be switched on in Settings, and it
 requires the user to create their own free Google Cloud API key first, so a
 reviewer cannot exercise it without setting up a Google Cloud project. The
 upload goes directly from the device to YouTube; no data reaches us.
-
-The donate button opens PayPal in the system browser (third-party purchase
-API, declared in Product declarations).
 ```
 
 Then **Submit to the Store**.

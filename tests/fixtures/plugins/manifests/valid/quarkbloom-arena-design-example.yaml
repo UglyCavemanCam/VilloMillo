@@ -15,7 +15,7 @@ requires:
   clips_kitty: ">=2.0"                     # app versions it works with (the plugin_api check is what stops older apps)
   plugin_api: 1                            # contract major version
 run:
-  command: ["{python}", "src/main.py"]     # argv; {python} is the Python Clips Kitty finds
+  command: ["{python}", "src/main.py"]     # argv; {python} is the Python VilloMillo finds
   python_requirements: requirements.txt    # accepted with a warning: per-plugin Python packages are planned
   timeout_minutes: 60
 execution: local                           # local | remote | hybrid

@@ -7,7 +7,7 @@ The checks, in order; when one fails, the ones after it are not run:
 
     manifest_valid     the manifest at the listed commit passes the validator the app uses
     installs           the plugin manager fetches and installs it, as the app does
-    requirements_met   this Clips Kitty is a version it accepts; it doesn't need a graphics card
+    requirements_met   this VilloMillo is a version it accepts; it doesn't need a graphics card
                        (the check machine has none); a Python is found if it needs one; and the
                        models it lists download, up to --max-model-gb in all
     starts             it runs on a generated 40-second sample video and finishes without an error
@@ -15,7 +15,7 @@ The checks, in order; when one fails, the ones after it are not run:
                        it finds none in the sample
 
 ✓ Compatible means exactly these passed, for one version at one commit, on one
-Clips Kitty version. It is a technical label: nobody reads the code, and a
+VilloMillo version. It is a technical label: nobody reads the code, and a
 plugin can pass and still do something its listing doesn't say.
 
 This installs and RUNS the plugin's code. Run it only on a throwaway machine
@@ -165,7 +165,7 @@ def check(listing: dict, version: dict, *, app_version: str, work: Path, git: st
     from core.binaries import ffmpeg
 
     video_path = make_sample_video(work / "sample.mp4", ffmpeg())
-    video = DownloadedVideo(video_id="compatibility-sample", title="Clips Kitty compatibility sample",
+    video = DownloadedVideo(video_id="compatibility-sample", title="VilloMillo compatibility sample",
                             path=video_path, duration=float(SAMPLE_SECONDS))
     config = {"clips": {"min_duration": 5, "max_duration": 60, "max_clips_per_video": 0}, "llm": {}}
     old_timeout = runner.timeout_seconds
@@ -175,7 +175,7 @@ def check(listing: dict, version: dict, *, app_version: str, work: Path, git: st
                                   data_dir=data_dir)
     except runner.PluginError as e:
         text = str(e)
-        if "gave an answer Clips Kitty can't use" in text:
+        if "gave an answer VilloMillo can't use" in text:
             ok("starts")
             return fail("valid_result", text)
         return fail("starts", text)
@@ -195,7 +195,7 @@ def main(argv=None) -> int:
     ap.add_argument("id", help="the listing's id, publisher/name")
     ap.add_argument("--version", help="the listed version (default: the latest)")
     ap.add_argument("--catalog", type=Path, default=registry.catalog_path(), help="the catalog folder")
-    ap.add_argument("--app-version", help="the Clips Kitty version to check against (default: this checkout's)")
+    ap.add_argument("--app-version", help="the VilloMillo version to check against (default: this checkout's)")
     ap.add_argument("--max-model-gb", type=float, default=2.0, help="the most model data it downloads (default 2)")
     ap.add_argument("--timeout", type=float, default=600.0, help="seconds the plugin may run (default 600)")
     ap.add_argument("--write", action="store_true", help="add the record to stats/compatibility.json")
@@ -207,7 +207,7 @@ def main(argv=None) -> int:
     index = json.loads((args.catalog / "index.json").read_text(encoding="utf-8"))
     listing, version = _find(index, args.id, args.version)
     app_version = args.app_version or store.app_version()
-    print(f"{listing['id']} {version['version']} at {version['commit'][:7]}, on Clips Kitty {app_version}")
+    print(f"{listing['id']} {version['version']} at {version['commit'][:7]}, on VilloMillo {app_version}")
     with tempfile.TemporaryDirectory(prefix="clipskitty-compat-") as tmp:
         record = check(listing, version, app_version=app_version, work=Path(tmp),
                        max_model_bytes=int(args.max_model_gb * 1024**3), timeout=args.timeout)

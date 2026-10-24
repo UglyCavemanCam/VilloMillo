@@ -191,7 +191,7 @@ def test_the_build_refuses_another_python():
     build = _build_installer()
     assert APP_PYTHON == (3, 11)
     assert build.python_problem((3, 12, 0)) == (
-        "This build uses Python 3.12, but Clips Kitty's plugins are promised Python 3.11 (APP_PYTHON in "
+        "This build uses Python 3.12, but VilloMillo's plugins are promised Python 3.11 (APP_PYTHON in "
         "sdk/python/clipskitty_sdk/host.py). Build with 3.11, or change APP_PYTHON and the docs that name it.")
     assert build.python_problem((3, 11, 9)) is None
     assert build.python_problem((3, 11, 0, "final", 0)) is None

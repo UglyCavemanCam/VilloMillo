@@ -14,21 +14,21 @@ Every version number in the platform, where it lives, and what it promises.
 
 ## Which release runs plugins
 
-Clips Kitty 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
+VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0.
 
-Clips Kitty bundles the SDK from the commit it is built from, so each release brings the SDK of its commit: 2.1.0 brings SDK 1.3.0. For an SDK newer than the latest release, run Clips Kitty from source: [From source](../../README.md#from-source).
+VilloMillo bundles the SDK from the commit it is built from, so each release brings the SDK of its commit: 2.1.0 brings SDK 1.3.0. For an SDK newer than the latest release, run VilloMillo from source: [From source](../../README.md#from-source).
 
-## The edit step and older Clips Kitty
+## The edit step and older VilloMillo
 
-The edit step ([Steps](steps.md#suggest-edits-the-edit-step)) is new in the same plugin contract, 1, with SDK 1.3.0. A Clips Kitty without it refuses to install a plugin with `outputs: [edits]`, saying "output 'edits' is planned, not supported by plugin API 1" (or calling it an unknown output, in a copy from before SDK 1.2.0). It checks the manifest before the app version, so that is what it says, not that it needs a newer Clips Kitty, and an old copy can't be changed to say otherwise. Clips Kitty's online list can still show your editor to it. Say in your plugin's description which Clips Kitty it needs.
+The edit step ([Steps](steps.md#suggest-edits-the-edit-step)) is new in the same plugin contract, 1, with SDK 1.3.0. A VilloMillo without it refuses to install a plugin with `outputs: [edits]`, saying "output 'edits' is planned, not supported by plugin API 1" (or calling it an unknown output, in a copy from before SDK 1.2.0). It checks the manifest before the app version, so that is what it says, not that it needs a newer VilloMillo, and an old copy can't be changed to say otherwise. VilloMillo's online list can still show your editor to it. Say in your plugin's description which VilloMillo it needs.
 
-Which `requires.clips_kitty` an editor declares: 2.1.0, the first release that runs plugins, has the edit step, so every Clips Kitty that can install a plugin can run an editor, and `">=2.0"`, as every template has, is right.
+Which `requires.clips_kitty` an editor declares: 2.1.0, the first release that runs plugins, has the edit step, so every VilloMillo that can install a plugin can run an editor, and `">=2.0"`, as every template has, is right.
 
 ## `requires.clips_kitty`
 
 A range of app versions: `">=2.0"`, `">=2.0, <3"`, `"~=2.1"` (2.1 and later 2.x). Operators are `>=`, `<=`, `>`, `<`, `==`, `!=` and `~=`, joined by commas; every part must hold.
 
-It is **checked** (built) when a plugin is planned, installed or rolled back to, when a job naming it is added, and when that job runs. A plugin an app update leaves behind stays installed and says why it can't run. An app version Clips Kitty can't read (a development build) is not held against a plugin.
+It is **checked** (built) when a plugin is planned, installed or rolled back to, when a job naming it is added, and when that job runs. A plugin an app update leaves behind stays installed and says why it can't run. An app version VilloMillo can't read (a development build) is not held against a plugin.
 
 Pick the lowest version you tested with, and an upper bound only when you know a later major version breaks you.
 

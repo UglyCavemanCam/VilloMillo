@@ -453,7 +453,7 @@ def test_a_plugin_that_cant_edit_gets_edits_message(api):
             "and edits in outputs")
     # And an edit plugin named for another step is told where it belongs.
     assert _refused(client, {"url": _vod(1), "pipeline": TRIMMER_ID}) == (
-        "pipeline: the pipeline Trimmer doesn't find moments: it suggests edits for the clips Clips Kitty makes. "
+        "pipeline: the pipeline Trimmer doesn't find moments: it suggests edits for the clips VilloMillo makes. "
         "Choose it under Suggest edits instead")
     assert _refused(client, {"url": _vod(1), "rate": TRIMMER_ID}) == (
         "rate[0]: the pipeline Trimmer can't rate moments others found: its manifest needs moments in inputs "

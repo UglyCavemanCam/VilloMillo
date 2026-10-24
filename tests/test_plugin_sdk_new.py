@@ -1,11 +1,11 @@
 """`python -m clipskitty_sdk new` and its six templates (clipskitty_sdk.scaffold).
 
-A template must give a plugin that Clips Kitty accepts, that runs on the
+A template must give a plugin that VilloMillo accepts, that runs on the
 SDK's sample as designed, that the lint has nothing to say about, and whose
 own tests and workflow pass, without a real game or a badge in it.
 
 Like every tests/test_plugin_sdk_*.py file, this needs only pytest and PyYAML
-and imports nothing from Clips Kitty's engine, so it also runs in CI's SDK
+and imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 (Windows) job. The runs on the sample video skip without FFmpeg; the
 transcript, rater and editor templates need none, and one test clears PATH of
 it.
@@ -55,11 +55,11 @@ editor         suggests cuts, mutes and a hook title for clips others found
 ON_THE_SAMPLE = {
     "blank": [
         "  log: The video is 640x360 at 25 frames a second",
-        "0 moment(s), as Clips Kitty would take them:",
+        "0 moment(s), as VilloMillo would take them:",
         "notes: This is the blank template: add your own checks in src/main.py.",
     ],
     "transcript": [
-        "1 moment(s), as Clips Kitty would take them:",
+        "1 moment(s), as VilloMillo would take them:",
         "      13.5s      32.0s  score   -  words_said",
         '       why: the commentary says "quark burst"',
         "notes: The words are said in 1 place(s).",
@@ -67,13 +67,13 @@ ON_THE_SAMPLE = {
     "game-events": [
         "   10%  Looking for the banner",
         "   70%  Listening for the sound getting louder",
-        "1 moment(s), as Clips Kitty would take them:",
+        "1 moment(s), as VilloMillo would take them:",
         "      16.0s      29.8s  score   -  quark_burst",
         "       why: the banner shows from 22 to 26.75 s, and the sound gets 25 dB louder",
         "notes: The banner shows 1 time(s), 1 of them as the sound gets louder.",
     ],
     "rater": [
-        "Rate: 2 of 5 moment(s) answered, as Clips Kitty would use them:",
+        "Rate: 2 of 5 moment(s) answered, as VilloMillo would use them:",
         "m1   6.7s-13.3s  score 60",
         "m2   13.3s-20.0s  score 60",
         'm3   20.0s-26.7s  score 60 -> 75  the commentary says "quark burst"',
@@ -84,7 +84,7 @@ ON_THE_SAMPLE = {
     "understander": [
         "   10%  Looking for the banner",
         "   80%  Reading what is said",
-        "Understand: 2 of 5 moment(s) answered, as Clips Kitty would use them:",
+        "Understand: 2 of 5 moment(s) answered, as VilloMillo would use them:",
         "m1   6.7s-13.3s  score 60",
         '       note: The commentary says "round one" here',
         "m2   13.3s-20.0s  score 60",
@@ -95,7 +95,7 @@ ON_THE_SAMPLE = {
         "notes: Noted what happens in 2 of 5 moment(s).",
     ],
     "editor": [
-        "Suggest edits: 1 of 5 clip(s) given a suggestion, as Clips Kitty would keep them:",
+        "Suggest edits: 1 of 5 clip(s) given a suggestion, as VilloMillo would keep them:",
         "m1   6.7s-13.3s  no suggestion",
         "m2   13.3s-20.0s  no suggestion",
         'm3   20.0s-26.7s  6.7 s  hook title "Quark burst!" (3 s)',
@@ -362,7 +362,7 @@ def test_the_editor_mutes_the_words_its_readme_sets_on_the_sample(made, tmp_path
     shown = _shown_after_the_job_folder(capsys.readouterr().out)
     # "round one" is said from 8.0 to 9.6 s, in the first clip; the hook title stays on the third.
     assert shown == [
-        "Suggest edits: 2 of 5 clip(s) given a suggestion, as Clips Kitty would keep them:",
+        "Suggest edits: 2 of 5 clip(s) given a suggestion, as VilloMillo would keep them:",
         "m1   6.7s-13.3s  6.7 s  mute 7.9-9.7",
         "     Mutes the words you listed",
         *ON_THE_SAMPLE["editor"][2:-1],
@@ -396,7 +396,7 @@ def test_the_workflow_uses_clips_kittys_python_and_the_test_extra(made):
     assert job["strategy"]["matrix"]["os"] == ["ubuntu-latest", "windows-latest"]
     steps = job["steps"]
 
-    # The same action versions as Clips Kitty's own CI, and Clips Kitty's Python.
+    # The same action versions as VilloMillo's own CI, and VilloMillo's Python.
     uses = [s["uses"] for s in steps if "uses" in s]
     assert uses == ["actions/checkout@v7", "actions/setup-python@v7.0.0"]
     assert all(f"uses: {u}" in ours for u in uses)
@@ -453,16 +453,16 @@ def test_new_refuses_a_full_folder_and_the_reserved_publisher(tmp_path, capsys):
         (["new", full / "notes.txt", "--template", "blank"],
          f"error: {full / 'notes.txt'} isn't empty; new only writes into a new or empty folder"),
         (["new", tmp_path / "a", "--template", "blank", "--publisher", "clipskitty"],
-         "error: the publisher clipskitty is reserved for plugins that ship with Clips Kitty"),
+         "error: the publisher clipskitty is reserved for plugins that ship with VilloMillo"),
         (["new", tmp_path / "b", "--template", "blank", "--publisher", "Your Name"],
          "error: --publisher must be your GitHub name in lower case: letters, digits and hyphens"),
         (["new", tmp_path / "c", "--template", "highlights"],
          ("error: --template: there is no template called 'highlights'; choose one of blank, transcript, "
           "game-events, rater, understander, editor (new --list says what each does)")),
         (["new", tmp_path / "d", "--template", "blank", "--name", "Q" * 61],
-         "error: Clips Kitty would refuse this plugin, so new wrote nothing: name: is longer than 60 characters"),
+         "error: VilloMillo would refuse this plugin, so new wrote nothing: name: is longer than 60 characters"),
         (["new", tmp_path / "e", "--template", "blank", "--license", "my own licence"],
-         ("error: Clips Kitty would refuse this plugin, so new wrote nothing: license: must be an SPDX licence "
+         ("error: VilloMillo would refuse this plugin, so new wrote nothing: license: must be an SPDX licence "
           "identifier such as MIT or Apache-2.0")),
         (["new", tmp_path / "f", "--template", "game-events", "--game", "Quarkbloom Arena"],
          ("error: --game must be the game's short name in lower case: letters, digits and hyphens, such as "
@@ -544,7 +544,7 @@ def test_template_licence_and_gitignore_are_written(tmp_path, capsys):
     assert licence.split("\n", 3)[3] == sdk_licence.split("\n", 3)[3]  # the same MIT text
     assert _manifest(mit)["license"] == "MIT" and _manifest(mit)["author"] == {"name": "Quark Dev"}
     template_licence = (mit / "TEMPLATE-LICENSE.txt").read_text(encoding="utf-8")
-    assert sdk_licence in template_licence and "the game-events template of the Clips Kitty SDK" in template_licence
+    assert sdk_licence in template_licence and "the game-events template of the VilloMillo SDK" in template_licence
 
     other = _new(tmp_path, "rater", "apache", "--license", "Apache-2.0")
     assert capsys.readouterr().err == "note: add the text of Apache-2.0 as LICENSE\n"
@@ -593,7 +593,7 @@ def test_template_floor_was_reviewed_for_the_latest_release(made):
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     newest = re.search(r"^## (\d+\.\d+\.\d+)\b", changelog, re.M).group(1)
     assert newest == scaffold.FLOOR_REVIEWED_AT, (
-        "A Clips Kitty release was added to CHANGELOG.md: check it bundles every SDK module the templates "
+        "A VilloMillo release was added to CHANGELOG.md: check it bundles every SDK module the templates "
         "import, then set FLOOR_REVIEWED_AT (and raise TEMPLATE_REQUIRES if it doesn't)"
     )
     assert version_satisfies(scaffold.FLOOR_REVIEWED_AT, scaffold.TEMPLATE_REQUIRES)

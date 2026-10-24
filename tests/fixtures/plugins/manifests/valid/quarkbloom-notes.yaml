@@ -1,4 +1,4 @@
-# An understander: it says what happens in each moment found by Clips Kitty or a pipeline.
+# An understander: it says what happens in each moment found by VilloMillo or a pipeline.
 manifest_version: 1
 id: example-dev/quarkbloom-notes
 name: Quarkbloom Notes

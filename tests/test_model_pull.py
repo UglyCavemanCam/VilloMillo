@@ -351,7 +351,7 @@ def test_the_checking_steps_say_to_keep_the_app_open(tmp_path):
               "m.pullText({status: 'writing manifest', completed: null, total: null}),"
               "m.pullText({status: 'pulling 0123abcd', completed: 999, total: 1000}),"
               "m.pullText({status: 'pulling manifest', completed: null, total: null})]")
-    assert out[0] == out[1] == "Checking the download… keep Clips Kitty open"
+    assert out[0] == out[1] == "Checking the download… keep VilloMillo open"
     assert out[2:] == ["Downloading 99%", "Starting…"]
 
 

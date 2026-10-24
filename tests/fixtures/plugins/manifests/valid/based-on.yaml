@@ -1,11 +1,11 @@
 # A plugin that runs another open-source project and credits it. Names and ids are placeholders.
 manifest_version: 1
 id: example-dev/example-clipper-adapter
-name: Example Clipper for Clips Kitty
+name: Example Clipper for VilloMillo
 version: 1.0.0
 kind: pipeline
 capability: highlight_detection
-description: Lets Example Clipper pick the moments, then Clips Kitty titles, crops and captions them.
+description: Lets Example Clipper pick the moments, then VilloMillo titles, crops and captions them.
 repository: https://github.com/example-dev/example-clipper-adapter
 license: Apache-2.0
 requires: {clips_kitty: ">=2.0", plugin_api: 1}

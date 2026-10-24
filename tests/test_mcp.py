@@ -322,7 +322,7 @@ def test_vertical_live_and_an_original_link_reach_the_engine(monkeypatch):
 
 def test_a_matchs_events_and_reels_said_to_the_assistant_reach_the_job(monkeypatch):
     """The Sport row has no box for match events or story reels: they're said
-    in Ask Clips Kitty, so its tool takes them and hands them on untouched."""
+    in Ask VilloMillo, so its tool takes them and hands them on untouched."""
     sent = {}
 
     def request(method, path, body=None, *a, **k):

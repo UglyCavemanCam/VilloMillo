@@ -1,4 +1,4 @@
-"""Pipelines run on the Python inside Clips Kitty (_clipskitty_script_host.py).
+"""Pipelines run on the Python inside VilloMillo (_clipskitty_script_host.py).
 
 The installed app's engine is Python frozen into api.exe; started with the
 plugin marker it runs a pipeline's script like a small `python` would. These
@@ -97,7 +97,7 @@ def test_the_engines_own_code_is_refused_with_a_plain_message(tmp_path):
     done = _run([tmp_path / "s.py"], tmp_path)
     assert done.returncode == 1
     assert _error_lines(done.stdout) == [
-        ("This pipeline tried to use Clips Kitty's own code (core), which pipelines can't use. "
+        ("This pipeline tried to use VilloMillo's own code (core), which pipelines can't use. "
          "Ask its developer to update it.")]
 
 
@@ -114,13 +114,13 @@ def test_a_module_the_app_lacks_gives_a_plain_error_line(tmp_path):
     done = _run([tmp_path / "s.py"], tmp_path)
     assert done.returncode == 1
     assert _error_lines(done.stdout) == [
-        ("This pipeline needs not_a_real_package_xyz, which this version of Clips Kitty doesn't include. "
+        ("This pipeline needs not_a_real_package_xyz, which this version of VilloMillo doesn't include. "
          "Ask its developer to update it.")]
 
 
 def _older_sdk(tmp_path) -> Path:
     """A copy of this SDK without the helpers SDK 1.2.0 added (media,
-    signals, text, local_model), the way an older Clips Kitty bundles it."""
+    signals, text, local_model), the way an older VilloMillo bundles it."""
     older = tmp_path / "older-sdk"
     shutil.copytree(SDK / "clipskitty_sdk", older / "clipskitty_sdk",
                     ignore=shutil.ignore_patterns("__pycache__", "media.py", "signals.py", "text.py",
@@ -146,7 +146,7 @@ def test_a_pipeline_needing_a_newer_sdk_says_update_clips_kitty(tmp_path):
         done = _run([script], tmp_path, sdk=older)
         assert done.returncode == 1, statement
         assert _error_lines(done.stdout) == [
-            ("This pipeline needs a newer version of Clips Kitty. Update Clips Kitty, or ask the pipeline's "
+            ("This pipeline needs a newer version of VilloMillo. Update VilloMillo, or ask the pipeline's "
              "developer which version it needs.")], statement
         assert "Traceback (most recent call last)" in done.stderr and "ran" not in done.stdout
 
@@ -154,13 +154,13 @@ def test_a_pipeline_needing_a_newer_sdk_says_update_clips_kitty(tmp_path):
 def test_other_missing_modules_keep_their_message(tmp_path):
     for statement, expected in (
             ("import not_a_real_package_xyz",
-             [("This pipeline needs not_a_real_package_xyz, which this version of Clips Kitty doesn't include. "
+             [("This pipeline needs not_a_real_package_xyz, which this version of VilloMillo doesn't include. "
                "Ask its developer to update it.")]),
             ("import clipskitty_sdkx",  # only clipskitty_sdk and its own modules are the SDK
-             [("This pipeline needs clipskitty_sdkx, which this version of Clips Kitty doesn't include. "
+             [("This pipeline needs clipskitty_sdkx, which this version of VilloMillo doesn't include. "
                "Ask its developer to update it.")]),
             ("from core import pipeline",
-             [("This pipeline tried to use Clips Kitty's own code (core), which pipelines can't use. "
+             [("This pipeline tried to use VilloMillo's own code (core), which pipelines can't use. "
                "Ask its developer to update it.")]),
             ("from json import nothing_here", [])):  # a crash in the script, as before: no error line
         (tmp_path / "s.py").write_text(f"{statement}\n")
@@ -262,9 +262,9 @@ def test_the_installed_app_runs_plugins_on_its_own_python(monkeypatch):
     """Frozen: {python} is the engine itself, and PATH is never searched, so
     Windows' "python" shortcut to the Store can't be picked."""
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Program Files\Clips Kitty\resources\backend\api.exe")
+    monkeypatch.setattr(sys, "executable", r"C:\Program Files\VilloMillo\resources\backend\api.exe")
     monkeypatch.setattr(runner.host, "find_python", lambda *a, **k: pytest.fail("searched for a Python"))
-    assert runner.python_for(None, {}) == r"C:\Program Files\Clips Kitty\resources\backend\api.exe"
+    assert runner.python_for(None, {}) == r"C:\Program Files\VilloMillo\resources\backend\api.exe"
     # a developer's own choice still wins
     assert runner.python_for(None, {"plugins": {"python": "C:/Python312/python.exe"}}) == "C:/Python312/python.exe"
 

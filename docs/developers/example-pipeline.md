@@ -1,6 +1,6 @@
 # Example pipeline
 
-[`examples/pipelines/scene-cut-highlights/`](../../examples/pipelines/scene-cut-highlights/) is a complete pipeline plugin written the way an outside developer would write one: its own folder laid out as a repository, a manifest, a README, a licence and one script that imports nothing from Clips Kitty but the SDK. Copy it to start your own.
+[`examples/pipelines/scene-cut-highlights/`](../../examples/pipelines/scene-cut-highlights/) is a complete pipeline plugin written the way an outside developer would write one: its own folder laid out as a repository, a manifest, a README, a licence and one script that imports nothing from VilloMillo but the SDK. Copy it to start your own.
 
 Status: **built** and tested end to end (`tests/test_example_pipeline.py`).
 
@@ -42,7 +42,7 @@ run(main)
 
 Things worth copying:
 
-- **Use the FFmpeg Clips Kitty hands over** (`job.tools.ffmpeg`) rather than one on `PATH`; ask for it with the `ffmpeg` permission.
+- **Use the FFmpeg VilloMillo hands over** (`job.tools.ffmpeg`) rather than one on `PATH`; ask for it with the `ffmpeg` permission.
 - **Respect `job.limits`**: the user's shortest and longest clip.
 - **Report progress** at each step; it moves the job's bar inside "Finding the best moments".
 - **Say why** in `reason`; it is saved with the clip.
@@ -56,7 +56,7 @@ Things worth copying:
 |---|---|
 | Run through the app's own runner (`plugins/runner.find_clips`) | One clip, starting on the cut at 20 s, covering 22-27 s, at least the job's shortest length, recorded as `plugin:clips-kitty-examples/scene-cut-highlights@1.0.0` |
 | Run on the same video with no loud part | No moments, and the note saying why |
-| Run with `python -m clipskitty_sdk run` from outside the repository, `PYTHONPATH` set to the SDK alone | It needs nothing from Clips Kitty but the SDK |
+| Run with `python -m clipskitty_sdk run` from outside the repository, `PYTHONPATH` set to the SDK alone | It needs nothing from VilloMillo but the SDK |
 | Parse `src/main.py` and list its imports | Standard library and `clipskitty_sdk` only |
 | `validate_folder` | Valid with no warnings; local; sends nothing |
 | Unit checks of `loud_stretches` and `to_range` | The clip boundaries: on a cut, a lead-in without one, the longest and shortest clip, the end of the video |

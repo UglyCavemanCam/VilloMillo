@@ -38,7 +38,7 @@ python -m pytest -q
 
 ## Use it in VilloMillo
 
-In a Clips Kitty that runs plugins ([which release does](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/versioning.md#which-release-runs-plugins)), open **Marketplace › Browse**, choose **For developers: install a pipeline you're writing** at the bottom, and pick this folder. Then choose it as the **Pipeline** when you add a video.
+In a VilloMillo that runs plugins ([which release does](https://github.com/UglyCavemanCam/VilloMillo/blob/main/docs/developers/versioning.md#which-release-runs-plugins)), open **Marketplace › Browse**, choose **For developers: install a pipeline you're writing** at the bottom, and pick this folder. Then choose it as the **Pipeline** when you add a video.
 
 ## Share it
 

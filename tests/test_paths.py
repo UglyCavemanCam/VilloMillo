@@ -37,9 +37,9 @@ def test_installed_build_uses_per_user_storage(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(local_appdata))
 
     got = resolve_data_dir({"paths": {"data_dir": "data"}})
-    # Not "Clips Kitty": the data folder keeps its pre-rename name on
+    # Not "VilloMillo": the data folder keeps its pre-rename name on
     # purpose, so an upgrade does not orphan an existing library.
-    assert got == local_appdata / "Clips Studio" / "data"
+    assert got == local_appdata / "VilloMillo" / "data"
     # Never beside the executable, wherever that happens to be installed.
     assert Path(sys.executable).parent not in got.parents
 
@@ -91,7 +91,7 @@ def test_installed_build_writes_settings_where_the_user_can(monkeypatch, tmp_pat
     monkeypatch.setenv("LOCALAPPDATA", str(local_appdata))
 
     got = user_config_path(bundled)
-    assert got == local_appdata / "Clips Studio" / "settings.yaml"
+    assert got == local_appdata / "VilloMillo" / "settings.yaml"
     # Beside the data directory, so everything a creator owns is in one place.
     assert got.parent == resolve_data_dir({"paths": {"data_dir": "data"}}).parent
 
@@ -99,7 +99,7 @@ def test_installed_build_writes_settings_where_the_user_can(monkeypatch, tmp_pat
 def test_an_existing_installs_settings_are_carried_over(monkeypatch, tmp_path):
     """The upgrade case, and the reason this seeds rather than starting fresh.
 
-    Someone already running Clips Kitty has been editing the bundled copy,
+    Someone already running VilloMillo has been editing the bundled copy,
     because that is where the app has been writing. Ignoring it on upgrade
     would silently reset their model choice and every other setting.
     """

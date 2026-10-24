@@ -1,4 +1,4 @@
-# Clips Kitty open platform: architecture
+# VilloMillo open platform: architecture
 
 Phase 1 of the overnight brief (`docs/platform/BRIEF.md` §8). It builds on [`docs/platform-research.md`](platform-research.md) (the decisions and their evidence) and [`docs/platform/repo-map.md`](platform/repo-map.md) (the code as it is, with file paths). Written 2026-10-06 against `main` at `1d13723`, and corrected the same day after an independent review (brief §9); what the review found and what changed is at the end, under [Review](#review-brief-9). File and line references are to `1d13723`.
 
@@ -7,9 +7,9 @@ Phase 1 of the overnight brief (`docs/platform/BRIEF.md` §8). It builds on [`do
 1. A **plugin contract**: a manifest file (`clipskitty.yaml`) in the developer's repository, and a job hand-over in plain files (`job.json` in, `result.json` and progress lines out) between the engine and a plugin process.
 2. A **detection hook**: when a job names a pipeline plugin, `process_video` asks the plugin for clip moments instead of calling `find_clips`, then renders and registers them with the code it already has. With no plugin named, the pipeline runs exactly as today.
 3. A **plugin manager and registry client** in a new engine package, `plugins/`, mounted on the existing app through the existing `install(app, …)` pattern.
-4. A **public SDK**, `sdk/python/clipskitty_sdk/`, standard library only, that developers use from their own repositories without importing anything from Clips Kitty.
+4. A **public SDK**, `sdk/python/clipskitty_sdk/`, standard library only, that developers use from their own repositories without importing anything from VilloMillo.
 
-Plus documentation (`docs/developers/`), a static registry (`registry/`; since 2026-10-07 the Awesome Clips Kitty catalog in `awesome-clips-kitty/`), a Marketplace page in the existing UI, and a model-reference layer over the model stores that already exist.
+Plus documentation (`docs/developers/`), a static registry (`registry/`; since 2026-10-07 the Awesome VilloMillo catalog in `awesome-clips-kitty/`), a Marketplace page in the existing UI, and a model-reference layer over the model stores that already exist.
 
 ## What is reused and what is created
 
@@ -19,7 +19,7 @@ Plus documentation (`docs/developers/`), a static registry (`registry/`; since 2
 | Running a job | the queue and the single worker (`core/queue.py`, `server/jobs.py`), `process_video` (`core/pipeline.py:192`) | one branch at the detection call (`core/pipeline.py:438-450`, `clip_direction` and `find_clips`): the plugin runner instead, when `config["clips"]["pipeline"]` is set |
 | Download and transcription | `_cached_or_download`, `transcribe` (`core/pipeline.py:205`, `:402`) | nothing |
 | Rendering and registration | `_render_files`, `_register_clip`, metadata generation (`core/pipeline.py:1155`, `:1595`, `:546`) | nothing; plugin moments become `ClipCandidate`s (`core/models.py:43`) |
-| Running another process | the render worker's spawn pattern (`remote_render/worker.py:82-87`; that child is Clips Kitty's own executable, not third-party code), `core/cancel.py` | `plugins/runner.py` and `clipskitty_sdk/host.py` (job folder, child process, progress lines, timeout, cancel, killing the process tree) |
+| Running another process | the render worker's spawn pattern (`remote_render/worker.py:82-87`; that child is VilloMillo's own executable, not third-party code), `core/cancel.py` | `plugins/runner.py` and `clipskitty_sdk/host.py` (job folder, child process, progress lines, timeout, cancel, killing the process tree) |
 | Progress | `core.progress.emit` → `Broadcaster` → `/ws` (`core/progress.py`, `server/events.py`), the `fraction` field the worker already folds into its percentage (`server/jobs.py:312-318`) | nothing new in the protocol: plugin progress is emitted as the existing `analyze` stage with a `fraction`, so `_STAGES` and the UI mirror stay untouched. Understand and rate (DECISIONS D30) add one stage, `understand`, to both; a rater reports the existing `ranking` stage, and both carry the plugin's name. Suggest edits (DECISIONS D32) adds one more, `edit` (from 70% over 8%, sharing reactions' span, "Suggesting edits with {plugin}") |
 | Mounting routes | `install(app, …)` (`server/api.py:629-706`) | `plugins/api.py install(app, …)` with the plugin, Marketplace and model routes |
 | Data location | `core.paths.resolve_data_dir` (`core/paths.py:19-50`), the writable per-user data folder | `<data_dir>/plugins/` for installed plugins, their state, run folders and the registry cache |
@@ -28,12 +28,12 @@ Plus documentation (`docs/developers/`), a static registry (`registry/`; since 2
 | UI | the page conventions and the Models page as the catalogue precedent (`ui/src/renderer/src/pages/Models.tsx`), `GET /sports` → toggle pattern | a Marketplace page and a Pipeline choice in the job form (`ui/src/renderer/src/components/queue/AddVideos.tsx`) |
 | Packaging | `clips-studio.spec` hidden imports and datas, guarded by `tests/test_packaging.py` | spec lines for `plugins` and the SDK folder, with a packaging test |
 
-No second API, no second engine, no second queue, no second runtime. The one genuinely new runtime piece is the child process a plugin runs in. The remote-render worker is a precedent for the spawning only: it starts Clips Kitty's own executable, while a plugin is third-party code with its own interpreter.
+No second API, no second engine, no second queue, no second runtime. The one genuinely new runtime piece is the child process a plugin runs in. The remote-render worker is a precedent for the spawning only: it starts VilloMillo's own executable, while a plugin is third-party code with its own interpreter.
 
 ## The two diagrams, redrawn to the real code
 
 ```text
-Clips Kitty engine            existing local API              public SDK                     plugin / pipeline contract         Marketplace
+VilloMillo engine            existing local API              public SDK                     plugin / pipeline contract         Marketplace
 main.py serve           →     server/api.py create_app   →    sdk/python/clipskitty_sdk  →   clipskitty.yaml (manifest)    →    awesome-clips-kitty/index.json
 core/pipeline.py              127.0.0.1:8765, API v1          (stdlib only: read_job,        job.json → result.json             → plugins/registry.py
 server/jobs.py Worker         stability labels per route      progress, add_range, finish,   + progress lines on stdout         → GET /marketplace
@@ -51,7 +51,7 @@ server/jobs.py Worker         stability labels per route      progress, add_rang
            └─────────────────────┼──────────────────────────┘
           Public SDK/API: HTTP API v1 (server/api.py, labelled) + plugin contract v1 (clipskitty_sdk)
                                  │
-          Clips Kitty Core: server/jobs.py Worker → core/pipeline.process_video
+          VilloMillo Core: server/jobs.py Worker → core/pipeline.process_video
                             download → transcribe → [find_clips | plugins/runner.py] → _render_files → _register_clip
            ┌─────────────────────┼──────────────────────────┐
    FFmpeg                     Whisper                     Ollama / Gemma
@@ -77,7 +77,7 @@ Five candidate types, kept as few as the code allows. Three collapse into others
 
 ## 8.2 The SDK
 
-The architecture decides the shape. Clips Kitty's engine is Python and already talks to other processes in two ways: HTTP on `127.0.0.1:8765` (the UI, MCP server, OBS plugin) and a job folder handed to a child process (the render worker, `remote_render/worker.py:82-87`). The SDK uses exactly those two, and nothing else: no gRPC, no new WebSocket protocol, no containers.
+The architecture decides the shape. VilloMillo's engine is Python and already talks to other processes in two ways: HTTP on `127.0.0.1:8765` (the UI, MCP server, OBS plugin) and a job folder handed to a child process (the render worker, `remote_render/worker.py:82-87`). The SDK uses exactly those two, and nothing else: no gRPC, no new WebSocket protocol, no containers.
 
 **Location and dependencies.** `sdk/python/clipskitty_sdk/`, a package that imports only the Python standard library, so a plugin can vendor it or have it put on its path by the engine. The engine imports the same files (one copy, no drift); `plugins/_sdk.py` adds `sdk/python` to `sys.path` in a checkout, and the frozen build ships the folder as plain files (`clips-studio.spec`), which the engine imports and which plugin processes get on `PYTHONPATH`. That a frozen build imports it is expected (PyInstaller apps can import pure-Python modules from a folder on `sys.path`) but untested, since no Windows build can be made here.
 
@@ -91,10 +91,10 @@ The architecture decides the shape. Clips Kitty's engine is Python and already t
 | return outputs | `job.add_range(start, end, score=None, label=…, title=…, reason=…)`, `job.finish()` writes `result.json`; `job.add_clip(path, …)` is planned |
 | handle errors | `job.fail(message)` (exit code 1 with a message the user sees); `clipskitty_sdk.run(main)` reports any uncaught exception the same way |
 | reference models | manifest `models:`; at run time `job.models["detector"].path` (Phase 9) |
-| use the Clips Kitty API | `clipskitty_sdk.client.LocalAPI` for the stable routes (health, jobs, library), standard library `urllib` |
+| use the VilloMillo API | `clipskitty_sdk.client.LocalAPI` for the stable routes (health, jobs, library), standard library `urllib` |
 | test locally | `python -m clipskitty_sdk validate <plugin folder>` and `python -m clipskitty_sdk run <plugin folder> --video clip.mp4`, which builds the same job folder the engine builds and validates the result |
 
-The `clips-kitty plugin …` commands in the brief are conceptual; the two `python -m clipskitty_sdk` commands cover `validate` and `dev` for the first release, and install, update and remove live in the app (§8.10). A developer never reads Clips Kitty's source tree.
+The `clips-kitty plugin …` commands in the brief are conceptual; the two `python -m clipskitty_sdk` commands cover `validate` and `dev` for the first release, and install, update and remove live in the app (§8.10). A developer never reads VilloMillo's source tree.
 
 ## 8.3 The developer experience
 
@@ -139,7 +139,7 @@ requires:
   clips_kitty: ">=2.0"                     # app versions it works with (the plugin_api check is what stops older apps)
   plugin_api: 1                            # contract major version
 run:
-  command: ["{python}", "src/main.py"]     # argv; {python} is the Python Clips Kitty finds
+  command: ["{python}", "src/main.py"]     # argv; {python} is the Python VilloMillo finds
   python_requirements: requirements.txt    # optional: wheels only, hash-pinned, own environment, installed after you agree
   timeout_minutes: 60
 execution: local                           # local | remote | hybrid
@@ -176,16 +176,16 @@ examples:
 
 **Checks the validator makes** (clear message per failure, path to the field, all failures at once): required fields; id grammar and that the publisher matches the repository owner for listed plugins; SemVer; known `kind`, `capability`, `execution`, `inputs`, `outputs`, permissions, category; `inputs` consistent with permissions (`video` needs `video.read`, `transcript` needs `transcript.read`, `outputs: [clips]` needs `clips.write`); `execution: remote|hybrid` needs non-empty `network` and `sends`; `sends` non-empty needs `execution` other than `local`; `run.command` is a non-empty list of strings with no shell syntax, and `run.python_requirements` names a file inside the plugin; model references well formed (§8.6: 40-hex revision for Hugging Face); `requires.plugin_api` supported by this engine; tags lower case, at most 10; URLs `https`. A manifest is inert data: nothing in it is evaluated.
 
-**Setting types** are `string`, `integer`, `number`, `boolean`, `choice` and `secret`. A `secret` is for the developer's own service (an API key or licence key). Clips Kitty stores it with its existing secrets store (`core/secrets.py:97-159`, DPAPI on Windows) under the plugin's id, never writes it into `job.json` or a log, and passes it only to that plugin's process, as an environment variable the SDK reads with `job.secret(name)`. That is not isolation: the store is encrypted for the user's account, so any program running as the user, another plugin included, can read every plugin's secrets and the user's YouTube, AI and Upload-Post credentials. The install screen says so for any plugin with a `secret` setting.
+**Setting types** are `string`, `integer`, `number`, `boolean`, `choice` and `secret`. A `secret` is for the developer's own service (an API key or licence key). VilloMillo stores it with its existing secrets store (`core/secrets.py:97-159`, DPAPI on Windows) under the plugin's id, never writes it into `job.json` or a log, and passes it only to that plugin's process, as an environment variable the SDK reads with `job.secret(name)`. That is not isolation: the store is encrypted for the user's account, so any program running as the user, another plugin included, can read every plugin's secrets and the user's YouTube, AI and Upload-Post credentials. The install screen says so for any plugin with a `secret` setting.
 
 ## 8.5 Execution models
 
 | Model | What it means here | First release |
 |---|---|---|
-| **Native / local in-process** | plugin code imported into the engine | **Not offered.** In-process Python plugins get the engine's full access, as ComfyUI's and Blender's do (research Summary finding 1); only a sandboxed runtime such as Zed's WebAssembly extensions avoids that, and Clips Kitty has none. Clips Kitty's own modes are the only in-process pipelines. |
+| **Native / local in-process** | plugin code imported into the engine | **Not offered.** In-process Python plugins get the engine's full access, as ComfyUI's and Blender's do (research Summary finding 1); only a sandboxed runtime such as Zed's WebAssembly extensions avoids that, and VilloMillo has none. VilloMillo's own modes are the only in-process pipelines. |
 | **Isolated local worker** | the engine starts the plugin's `run.command` as a child process with a job folder | **Built.** This is the default for every plugin. |
 | **Remote** | the plugin's process sends work to its developer's API and returns the same `result.json` | **Built as a declaration** (`execution: remote`, `network`, `sends`) with the warnings shown; the mechanics are the developer's code inside the same child process. A no-code remote kind where the engine itself calls a URL is designed, not built. |
-| **Hybrid** | local Clips Kitty services plus remote inference | **Built the same way** as remote: the job already carries the local transcript and the bundled FFmpeg path, so `Local video → Local Whisper → Developer-hosted model API → Local FFmpeg → Local clips` is: Clips Kitty downloads and transcribes, the plugin sends audio or frames to its API, Clips Kitty renders. |
+| **Hybrid** | local VilloMillo services plus remote inference | **Built the same way** as remote: the job already carries the local transcript and the bundled FFmpeg path, so `Local video → Local Whisper → Developer-hosted model API → Local FFmpeg → Local clips` is: VilloMillo downloads and transcribes, the plugin sends audio or frames to its API, VilloMillo renders. |
 
 Why the isolated worker first: it is the only model that keeps plugin code out of the engine and works for any language, and the repository already spawns child processes the same way; remote and hybrid are the same mechanism with a different declaration.
 
@@ -210,7 +210,7 @@ Why the isolated worker first: it is the only model that keeps plugin code out o
 ```
 
    `video` appears only with `video.read`, `transcript` only with `transcript.read`, `tools.ffmpeg` only with `ffmpeg`, models only those the manifest lists. Settings start from the manifest's defaults; a setting the manifest does not declare, or a `secret` one, is refused (Phase 3), and values are checked against their declared types (Phase 4).
-4. It starts `run.command` (with `{python}` replaced by the plugin's own environment when it has one, otherwise by the Python Clips Kitty finds: the `plugins.python` setting, then, in the installed app, the engine's own Python in script mode (`_clipskitty_script_host.py`, DECISIONS D28), and in a source checkout the engine's own interpreter, then `python` or `py` on `PATH`) with the plugin's install folder as working directory, the job folder path as the only argument and in `CLIPSKITTY_JOB`, and the SDK folder on `PYTHONPATH`. The rest of the environment is the user's, minus Clips Kitty's own variables (`CLIPS_*`, `CLIPSKITTY_*`) and any variable whose name contains KEY, TOKEN, SECRET, PASSWORD, PASSWD, CREDENTIAL, COOKIE or AUTH. An allow-list (`PATH`, `SYSTEMROOT`, `TEMP`, locale) was the first design; it was dropped because model libraries need `HOME`/`USERPROFILE`, `APPDATA` and `CUDA_*`, and a deny-list keeps credentials out just as well (`DECISIONS.md` D9). Neither is a wall: the plugin runs as the user and can read what the user can.
+4. It starts `run.command` (with `{python}` replaced by the plugin's own environment when it has one, otherwise by the Python VilloMillo finds: the `plugins.python` setting, then, in the installed app, the engine's own Python in script mode (`_clipskitty_script_host.py`, DECISIONS D28), and in a source checkout the engine's own interpreter, then `python` or `py` on `PATH`) with the plugin's install folder as working directory, the job folder path as the only argument and in `CLIPSKITTY_JOB`, and the SDK folder on `PYTHONPATH`. The rest of the environment is the user's, minus VilloMillo's own variables (`CLIPS_*`, `CLIPSKITTY_*`) and any variable whose name contains KEY, TOKEN, SECRET, PASSWORD, PASSWD, CREDENTIAL, COOKIE or AUTH. An allow-list (`PATH`, `SYSTEMROOT`, `TEMP`, locale) was the first design; it was dropped because model libraries need `HOME`/`USERPROFILE`, `APPDATA` and `CUDA_*`, and a deny-list keeps credentials out just as well (`DECISIONS.md` D9). Neither is a wall: the plugin runs as the user and can read what the user can.
 5. It reads standard output line by line: `{"type":"progress","fraction":0.4,"message":"…"}` becomes `progress.emit(stage="analyze", fraction=…, message=…)`, which the worker already folds into the job's percentage (`server/jobs.py:312-318`); other lines go to the job log. Reader threads collect standard output and standard error, so a cancel is noticed every half second even while the plugin prints nothing. It honours the job's cancel flag through `core/cancel.py` and the manifest's timeout, killing the process tree on either: the plugin starts in its own process group (POSIX `start_new_session`, killed with `killpg`) or, on Windows, its own process group with `taskkill /T /F`. The Windows path is untested; a Job Object with kill-on-close is the sturdier choice once it can be tested there.
 6. On exit 0 it reads `result.json`, validates it with the same SDK validator, clamps ranges to the video and the job's limits, and returns `ClipCandidate`s: `start`, `end`, `score` (or a rank-based score when the plugin gives none), `hook` from the title, `reason`, `source = "plugin:<id>@<version>"`, and `subscores = {"plugin": id, "plugin_version": …, "plugin_label": …, "plugin_why": …}`. On any other exit it raises with the plugin's last error line, and the job fails with that message.
 7. With `understand` or `rate` in the job (DECISIONS D30), `plugins/steps.after_finding` then runs each chosen plugin on the moments found, understanders first, through `runner.answer_moments`: the same checks, environment and process handling as steps 2-5, with `steps` and `moments` in `job.json`, a folder named `<video_id>-<date>-<time>-understand`, `-rate` or `-understand-rate`, and a 10-minute default limit. It applies their notes and scores, sets aside rated moments under the minimum score (must-haves excepted), and cuts to the clip limit. A plugin that fails is skipped and reported in the video's `outcome.steps`.
@@ -247,27 +247,27 @@ Developer-hosted inference, OpenRouter and Replicate are not model *files*: they
 
 **What a pipeline can use**, from the capability list in `repo-map.md` §14, and how it reaches it:
 
-| Clips Kitty capability | How a plugin reaches it | Status |
+| VilloMillo capability | How a plugin reaches it | Status |
 |---|---|---|
 | source video (`video.read`) | path in `job.json` | built |
 | transcript with word timings (`transcript.read`) | path in `job.json` (`{"segments": [{start, end, text, words}]}`, `transcription/transcriber.py:249-257`) | built |
 | FFmpeg (`ffmpeg`) | the bundled binary's path in `job.tools` (`core/binaries.ffmpeg()`) | built |
 | models (`models:`) | resolved paths in `job.models` | Phase 9 |
-| rendering, captions, library, publishing | by returning moments; Clips Kitty does all of it | built |
+| rendering, captions, library, publishing | by returning moments; VilloMillo does all of it | built |
 | progress, log, cancel | standard output lines; the process tree is killed on cancel or timeout | built (Phase 3; the Windows kill path untested) |
 | Ollama / Gemma (`ollama`) | the Ollama host and the user's chosen model in `job.tools.ollama` | built (hand-over only) |
 | the stable HTTP API | `clipskitty_sdk.client.LocalAPI` | built (Phase 3; no per-plugin credential) |
 | per-plugin API credential with scopes | a token in `job.json`, checked by the plugin routes | designed, not built |
 | OCR, YOLO tracker, PANNs, frame grabbing as host services | host endpoints ("run OCR on these frames") | designed, not built (today they are private Python, `repo-map.md` §13) |
 
-**Permissions.** No plugin gets anything by default. Each permission below is shown before install with its label. "Enforced by Clips Kitty" means the engine checks it and refuses otherwise. "Declared" means the developer states it and nothing stops the plugin doing otherwise, because a plugin process runs with the user's own rights (`docs/platform-research.md` §7.6 q26).
+**Permissions.** No plugin gets anything by default. Each permission below is shown before install with its label. "Enforced by VilloMillo" means the engine checks it and refuses otherwise. "Declared" means the developer states it and nothing stops the plugin doing otherwise, because a plugin process runs with the user's own rights (`docs/platform-research.md` §7.6 q26).
 
 | Permission | Shown to the user as | Enforced or declared |
 |---|---|---|
 | `video.read` | Reads the video you process | Enforced for the hand-over: without it the job has no video path. Declared beyond that (the process could open files itself). |
 | `transcript.read` | Reads its transcript | Same as above. |
 | `clips.write` | Returns finished clips | Planned with clip output; in plugin contract 1 a result's `clips` are refused outright. |
-| `ffmpeg` | Uses Clips Kitty's FFmpeg | Enforced for the hand-over; declared beyond. |
+| `ffmpeg` | Uses VilloMillo's FFmpeg | Enforced for the hand-over; declared beyond. |
 | `ollama` | Uses your local AI model | Enforced for the hand-over; declared beyond (Ollama has no authentication). |
 | `models` (the `models:` list) | Downloads these models: … | Enforced for downloads the model manager makes (Phase 9); declared beyond. |
 | `gpu` | Uses your graphics card | Declared (a requirement). |
@@ -276,7 +276,7 @@ Developer-hosted inference, OpenRouter and Replicate are not model *files*: they
 | `filesystem.read`, `filesystem.write` | Reads / writes files outside its own folder | Declared. |
 | `project.read`, `project.write` (library through the API) | Reads / changes your clip library | Declared today, because the local API has no authentication; becomes enforced with the per-plugin credential (designed). |
 
-The brief's `video.write` collapses into `clips.write` (the only way a pipeline writes video into Clips Kitty), and `model.download` / `model.cache` into the `models:` list.
+The brief's `video.write` collapses into `clips.write` (the only way a pipeline writes video into VilloMillo), and `model.download` / `model.cache` into the `models:` list.
 
 **Security, in one place.** A plugin is code from the internet that runs as the user. The install screen says so ("This pipeline is a program from the internet. It can do anything you can do on this PC."), names publisher, repository, version and commit, lists the permissions with their labels and any data-leaving warning, and installs nothing until the user confirms. Plugin-manager routes that change what is installed or enabled require a session secret in an `X-Clips-Kitty-Session` header (built in Phase 6; it does not exist before). The desktop app makes a random secret at each start, passes it to the engine in `CLIPS_KITTY_SESSION_SECRET` with the other variables it already sets (`backendEnv`, `ui/src/main/index.ts` ~:228) and hands it to its own window through the preload. An engine started without it (`python main.py serve`, or the app with `BACKEND_EXTERNAL=1`) makes its own and writes it to `<data_dir>/plugins/session.secret`, readable by the user, for scripts. Plugins never inherit it: `CLIPS_*` variables are stripped from their environment. What it stops: web pages (a page can send a simple cross-site POST without reading the answer; a custom header forces a preflight the CORS allow-list refuses, `server/api.py:577-582`) and stray scripts that call the API without knowing the secret. What it does not stop: software already running as the user, which can read the engine's environment or that file. It is not a boundary against an installed plugin. Installing never runs anything from the plugin: no `setup.py`, no install script, no hook; the installer copies files and validates the manifest. Python packages a plugin lists in `run.python_requirements` (planned; not built in Phase 3, `DECISIONS.md` D11) are a separate line on the install screen that the user agrees to; they go into the plugin's own environment under `<data_dir>/plugins/envs/` as wheels only, with hashes (`pip install --only-binary=:all: --require-hashes`), so no package build script runs at install and nothing from them runs until a job starts the plugin. Python plugins run on the app's own Python (DECISIONS D28); a plugin can also ship its own executable as `run.command`. A plugin with a `secret` setting gets an extra install-screen line: "Your keys for this pipeline are stored for your Windows account. Other pipelines and programs running as you can read them." Windows Job Object limits for plugin processes are designed and will be called enforced only once built and tested on Windows.
 
@@ -286,12 +286,12 @@ The brief's `video.write` collapses into `clips.write` (the only way a pipeline 
 
 | Tier | Means | Who decides | Shown as |
 |---|---|---|---|
-| **Official** | Ships inside Clips Kitty and is maintained by the project. Today's modes (Shorts, Gaming, Sports) are described by built-in manifests (§8.11). | The app bundle: only `plugins/builtin/` can carry the reserved `clipskitty/` publisher; the registry refuses it from anyone else. | "Official" |
+| **Official** | Ships inside VilloMillo and is maintained by the project. Today's modes (Shorts, Gaming, Sports) are described by built-in manifests (§8.11). | The app bundle: only `plugins/builtin/` can carry the reserved `clipskitty/` publisher; the registry refuses it from anyone else. | "Official" |
 | **Listed** | Has an entry in a registry index the user has enabled, and the index's automated checks passed (§8.10). Nobody has read the code. | The registry's pull-request checks plus a maintainer's merge. | "Listed · not reviewed by a person" |
-| **Installed from a link** | Installed from a Git URL or a folder on this PC that no enabled index lists. | The user, on the install screen. | "Not listed · Clips Kitty has not checked this" |
+| **Installed from a link** | Installed from a Git URL or a folder on this PC that no enabled index lists. | The user, on the install screen. | "Not listed · VilloMillo has not checked this" |
 | **Blocked** | Matches the block list. It does not run. | A registry maintainer (removal path below). | "Blocked: <reason>" in red |
 
-**Since 2026-10-07** (`DECISIONS.md` D20) a listed plugin shows "Community · not reviewed by a person", or "✓ Official · made by the Clips Kitty project" (tier `listed-official`) when its repository is the project's own; the worked examples below still show the old wording. Listings also carry labels (✓ Official, ✓ Compatible, ★ Featured, Community; `awesome-clips-kitty/CONTRIBUTING.md`). There is still no "Verified".
+**Since 2026-10-07** (`DECISIONS.md` D20) a listed plugin shows "Community · not reviewed by a person", or "✓ Official · made by the VilloMillo project" (tier `listed-official`) when its repository is the project's own; the worked examples below still show the old wording. Listings also carry labels (✓ Official, ✓ Compatible, ★ Featured, Community; `awesome-clips-kitty/CONTRIBUTING.md`). There is still no "Verified".
 
 **"Verified" is defined and unused.** If the owner sets up a real review, the label would be **Reviewed**: a named maintainer read one specific commit against a written checklist, and the label applies to that commit only. Even then it is not a security audit, and the UI would say so. Until such a process exists, no listing carries it (`DECISIONS.md` D5).
 
@@ -310,8 +310,8 @@ The brief's `video.write` collapses into `clips.write` (the only way a pipeline 
 
 1. A report arrives as an issue on the registry repository, or privately through GitHub's private vulnerability reporting on that repository for anything harmful.
 2. A maintainer adds an entry to `awesome-clips-kitty/registry/blocklist.yaml`: `id`, `versions` (`"*"` or a list), `severity` (`blocked` or `delisted`), `reason`, `date` and an optional advisory link. CI rebuilds `index.json`; blocked and delisted versions disappear from the Marketplace.
-3. Every release of the app ships the list as of its build, so an offline PC still knows about old entries, and the app reads Clips Kitty's online list (the same file on the project's main branch, `DECISIONS.md` D29) once a day when the Marketplace opens or the app starts with a pipeline installed, unless the person switches that off; **Check for new pipelines** fetches it at once. A new block therefore reaches installed copies at the next of those checks, or with the next release. Fetching it before each plugin job as well is designed, not built.
-4. Copies already installed are flagged from the cached list. `blocked`: the runner refuses to start it, the plugin page shows the reason in red and offers Remove, and nothing else changes on its own. `delisted` (abandoned, licence problem, or broken, for example by a game patch): it still runs and shows "No longer listed: <reason>". Clips Kitty never deletes a user's files by itself; removal is the user's click.
+3. Every release of the app ships the list as of its build, so an offline PC still knows about old entries, and the app reads VilloMillo's online list (the same file on the project's main branch, `DECISIONS.md` D29) once a day when the Marketplace opens or the app starts with a pipeline installed, unless the person switches that off; **Check for new pipelines** fetches it at once. A new block therefore reaches installed copies at the next of those checks, or with the next release. Fetching it before each plugin job as well is designed, not built.
+4. Copies already installed are flagged from the cached list. `blocked`: the runner refuses to start it, the plugin page shows the reason in red and offers Remove, and nothing else changes on its own. `delisted` (abandoned, licence problem, or broken, for example by a game patch): it still runs and shows "No longer listed: <reason>". VilloMillo never deletes a user's files by itself; removal is the user's click.
 
 **Game patches.** Game pipelines break when a game's interface changes. A listing may carry an optional `tested_with` note per version (for example `{game: marvel-rivals, version: "Season 4"}`), shown as "Tested with …", and a maintainer delists a version reported broken with a reason that says so.
 
@@ -321,19 +321,19 @@ The brief's `video.write` collapses into `clips.write` (the only way a pipeline 
 |---|---|---|
 | App | `ui/package.json` (`2.0.0` today), reported by `GET /health` | `requires.clips_kitty` is a SemVer range checked at install and at run. |
 | Public API | `API_VERSION = 1` (`server/api.py:34`), also in `/health` | Phase 2 labels each route stable, experimental or internal. A stable route changes only additively within API version 1; removing or changing one means API version 2, with the old behaviour kept for at least one app release (policy, written into the API page). |
-| Plugin API (job contract) | `PLUGIN_API_VERSION = 1` in `clipskitty_sdk` and the engine | The engine lists the plugin API versions it supports. A plugin asking for one it does not support is refused at install with "needs a newer (or older) Clips Kitty". Within a version only optional fields are added: plugins ignore job fields they do not know, the engine ignores result fields it does not know. |
+| Plugin API (job contract) | `PLUGIN_API_VERSION = 1` in `clipskitty_sdk` and the engine | The engine lists the plugin API versions it supports. A plugin asking for one it does not support is refused at install with "needs a newer (or older) VilloMillo". Within a version only optional fields are added: plugins ignore job fields they do not know, the engine ignores result fields it does not know. |
 | SDK | `clipskitty_sdk.__version__`, major = plugin API | The SDK is a convenience over the files; a plugin that vendors an older 1.x copy still works because the contract is `job.json` and `result.json`, not the SDK's functions. |
 | Manifest | `manifest_version: 1` | The validator knows which versions it can read and says so. |
 | Plugin and pipeline | `version` (SemVer); in API 1 one plugin may find, understand and rate (DECISIONS D30) | Each index entry maps a version to a tag and a commit; versions are immutable and never deleted, only blocked or delisted. Clips record `plugin` and `plugin_version` in their saved scores (`candidate.subscores` → `clips.scores`, `core/pipeline.py:1593`) as `plugin`, `plugin_version`, `plugin_label` and `plugin_why`, next to the existing `sport_label` and `game_why` keys. |
 | Model | `revision` (Hugging Face commit, Ollama digest, file SHA-256) | Pinned in the manifest. A new model revision is a new plugin version. |
 
-**Pinning, updates, rollback** (research Q13-Q15). Clips Kitty's online list is checked once a day when the Marketplace opens (D29); an update shows the new version, its changelog link and any change in permissions, network hosts or data sent, and installs only on a click. The new version installs beside the old one and becomes active only when it validates; the previous version stays on disk and **Go back to …** (roll back) makes it active again. **Keep this version (no update offers)** (pin) stops update offers for a plugin. No automatic updates; a security problem is handled by the block list, not by a forced update. Because Colin's PC is short of disk, only one previous version is kept by default.
+**Pinning, updates, rollback** (research Q13-Q15). VilloMillo's online list is checked once a day when the Marketplace opens (D29); an update shows the new version, its changelog link and any change in permissions, network hosts or data sent, and installs only on a click. The new version installs beside the old one and becomes active only when it validates; the previous version stays on disk and **Go back to …** (roll back) makes it active again. **Keep this version (no update offers)** (pin) stops update offers for a plugin. No automatic updates; a security problem is handled by the block list, not by a forced update. Because Colin's PC is short of disk, only one previous version is kept by default.
 
 ## 8.10 Marketplace and registry
 
-**Hybrid registry** (research Q12): one official static index built by CI from one listing file per plugin in a public Git repository, reviewed by pull request; installs from any GitHub URL, labelled "not listed"; and a setting to add other index URLs. The app never needs a Clips Kitty server.
+**Hybrid registry** (research Q12): one official static index built by CI from one listing file per plugin in a public Git repository, reviewed by pull request; installs from any GitHub URL, labelled "not listed"; and a setting to add other index URLs. The app never needs a VilloMillo server.
 
-**In this repository first** (`DECISIONS.md` D5): `registry/` held the format and tooling until the owner picks a public home. On 2026-10-07 it became Awesome Clips Kitty, a curated directory in `awesome-clips-kitty/` (`DECISIONS.md` D20); its `CONTRIBUTING.md` is the reference for the layout and formats. On 2026-10-08 it moved to its own repository, [ColinGPT9/awesome-clips-kitty](https://github.com/ColinGPT9/awesome-clips-kitty) (`DECISIONS.md` D36); the paths on this page are as they were in this one.
+**In this repository first** (`DECISIONS.md` D5): `registry/` held the format and tooling until the owner picks a public home. On 2026-10-07 it became Awesome VilloMillo, a curated directory in `awesome-clips-kitty/` (`DECISIONS.md` D20); its `CONTRIBUTING.md` is the reference for the layout and formats. On 2026-10-08 it moved to its own repository, [ColinGPT9/awesome-clips-kitty](https://github.com/ColinGPT9/awesome-clips-kitty) (`DECISIONS.md` D36); the paths on this page are as they were in this one.
 
 ```text
 awesome-clips-kitty/
@@ -360,13 +360,13 @@ versions:
 
 **The build script** validates each listing, fetches the manifest at the pinned commit as raw text (it never clones with hooks, installs or runs plugin code), runs the manifest validator, checks that the manifest's `id` and `version` match the listing, that the publisher matches the repository owner, that a licence is declared, that the `clipskitty` publisher is not claimed, and writes `index.json` with the manifest fields the Marketplace shows plus the check results. GitHub stars and release download counts may be captured at build time and labelled as such. CI holds no secrets beyond the read-only default token and never checks out a contributor's branch with write permissions ([CVE-2025-6705](https://blogs.eclipse.org/post/mikaël-barbero/eclipse-open-vsx-registry-security-advisory), research H3). In tests the fetch is a fixture directory; nothing touches the network.
 
-**The client** (`plugins/registry.py`) reads the bundled copy, Clips Kitty's online list (`ONLINE_URL`, D29) and any index URLs from settings, caches the last good copy under `<data_dir>/plugins/cache/`, works offline from that cache, and searches it locally.
+**The client** (`plugins/registry.py`) reads the bundled copy, VilloMillo's online list (`ONLINE_URL`, D29) and any index URLs from settings, caches the last good copy under `<data_dir>/plugins/cache/`, works offline from that cache, and searches it locally.
 
 **Browse and search.**
 
 | Need | Design |
 |---|---|
-| Types | Pipelines (built), and Awesome Clips Kitty's Apps, AI model links, Workflows, Integrations and Tools, which link to their own pages (the models tab is "AI model links" so it isn't taken for the app's Models page). Plugin kinds Clips Kitty can't install yet (caption styles, publishers, sources and the rest) get no tab until they can be installed. Models listed by installed pipelines appear under Installed. |
+| Types | Pipelines (built), and Awesome VilloMillo's Apps, AI model links, Workflows, Integrations and Tools, which link to their own pages (the models tab is "AI model links" so it isn't taken for the app's Models page). Plugin kinds VilloMillo can't install yet (caption styles, publishers, sources and the rest) get no tab until they can be installed. Models listed by installed pipelines appear under Installed. |
 | Categories | A closed list checked by CI: gaming, sports, creators, streaming, podcasting, captions, detection, analytics, audio, utilities (the brief's ten, research Q32). |
 | Tags | Lower case, at most 10; game and sport slugs (`marvel-rivals`, `world-of-warcraft`, `rocket-league`, `soccer`, `nhl`). |
 | Search | Local and forgiving: case and punctuation folded; matches name, description, tags, games, events and capability; an alias table grown by pull request (`wow` → `world-of-warcraft`, `football` → `soccer`); every word must match somewhere, ranked by where (name over tag over description). So "WoW", "World of Warcraft PvP", "Soccer goals", "Podcast shorts" each find the one specialised listing instead of a broad category. |
@@ -374,11 +374,11 @@ versions:
 | Detail | Everything above plus events detected, settings, example images or clips (links to the developer's own files), funding links, `service` label (Free · Optional paid service · Paid service required), GitHub stars "at index build time", check results. |
 | Hardware fit | From `requirements` and the existing hardware probe used by the Models page (`ui/src/renderer/src/pages/Models.tsx`; `GET /system/stats`, `server/api.py:731`): "Runs on this PC", "CPU only", "Needs a GPU with 6 GB", "Cloud service required". |
 
-**Opening a listing's links.** The desktop app opens outside links only from an allow-list (`EXTERNAL_ALLOWED`, `ui/src/main/index.ts:487-560`), which on GitHub allows only Clips Kitty's own repository, and the window's content security policy blocks outside images (`ui/src/renderer/index.html:7`). Listings must not widen either. The Marketplace shows repository, docs, funding and service links as text with a Copy button, and opens one only through a new, narrow path: the engine confirms the URL is `https` and appears in the cached index for that listing, and the app asks "Open <host> in your browser?" first (Phase 8). Example images are not shown inside the app; they are links like the rest.
+**Opening a listing's links.** The desktop app opens outside links only from an allow-list (`EXTERNAL_ALLOWED`, `ui/src/main/index.ts:487-560`), which on GitHub allows only VilloMillo's own repository, and the window's content security policy blocks outside images (`ui/src/renderer/index.html:7`). Listings must not widen either. The Marketplace shows repository, docs, funding and service links as text with a Copy button, and opens one only through a new, narrow path: the engine confirms the URL is `https` and appears in the cached index for that listing, and the app asks "Open <host> in your browser?" first (Phase 8). Example images are not shown inside the app; they are links like the rest.
 
-**Ratings, counts, examples, cost** (research Q34-Q36, Q43): no in-app ratings (they need accounts and are gamed); GitHub stars shown as GitHub stars; no telemetry and no install counts, only "release downloads" if a plugin ships release assets; examples are the developer's own links. The Marketplace stays free because it runs nothing: a Git repository, a CI job, a JSON file. Clips Kitty takes no cut and processes no payments; `links.funding` and `service` are outbound links only.
+**Ratings, counts, examples, cost** (research Q34-Q36, Q43): no in-app ratings (they need accounts and are gamed); GitHub stars shown as GitHub stars; no telemetry and no install counts, only "release downloads" if a plugin ships release assets; examples are the developer's own links. The Marketplace stays free because it runs nothing: a Git repository, a CI job, a JSON file. VilloMillo takes no cut and processes no payments; `links.funding` and `service` are outbound links only.
 
-**Superseded on 2026-10-07** (`DECISIONS.md` D20): the owner decided to count installs from the catalog. After a first install from a listing the app requests one small file named after it, with no account, identifier or anything about videos, and users can switch it off (`plugins/counter.py`). It is on by default until the owner answers whether it should be (D23). Clips Kitty installs, GitHub stars and Hugging Face downloads are each shown as their own figure, read on a schedule rather than at build time (`scripts/update_registry_metrics.py`). The counter has no address yet, so nothing is counted until the privacy policy says it is.
+**Superseded on 2026-10-07** (`DECISIONS.md` D20): the owner decided to count installs from the catalog. After a first install from a listing the app requests one small file named after it, with no account, identifier or anything about videos, and users can switch it off (`plugins/counter.py`). It is on by default until the owner answers whether it should be (D23). VilloMillo installs, GitHub stars and Hugging Face downloads are each shown as their own figure, read on a schedule rather than at build time (`scripts/update_registry_metrics.py`). The counter has no address yet, so nothing is counted until the privacy policy says it is.
 
 ## New routes
 
@@ -393,7 +393,7 @@ All mounted through `plugins/api.py install(app, …)`, labelled **experimental*
 | `DELETE /plugins/{publisher}/{name}` | remove it (all its versions) | yes | 6 |
 | `PUT /plugins/{publisher}/{name}/secrets` | store its `secret` settings | yes | 6 |
 | `GET /marketplace` | the cached index, searched and filtered (`q`, `category`, `tag`, `kind`) | no | 7 |
-| `POST /marketplace/refresh` | fetch Clips Kitty's online list and the configured index URLs into the cache (`{"automatic": true}`: the online list, only when due) | yes (D29: a web page can't make the app fetch) | 7 |
+| `POST /marketplace/refresh` | fetch VilloMillo's online list and the configured index URLs into the cache (`{"automatic": true}`: the online list, only when due) | yes (D29: a web page can't make the app fetch) | 7 |
 | `GET /plugin-models` | model references of installed plugins, installed or not, licence and size | no | 9 |
 
 ## 8.11 First-party dogfooding
@@ -401,7 +401,7 @@ All mounted through `plugins/api.py install(app, …)`, labelled **experimental*
 The existing modes stay exactly where they are. Two things make them part of the platform:
 
 1. **Built-in manifests.** `plugins/builtin/shorts.yaml`, `gaming.yaml` and `sports.yaml` describe the official modes in the same schema (`id: clipskitty/shorts`, `kind: pipeline`, `capability: highlight_detection`, `run: builtin`), validated by the same validator, so the Marketplace lists them as Official beside community pipelines and the manifest schema is tested against real pipelines. `run: builtin` is accepted only for the reserved publisher and only from the app bundle; selecting one leaves the job exactly as it is today.
-2. **A first-party adapter that satisfies the contract.** `examples/pipelines/transcript-highlights/` is a contract-only pipeline whose `main.py` reads a `job.json`, loads the transcript and calls Clips Kitty's own transcript scorer (`analysis/highlights.find_highlights`), as `examples/score_a_transcript.py` already does with the offline `examples/fake_backend.py`, and writes `result.json`. It runs one stage of an existing first-party detector (the transcript scorer, with `sys.path` pointed at the repository) through the contract: partial dogfooding, since the built-in manifests use `run: builtin` and never go through the contract themselves. Because it imports Clips Kitty internals it is labelled a first-party adapter, not an example of what outside developers may do; the community example (Phase 5) imports only the SDK.
+2. **A first-party adapter that satisfies the contract.** `examples/pipelines/transcript-highlights/` is a contract-only pipeline whose `main.py` reads a `job.json`, loads the transcript and calls VilloMillo's own transcript scorer (`analysis/highlights.find_highlights`), as `examples/score_a_transcript.py` already does with the offline `examples/fake_backend.py`, and writes `result.json`. It runs one stage of an existing first-party detector (the transcript scorer, with `sys.path` pointed at the repository) through the contract: partial dogfooding, since the built-in manifests use `run: builtin` and never go through the contract themselves. Because it imports VilloMillo internals it is labelled a first-party adapter, not an example of what outside developers may do; the community example (Phase 5) imports only the SDK.
 
 ## 8.12 Designed now, built later
 
@@ -425,18 +425,18 @@ The existing modes stay exactly where they are. Two things make them part of the
 
 Both are on paper. Publisher names, repositories, model ids and commits are placeholders.
 
-### Open Shorts for Clips Kitty
+### Open Shorts for VilloMillo
 
-An independent developer wraps [Open Shorts](https://github.com/mutonby/openshorts) (MIT core) so its moment picker can feed Clips Kitty. The adapter copies no Open Shorts code and Open Shorts is not changed; it talks to a running Open Shorts instance over that project's own REST API, as sketched in the [research note](platform/research-notes/clipping-pipelines.md) (§B, "Adapter sketch").
+An independent developer wraps [Open Shorts](https://github.com/mutonby/openshorts) (MIT core) so its moment picker can feed VilloMillo. The adapter copies no Open Shorts code and Open Shorts is not changed; it talks to a running Open Shorts instance over that project's own REST API, as sketched in the [research note](platform/research-notes/clipping-pipelines.md) (§B, "Adapter sketch").
 
 ```yaml
 manifest_version: 1
 id: example-dev/open-shorts
-name: Open Shorts for Clips Kitty
+name: Open Shorts for VilloMillo
 version: 1.0.0
 kind: pipeline
 capability: highlight_detection
-description: Lets Open Shorts pick the moments, then Clips Kitty titles, crops, captions and files them.
+description: Lets Open Shorts pick the moments, then VilloMillo titles, crops, captions and files them.
 author: {name: Example Developer, url: https://github.com/example-dev}
 repository: https://github.com/example-dev/clips-kitty-open-shorts
 license: MIT
@@ -462,7 +462,7 @@ tags: [open-shorts, podcast, highlights]
 service: {name: Open Shorts hosted, url: "https://github.com/mutonby/openshorts#readme", required: false}
 ```
 
-**What runs.** Clips Kitty downloads the video as usual. At the detection step the engine writes `job.json` (video path, limits; no transcript, because Open Shorts transcribes for itself) and starts `src/main.py`, which:
+**What runs.** VilloMillo downloads the video as usual. At the detection step the engine writes `job.json` (video path, limits; no transcript, because Open Shorts transcribes for itself) and starts `src/main.py`, which:
 
 | Step | Call (Open Shorts' own API, from the research note) |
 |---|---|
@@ -470,23 +470,23 @@ service: {name: Open Shorts hosted, url: "https://github.com/mutonby/openshorts#
 | or link (hosted) | the video's original link; per the note, hosted mode takes links, so a local file is refused with a message |
 | start | `POST /api/process` with `acknowledged: true`, `upload_id` or `url`, `target_clips` and clip lengths from `job.limits`, `captions: false`, `auto_hook: false`, `layouts: []`, `output_format: vertical` (an empty `layouts` is the closest the research note shows to switching off the frame stages; that it switches off all of them is not confirmed, so the declarations above stay) |
 | progress | `GET /api/status/{job_id}` every 10 s; each poll becomes `job.progress(...)`, its `logs[]` lines `job.log(...)` (Open Shorts' webhooks refuse localhost receivers, so polling is the only way) |
-| result | each `result.clips[i]` → `job.add_range(start, end, title=…, label="open-shorts", reason=…)`; no score unless Open Shorts returns one, so Clips Kitty ranks by order |
+| result | each `result.clips[i]` → `job.add_range(start, end, title=…, label="open-shorts", reason=…)`; no score unless Open Shorts returns one, so VilloMillo ranks by order |
 
-Clips Kitty then does everything after detection, unchanged: Gemma titles, the vertical crop or Vertical Live, captions, the library and publishing. The user's own API calls are the normal ones: `POST /plugins/plan` and `POST /plugins/install` from the Marketplace, then `POST /jobs` with `pipeline: {id: "example-dev/open-shorts", version: "1.0.0"}`, progress on `/ws`, clips from `GET /videos/{video_id}/clips`.
+VilloMillo then does everything after detection, unchanged: Gemma titles, the vertical crop or Vertical Live, captions, the library and publishing. The user's own API calls are the normal ones: `POST /plugins/plan` and `POST /plugins/install` from the Marketplace, then `POST /jobs` with `pipeline: {id: "example-dev/open-shorts", version: "1.0.0"}`, progress on `/ws`, clips from `GET /videos/{video_id}/clips`.
 
-**What does not fit, said plainly.** Open Shorts brings its own Whisper, YOLO and other models inside its container, so they are not shared with Clips Kitty's. Open Shorts has no documented way to accept a transcript, so "use Clips Kitty's Whisper" is not possible without a change in Open Shorts. Its moment picker can use Clips Kitty's Ollama if the user sets `LLM_BASE_URL` in Open Shorts' own configuration (research note §B, Models); the adapter can show the exact line but cannot set it. Even on this PC, Open Shorts sends data to Google Gemini: its moment picker sends the transcript unless it is pointed at a local model; its frame-based stages (layout picker, screencast detector, hook grounding) send frames and work only with Gemini; and for a video without speech it uploads the whole video to Gemini ([research note](platform/research-notes/clipping-pipelines.md) §8 and §10). The manifest declares all three, each with its condition. A local Open Shorts is also reachable from the network: its standard Docker setup publishes port 8000 on all interfaces with no authentication (same note, §3 and §7), so the video the adapter uploads to it can be fetched by other devices on the network. It needs Docker (WSL 2 on Windows) or a hosted account.
+**What does not fit, said plainly.** Open Shorts brings its own Whisper, YOLO and other models inside its container, so they are not shared with VilloMillo's. Open Shorts has no documented way to accept a transcript, so "use VilloMillo's Whisper" is not possible without a change in Open Shorts. Its moment picker can use VilloMillo's Ollama if the user sets `LLM_BASE_URL` in Open Shorts' own configuration (research note §B, Models); the adapter can show the exact line but cannot set it. Even on this PC, Open Shorts sends data to Google Gemini: its moment picker sends the transcript unless it is pointed at a local model; its frame-based stages (layout picker, screencast detector, hook grounding) send frames and work only with Gemini; and for a video without speech it uploads the whole video to Gemini ([research note](platform/research-notes/clipping-pipelines.md) §8 and §10). The manifest declares all three, each with its condition. A local Open Shorts is also reachable from the network: its standard Docker setup publishes port 8000 on all interfaces with no authentication (same note, §3 and §7), so the video the adapter uploads to it can be fetched by other devices on the network. It needs Docker (WSL 2 on Windows) or a hosted account.
 
 **What the user sees at install:**
 
 ```text
-Install Open Shorts for Clips Kitty 1.0.0?
+Install Open Shorts for VilloMillo 1.0.0?
 example-dev · github.com/example-dev/clips-kitty-open-shorts · commit 0123456 · MIT
 Listed · not reviewed by a person · Unofficial: not made by the Open Shorts project
 
 This pipeline is a program from the internet. It can do anything you can do on this PC.
 
 It will
-  Read the video you process ............................ Clips Kitty hands this over
+  Read the video you process ............................ VilloMillo hands this over
   Connect to 127.0.0.1:8000 and api.openshorts.app ..... the developer says so
 ⚠ If you choose Hosted: sends the video's link to api.openshorts.app,
   which downloads and processes the video on its servers.
@@ -498,7 +498,7 @@ It will
   password, so other devices on your network can reach the videos sent to it.
 Needs   Docker Desktop running Open Shorts, or an Open Shorts account
 Service Open Shorts hosted · optional paid service · pricing in its README
-Models  none from Clips Kitty (Open Shorts brings its own)
+Models  none from VilloMillo (Open Shorts brings its own)
 
                                                       [Cancel]  [Install]
 ```
@@ -507,14 +507,14 @@ Models  none from Clips Kitty (Open Shorts brings its own)
 
 A developer who knows the game trains a kill-feed detector, publishes it on Hugging Face, and ships a pipeline that uses it. The manifest is the one in §8.4, plus `run.python_requirements: requirements.txt` listing `onnxruntime` as a hash-pinned wheel. That depends on per-plugin Python environments, which are planned (`DECISIONS.md` D11); until they exist this plugin would have to ship its own executable as `run.command`.
 
-**What runs.** Clips Kitty downloads and transcribes as usual. The model manager has already placed `killfeed.onnx` at the pinned commit in the shared Hugging Face cache at install. The engine writes `job.json` with the video, the transcript, `tools.ffmpeg`, `models.killfeed.path` and the user's `min_kills` setting, and starts the plugin in its own environment. The plugin:
+**What runs.** VilloMillo downloads and transcribes as usual. The model manager has already placed `killfeed.onnx` at the pinned commit in the shared Hugging Face cache at install. The engine writes `job.json` with the video, the transcript, `tools.ffmpeg`, `models.killfeed.path` and the user's `min_kills` setting, and starts the plugin in its own environment. The plugin:
 
 1. runs the bundled FFmpeg from `job.tools.ffmpeg` to sample the kill-feed corner at a few frames a second;
 2. runs `killfeed.onnx` with onnxruntime on those frames (its own process, its own GPU use);
 3. groups eliminations into multi-kills and team wipes, and raises the score where the transcript shows the caster reacting;
 4. reports `job.progress(…)` as it goes and finishes with ranges such as `add_range(751.0, 778.5, score=92, label="team_wipe", title="Team wipe", reason="5 eliminations in 6 s")`.
 
-Clips Kitty renders them with its Gaming layout (Gaming's own stream scoring is skipped when a pipeline picks the moments) or Vertical Live, captions and library; each clip's saved scores carry `plugin`, `plugin_version`, `plugin_label` and `plugin_why`, so the editor can say which pipeline chose it and why. API calls are the same as for Open Shorts: plan, install, `POST /jobs` with `pipeline`, `/ws`, `GET /videos/{video_id}/clips`. The plugin itself makes no network call at run time. Its GPU use is not coordinated with a model Ollama still holds in video memory; on a 6 GB card the two can compete (an open question for later).
+VilloMillo renders them with its Gaming layout (Gaming's own stream scoring is skipped when a pipeline picks the moments) or Vertical Live, captions and library; each clip's saved scores carry `plugin`, `plugin_version`, `plugin_label` and `plugin_why`, so the editor can say which pipeline chose it and why. API calls are the same as for Open Shorts: plan, install, `POST /jobs` with `pipeline`, `/ws`, `GET /videos/{video_id}/clips`. The plugin itself makes no network call at run time. Its GPU use is not coordinated with a model Ollama still holds in video memory; on a 6 GB card the two can compete (an open question for later).
 
 **What the user sees at install:**
 
@@ -527,8 +527,8 @@ This pipeline is a program from the internet. It can do anything you can do on t
 Runs on this PC. The developer says nothing leaves your computer.
 
 It will
-  Read the video you process and its transcript ........ Clips Kitty hands this over
-  Use Clips Kitty's FFmpeg .............................. Clips Kitty hands this over
+  Read the video you process and its transcript ........ VilloMillo hands this over
+  Use VilloMillo's FFmpeg .............................. VilloMillo hands this over
   Use your graphics card ................................ the developer says so
 Downloads
   killfeed.onnx · <size from the Hub> · Apache-2.0 · huggingface.co/example-dev/marvel-rivals-killfeed @ 0123456
@@ -558,11 +558,11 @@ Each phase is its own commits (code, then docs), ends with `ruff check .` and th
 
 ## How the four success tests pass
 
-**1. The niche developer.** They write `clipskitty.yaml` and `src/main.py` against the SDK (§8.2-8.4) and never open Clips Kitty's source; reference their model on Hugging Face by commit (§8.6); test with `python -m clipskitty_sdk validate` and `run`; push to their own GitHub repository; open a pull request adding one listing file to the registry (§8.10). Users find it by searching the game's name, see what it needs and sends, install it (§8.7, §8.13), and pick it in the job form. Clips Kitty does the download, transcript, FFmpeg, crop, captions, titles, library and publishing. Nothing is forked. Components: Phases 3-8; the model reference is Phase 9. **Gaps:** a new listing shows as Community until a release bundles it, because only the bundled index labels (§8.8, D22, D29); Python plugins run on the Python inside the app and their own packages are planned (D28); listing links open only through the confirmed path (§8.10).
+**1. The niche developer.** They write `clipskitty.yaml` and `src/main.py` against the SDK (§8.2-8.4) and never open VilloMillo's source; reference their model on Hugging Face by commit (§8.6); test with `python -m clipskitty_sdk validate` and `run`; push to their own GitHub repository; open a pull request adding one listing file to the registry (§8.10). Users find it by searching the game's name, see what it needs and sends, install it (§8.7, §8.13), and pick it in the job form. VilloMillo does the download, transcript, FFmpeg, crop, captions, titles, library and publishing. Nothing is forked. Components: Phases 3-8; the model reference is Phase 9. **Gaps:** a new listing shows as Community until a release bundles it, because only the bundled index labels (§8.8, D22, D29); Python plugins run on the Python inside the app and their own packages are planned (D28); listing links open only through the confirmed path (§8.10).
 
-**2. Open Shorts.** The adapter in §8.13 is a pipeline like any other; Open Shorts stays the Open Shorts project's, runs in its own Docker container or hosted service, and the user keeps Clips Kitty for everything after detection. Its data use is declared and shown. Not built tonight (research §7.7 question 8); the contract it needs is. **Gaps:** it needs Docker with WSL 2 or a hosted account; hosted mode cannot take local files; Clips Kitty's Whisper cannot be reused; and Open Shorts' own frame and silent-video stages send data to Gemini that only Open Shorts' configuration can stop.
+**2. Open Shorts.** The adapter in §8.13 is a pipeline like any other; Open Shorts stays the Open Shorts project's, runs in its own Docker container or hosted service, and the user keeps VilloMillo for everything after detection. Its data use is declared and shown. Not built tonight (research §7.7 question 8); the contract it needs is. **Gaps:** it needs Docker with WSL 2 or a hosted account; hosted mode cannot take local files; VilloMillo's Whisper cannot be reused; and Open Shorts' own frame and silent-video stages send data to Gemini that only Open Shorts' configuration can stop.
 
-**3. Marvel Rivals Highlights.** §8.13: the developer provides the model, the frame logic and the event labels; Clips Kitty provides the video, transcript, FFmpeg, the shared model cache, the local runtime, rendering, the library, installation and the Marketplace. The GPU is the user's, used by the plugin's own process. **Gaps:** it depends on per-plugin Python environments (planned, D11) or a bundled executable; GPU sharing with a loaded Ollama model is not coordinated.
+**3. Marvel Rivals Highlights.** §8.13: the developer provides the model, the frame logic and the event labels; VilloMillo provides the video, transcript, FFmpeg, the shared model cache, the local runtime, rendering, the library, installation and the Marketplace. The GPU is the user's, used by the plugin's own process. **Gaps:** it depends on per-plugin Python environments (planned, D11) or a bundled executable; GPU sharing with a loaded Ollama model is not coordinated.
 
 **4. The existing gaming market.** Every game pipeline implements the same `highlight_detection` capability with game tags, so the Marketplace can hold Marvel Rivals, World of Warcraft PvP, Minecraft, Valorant and Rocket League pipelines side by side, searchable by name, each from a different developer, next to the Official Gaming mode. Research §7.2 found per-game tuning everywhere and a third-party ecosystem nowhere (Track D answer); this design is what supplies the second. **Gaps:** the user picks a pipeline per job (routing by game, then genre, then generic is designed, not built); a game patch that breaks a detector is handled by delisting, with only an optional "tested with" note per version (§8.8).
 

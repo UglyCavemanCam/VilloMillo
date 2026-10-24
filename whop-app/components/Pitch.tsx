@@ -71,21 +71,9 @@ export function Pitch({ note }: { note?: string }) {
 				<p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>
 					Clips Kitty runs entirely on your own PC and charges nothing —
 					no credits, no seats, no cut of what you earn from your clips.
-					If it saves you time, a donation helps cover development and
-					keeps it free for everyone.
 				</p>
-				<div className="cs-cta-row" style={{ marginTop: 14 }}>
-					<a
-						className="cs-ghost"
-						href={LINKS.donate}
-						target="_blank"
-						rel="noreferrer"
-					>
-						Donate to Clips Kitty
-					</a>
-				</div>
 				<p className="cs-note" style={{ marginTop: 10 }}>
-					Entirely optional. Nothing is locked behind it and there is no
+					Nothing is locked behind anything and there is no
 					paid version.
 				</p>
 			</div>

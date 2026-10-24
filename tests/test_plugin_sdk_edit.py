@@ -3,7 +3,7 @@ Kitty fits it to the clip and to the timeline editor (host.read_edits), and
 the calls a plugin makes (job.suggest_edit).
 
 Like every tests/test_plugin_sdk_*.py file, this needs only pytest and
-imports nothing from Clips Kitty's engine, so it also runs in CI's SDK
+imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 (Windows) job. The examples are clips of Quarkbloom Arena, a made-up game.
 """
 
@@ -24,7 +24,7 @@ from clipskitty_sdk import ContractError, Suggested, contract, host, read_job  #
 
 TIMELINE_EDITOR = ROOT / "ui" / "src" / "renderer" / "src" / "components" / "TimelineEditor.tsx"
 
-# Two clips Clips Kitty is about to make, as an edit run hands them over.
+# Two clips VilloMillo is about to make, as an edit run hands them over.
 CLIPS = [
     {"id": "m1", "start": 812.0, "end": 841.5, "score": 85, "found_score": 72, "found_by": "clipskitty",
      "label": "", "signals": {"text": 61}, "title": "He holds the bridge alone",
@@ -66,7 +66,7 @@ def _logged(out) -> list[str]:
     return [json.loads(line)["message"] for line in out.getvalue().splitlines()]
 
 
-# ---- host.read_edits: what Clips Kitty keeps ----------------------------------------
+# ---- host.read_edits: what VilloMillo keeps ----------------------------------------
 
 
 def test_read_edits_fits_cuts_to_the_clip(tmp_path):
@@ -167,7 +167,7 @@ def _numbers(text: str) -> tuple[float, ...]:
 
 
 def test_the_choices_are_the_editors_own():
-    """The fades, speeds and hook title lengths Clips Kitty fits a suggestion
+    """The fades, speeds and hook title lengths VilloMillo fits a suggestion
     to are the ones the timeline editor's controls offer, so every control
     shows what the clip will get. Changing a list there fails here until the
     SDK's list follows. The layouts are the editor's Layout buttons."""
@@ -198,7 +198,7 @@ def test_fields_outside_the_allow_list_are_ignored_and_logged(tmp_path):
         "ignored: m1's keep: write the spans to take out as cuts",
         "ignored: m1's hook: write the hook title as title_overlay",
         ("ignored: music, watermark, mute_all, muted_words, gaming, podcast, profile, sport, caption_lines, "
-         "filter, adjust, start in m1's edit: Clips Kitty doesn't take them from a plugin"),
+         "filter, adjust, start in m1's edit: VilloMillo doesn't take them from a plugin"),
         "ignored: m2's keep: write the spans to take out as cuts",
         "ignored: m2's edit changes nothing",
     ]
@@ -207,7 +207,7 @@ def test_fields_outside_the_allow_list_are_ignored_and_logged(tmp_path):
            **{f"extra{k}": k for k in range(20)}}
     _, lines = _read(_answer(tmp_path, [{"id": "m1", "edit": {**odd, "fade_in": 0.3}}], name="odd"))
     assert lines == [("ignored: music changed: m1's speed 2 to 1, " + "v" * 32 + ", extra0, extra1, extra2, extra3, "
-                      "extra4, extra5, extra6, extra7, extra8, extra9 and 10 more in m1's edit: Clips Kitty "
+                      "extra4, extra5, extra6, extra7, extra8, extra9 and 10 more in m1's edit: VilloMillo "
                       "doesn't take them from a plugin")]
     # None of them is refused: the answer is only checked for the fields it names.
     assert contract.check_result(json.loads((folder / "result.json").read_text(encoding="utf-8")),
@@ -325,7 +325,7 @@ def test_suggest_edit_checks_at_once_and_adds_cuts(tmp_path):
     k = job.suggest_edit(m2).keep_only((902.0, 910.0), (915.0, 930.0), (800.0, 801.0))
     assert k.cuts == ((900.0, 902.0), (910.0, 915.0))
     assert k.length == pytest.approx(18.0)
-    k.speed(1.4)  # Clips Kitty uses the editor's 1.5x: 18 s becomes 12 s
+    k.speed(1.4)  # VilloMillo uses the editor's 1.5x: 18 s becomes 12 s
     assert k.length == pytest.approx(12.0)
 
     # What finish() writes: the edit as the plugin set it, checked like any answer.
@@ -352,8 +352,8 @@ def test_finish_says_what_clips_kitty_will_ignore_for_the_clips_length(tmp_path)
     job.suggest_edit(m2).trim(900.0, 916.0).speed(2)  # 16 s at 2x is 8 s
     job.finish()
     assert _logged(out) == [
-        "m1: cuts leave 4.0 s, under this job's 10 s shortest clip: Clips Kitty will ignore the cuts",
-        "m2: cuts and speed leave 8.0 s, under this job's 10 s shortest clip: Clips Kitty will ignore the speed"]
+        "m1: cuts leave 4.0 s, under this job's 10 s shortest clip: VilloMillo will ignore the cuts",
+        "m2: cuts and speed leave 8.0 s, under this job's 10 s shortest clip: VilloMillo will ignore the speed"]
     edits, lines = host.read_edits(job.folder, windows=WINDOWS, crops=job.limits.crops, min_length=10,
                                    max_length=60)
     assert edits == {"m2": {"edit": {"cuts": [[916.0, 925.0]]}}}
@@ -371,7 +371,7 @@ def test_suggest_edit_outside_an_edit_run_is_ignored(tmp_path):
     assert job.suggest_edit(m1) is s and s.cuts == ((815.0, 821.5),)
     with pytest.raises(ContractError):  # still checked, so one function serves every run
         s.speed(9)
-    # Nothing is said about what Clips Kitty would do to a suggestion it never
+    # Nothing is said about what VilloMillo would do to a suggestion it never
     # gets: no nearest choice, no crop the job doesn't use, no span outside the clip.
     _, m2 = job.moments
     job.suggest_edit(m2).fade(fade_out=0.4).crop("center").cut(950, 960).speed(1.1).title_overlay("Go", seconds=4)
@@ -386,7 +386,7 @@ def test_suggest_edit_outside_an_edit_run_is_ignored(tmp_path):
     assert job.suggest_edit(own).cuts == ((10.0, 12.0),)
     written = json.loads(job.finish().read_text(encoding="utf-8"))
     assert "moments" not in written and "edit" not in written["ranges"][0]
-    assert _logged(out) == [("suggest_edit ignored on r1: Clips Kitty asks for edits on the clips it hands "
+    assert _logged(out) == [("suggest_edit ignored on r1: VilloMillo asks for edits on the clips it hands "
                              "over (job.moments)")]
     # A moment from another job is refused, as rate() refuses it.
     other, _ = _job(tmp_path / "other")
