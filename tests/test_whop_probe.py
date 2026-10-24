@@ -35,6 +35,17 @@ def test_an_error_answer_and_a_dead_connection_are_both_just_results():
     assert "could not reach Whop" in whop_probe.probe(httpx.Client(transport=httpx.MockTransport(boom)), "/campaigns")["error"]
 
 
+def test_the_permission_catalog_is_shown_as_a_plain_list_of_names():
+    answer = {"data": [{"action": "bounty:basic:read", "label": "Read bounties"}, {"action": "payout:transfer_funds"},
+                       {"nested": ["chat:read", "not a permission"]}]}
+    assert whop_probe.permission_names(answer) == ["bounty:basic:read", "chat:read", "payout:transfer_funds"]
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=answer)))
+    got = whop_probe.catalog(client)
+    assert got["count"] == 3 and got["names_that_look_relevant"] == ["bounty:basic:read"]
+    dead = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(403, json={"error": "no"})))
+    assert whop_probe.catalog(dead)["count"] == 0
+
+
 def test_the_probe_only_ever_asks_it_never_changes_anything():
     methods = []
 

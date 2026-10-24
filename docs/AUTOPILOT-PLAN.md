@@ -196,10 +196,8 @@ on Home (engine, worker, funds, last post).
 This asks Whop what your API key is allowed to see. It only reads, never changes anything, never saves your key and never prints it.
 
 1. **Get the script.** Double-click `get-from-github.bat`.
-2. **Make a read-only key.** In Whop, open the Developer area, then API keys, then Create (the page you sent:
-   https://docs.whop.com/api-reference/beta/api-keys/create-api-key). Give it **read permissions only**, for example the ones with
-   "read" in their name such as `bounty:basic:read`. Do **not** tick anything that creates, edits or moves money (for example `payout:transfer_funds`).
-   Names may differ from what I have seen; if unsure, pick the smallest set that lets you look at campaigns and submissions.
+2. **Make a read-only key** (what to tick is explained under "Which permissions" below). In Whop, open the Developer area, then
+   API keys, then Create. Set an **expiry** (a week is enough) if the page offers one.
 3. **Open PowerShell in the VilloMillo folder** (the same place you ran `.\.venv\Scripts\python.exe -m villomillo serve`).
 4. **Run:** `.\.venv\Scripts\python.exe scripts\whop_probe.py`
 5. **Paste the key** when it asks (nothing shows as you type) and press Enter.
@@ -209,6 +207,26 @@ This asks Whop what your API key is allowed to see. It only reads, never changes
 
 A line saying `"status": 200` means that part works. `403` means the key lacks permission. `404` means that address does not exist
 (expected for several, because the script tries a few likely names). What it finds decides how much of Campaigns can be automatic.
+
+### Which permissions the key needs
+
+I could not read Whop's permission list from here, so these are the kinds to look for, not exact names. The test script prints Whop's
+real list (the `permissions` part of its output) so we can be exact next time.
+
+**For the test key, tick only reading:**
+- Reading **campaigns / content rewards / bounties** and their **submissions** (one example I have seen named: `bounty:basic:read`).
+- Reading basic **company or account** information, so we can see which account the key belongs to.
+
+**Never tick** (for the test key or later): anything about **payouts, transfers, withdrawals, billing, payments, members or
+refunds** (for example `payout:transfer_funds`), and do not use the **Admin** role, which allows everything.
+
+**Later, only if the test shows it is possible:** if joining a campaign or submitting a link can be done through the API, the key
+will also need the matching **create or edit** permission for submissions or joining, and nothing else. We decide that from the test
+result, not before.
+
+**A catch to know about:** Whop's docs say an account key lists the submissions on that account's *own* bounties. You are on the
+clipper side (you joined someone else's campaign), so a key may not be able to see your campaigns at all. If the test shows empty
+lists or `403`, the next step is a different kind of sign-in (a user token), not a bigger key.
 
 ## 13. Still to confirm
 

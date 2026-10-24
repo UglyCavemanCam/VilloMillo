@@ -19,6 +19,7 @@ import getpass
 import json
 import os
 import pathlib
+import re
 import sys
 
 import httpx
@@ -29,6 +30,8 @@ LISTS = ["/bounties", "/bounty_submissions", "/content_rewards", "/content_rewar
          "/apps"]
 ONE = ["/bounties/{id}", "/content_rewards/{id}", "/content_reward_campaigns/{id}", "/campaigns/{id}"]
 HIDE = ("email", "token", "secret", "password", "phone", "address", "api_key", "apikey", "authorization", "ip_address")
+NAME = re.compile(r"^[a-z][a-z0-9_]*(?::[a-z0-9_]+)+$")  # a permission name such as bounty:basic:read
+INTERESTING = ("bounty", "campaign", "reward", "submission", "content", "company:basic", "clip")
 OUT = pathlib.Path(__file__).resolve().parent.parent / "data" / "villomillo" / "whop-probe.json"
 
 
@@ -44,6 +47,33 @@ def sanitize(value, depth: int = 0):
     if isinstance(value, str):
         return value if len(value) <= 120 else value[:117] + "..."
     return value
+
+
+def permission_names(value) -> list[str]:
+    """Every permission-looking name anywhere in an answer, so the catalog can be shown as a plain list."""
+    found: set[str] = set()
+    if isinstance(value, dict):
+        for v in value.values():
+            found.update(permission_names(v))
+    elif isinstance(value, list):
+        for v in value:
+            found.update(permission_names(v))
+    elif isinstance(value, str) and NAME.match(value):
+        found.add(value)
+    return sorted(found)
+
+
+def catalog(client: httpx.Client) -> dict:
+    """The names Whop's own permission picker offers, from its documented permission catalog."""
+    try:
+        r = client.get(BASE + "/api_keys/permissions")
+        names = permission_names(r.json()) if r.status_code == 200 else []
+        out = {"status": r.status_code, "count": len(names)}
+    except (httpx.HTTPError, ValueError):
+        return {"status": None, "count": 0, "names_that_look_relevant": [], "all_names": []}
+    out["names_that_look_relevant"] = [n for n in names if any(k in n for k in INTERESTING)]
+    out["all_names"] = names
+    return out
 
 
 def probe(client: httpx.Client, path: str) -> dict:
@@ -77,7 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     paths = LISTS + [p.format(id=args.campaign_id) for p in ONE] + args.path
     with httpx.Client(headers={"Authorization": f"Bearer {key}"}, timeout=20) as client:
         results = [probe(client, p) for p in paths]
-    text = json.dumps({"base": BASE, "results": results}, indent=2, ensure_ascii=False)
+        permissions = catalog(client)
+    text = json.dumps({"base": BASE, "permissions": permissions, "results": results}, indent=2, ensure_ascii=False)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text, encoding="utf-8")
     print(text)
