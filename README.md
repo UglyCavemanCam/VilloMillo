@@ -83,6 +83,7 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 |---|---|
 | `status` | counts by stage, today's YouTube quota and AI spend since your last approval |
 | `approve-spend` | approve more spending after the breaker paused work, or after topping up an empty account |
+| `preview` / `make` | find and score the moments of a YouTube, Twitch or Kick video without making clips; then make only the ones you pick |
 | `clip` | clip one video now and wait for the engine |
 | `copy` | write title and caption options for planned posts |
 | `accounts` / `account` / `audit` | channel routes, audits, pause and resume |

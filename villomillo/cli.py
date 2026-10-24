@@ -45,6 +45,66 @@ def _pick(sv: services.Services, profile_id: str | None):
     sys.exit(f"Choose a channel profile with --profile ({', '.join(sorted(sv.profiles))})")
 
 
+def _wait_for_job(engine, job_id: int, *, every: float = 5.0, limit_s: float = 3 * 3600) -> dict:
+    import time
+
+    waited = 0.0
+    while True:
+        job = engine.job(job_id)
+        if job["status"] in ("done", "failed", "cancelled"):
+            return job
+        if waited >= limit_s:
+            sys.exit(f"gave up waiting for engine job {job_id}")
+        time.sleep(every)
+        waited += every
+
+
+def cmd_preview(args) -> None:
+    """Find and score the moments of one YouTube, Twitch or Kick video, without making any clips."""
+    from . import clipper, links
+
+    try:
+        link = links.parse(args.link)
+    except links.LinkError as e:
+        sys.exit(str(e))
+    engine = clipper.Engine()
+    try:
+        job_id = clipper.start_preview(engine, link, focus=args.focus or "")
+        print(f"{link.name} video {link.video_id}: finding moments (engine job {job_id})...", flush=True)
+        job = _wait_for_job(engine, job_id)
+        if job["status"] != "done":
+            sys.exit(f"the engine did not finish: {job.get('error') or job['status']}")
+        moments = engine.moments(link.video_id)
+    except clipper.EngineUnavailable as e:
+        sys.exit(str(e))
+    if not moments:
+        sys.exit("No moments worth clipping were found.")
+    print(f"{len(moments)} moments, best first. Make some with: python -m villomillo make {args.link} --moments 1,2")
+    for m in moments:
+        print(f"  {m['id']:>2}  score {m['score']:>3}  {m['start']:7.1f}s - {m['end']:7.1f}s  {m['hook'][:70]}")
+
+
+def cmd_make(args) -> None:
+    """Make only the chosen moments of a video that was previewed."""
+    from . import clipper, links
+
+    try:
+        link = links.parse(args.link)
+        ids = sorted({int(x) for x in args.moments.split(",") if x.strip()})
+    except (links.LinkError, ValueError) as e:
+        sys.exit(str(e) if isinstance(e, links.LinkError) else "give the moment numbers like 1,3")
+    engine = clipper.Engine()
+    try:
+        job_id = clipper.start_render(engine, link, ids, focus=args.focus or "")
+        print(f"Making moments {ids} (engine job {job_id})...", flush=True)
+        job = _wait_for_job(engine, job_id)
+    except clipper.EngineUnavailable as e:
+        sys.exit(str(e))
+    if job["status"] != "done":
+        sys.exit(f"the engine did not finish: {job.get('error') or job['status']}")
+    print(f"Done: {len(engine.clips(link.video_id))} clip(s) now exist for {link.video_id}.")
+
+
 def cmd_approve_spend(args) -> None:
     """Start a new spending count and let paused work continue (after topping up an empty account)."""
     from . import spend
@@ -297,6 +357,15 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="villomillo")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show counts and today's usage").set_defaults(fn=cmd_status)
+    preview = sub.add_parser("preview", help="find and score the moments of a YouTube, Twitch or Kick video; makes no clips")
+    preview.add_argument("link")
+    preview.add_argument("--focus", help="what the clips should be about, in your words")
+    preview.set_defaults(fn=cmd_preview)
+    make = sub.add_parser("make", help="make only the chosen moments of a video you previewed")
+    make.add_argument("link")
+    make.add_argument("--moments", required=True, help="the moment numbers from 'preview', like 1,3")
+    make.add_argument("--focus")
+    make.set_defaults(fn=cmd_make)
     sub.add_parser("approve-spend", help="approve more spending and let paused work continue").set_defaults(fn=cmd_approve_spend)
     clip = sub.add_parser("clip", help="clip one video now and wait for the engine")
     clip.add_argument("video_id")

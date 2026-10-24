@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS rejections (
     created_at  TEXT NOT NULL
 );
 
+-- The moments a preview run found and scored, kept so a later run can make only the ones chosen without finding them again.
+CREATE TABLE IF NOT EXISTS moments (
+    video_id    TEXT NOT NULL,
+    idx         INTEGER NOT NULL,
+    start_s     REAL NOT NULL,
+    end_s       REAL NOT NULL,
+    score       INTEGER NOT NULL,
+    candidate   TEXT NOT NULL,          -- the whole candidate as JSON, so it comes back exactly as it was found
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (video_id, idx)
+);
+
 CREATE TABLE IF NOT EXISTS uploads (
     clip_id     INTEGER PRIMARY KEY REFERENCES clips(id),
     youtube_id  TEXT NOT NULL,
@@ -1023,6 +1035,43 @@ class StateDB:
              json.dumps(subscores) if subscores else "", _now()),
         )
         self.conn.commit()
+
+    # ---- previewed moments -------------------------------------------------
+
+    def save_moments(self, video_id: str, candidates: list) -> None:
+        """Keep the moments a preview found, best first, numbered from 1. Replaces any earlier preview of this video."""
+        from dataclasses import asdict
+
+        self.conn.execute("DELETE FROM moments WHERE video_id = ?", (video_id,))
+        for idx, c in enumerate(candidates, 1):
+            self.conn.execute(
+                "INSERT INTO moments (video_id, idx, start_s, end_s, score, candidate, created_at) VALUES (?,?,?,?,?,?,?)",
+                (video_id, idx, round(c.start, 2), round(c.end, 2), int(c.score), json.dumps(asdict(c), default=str), _now()),
+            )
+        self.conn.commit()
+
+    def moments(self, video_id: str) -> list[dict]:
+        """The previewed moments of a video: id, start, end, score and what the engine knows about each."""
+        out = []
+        for r in self.conn.execute("SELECT * FROM moments WHERE video_id = ? ORDER BY idx", (video_id,)):
+            c = json.loads(r["candidate"])
+            out.append({"id": r["idx"], "start": r["start_s"], "end": r["end_s"], "duration": round(r["end_s"] - r["start_s"], 2),
+                        "score": r["score"], "hook": c.get("hook", ""), "reason": c.get("reason", ""),
+                        "source": c.get("source", ""), "trending": bool(c.get("trending")),
+                        "subscores": c.get("subscores") or {}})
+        return out
+
+    def moment_candidates(self, video_id: str, ids: list[int]) -> list:
+        """The stored candidates for these moment ids, in the order asked. Raises LookupError for an id that was not previewed."""
+        from core.models import ClipCandidate
+
+        out = []
+        for i in ids:
+            r = self.conn.execute("SELECT candidate FROM moments WHERE video_id = ? AND idx = ?", (video_id, i)).fetchone()
+            if r is None:
+                raise LookupError(f"moment {i} of {video_id} was not found: preview the video first")
+            out.append(ClipCandidate(**json.loads(r["candidate"])))
+        return out
 
     # ---- why a run produced what it produced -----------------------------
 

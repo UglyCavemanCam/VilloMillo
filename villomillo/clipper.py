@@ -41,10 +41,18 @@ class Engine:
         except httpx.HTTPError as e:
             raise EngineUnavailable(f"clipping engine error ({type(e).__name__})") from None
 
-    def submit(self, url: str, *, focus: str, max_clips: int, force: bool = False) -> int:
-        r = self._call("POST", "/jobs", json={
-            "url": url, "focus": focus[:300], "max_clips": max_clips, "captions": True, "force": force,
-        })
+    def submit(self, url: str, *, focus: str, max_clips: int, force: bool = False, preview: bool = False,
+               moments: list[int] | None = None, min_score: int | None = None) -> int:
+        """Queue a job. `preview` finds and scores the moments and makes no clips; `moments` makes only the
+        previewed moments with those ids. Anything else makes the clips as always."""
+        body = {"url": url, "focus": focus[:300], "max_clips": max_clips, "captions": True, "force": force}
+        if preview:
+            body["preview"] = True
+        if moments is not None:
+            body["moments"] = moments
+        if min_score is not None:
+            body["min_score"] = min_score
+        r = self._call("POST", "/jobs", json=body)
         if r.status_code >= 400:
             raise EngineUnavailable(f"engine refused the job: HTTP {r.status_code} {r.text[:160]}")
         job_id = r.json().get("job_id")
@@ -58,6 +66,11 @@ class Engine:
         if r.status_code != 200:
             raise EngineUnavailable(f"engine has no job {job_id} (HTTP {r.status_code})")
         return r.json()
+
+    def moments(self, video_id: str) -> list[dict]:
+        """The scored moments a preview found for this video, best first (empty until a preview has run)."""
+        r = self._call("GET", f"/videos/{video_id}/moments")
+        return r.json() if r.status_code == 200 else []
 
     def log(self, job_id: int) -> str | None:
         """The engine's log text for a job, or None when the engine cannot be reached."""
@@ -82,6 +95,21 @@ class Engine:
         if r.status_code != 200:
             raise EngineUnavailable(f"engine has no media for clip {clip_id} (HTTP {r.status_code})")
         return r.content
+
+
+PREVIEW_MOMENTS = 10  # the most moments one preview returns: the engine's own limit per video
+
+
+def start_preview(engine: Engine, link, *, focus: str = "", force: bool = False) -> int:
+    """Ask the engine to find and score the moments of one video (YouTube, Twitch or Kick) without making any clips.
+    Returns the engine's job id; `engine.moments(link.video_id)` has the answer once the job is done. Nothing is
+    filtered out by score here, so the plan screen can show every moment and why it will or will not be made."""
+    return engine.submit(link.url, focus=focus, max_clips=PREVIEW_MOMENTS, force=force, preview=True, min_score=0)
+
+
+def start_render(engine: Engine, link, moment_ids: list[int], *, focus: str = "") -> int:
+    """Ask the engine to make only these previewed moments. Returns the engine's job id."""
+    return engine.submit(link.url, focus=focus, max_clips=len(moment_ids), moments=moment_ids)
 
 
 def submit(db: Database, engine: Engine, profile: Profile, video_id: str, *, force: bool = False) -> str:

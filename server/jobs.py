@@ -227,6 +227,10 @@ class Worker(threading.Thread):
                         cfg["clips"]["captions"] = bool(payload["captions"])
                     if payload.get("min_score") is not None:
                         cfg["clips"]["min_score"] = int(payload["min_score"])
+                    if payload.get("preview"):
+                        cfg["clips"]["preview_only"] = True  # find and keep the moments; make no clips
+                    if payload.get("moments"):
+                        cfg["clips"]["render_only"] = [int(i) for i in payload["moments"]]  # make just these
                     if payload.get("sport"):
                         # The Sports toggle (sports/): the match's moments,
                         # found and clipped by the sport's profile.

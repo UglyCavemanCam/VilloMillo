@@ -234,6 +234,11 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             print(f"      Sports: {width}×{height} is already vertical, keeping its composition")
             config = {**config, "clips": {**config["clips"], "vertical_live": True}}
 
+    # Preview: find and score the moments, keep them, make no clips. Render only: make just the moments that were
+    # chosen from an earlier preview, without finding them again (config["clips"]["preview_only"] / ["render_only"]).
+    preview_only = bool(config["clips"].get("preview_only"))
+    render_only = config["clips"].get("render_only")
+
     cancel.clear(video.video_id)  # fresh start; any stale flag from a prior run gone
     # Source length is stored too: the queue's time estimate scales its history
     # by it, so a long VOD isn't predicted to cost the same as a short upload.
@@ -304,7 +309,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         print(f"      (creator tagging failed: {e})")
     # Shorts made before, not just "done": a Longform run marks a video done
     # too, and its Shorts are still to be made (#98).
-    if db.shorts_made(video.video_id) and not force:
+    if db.shorts_made(video.video_id) and not force and not preview_only:
         print("      Already processed (Shorts made before). Use --force to redo.")
         return []
     db.set_video_status(video.video_id, "downloaded")
@@ -319,6 +324,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     signals_out: dict = {}
 
     def _extract_signals() -> None:
+        if render_only is not None:
+            return  # the moments are already chosen; nothing here is read again
         try:
             from analysis.audio_features import extract_audio_features
             from analysis.visual_features import extract_visual_features
@@ -349,6 +356,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     known_games = list(getattr(video, "games", None) or []) or db.video_games(video.video_id)
 
     def _fetch_hype() -> None:
+        if render_only is not None:
+            return
         try:
             from analysis.hype import audience_signals
 
@@ -445,13 +454,17 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             config, video, db, known_games, hype_out, sounds_out.get("heard"))
     # Understand and Rate (plugins/steps.py): plugins that look at the moments once they're
     # found. None chosen: the same config object below, and nothing is imported.
-    steps_chosen = bool(config["clips"].get("rate") or config["clips"].get("understand"))
+    steps_chosen = bool(config["clips"].get("rate") or config["clips"].get("understand")) and render_only is None
     find_config = config
     if steps_chosen:
         from plugins import steps as plugin_steps
 
         find_config = plugin_steps.shortlist_config(config)
-    if config["clips"].get("pipeline"):
+    if render_only is not None:
+        # Only the moments chosen from an earlier preview, exactly as they were found.
+        intent, rejections = None, []
+        candidates = db.moment_candidates(video.video_id, [int(i) for i in render_only])
+    elif config["clips"].get("pipeline"):
         # A plugin pipeline (plugins/) picks the moments in its own process;
         # titles, rendering and the library below are made as for any job.
         from plugins import runner as plugin_runner
@@ -482,7 +495,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         candidates, rejections, step_report = plugin_steps.after_finding(
             candidates, rejections, video=video, segments=segments, language=content_lang,
             config=config, data_dir=data_dir)
-    if config["clips"].get("edit") and candidates:
+    if config["clips"].get("edit") and candidates and render_only is None:
         # Suggest edits (plugins/steps.py): plugins that suggest an edit for
         # each clip about to be made. Their suggestions wait on the clips for
         # the creator; the clips themselves, and how they render, are unchanged.
@@ -524,6 +537,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         # the scores -- so record it where the UI can read it instead of only
         # printing it to a log nobody opens.
         print(f"      {explain_no_clips(outcome)}")
+        if preview_only:
+            db.save_moments(video.video_id, [])  # a preview that found nothing still answers: nothing
         db.set_video_status(video.video_id, "done")
         return []
     for c in candidates:
@@ -540,6 +555,12 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         )
         print(f"      [{c.score:3d}] {c.start:7.1f}s - {c.end:7.1f}s  {c.hook}")
         print(f"            ({breakdown})")
+
+    if preview_only:
+        db.save_moments(video.video_id, candidates)
+        print(f"      Preview: {len(candidates)} moment(s) kept, no clips made")
+        progress.emit(stage="previewed", video_id=video.video_id, moments=len(candidates))
+        return []
 
     print("[4/4] Rendering clips...")
     rendered = []

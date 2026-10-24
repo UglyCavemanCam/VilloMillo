@@ -135,6 +135,12 @@ and then make only the ones chosen. It must also accept Twitch and Kick links as
 change in the plan.
 **After this:** you can ask the engine for scored moments without making any clips.
 **Done when:** a video returns its scored moments, and a later request makes only the chosen ones.
+**Status: done, tested with stand-ins for the slow parts (no real video has been run through it yet).** A job can now be a **preview**: the engine
+downloads, reads and scores the video, keeps every moment it found (numbered, best first, with its score and the reason), and makes no
+clips. A second job can name the moment numbers to make and makes only those, without finding them again or re-measuring the video.
+Twitch and Kick past broadcasts already worked in the engine; VilloMillo now recognises YouTube, Twitch and Kick links (`villomillo/links.py`),
+and refuses live channels, Twitch clips and other sites with a plain reason. Try it: `python -m villomillo preview <link>`, then
+`python -m villomillo make <link> --moments 1,3`. The scores are the engine's own for now; Phase 4 adds the viral score, category and CPM on top.
 
 ### Phase 4: The scoring brain (medium to large)
 **In plain words:** Build the part that gives every possible clip its viral score, estimated CPM and expected revenue, and that

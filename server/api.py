@@ -69,6 +69,8 @@ class JobIn(BaseModel):
     # once they are chosen. Their suggestions wait for the creator in the
     # editor; this is a list of plugins, not an edit list (render_opts.edit).
     edit: list | dict | str | None = None
+    preview: bool | None = None  # find and score the moments, keep them, and make no clips (GET /videos/{id}/moments)
+    moments: list[int] | None = None  # make only these previewed moments (ids from GET /videos/{id}/moments)
     then: dict | None = None  # what to do once this job finishes, e.g.
     #     {"action": "publish", "platforms": ["youtube"]}
     # Queueing returns in a second and the clips appear an hour later, so a
@@ -490,6 +492,15 @@ def _process_options(body, into: dict | None = None, data_dir: Path | None = Non
         payload["captions"] = body.captions
     if getattr(body, "long_clips", None):
         payload["long_clips"] = True
+    if getattr(body, "preview", None):
+        payload["preview"] = True
+    if getattr(body, "moments", None) is not None:
+        if getattr(body, "preview", None):
+            raise HTTPException(400, "a job either previews the moments or makes chosen ones, not both")
+        ids = sorted({int(i) for i in body.moments})
+        if not ids or ids[0] < 1 or len(ids) > 10:
+            raise HTTPException(400, "moments: choose between 1 and 10 moments, numbered from 1")
+        payload["moments"] = ids
     if getattr(body, "podcast", None):
         payload["podcast"] = True
     if getattr(body, "vertical_live", None):
@@ -913,7 +924,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         from sources.dispatch import identify
 
         vid = ""
-        if not body.force and not body.longform:
+        if not body.force and not body.longform and not body.preview:
             _, vid = identify(body.url)
             if vid:
                 d0 = db()
@@ -924,7 +935,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
                 if made:
                     return {"job_id": None, "already_processed": True, "video_id": vid}
         elif not body.longform:
-            _, vid = identify(body.url)
+            _, vid = identify(body.url)  # a preview lands here: it never makes clips, so there is nothing to "already" have
 
         payload = _process_options(body, {"url": body.url, "force": body.force}, data_dir=data_dir)
         d = db()
@@ -1565,6 +1576,15 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
                     v["outcome"] = None
                 out.append(v)
             return out
+        finally:
+            d.close()
+
+    @app.get("/videos/{video_id}/moments")
+    def moments_for_video(video_id: str):
+        """The scored moments a preview job kept for this video, best first. Empty until a preview has run."""
+        d = db()
+        try:
+            return d.moments(video_id)
         finally:
             d.close()
 
