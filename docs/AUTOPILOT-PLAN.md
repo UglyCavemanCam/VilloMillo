@@ -38,7 +38,7 @@ by one thing: the best CPM** (what a video earns per 1,000 views). You step in o
 |---|---|---|
 | **Paste** | You paste a YouTube, Twitch or Kick link. You see the clips it would make and their scores, then press Start. | The link bar on Home |
 | **Research** | You switch on "Run Research". It looks for videos with the best expected CPM and clips them on its own. | The Research page |
-| **Campaigns** | It finds Content Rewards campaigns paying $1.00 or more per 1,000 views, joins them, and clips their videos. | The Campaigns page |
+| **Campaigns** | It finds Content Rewards campaigns paying $1.00 or more per 1,000 views, clips their videos, and shows you what to join and submit (see section 12: Whop's key permissions do not offer joining or submitting). | The Campaigns page |
 
 Only the way a video arrives is different. The scoring, clipping and posting are identical for all three.
 
@@ -150,10 +150,10 @@ learning step. You will need TikTok's approval; until it passes, posts there are
 
 ### Phase 7: Campaigns (large)
 **In plain words:** First, a small test script you run once on your computer, using your Whop key (steps in section 12), to see what Content Rewards
-lets the system do. If it allows it, the system finds campaigns, checks the pay and the money left, joins the good ones, reads
-the rules, finds their videos and clips them, then submits the links. If it does not allow it, the system does everything except the joining and
-submitting, and shows you exactly what to do (a few taps).
-**After this:** a Campaigns page listing every campaign it looked at, why it joined or skipped each one, and a queue of videos.
+lets the system do. Whop's permission list suggests a key can read campaigns but cannot join them or submit links, so the expected result is:
+the system finds campaigns, checks the pay and the money left, reads the rules, finds their videos and clips them, and then shows you
+exactly what to join and which links to submit (a few taps). If the test shows joining and submitting are possible after all, the system does those too.
+**After this:** a Campaigns page listing every campaign it looked at, why it recommends or skips each one, and a queue of videos.
 **Done when:** one real campaign is checked and queued, and any manual steps are clearly shown.
 
 ### Phase 8: Research (large)
@@ -209,35 +209,42 @@ This asks Whop what your API key is allowed to see. It only reads, never changes
 A line saying `"status": 200` means that part works. `403` means the key lacks permission. `404` means that address does not exist
 (expected for several, because the script tries a few likely names). What it finds decides how much of Campaigns can be automatic.
 
-### Which permissions the key needs
+### Which permissions the key needs (checked against Whop's real list)
 
-I could not read Whop's permission list from here, so these are the **abilities** to look for, not exact names. The test script prints
-Whop's real list (the `permissions` part of its output) so we can match names exactly. Whop also lets you **edit a key's permissions
-later** (the "Edit permissions" option on the key), so you do not have to remake it if one is missing.
+Whop's permission list was pasted in, so these are the exact boxes. Whop also lets you edit a key's permissions later ("Edit permissions"
+on the key), so nothing here is permanent.
 
-**Tick all of these (everything the app will ever do on Whop):**
-1. **Read campaigns, content rewards or bounties**: the list and each one's details (pay rate, budget left, rules, source,
-   allowed platforms). Needed to find and vet campaigns.
-2. **Join or apply to a campaign.** Needed for automatic joining.
-3. **Create, read, edit and delete your own submissions.** Needed to submit a clip's link, and to fix or withdraw a wrong one.
-4. **Read submission status, approved views and per-submission payouts.** Needed to learn real results.
-5. **Read earnings, balance and payout history (read only).** Needed for "budget worth it" checks and the Learn step.
-6. **Read basic account and company information.** Needed to know which account the key belongs to.
+**Tick these 6:**
+| Group | Box | Why |
+|---|---|---|
+| Content rewards | **Read content rewards** | See campaigns: pay rate, budget left, rules, source |
+| Bounty | **bounty:basic:read** | Read submissions (this is the one Whop's submissions list asks for) |
+| Company (the group with plain labels, the second "Company") | **Read business information** | Know which account the key belongs to |
+| Company (same group) | **Read company balance** | See earnings and balance for the Learn step |
+| Payouts | **Read transfers** | See money that arrived |
+| Payouts | **Read withdrawals** | See money that went out |
 
-**Leave these off, always** (the app never needs them, and a mistake here costs real money or access):
-- **Sending, transferring or withdrawing money** (for example `payout:transfer_funds`). You withdraw by hand.
-- **Billing, payments you make, refunds, subscriptions or plan changes.**
-- **Managing members, staff, other API keys, apps or webhooks.**
-- The **Admin** role. It includes all of the above.
+**Optional:** Payments, **Read payments**, if the transfers show nothing useful. It is read only.
 
-If an ability on the first list is not offered for an API key at all, that part cannot be automatic with a key. It then stays a manual
-tap, or needs a different kind of sign-in (a user token). The test result tells us which.
+**Leave every other box off.** In particular:
+- **Content rewards: Create, Update, Delete, Export, and "Moderate content reward submissions".** These are for the company that *runs* a
+  campaign. Moderating means approving or rejecting other people's submissions, which can release money. Clippers never need it.
+- **Bounty: bounty:create and bounty:update** (they post bounties that spend money).
+- **Payouts: Transfer funds, Withdraw funds, and every create, update or delete payout destination.** You withdraw by hand.
+- **Payments: Charge payments and Manage payments**, **Members**, **Membership**, **Developer: Manage webhooks**, **Webhook Receive**,
+  **Company: transfer ownership, suspend, delete**, and everything about ads, chats, courses, products, plans, forums, livestreams,
+  email, domains and AI.
 
-**A catch to know about:** Whop's docs say an account key lists the submissions on that account's *own* bounties. You are on the
-clipper side (you joined someone else's campaign), so a key may not be able to see your campaigns at all. If the test shows empty
-lists or `403`, the next step is a user token, not a bigger key.
+**What this list tells us about automation:** every Content rewards and Bounty box is for the side that *creates and runs* campaigns.
+**Nothing in the list lets a key join a campaign or submit a clip's link as a clipper.** So expect Campaigns to work like this:
+- Reading campaigns, rates, budgets and results: possible with the key above (the test confirms it).
+- Joining a campaign and submitting a link: **a quick tap by you**, with everything prepared. This is the fallback you already chose.
+  If the test script shows otherwise, we change this.
 
-Keep the key only in the app's keychain (the app asks for it once). Never paste it into chat, a file or the repository.
+Another catch: an account key may only see campaigns that account *owns*, not ones you joined as a clipper. If the test shows empty
+lists or `403`, the next step is a different kind of sign-in (a user token), not more boxes.
+
+Keep the key only in the app's keychain. Never paste it into chat, a file or the repository.
 
 ## 13. Still to confirm
 
