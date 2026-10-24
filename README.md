@@ -52,7 +52,7 @@ python -m villomillo serve
 The engine's own dependencies are in [`requirements.txt`](requirements.txt); start it with `python main.py serve`.
 
 **Keys.** The YouTube, Jev and Claude keys are kept in your operating system's keychain, never in a file in this folder.
-Settings in the dashboard shows which are stored, never their values; the error message for a missing key prints the one-line command that stores it.
+Settings in the dashboard shows which are stored, never their values; store one with `python -m villomillo key whop` (or `youtube`, `jev`, `claude`); it asks for the key with hidden typing and never prints it.
 
 **The clipping engine** is a separate local program on `127.0.0.1:8765`. Start it with `python main.py serve` (its
 dependencies are in [`requirements.txt`](requirements.txt)). Without it, research and review still work, and clipping

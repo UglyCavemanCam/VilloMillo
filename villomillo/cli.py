@@ -262,6 +262,24 @@ def cmd_recheck(args) -> None:
         print(line)
 
 
+def cmd_key(args) -> None:
+    """Store an API key in the credential store, or say which keys are stored. The key is never printed or saved to a file."""
+    import getpass
+
+    from . import secrets
+
+    if args.name is None:
+        for short, name in secrets.KEYS.items():
+            print(f"{short:8} {'stored' if secrets.is_stored(name) else 'not stored'}")
+        return
+    value = getpass.getpass(f"Paste the {args.name} key (typing is hidden), then press Enter: ")
+    try:
+        secrets.store(secrets.KEYS[args.name], value)
+    except ValueError as e:
+        sys.exit(f"Nothing stored: {e}.")
+    print(f"Stored the {args.name} key in the credential store. It was not printed or saved anywhere else.")
+
+
 def cmd_clip(args) -> None:
     """Submit one video to the clipping engine and wait for its clips. For testing and manual runs."""
     import time
@@ -356,6 +374,11 @@ def main(argv: list[str] | None = None) -> None:
     campaign.add_argument("--note", required=True, help="the campaign's own wording about its source material")
     campaign.add_argument("--ids", required=True, help="comma-separated YouTube video ids")
     campaign.set_defaults(fn=cmd_campaign)
+    from . import secrets as _secrets
+
+    key = sub.add_parser("key", help="store an API key safely (no name: show which keys are stored)")
+    key.add_argument("name", nargs="?", choices=sorted(_secrets.KEYS))
+    key.set_defaults(fn=cmd_key)
     yt_connect = sub.add_parser("youtube-connect", help="sign in to YouTube once so clips can be uploaded")
     yt_connect.add_argument("--profile")
     yt_connect.set_defaults(fn=cmd_youtube_connect)

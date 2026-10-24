@@ -475,6 +475,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
     keys = [{"name": "YouTube Data API key", "present": has_secret(secrets.YOUTUBE)},
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},
             {"name": "Claude (Anthropic) key", "present": has_secret(secrets.CLAUDE)},
+            {"name": "Whop API key", "present": has_secret(secrets.WHOP)},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
     return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,

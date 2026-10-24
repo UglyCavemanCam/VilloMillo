@@ -8,7 +8,7 @@ Run it from the project folder:
 
     .\\.venv\\Scripts\\python.exe scripts\\whop_probe.py
 
-It asks for the key (what you type is not shown). The result is printed and also written to
+It uses the key saved with `python -m villomillo key whop`, or else asks for it (what you type is not shown). The result is printed and also written to
 data/villomillo/whop-probe.json; paste the printed text back to Claude.
 """
 
@@ -23,6 +23,8 @@ import re
 import sys
 
 import httpx
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 BASE = "https://api.whop.com/api/v1"
 CAMPAIGN_ID = "6bdc8e4b-3ebf-44f1-aedb-067589ca9c89"  # the Content Rewards campaign you joined (from its web address)
@@ -94,13 +96,23 @@ def probe(client: httpx.Client, path: str) -> dict:
     return out
 
 
+def _stored_key() -> str:
+    """The key saved with `python -m villomillo key whop`, if there is one."""
+    try:
+        from villomillo import secrets
+
+        return secrets.get(secrets.WHOP)
+    except Exception:  # nothing stored, or no credential store: the script then asks
+        return ""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--campaign-id", default=CAMPAIGN_ID)
     parser.add_argument("--path", action="append", default=[], help="an extra path to try, such as /bounties")
     args = parser.parse_args(argv)
 
-    key = os.environ.get("WHOP_API_KEY") or getpass.getpass("Whop API key (typing is hidden): ").strip()
+    key = os.environ.get("WHOP_API_KEY") or _stored_key() or getpass.getpass("Whop API key (typing is hidden): ").strip()
     if not key:
         print("No key given.")
         return 2

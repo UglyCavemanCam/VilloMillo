@@ -199,12 +199,15 @@ This asks Whop what your API key is allowed to see. It only reads, never changes
 2. **Make the one key** with the permissions listed under "Which permissions the key needs" below (everything the app will ever
    need, so it is made once). In Whop, open the Developer area, then API keys, then Create. The test script itself only reads,
    whatever the key is allowed to do.
-3. **Open PowerShell in the VilloMillo folder** (the same place you ran `.\.venv\Scripts\python.exe -m villomillo serve`).
-4. **Run:** `.\.venv\Scripts\python.exe scripts\whop_probe.py`
-5. **Paste the key** when it asks (nothing shows as you type) and press Enter.
+3. **Store the key safely** (do this once; the app reads it from there later). Open PowerShell in the VilloMillo folder, run
+   `.\.venv\Scripts\python.exe -m villomillo key whop`, paste the key when asked (nothing shows as you type) and press Enter. It goes
+   into Windows Credential Manager, **not into any file in the project**, and is never printed. `...\python.exe -m villomillo key` on its own
+   shows which keys are stored. To replace the key, run the same command again.
+4. **Open PowerShell in the VilloMillo folder** (the same place you ran `.\.venv\Scripts\python.exe -m villomillo serve`).
+5. **Run:** `.\.venv\Scripts\python.exe scripts\whop_probe.py` (it uses the stored key, so it does not ask).
 6. **Copy what it prints** and paste it to me. It is also saved in `data\villomillo\whop-probe.json`. Emails, tokens and addresses are
    already replaced with "[hidden]", but skim it before sending.
-7. **Afterwards** you can delete the key in Whop; the script did not keep it.
+7. **Keep the key.** It stays in Credential Manager for the app. If you ever need to remove it, delete the "villomillo" entry named `whop_api_key` there, and revoke the key in Whop.
 
 A line saying `"status": 200` means that part works. `403` means the key lacks permission. `404` means that address does not exist
 (expected for several, because the script tries a few likely names). What it finds decides how much of Campaigns can be automatic.

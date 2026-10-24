@@ -8,6 +8,10 @@ SERVICE = "villomillo"
 YOUTUBE = "youtube_api_key"
 JEV = "typesafe_api_key"
 CLAUDE = "anthropic_api_key"
+WHOP = "whop_api_key"
+
+# What `python -m villomillo key <name>` can store, by the short name you type.
+KEYS = {"whop": WHOP, "youtube": YOUTUBE, "jev": JEV, "claude": CLAUDE}
 
 
 class MissingSecret(RuntimeError):
@@ -20,6 +24,18 @@ def get_first(*names: str) -> str:
         if keyring.get_password(SERVICE, name):
             return get(name)
     return get(names[-1])  # none stored: raises the usual explanatory error for the shared key
+
+
+def is_stored(name: str) -> bool:
+    return bool((keyring.get_password(SERVICE, name) or "").strip())
+
+
+def store(name: str, value: str) -> None:
+    """Put a key in the operating system's credential store. It is never written to a file."""
+    value = value.strip()
+    if not value:
+        raise ValueError("the key is empty")
+    keyring.set_password(SERVICE, name, value)
 
 
 def get(name: str) -> str:
