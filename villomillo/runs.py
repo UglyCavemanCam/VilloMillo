@@ -211,8 +211,9 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
             held += 1
         else:
             approved += 1
-            if post["status"] == "queued":
-                tasks.enqueue(sv.db, "copy", {"profile": post["profile"], "post_id": post["id"]}, dedupe_key=f"copy:{post['id']}")
+            for each in post["posts"]:
+                if each["status"] == "queued":
+                    tasks.enqueue(sv.db, "copy", {"profile": each["profile"], "post_id": each["id"]}, dedupe_key=f"copy:{each['id']}")
     waiting = len(ready) if not plan["fit_ok"] else 0
     parts = [outcome + "."]
     if approved:

@@ -101,7 +101,8 @@ def assign_and_plan(db: Database, jev_factory, profiles: dict[str, Profile], own
         with db.conn() as c:
             c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (f"{HELD}{decision.reason}", clip_id))
         return None
-    planned = posting.plan(db, profiles[decision.profile_id], clip_id, now=now, owner=owner_id)
+    posts = posting.plan_all(db, profiles[decision.profile_id], clip_id, now=now, owner=owner_id)
+    planned = {**posts[0], "posts": posts} if posts else None
     with db.conn() as c:  # a clip that was held no longer is
         c.execute("UPDATE clips_ready SET reason=? WHERE id=? AND reason LIKE ?",
                   (f"approved; planned on {profiles[decision.profile_id].display_name}", clip_id, f"{HELD}%"))
@@ -130,5 +131,5 @@ def release_held(db: Database, jev_factory, profiles: dict[str, Profile], catego
     for row in held:
         post = assign_and_plan(db, jev_factory, profiles, row["profile_id"], row["id"], now=now)
         if post:
-            planned.append(post)
+            planned.extend(post["posts"])
     return planned

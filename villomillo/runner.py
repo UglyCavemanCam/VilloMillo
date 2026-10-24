@@ -71,6 +71,17 @@ def do_post(sv: Services, payload: dict) -> None:
         store.event(sv.db, "info", "post", line)
 
 
+def do_stats(sv: Services, payload: dict) -> None:
+    """Read the real numbers of this channel's recent posts."""
+    from . import posting
+
+    p = _profile(sv, payload)
+    if p.posting is None:
+        return
+    for line in posting.collect_stats(sv.db, p, yt=sv.yt, tiktok_account=posting.tiktok_client(p)):
+        store.event(sv.db, "info", "stats", line)
+
+
 def _paste_step(step, kind: str):
     """A step of a pasted link's run. If spending hits the breaker part-way, look again in a minute without counting a failure."""
 
@@ -92,6 +103,7 @@ HANDLERS = {
     "paste_collect": _paste_step(runs.collect, "paste_collect"),
     "copy": do_copy,
     "post": do_post,
+    "stats": do_stats,
     "clip": do_clip,
     "collect": do_collect,
 }

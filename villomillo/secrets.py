@@ -9,9 +9,11 @@ YOUTUBE = "youtube_api_key"
 JEV = "typesafe_api_key"
 CLAUDE = "anthropic_api_key"
 WHOP = "whop_api_key"
+TIKTOK_KEY = "tiktok_client_key"
+TIKTOK_SECRET = "tiktok_client_secret"
 
 # What `python -m villomillo key <name>` can store, by the short name you type.
-KEYS = {"whop": WHOP, "youtube": YOUTUBE, "jev": JEV, "claude": CLAUDE}
+KEYS = {"whop": WHOP, "youtube": YOUTUBE, "jev": JEV, "claude": CLAUDE, "tiktok_key": TIKTOK_KEY, "tiktok_secret": TIKTOK_SECRET}
 
 
 class MissingSecret(RuntimeError):

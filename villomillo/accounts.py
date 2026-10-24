@@ -23,7 +23,7 @@ POLICY = re.compile(r"suspend|terminat|banned|account disabled|channel disabled|
                     r"policy violation", re.I)
 AUTH = re.compile(r"sign-in|signed in|expired|invalid_grant|unauthori[sz]ed|not connected|no youtube account|reconnect|access token|"
                   r"permission", re.I)
-QUOTA = re.compile(r"quota|rate limit|too many|limit exceeded", re.I)
+QUOTA = re.compile(r"quota|rate limit|too many|limit exceeded|daily posting limit", re.I)
 
 
 # --- audits and the route a platform really uses ---------------------------------------------------------------

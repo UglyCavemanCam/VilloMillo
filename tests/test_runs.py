@@ -209,8 +209,9 @@ def test_finished_clips_are_approved_routed_to_their_channel_and_planned_for_pos
     with db.conn() as c:
         clips = c.execute("SELECT state, category, reason FROM clips_ready ORDER BY id").fetchall()
         assert [(r["state"], r["category"]) for r in clips] == [("approved", "Podcasts")] * 2
-        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE profile_id='solved'").fetchone()["n"] == 2
-        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='copy'").fetchone()["n"] == 2
+        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE profile_id='solved'").fetchone()["n"] == 4  # two clips, YouTube and TikTok each
+        assert {r["platform"] for r in c.execute("SELECT platform FROM posts")} == {"youtube_shorts", "tiktok"}
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='copy'").fetchone()["n"] == 4
     assert len(runs.clips_of(db, run)) == 2
 
 

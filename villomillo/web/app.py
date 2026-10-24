@@ -197,7 +197,7 @@ def create_app(sv: Services) -> FastAPI:
         _only_local(request, "changes")
         c = in_profile(channel_id)
         form = {k: str(v) for k, v in (await request.form()).items()}
-        allowed = {"name", "category", "about", "brand_handle", "tiktok_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "format"}
+        allowed = {"name", "category", "about", "brand_handle", "tiktok_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "tiktok_route", "tiktok_daily_cap", "dry_run", "format"}
         before = c.category
         try:
             updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})
@@ -230,6 +230,31 @@ def create_app(sv: Services) -> FastAPI:
                 connecting.discard(profile)
 
         threading.Thread(target=sign_in, name=f"youtube-connect-{profile}", daemon=True).start()
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/channel-tiktok")
+    def channel_tiktok(request: Request, profile: str = Form(...)):
+        _only_local(request, "changes")
+        c = in_profile(profile)
+        try:
+            secrets.get(secrets.TIKTOK_KEY), secrets.get(secrets.TIKTOK_SECRET)
+        except secrets.MissingSecret:
+            raise HTTPException(422, "store your TikTok app's keys first: python -m villomillo key tiktok_key, then key tiktok_secret") from None
+        guard = f"tiktok:{profile}"
+        if guard in connecting:
+            raise HTTPException(409, "a TikTok sign-in is already open for this channel")
+        connecting.add(guard)
+
+        def sign_in():
+            try:
+                posting.connect_tiktok(c)
+                store.event(sv.db, "info", "channels", f"{pages.channel_name(c)}: TikTok connected")
+            except Exception as e:  # window closed, wrong account, no network: say so in the log, change nothing
+                store.event(sv.db, "warn", "channels", f"{pages.channel_name(c)}: TikTok sign-in did not finish: {str(e)[:200]}")
+            finally:
+                connecting.discard(guard)
+
+        threading.Thread(target=sign_in, name=f"tiktok-connect-{profile}", daemon=True).start()
         return JSONResponse({"ok": True})
 
     @app.post("/api/channel-delete")
@@ -404,9 +429,9 @@ def create_app(sv: Services) -> FastAPI:
             clipper.decide(sv.db, profile, clip_id, decision)
             if decision == "approve":
                 planned = routing.assign_and_plan(sv.db, jev_factory, sv.profiles, profile, clip_id)
-                if planned and planned["status"] == "queued":
-                    tasks.enqueue(sv.db, "copy", {"profile": planned["profile"], "post_id": planned["id"]},
-                                  dedupe_key=f"copy:{planned['id']}")
+                for post in (planned or {}).get("posts", []):
+                    if post["status"] == "queued":
+                        tasks.enqueue(sv.db, "copy", {"profile": post["profile"], "post_id": post["id"]}, dedupe_key=f"copy:{post['id']}")
         except LookupError as e:
             raise HTTPException(404, str(e)) from None
         except ValueError as e:

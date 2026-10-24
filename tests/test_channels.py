@@ -75,7 +75,8 @@ def test_names_become_unique_ids_and_a_new_channel_starts_as_a_safe_dry_run(db, 
     a = channels.create(db, profiles, name="Stream clips", category="Stream clips", about="Gaming highlights")
     b = channels.create(db, profiles, name="Stream clips", category="Streams", about="More gaming")
     assert (a.id, b.id) == ("stream-clips", "stream-clips-2")
-    assert a.posting.dry_run and a.posting.privacy == "private" and a.posting.daily_cap == 100
+    assert a.posting.dry_run and a.posting.privacy == "private" and a.posting.cap_for("youtube_shorts") == 100
+    assert a.posting.cap_for("tiktok") == 15 and list(a.posting.platforms) == ["youtube_shorts"]
 
 
 def test_bad_input_is_refused_with_a_plain_message(db, profiles):
@@ -95,7 +96,7 @@ def test_edits_are_saved_and_the_live_set_follows(db, profiles):
     channels.update(db, profiles, "solved", tiktok_handle="podcasts_clips", youtube_tags="@a @b", youtube_daily_cap="50")
     saved = channels.load(db)["solved"]
     assert saved.tiktok_handle == "@podcasts_clips" and saved.posting.tags["youtube_shorts"] == "@a @b"
-    assert saved.posting.daily_cap == 50 and profiles["solved"].tiktok_handle == "@podcasts_clips"
+    assert saved.posting.cap_for("youtube_shorts") == 50 and profiles["solved"].tiktok_handle == "@podcasts_clips"
 
 
 def test_a_channel_with_clips_cannot_be_deleted_and_the_last_one_stays(db, profiles):
@@ -206,10 +207,10 @@ def test_saving_a_channel_changes_it_and_a_bad_value_changes_nothing(web):
     base = {"name": "Podcasts", "category": "Podcasts", "about": "Talk shows", "brand_handle": "@cavemancam",
             "tiktok_handle": "@pods", "youtube_tags": "@x", "youtube_daily_cap": "40", "format": ""}
     assert client.post("/channels/solved/save", data=base, follow_redirects=False).status_code == 303
-    assert sv.profiles["solved"].tiktok_handle == "@pods" and sv.profiles["solved"].posting.daily_cap == 40
+    assert sv.profiles["solved"].tiktok_handle == "@pods" and sv.profiles["solved"].posting.cap_for("youtube_shorts") == 40
     r = client.post("/channels/solved/save", data={**base, "tiktok_handle": "no no", "youtube_daily_cap": "5"})
     assert r.status_code == 422 and "TikTok handle" in r.text
-    assert sv.profiles["solved"].posting.daily_cap == 40
+    assert sv.profiles["solved"].posting.cap_for("youtube_shorts") == 40
 
 
 def test_requests_from_other_sites_are_refused(web):
@@ -239,4 +240,4 @@ def test_the_post_job_is_scheduled_for_every_channel(db, profiles):
     channels.create(db, profiles, name="Outdoors", category="Outdoors", about="Hiking")
     tasks.ensure_schedules(db, config.AppConfig(), profiles, at=NOW)
     with db.conn() as c:
-        assert {r["name"] for r in c.execute("SELECT name FROM schedules")} == {"post:solved", "post:outdoors"}
+        assert {r["name"] for r in c.execute("SELECT name FROM schedules")} == {"post:solved", "post:outdoors", "stats:solved", "stats:outdoors"}

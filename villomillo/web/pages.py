@@ -16,7 +16,7 @@ from urllib.parse import quote
 import httpx
 import keyring
 
-from .. import accounts, clipper, posting, routing, runs, safety, secrets, spend, studio, timefmt
+from .. import accounts, clipper, posting, routing, runs, safety, secrets, spend, studio, tiktok, timefmt
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
@@ -446,7 +446,7 @@ def _channel_card(sv: Services, c: Profile) -> dict:
     waiting = one(db, "SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND status IN ('queued','manual_ready','dry_run')", c.id)["n"]
     held = sum(h["clips"] for h in routing.held_categories(db) if c.category and h["category"].lower() == c.category.lower())
     return {"id": c.id, "name": channel_name(c), "category": c.category or "No category yet", "about": c.niche.definition,
-            "youtube": youtube_connected(c), "tiktok": c.tiktok_handle, "clips": clips, "posted": posted, "waiting": waiting,
+            "youtube": youtube_connected(c), "tiktok": c.tiktok_handle, "tiktok_connected": posting.tiktok_connected(c), "clips": clips, "posted": posted, "waiting": waiting,
             "held": held, "ready": bool(c.category and youtube_connected(c)),
             "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c}))}
 
@@ -457,8 +457,9 @@ def _account_rows(sv: Services, c: Profile) -> list[dict]:
     for r in accounts.overview(sv.db, {c.id: c}):
         yt = r["platform"].startswith("youtube")
         out.append({**r, "platform_name": {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok"}.get(r["platform"], r["platform"]),
-                    "mark": "YT" if yt else "TT", "connected": youtube_connected(c) if yt else False,
-                    "connect_hint": "Use Connect YouTube above." if yt else "Posting to this platform is not built yet"})
+                    "mark": "YT" if yt else "TT", "connected": youtube_connected(c) if yt else posting.tiktok_connected(c),
+                    "connect_hint": "Use Connect YouTube above." if yt else "Use Connect TikTok below.",
+                    "today": posting.posted_today(sv.db, c.id, r["platform"]), "cap": c.posting.cap_for(r["platform"])})
     return out
 
 
@@ -475,16 +476,20 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
     steps = [
         {"n": 1, "title": "Name and category", "done": bool(c.category and c.niche.definition)},
         {"n": 2, "title": "YouTube", "done": youtube_connected(c)},
-        {"n": 3, "title": "TikTok", "done": bool(c.tiktok_handle)},
+        {"n": 3, "title": "TikTok", "done": bool(c.tiktok_handle) and posting.tiktok_connected(c)},
         {"n": 4, "title": "Tags and look", "done": bool(tags or c.format)},
     ]
     values = {"name": channel_name(c), "category": c.category, "about": c.niche.definition, "brand_handle": c.brand.handle,
               "tiktok_handle": c.tiktok_handle, "youtube_tags": tags, "format": c.format or "",
-              "youtube_daily_cap": c.posting.daily_cap if c.posting else 100,
+              "youtube_daily_cap": c.posting.cap_for("youtube_shorts") if c.posting else 100,
+              "tiktok_daily_cap": c.posting.cap_for("tiktok") if c.posting else 15,
+              "tiktok_route": c.posting.platforms.get("tiktok", "manual") if c.posting else "manual",
               "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
               "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0", **(form or {})}
     return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
             "youtube": youtube_connected(c), "card": _channel_card(sv, c), "accounts": _account_rows(sv, c),
+            "tiktok_connected": posting.tiktok_connected(c), "tiktok_keys": has_secret(secrets.TIKTOK_KEY, secrets.TIKTOK_SECRET),
+            "tiktok_redirect": tiktok.REDIRECT_URI,
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
 
 
@@ -499,7 +504,15 @@ def insights_page(sv: Services, p: Profile) -> dict:
     days = sorted(by_day)[-14:]
     peak = max((by_day[d] for d in days), default=0) or 1
     chart = [{"label": d[5:], "usd": by_day[d], "height": max(2, round(100 * by_day[d] / peak)), "text": money(by_day[d])} for d in days]
-    return {"chart": chart,
+    results = rows(db, """
+        SELECT p.id, p.platform, p.title, p.url, s.views, s.likes, s.comments, s.shares, s.taken_at FROM posts p
+        JOIN post_stats s ON s.post_id = p.id AND s.taken_at = (SELECT MAX(taken_at) FROM post_stats WHERE post_id = p.id)
+        ORDER BY COALESCE(s.views, 0) DESC LIMIT 20""")
+    by_platform: dict[str, int] = defaultdict(int)
+    for r in results:
+        by_platform[r["platform"]] += r["views"] or 0
+    return {"results": results, "views_by_platform": {k.replace("_", " ").title().replace("Youtube", "YouTube"): v for k, v in by_platform.items()},
+            "chart": chart,
             "claude_since": spend.since_approval(db, "claude"), "claude_limit_usd": sv.app.spend_breaker.claude_usd,
             "quota": {"general": (sv.quota.used("general"), sv.quota.caps["general"]), "search": (sv.quota.used("search"), sv.quota.caps["search"])},
             "jev_since": spend.since_approval(db, "jev"), "jev_limit_usd": sv.app.spend_breaker.jev_usd}
@@ -517,6 +530,8 @@ def settings_page(sv: Services, p: Profile) -> dict:
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},
             {"name": "Claude (Anthropic) key", "present": has_secret(secrets.CLAUDE)},
             {"name": "Whop API key", "present": has_secret(secrets.WHOP)},
+            {"name": "TikTok app client key", "present": has_secret(secrets.TIKTOK_KEY)},
+            {"name": "TikTok app client secret", "present": has_secret(secrets.TIKTOK_SECRET)},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
     return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,

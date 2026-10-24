@@ -95,7 +95,7 @@ def ensure_schedules(db: Database, app: AppConfig, profiles: dict[str, Profile],
     s = app.schedule
     with db.conn() as c:
         for profile_id, profile in profiles.items():
-            jobs = [("post", s.post_every_minutes)]
+            jobs = [("post", s.post_every_minutes), ("stats", s.stats_every_minutes)]
             for kind, minutes in jobs:
                 c.execute(
                     "INSERT INTO schedules (name, kind, profile_id, interval_s, next_run_at) VALUES (?,?,?,?,?) "

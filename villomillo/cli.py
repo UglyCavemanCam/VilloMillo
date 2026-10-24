@@ -170,6 +170,20 @@ def cmd_youtube_connect(args) -> None:
     print("If that is not the channel you meant, run this again and pick the other account.")
 
 
+def cmd_tiktok_connect(args) -> None:
+    """Sign in to TikTok once for a channel, so clips can be posted there."""
+    from . import posting
+
+    sv = _services(with_apis=False)
+    p = _pick(sv, args.profile)
+    print("A browser window opens. Sign in with the TikTok account for this channel and allow access.")
+    try:
+        info = posting.connect_tiktok(p)
+    except posting.PostError as e:
+        sys.exit(str(e))
+    print(f"Connected to TikTok (account id {info['open_id'] or 'unknown'}).")
+
+
 def cmd_post_now(args) -> None:
     """Send one planned post through its platform's API right now (the explicit go for a single post)."""
     from . import posting
@@ -409,6 +423,9 @@ def main(argv: list[str] | None = None) -> None:
     make.add_argument("--moments", required=True, help="the moment numbers from 'preview', like 1,3")
     make.add_argument("--focus")
     make.set_defaults(fn=cmd_make)
+    tt_connect = sub.add_parser("tiktok-connect", help="sign in to TikTok once so clips can be posted there")
+    tt_connect.add_argument("--profile")
+    tt_connect.set_defaults(fn=cmd_tiktok_connect)
     sub.add_parser("approve-spend", help="approve more spending and let paused work continue").set_defaults(fn=cmd_approve_spend)
     clip = sub.add_parser("clip", help="clip one video now and wait for the engine")
     clip.add_argument("video_id")

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+import solved_profile
 from fastapi.testclient import TestClient
 
 from villomillo import config, copywriter, posting, spend, store
@@ -52,7 +53,7 @@ class FakeJev:
 
 @pytest.fixture
 def solved():
-    return config.load_profiles()["solved"]
+    return solved_profile.solved()
 
 
 @pytest.fixture
@@ -233,7 +234,7 @@ def test_the_manual_page_lists_the_options_and_lets_you_pick_one(db, solved):
         FakeJev(misleading=[0, 0], stop=[5, 3]))
     with db.conn() as c:  # a due manual post shows up on the page
         c.execute("UPDATE posts SET status='manual_ready' WHERE id=?", (post_id,))
-    sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
+    sv = Services(config.AppConfig(), solved_profile.profiles(), db, Quota(db, general_cap=9, search_cap=9))
     client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
     html = client.get(f"/calendar/post/{post_id}?profile=solved").text
     assert "Top pick" in html and "Runner up" in html and "hook 5/5" in html and "/api/post-copy" in html
@@ -251,6 +252,6 @@ def test_a_post_with_no_options_offers_to_write_them(db, solved):
     post_id = planned_post(db, solved)
     with db.conn() as c:
         c.execute("UPDATE posts SET status='manual_ready' WHERE id=?", (post_id,))
-    sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
+    sv = Services(config.AppConfig(), solved_profile.profiles(), db, Quota(db, general_cap=9, search_cap=9))
     html = TestClient(create_app(sv), base_url="http://127.0.0.1:8780").get(f"/calendar/post/{post_id}?profile=solved").text
     assert "Write title options" in html

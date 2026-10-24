@@ -179,6 +179,16 @@ description instead of the Solved one; if your database already holds the channe
 **In plain words:** Add posting to TikTok, a daily limit counter for every account, and collection of real view counts for the
 learning step. You will need TikTok's approval; until it passes, posts there are private or wait for you.
 **After this:** one clip posts to a channel's YouTube and TikTok together.
+**Status: built and tested against scripted TikTok answers; not yet tried on a real TikTok account.** A channel with a TikTok handle now plans every clip on YouTube
+**and** TikTok (`villomillo/tiktok.py`): sign-in is TikTok's desktop flow (opens your browser, comes back to `http://127.0.0.1:8788/callback/`), the video is uploaded in
+chunks through the Content Posting API, and the app asks the account which privacy levels it may use, so it never asks for a public post TikTok has not allowed.
+Until TikTok audits your app, every TikTok post is private. Each platform has its own daily cap (YouTube 100, TikTok 15 by default, both editable on the channel's
+page), a post that would go over waits for tomorrow, and the channel page shows "Posted today N of cap" for every account. A TikTok daily-limit answer never counts
+against the account. Every 6 hours the app reads the real views, likes and comments of recent posts (YouTube through your YouTube key, TikTok through the connected
+account, public posts only) and keeps them; Insights shows them. If the last five posts of an account get under a third of its usual views, the account is paused with
+that reason. To set up: in developers.tiktok.com create an app, add **Login Kit** and **Content Posting API** (Direct Post), the scopes `user.info.basic`, `video.publish`
+and `video.list`, and the redirect address above; store its keys with `python -m villomillo key tiktok_key` and `key tiktok_secret`; then press **Connect TikTok** on the channel's page. Also
+changed here: the Podcasts channel no longer carries the Solved campaign's required tags or its 2-a-day / 3-hour spacing, and the YouTube fallback description no longer says "Solved".
 **Done when:** a clip reaches both accounts and the daily limits hold.
 
 ### Phase 7: Campaigns (large)

@@ -210,9 +210,9 @@ def test_failures_retry_with_backoff_then_give_up(db):
 def test_schedules_queue_each_slot_once_even_if_ticked_twice(db):
     app, profiles = config.AppConfig(), {"test": profile()}
     tasks.ensure_schedules(db, app, profiles, at=NOW)
-    assert tasks.tick_schedules(db, at=NOW) == 1  # the post job
+    assert tasks.tick_schedules(db, at=NOW) == 2  # the post job and the numbers job
     assert tasks.tick_schedules(db, at=NOW) == 0
-    assert tasks.tick_schedules(db, at=NOW + timedelta(minutes=16)) == 1
+    assert tasks.tick_schedules(db, at=NOW + timedelta(minutes=16)) == 1  # only the 15-minute post job is due again
 
 
 def test_a_removed_channel_profile_leaves_no_schedules_or_waiting_tasks_behind(db):

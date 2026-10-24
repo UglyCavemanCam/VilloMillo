@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 
 import pytest
+import solved_profile
 
-from villomillo import clipper, config, store, validate
+from villomillo import clipper, store, validate
 from villomillo.db import Database
 
 
@@ -31,7 +32,7 @@ def held(tmp_path, monkeypatch):
                       "hook, file_path, validation_json, grade_json, state, reason, created_at) "
                       "VALUES ('solved', ?, 'vid1', 0, 30, 80, 'h', ?, '{}', '{}', 'approved', 'r', ?)",
                       (clip_id, str(path), store.iso()))
-    return db, paths, config.load_profiles()["solved"]
+    return db, paths, solved_profile.solved()
 
 
 def test_a_changed_file_that_passes_its_checks_replaces_ours(held, monkeypatch):

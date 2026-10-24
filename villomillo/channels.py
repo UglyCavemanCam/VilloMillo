@@ -16,6 +16,7 @@ from .db import Database
 
 SEEDED = "channels_seeded"
 DEFAULT_YOUTUBE_PER_DAY = 100  # YouTube's own limit for a channel, as you set it
+TIKTOK_PER_DAY = 15  # about what TikTok allows an account per day through its API; it can vary
 
 
 class ChannelError(ValueError):
@@ -86,7 +87,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
     profile = Profile(
         id=cid, display_name=name, category=category, niche=Niche(definition=about),
         posting=Posting(dry_run=True, platforms={"youtube_shorts": "manual"}, privacy="private",
-                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=0),
+                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, platform_caps={"tiktok": TIKTOK_PER_DAY}, min_gap_minutes=0),
         brand=Brand(name=name),
     )
     save(db, profile)
@@ -95,7 +96,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
 
 
 def update(db: Database, profiles: dict[str, Profile], channel_id: str, **changes) -> Profile:
-    """Change a channel. Accepted: name, category, about, brand_handle, tiktok_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, format."""
+    """Change a channel. Accepted: name, category, about, brand_handle, tiktok_handle, youtube_tags, youtube_daily_cap, youtube_route, tiktok_route, tiktok_daily_cap, dry_run, format."""
     p = profiles[channel_id]
     data = p.model_dump()
     if "name" in changes:
@@ -116,6 +117,18 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         if handle and not re.fullmatch(r"@?[A-Za-z0-9._]{2,24}", handle):
             raise ChannelError("a TikTok handle has letters, numbers, dots and underscores, such as @name")
         data["tiktok_handle"] = "@" + handle.lstrip("@") if handle else ""
+        platforms = dict(data["posting"]["platforms"])
+        if handle:
+            platforms.setdefault("tiktok", "manual")  # a channel with a TikTok account posts there too
+        else:
+            platforms.pop("tiktok", None)
+        data["posting"]["platforms"] = platforms
+    if "tiktok_route" in changes:
+        if changes["tiktok_route"] not in ("manual", "api"):
+            raise ChannelError("TikTok posts go out by hand (manual) or automatically (api)")
+        if "tiktok" not in data["posting"]["platforms"]:
+            raise ChannelError("add the channel's TikTok handle first")
+        data["posting"]["platforms"]["tiktok"] = changes["tiktok_route"]
     if "youtube_tags" in changes:
         tags = " ".join(changes["youtube_tags"].split())[:200]
         data["posting"]["tags"] = {**data["posting"]["tags"], "youtube_shorts": tags} if tags else {
@@ -133,7 +146,15 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
             raise ChannelError("posts per day must be a whole number") from None
         if not 1 <= cap <= DEFAULT_YOUTUBE_PER_DAY:
             raise ChannelError(f"posts per day must be between 1 and {DEFAULT_YOUTUBE_PER_DAY}")
-        data["posting"]["daily_cap"] = cap
+        data["posting"]["platform_caps"] = {**data["posting"]["platform_caps"], "youtube_shorts": cap}
+    if "tiktok_daily_cap" in changes:
+        try:
+            tt = int(changes["tiktok_daily_cap"])
+        except (TypeError, ValueError):
+            raise ChannelError("TikTok posts per day must be a whole number") from None
+        if not 1 <= tt <= TIKTOK_PER_DAY:
+            raise ChannelError(f"TikTok posts per day must be between 1 and {TIKTOK_PER_DAY}")
+        data["posting"]["platform_caps"] = {**data["posting"]["platform_caps"], "tiktok": tt}
     if "format" in changes:
         recipe = changes["format"] or None
         if recipe:

@@ -32,3 +32,4 @@ scoring:
 # How often each job runs.
 schedule:
   post_every_minutes: 15         # send approved clips that are due (dry-run unless a channel turns it off)
+  stats_every_minutes: 360       # read the real views of recent posts

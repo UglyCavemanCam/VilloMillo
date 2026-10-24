@@ -8,8 +8,9 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+import solved_profile
 
-from villomillo import accounts, config, posting, store
+from villomillo import accounts, posting, store
 from villomillo.db import Database
 
 NOW = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
@@ -17,7 +18,7 @@ NOW = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
 
 @pytest.fixture
 def solved():
-    return config.load_profiles()["solved"]
+    return solved_profile.solved()
 
 
 @pytest.fixture
@@ -95,7 +96,12 @@ def test_a_clip_goes_to_the_platform_whose_topic_words_it_uses(solved):
 
 def test_copy_for_a_platform_with_no_rules_is_refused(solved):
     with pytest.raises(ValueError, match="no copy rules"):
-        posting.build_copy(solved.posting, {"hook": "x"}, "Ep", "tiktok")
+        posting.build_copy(solved.posting, {"hook": "x"}, "Ep", "instagram")
+
+
+def test_tiktok_copy_has_no_title_and_fits_the_limit(solved):
+    copy = posting.build_copy(solved.posting, {"hook": "Discipline is a design problem " * 100}, "Ep", "tiktok")
+    assert copy["title"] == "" and len(copy["caption"]) <= posting.TIKTOK_CAPTION_MAX and copy["tags"] == []
 
 
 # --- spacing ----------------------------------------------------------------------------------------

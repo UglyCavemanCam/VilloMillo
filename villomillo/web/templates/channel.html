@@ -26,6 +26,7 @@
       <dt>Connection</dt><dd>{% if a.connected %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>
       <dt>Posts go out</dt><dd>{{ 'Automatically' if a.route == 'api' else 'By hand' }}<br><span class="muted" style="font-size:13px">{{ a.why }}</span></dd>
       <dt>Audit</dt><dd>{{ 'Passed' if a.audit else 'Not passed yet' }}</dd>
+      <dt>Posted today</dt><dd class="num">{{ a.today }} of {{ a.cap }}</dd>
       <dt>Waiting posts</dt><dd class="num">{{ a.waiting }}</dd>
       {% if a.failures and a.status == 'active' %}<dt>Failed in a row</dt><dd class="num">{{ a.failures }} of 3</dd>{% endif %}
     </dl>
@@ -81,9 +82,19 @@
   </section>
 
   <section class="card" aria-labelledby="s3"><h2 id="s3" style="margin-bottom:12px">3. TikTok</h2>
-    <div class="form">
-      <label>TikTok handle<small>Create the account on TikTok first, then add its name here. Posting to TikTok is built in a later phase; until then clips post to YouTube only.</small>
+    <p style="margin:0 0 12px">{% if d.tiktok_connected %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</p>
+    {% if d.tiktok_keys %}
+    <button type="button" class="btn" data-act="/api/channel-tiktok" data-fields='{{ {"profile": d.c.id}|tojson }}' data-after="none" data-ok="A sign-in window opened on this PC. Sign in with this channel's TikTok account.">{{ 'Connect a different account' if d.tiktok_connected else 'Connect TikTok' }}</button>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">A browser window opens on this PC. Refresh this page when you are done. Until TikTok has audited your app, it only accepts private posts.</p>
+    {% else %}
+    <div class="notice">{{ icon('plug') }}<div>First store your TikTok app's keys: <code>python -m villomillo key tiktok_key</code> then <code>python -m villomillo key tiktok_secret</code>. In your TikTok developer app, add Login Kit and Content Posting API (Direct Post), the scopes user.info.basic, video.publish and video.list, and this redirect address: <code>{{ d.tiktok_redirect }}</code></div></div>
+    {% endif %}
+    <div class="form" style="margin-top:14px">
+      <label>TikTok handle<small>Create the account on TikTok first, then add its name here. A channel with a TikTok handle posts every clip to TikTok as well as YouTube.</small>
         <input class="field" name="tiktok_handle" value="{{ d.form.tiktok_handle }}" maxlength="25" placeholder="@name"></label>
+      <label>How TikTok posts go out<small>By hand: caption ready to copy. Automatically: sent through TikTok once the account is connected and its audit is recorded as passed.</small>
+        <select class="field" name="tiktok_route"><option value="manual" {{ 'selected' if d.form.tiktok_route == 'manual' }}>By hand</option><option value="api" {{ 'selected' if d.form.tiktok_route == 'api' }}>Automatically</option></select></label>
+      <label>TikTok posts per day<small>TikTok allows about 15 per account.</small><input class="field" name="tiktok_daily_cap" type="number" min="1" max="15" value="{{ d.form.tiktok_daily_cap }}"></label>
     </div>
   </section>
 

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+import solved_profile
 from fastapi.testclient import TestClient
 
 from villomillo import accounts, config, posting, store
@@ -31,7 +32,7 @@ def db(tmp_path):
 
 
 def channel(*, route="api", dry_run=False):
-    solved = config.load_profiles()["solved"]
+    solved = solved_profile.solved()
     posting_block = solved.posting.model_copy(update={"dry_run": dry_run, "platforms": {
         "youtube_shorts": route, "tiktok": "manual"}, "daily_cap": 9, "min_gap_minutes": 0})
     return solved.model_copy(update={"posting": posting_block})
@@ -185,7 +186,7 @@ def test_a_sudden_drop_in_views_is_noticed_only_with_enough_posts():
 # --- the account controls on a channel's page ------------------------------------------------------------------------------------------
 
 def test_the_channel_page_shows_account_state_and_pause_and_resume_work(db):
-    sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
+    sv = Services(config.AppConfig(), solved_profile.profiles(), db, Quota(db, general_cap=9, search_cap=9))
     client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
     page = client.get("/channels/solved").text
     assert "YouTube Shorts" in page and "Not passed yet" in page and ">Pause<" in page
@@ -201,7 +202,7 @@ def test_the_channel_page_shows_account_state_and_pause_and_resume_work(db):
 
 
 def test_the_old_accounts_address_goes_to_channels_and_the_sidebar_has_no_accounts_tab(db):
-    sv = Services(config.AppConfig(), config.load_profiles(), db, Quota(db, general_cap=9, search_cap=9))
+    sv = Services(config.AppConfig(), solved_profile.profiles(), db, Quota(db, general_cap=9, search_cap=9))
     client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
     r = client.get("/accounts?profile=solved", follow_redirects=False)
     assert r.status_code == 307 and r.headers["location"].startswith("/channels")

@@ -18,8 +18,13 @@
   </section>
   <section class="card" aria-labelledby="results-h">
     <h2 id="results-h" style="margin-bottom:8px">Real results</h2>
-    <p class="muted" style="line-height:1.5">Views and earnings from your posts will appear here, next to the score that predicted them. They start arriving once posts are public.</p>
+    {% if d.results %}
+    <p class="muted" style="margin:0 0 10px">{% for name, views in d.views_by_platform.items() %}{{ name }}: <b style="color:var(--text)">{{ '{:,}'.format(views) }}</b> views{% if not loop.last %} · {% endif %}{% endfor %} among the top posts below</p>
+    <div class="events">{% for r in d.results %}<div><span class="num" style="width:70px">{{ '{:,}'.format(r.views or 0) }}</span><span style="flex:1;min-width:0">{% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener">{{ (r.title or r.platform.replace('_', ' '))[:60] }}</a>{% else %}{{ (r.title or r.platform)[:60] }}{% endif %}<span class="muted"> · {{ r.platform.replace('_', ' ') }}{% if r.likes is not none %} · {{ r.likes }} likes{% endif %}</span></span></div>{% endfor %}</div>
+    {% else %}
+    <p class="muted" style="line-height:1.5">Views and likes from your posts appear here, read every few hours once posts are public. Private posts have no public numbers.</p>
     <div class="notice" style="margin-top:14px">{{ icon('trend') }}<div>This is where the system will learn which categories and clips really pay.</div></div>
+    {% endif %}
   </section>
 </div>
 {% endblock %}
