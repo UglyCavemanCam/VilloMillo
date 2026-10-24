@@ -163,6 +163,17 @@ plan screen with the score of each clip and a Start button (or "Remove video" if
 and posted automatically. This phase also adds the spending guard, the emergency stop and the Needs you list.
 **After this:** you paste a link and clips appear on your YouTube channel with no further work.
 **Done when:** a test link goes all the way to a posted clip, and the spending guard pauses at the right amounts.
+**Status: built and tested with stand-ins for the engine, Jev and Claude; not yet run on a real video.** Home has the link bar (YouTube, Twitch or Kick) and a
+Videos list. A pasted link becomes a *run*: the worker has the engine look at it, scores every moment, works out the video's kind, category, channel and fit
+(4 of 5 or better), and the **plan screen** shows each clip's viral score, estimated CPM and expected revenue with a "Why these numbers" explanation, a
+**Start clipping N clips** button, or "No clip here is likely to earn enough" with **Remove video**. Start makes only the clips that cleared the floors, in
+the look the kind decides. Each finished clip that passes its checks is approved without waiting for you and planned on its category's channel (held, with
+"Create a channel for ...", if there is none; sent to your review queue if the video fits the channel under 4 of 5). **Needs you** lists a plan waiting for
+Start and any failed video. The **Emergency stop** button in the top bar pauses every automatic step until you resume; the spending guard banner from Phase 1
+is on every page. The Channels page now has "How YouTube posts go out" and "Send posts for real". Posts are only written to a folder until you turn that on
+(and, for automatic YouTube posting, record the YouTube audit as passed). Not done: scoring the finished clip a second time (the existing checks and the
+stand-alone reading still apply), and the TikTok side (Phase 6). The Podcasts channel now has your TikTok handle, @podscliphouse, and a general podcast
+description instead of the Solved one; if your database already holds the channel, edit those on its page. `run-app.bat` now starts the worker too, which pasted links need.
 
 ### Phase 6: TikTok posting (medium)
 **In plain words:** Add posting to TikTok, a daily limit counter for every account, and collection of real view counts for the

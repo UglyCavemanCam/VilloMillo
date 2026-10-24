@@ -147,6 +147,23 @@ def detect_kind(db: Database, jev, rules: Scoring, *, title: str, channel: str, 
     return KindReading(kind, info["label"], info["category"], round(certainty, 4), look, unsure, why + note)
 
 
+FIT_MIN = 4  # of 5: a channel a video fits less well than this does not post it by itself
+FIT_CRITERIA = ["Not at all", "Barely", "Somewhat", "Fits well", "A perfect fit"]
+
+
+def channel_fit(db: Database, jev, channel, excerpts: list[str], *, breaker: SpendBreaker | None = None) -> tuple[int, str]:
+    """How well a video fits a channel, 1 to 5, and the sentence that says so. One question to Jev, kept like the rest."""
+    state = {"channel": {"name": channel.display_name, "category": channel.category, "niche": channel.niche.definition,
+                         "wants": channel.niche.include, "does_not_want": channel.niche.exclude},
+             "excerpts": [" ".join(e.split())[:600] for e in excerpts[:3]]}
+    questions = {"fit": {"type": "score", "criteria": FIT_CRITERIA,
+                         "instructions": "How well does this video fit the channel: its niche, what it wants, and what it does not want?"}}
+    answers = _ask(db, jev, breaker, "fit", state, questions)
+    fit = max(1, min(5, int(float(answers["fit"]["score"]) + 0.5) + 1))
+    return fit, f"The video fits the {channel.display_name} channel {fit} of 5" + (
+        "." if fit >= FIT_MIN else f", under the {FIT_MIN} needed, so its clips wait for your review instead of posting by themselves.")
+
+
 # ---- the formula ---------------------------------------------------------------------------------------------------
 
 

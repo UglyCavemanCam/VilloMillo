@@ -29,7 +29,8 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `channels.py` | Channels stored in the database: add, edit, delete, one per category | **Keep** (new, Phase 2) |
 | `posting.py`, `accounts.py`, `routing.py` | Posting, per-account pause and audit state, choosing a channel (a clip goes to its category's channel, or is held) | **Keep.** Phase 6 adds TikTok |
 | `youtube.py`, `quota.py` | YouTube Data API reads and their daily allowance | **Keep** (used by the Paste intake and, later, Research) |
-| `studio.py` | Dashboard helper for the live clip-progress view | **Rewrite in Phase 5** (run page) |
+| `runs.py`, `safety.py` | A pasted link from analysis to posted clips; the emergency stop | **Keep** (new, Phase 5) |
+| `studio.py` | Dashboard helper for the live clip-progress view on the Clips page | **Keep.** The run page covers a pasted link's progress |
 | `cli.py`, `web/` | Command line and dashboard | **Keep.** The Research page is gone (returns in Phase 8); Home becomes the paste page in Phase 5 |
 
 ## Not yet decided

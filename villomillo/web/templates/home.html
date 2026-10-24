@@ -2,7 +2,30 @@
 {% from "_ui.html" import icon, badge, empty %}
 {% block action %}{% set first = d.needs|first %}{% if first and first.primary %}<a class="btn btn-primary" href="{{ first.href }}">{{ first.btn }}</a>{% endif %}{% endblock %}
 {% block content %}
-<div class="page-head"><h1>Home</h1><span class="sub">{{ shell.channel_name }}{% if shell.channel_sub %} · {{ shell.channel_sub }}{% endif %}</span></div>
+<section class="hero" aria-labelledby="paste-h">
+  <h1 id="paste-h">Paste a link. VilloMillo finds the clips worth making.</h1>
+  <form class="linkbar" method="post" action="/paste">
+    <input type="hidden" name="profile" value="{{ shell.current.id }}">
+    <label class="sr-only" for="link">Video link</label>
+    <input class="field" id="link" name="link" type="text" placeholder="Paste a YouTube, Twitch or Kick link" autocomplete="off" required>
+    <button class="btn btn-primary" type="submit">Analyse</button>
+  </form>
+  {% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>
+  {% else %}<span class="muted">You then see each clip's score and press Start. Clips that clear the floors post by themselves.</span>{% endif %}
+</section>
+
+{% if d.runs %}
+<section class="card tight" aria-labelledby="runs-h">
+  <h2 id="runs-h" style="padding:12px 12px 8px">Videos</h2>
+  {% for r in d.runs %}
+  <a class="row" href="/runs/{{ r.id }}?profile={{ shell.current.id }}">
+    {% if r.thumb %}<img class="run-thumb" src="{{ r.thumb }}" alt="" loading="lazy">{% else %}<span class="run-thumb"></span>{% endif %}
+    <span class="grow"><b>{{ r.title }}</b><small>{{ r.platform }}{% if r.sub %} · {{ r.sub }}{% endif %}</small></span>
+    <span class="badge {{ r.state.kind }}">{{ r.state.text }}</span>
+  </a>
+  {% endfor %}
+</section>
+{% endif %}
 
 <section class="grid stats" aria-label="At a glance">
   {% for s in d.stats %}

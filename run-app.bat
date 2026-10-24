@@ -4,8 +4,8 @@ rem Close this window (or press Ctrl+C) to stop the app.
 setlocal
 cd /d "%~dp0"
 
-rem serve = dashboard only. run = dashboard plus the background worker that does research cycles.
-set MODE=serve
+rem serve = dashboard only. run = dashboard plus the background worker that looks at pasted links, makes clips and posts.
+set MODE=run
 set URL=http://127.0.0.1:8780
 
 rem Prefer the project's own virtual environment (.venv): it already has the right Python and packages.

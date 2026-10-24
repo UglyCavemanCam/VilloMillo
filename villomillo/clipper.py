@@ -72,6 +72,13 @@ class Engine:
         r = self._call("GET", f"/videos/{video_id}/preview")
         return r.json() if r.status_code == 200 else {"video": None, "moments": []}
 
+    def discard(self, video_id: str) -> None:
+        """Throw away what a preview kept for this video (best effort: an engine that is off has nothing to throw away)."""
+        try:
+            self._call("DELETE", f"/videos/{video_id}/moments")
+        except EngineUnavailable:
+            pass
+
     def moments(self, video_id: str) -> list[dict]:
         """The scored moments a preview found for this video, best first (empty until a preview has run)."""
         r = self._call("GET", f"/videos/{video_id}/moments")
@@ -114,7 +121,7 @@ def start_preview(engine: Engine, link, *, focus: str = "", force: bool = False)
 
 def start_render(engine: Engine, link, moment_ids: list[int], *, focus: str = "") -> int:
     """Ask the engine to make only these previewed moments. Returns the engine's job id."""
-    return engine.submit(link.url, focus=focus, max_clips=len(moment_ids), moments=moment_ids)
+    return engine.submit(link.url, focus=focus, max_clips=len(moment_ids), moments=moment_ids, force=True)
 
 
 def submit(db: Database, engine: Engine, profile: Profile, video_id: str, *, force: bool = False) -> str:
@@ -181,7 +188,8 @@ def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str
     return result.answers
 
 
-def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict, formatter=None) -> str:
+def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict, formatter=None, *,
+            category: str | None = None) -> str:
     """Look at a submitted job. Returns 'waiting', 'done' or 'failed', with a short status.
 
     `formatter(clip, job, out_path)` gives each clip the channel's look from the source video. If it fails, the clip
@@ -244,7 +252,7 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (profile.id, clip["id"], job["video_id"], clip["start_s"], clip["end_s"], clip["score"],
                  clip.get("hook"), str(path), json.dumps(verdict), json.dumps(grade), state, reason, store.iso(),
-                 profile.category or None),
+                 category or profile.category or None),
             )
         saved += 1
         checked += verdict["ok"]

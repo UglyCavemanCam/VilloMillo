@@ -70,6 +70,17 @@ def upsert_video(c, profile_id: str, v: dict, found_by: str) -> bool:
     return True
 
 
+def upsert_pasted_video(c, profile_id: str, video_id: str, title: str, channel: str, duration: float | None) -> None:
+    """Register a video that came from a pasted link (YouTube, Twitch or Kick) so its clips and posts can name it."""
+    stamp = iso()
+    c.execute(
+        "INSERT INTO videos (profile_id, video_id, found_by, channel_title, title, duration_s, published_at, first_seen_at, last_seen_at, state) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(profile_id, video_id) DO UPDATE SET title=excluded.title, "
+        "channel_title=excluded.channel_title, duration_s=excluded.duration_s, last_seen_at=excluded.last_seen_at",
+        (profile_id, video_id, "paste", channel or "", title or video_id, int(duration or 0), stamp, stamp, stamp, "discovered"),
+    )
+
+
 def set_state(c, profile_id: str, video_id: str, state: str, reason: str | None = None) -> None:
     c.execute(
         "UPDATE videos SET state=?, state_reason=? WHERE profile_id=? AND video_id=?",

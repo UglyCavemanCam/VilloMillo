@@ -90,6 +90,12 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 | `accounts` / `account` / `audit` | channel routes, audits, pause and resume |
 | `youtube-connect` / `post-now` | sign in to YouTube once; send one planned post now |
 
+## Paste a link
+
+On Home, paste a YouTube, Twitch or Kick link. VilloMillo looks at the video, scores its clips, and shows a plan: press **Start** and
+only the clips that clear the floors are made, checked and planned for posting on their category's channel. Needs the clipping engine
+and `run-app.bat` (which starts the worker). The **Emergency stop** button pauses everything.
+
 ## Settings
 
 - [`config/villomillo/app.yaml`](config/villomillo/app.yaml): YouTube allowances, spend breaker, schedule, dashboard port, database path.

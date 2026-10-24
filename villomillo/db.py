@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS channels (
     id TEXT PRIMARY KEY, data_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 
+-- One pasted link on its way from "look at it" to posted clips. The plan (scores, kind, channel) is kept as JSON.
+CREATE TABLE IF NOT EXISTS runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL DEFAULT 'paste', url TEXT NOT NULL, platform TEXT NOT NULL,
+    video_id TEXT NOT NULL, profile_id TEXT NOT NULL, title TEXT, channel TEXT, duration REAL,
+    state TEXT NOT NULL,   -- analysing | planned | nothing | making | finished | removed | failed
+    note TEXT, preview_job_id INTEGER, render_job_id INTEGER, plan_json TEXT, error TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS runs_state ON runs (state, id);
+
 -- What Jev said about a piece of text, kept so the same text always gets the same scores and is never paid for twice.
 CREATE TABLE IF NOT EXISTS readings (
     key TEXT PRIMARY KEY, kind TEXT NOT NULL, answers_json TEXT NOT NULL, model TEXT, created_at TEXT NOT NULL

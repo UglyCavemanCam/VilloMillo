@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge %}
+{% block content %}
+{% set r = d.run %}
+<div class="page-head"><h1>{{ d.row.title }}</h1><span class="sub">{{ d.row.platform }}{% if d.duration %} · {{ d.duration }} long{% endif %}</span>
+  <span class="right"><span class="badge {{ d.row.state.kind }}">{{ d.row.state.text }}</span><a class="btn btn-sm" href="/?profile={{ shell.current.id }}">Home</a></span></div>
+
+{% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
+
+<section class="card run-head">
+  {% if d.thumb %}<img class="run-thumb big" src="{{ d.thumb }}" alt="">{% else %}<span class="run-thumb big"></span>{% endif %}
+  <div class="grow"><span class="muted" style="font-size:12px">Pasted link · {{ d.row.platform }}</span>
+    <h2 style="margin:2px 0 4px">{{ d.row.title }}</h2>
+    <span class="muted">{% if d.plan %}{{ d.moments|length }} candidate clips found{% else %}{{ d.row.sub }}{% endif %}</span></div>
+</section>
+
+{% if r.state == 'analysing' or r.state == 'making' %}
+<section class="card stack" aria-label="Progress" data-auto-refresh="5000">
+  <ol class="checklist" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <li class="done"><b>1. Look</b>{{ 'Done' if r.state == 'making' else 'Working' }}</li>
+    <li class="{{ 'done' if r.state == 'making' else '' }}"><b>2. Score</b>{{ 'Done' if r.state == 'making' else 'Next' }}</li>
+    <li class="{{ 'done' if r.state == 'making' and d.clips else '' }}"><b>3. Make</b>{{ 'Working' if r.state == 'making' else 'Waiting for your Start' }}</li>
+    <li><b>4. Check and post</b>After the clips are made</li>
+  </ol>
+  <p class="muted" style="margin:0">{% if r.state == 'analysing' %}The engine is downloading, reading and scoring the video. This takes a few minutes for a long video. You can leave this page.{% else %}The engine is making only the clips that cleared the floors. Each is checked, then posted on its channel.{% endif %}</p>
+</section>
+{% endif %}
+
+{% if r.state == 'planned' or r.state == 'nothing' %}
+{% if d.plan %}
+<div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+<section class="stack" style="flex:3 1 520px;min-width:0">
+  <h2 style="margin:0">The clips it wants to make</h2>
+  <span class="muted">A clip is made and posted only if its viral score is {{ d.viral_min }} or more and its estimated CPM is at least ${{ '%.2f'|format(d.cpm_floor) }}. All CPM figures are estimates until real results come in.</span>
+  <div class="card tight" style="overflow-x:auto"><table class="tbl plan-tbl"><thead><tr><th>#</th><th>Moment</th><th>Viral</th><th>Est. CPM</th><th>Views (rough)</th><th>Expected</th></tr></thead><tbody>
+  {% for m in d.moments %}
+  <tr class="{{ '' if m.make else 'muted-row' }}"><td><b>{{ m.id }}</b></td>
+    <td><b>{{ m.hook[:70] or 'Moment ' ~ m.id }}</b><br><span class="muted">{{ m.when }}</span></td>
+    <td><b style="color:var(--{{ 'good' if m.make else 'warn' }})">{{ m.viral }}</b></td><td>{{ m.cpm_text }}</td><td>{{ m.views_text }}</td>
+    <td><b>{{ m.revenue_text }}</b> <span style="color:var(--{{ 'good' if m.make else 'warn' }})">{{ 'makes' if m.make else 'skipped' }}</span></td></tr>
+  <tr class="why"><td></td><td colspan="5"><details><summary class="muted">Why these numbers</summary><ul style="margin:6px 0 0;padding-left:18px;line-height:1.5">{% for line in m.explain %}<li>{{ line }}</li>{% endfor %}</ul></details></td></tr>
+  {% endfor %}</tbody></table></div>
+  <span class="muted">{{ d.makes }} of {{ d.moments|length }} clear the floors. Expected total about <b style="color:var(--text)">{{ d.total_text }}</b> (estimated). Skipped clips are not made.</span>
+</section>
+<aside class="card stack" style="flex:2 1 320px;min-width:0">
+  <h2 style="margin:0">What happens next</h2>
+  <div><b>Type: {{ d.plan.kind.label }}, {{ (d.plan.kind.certainty * 100)|round|int }}% sure</b><br><span class="muted">{{ d.plan.kind.explain }}</span></div>
+  <div><b>Category: {{ d.plan.category }}{% if d.plan.fit %}, fit {{ d.plan.fit }} of 5{% endif %}</b><br>
+    <span class="muted">{% if d.plan.channel %}Goes to the {{ d.plan.channel.name }} channel. {{ d.plan.fit_why or '' }}{% else %}There is no channel for this category yet.{% endif %}</span></div>
+  {% if not d.plan.channel %}<div class="notice warn">{{ icon('alert') }}<div>The clips will be held, and Home will offer <b>Add channel</b> for {{ d.plan.category }}. When you add it, the held clips post.</div></div>{% endif %}
+  <div><b>Posting</b><br><span class="muted">Automatic after the final check, within each platform's daily limit. YouTube posts go out by themselves only once its audit is recorded as passed and the channel is set to send for real.</span></div>
+  {% if r.state == 'planned' %}
+  <form method="post" action="/runs/{{ r.id }}/start"><button class="btn btn-primary" style="width:100%;height:48px;font-size:16px" type="submit">Start clipping {{ d.makes }} clip{{ 's' if d.makes != 1 }}</button></form>
+  {% else %}
+  <div class="notice">{{ icon('info') }}<div><b>No clip here is likely to earn enough.</b></div></div>
+  {% endif %}
+  <form method="post" action="/runs/{{ r.id }}/remove"><button class="btn" style="width:100%" type="submit">Remove video</button></form>
+</aside>
+</div>
+{% else %}
+<section class="card stack"><div class="notice">{{ icon('info') }}<div><b>{{ r.note }}</b></div></div>
+  <form method="post" action="/runs/{{ r.id }}/remove"><button class="btn" type="submit">Remove video</button></form></section>
+{% endif %}
+{% endif %}
+
+{% if r.state == 'finished' or (r.state == 'making' and d.clips) %}
+<section class="card stack" aria-labelledby="made-h"><h2 id="made-h">Clips from this video</h2>
+  {% if r.note %}<p class="muted" style="margin:0">{{ r.note }}</p>{% endif %}
+  {% for c in d.clips %}
+  <div class="row"><span class="grade" style="font-size:20px;width:34px">{{ c.engine_score }}</span>
+    <span class="grow"><b>{{ c.hook or 'Clip ' ~ c.id }}</b><small>{{ c.when }} · {{ c.reason }}{% if c.posts %} · {{ c.posts.replace('youtube_shorts', 'YouTube').replace('tiktok', 'TikTok').replace(':', ' ') }}{% endif %}</small></span>
+    <a class="btn btn-sm" href="/clips?profile={{ shell.current.id }}&panel=/clips/{{ c.id }}/panel">Open</a></div>
+  {% else %}<p class="muted">No clips were kept.</p>{% endfor %}
+</section>
+{% endif %}
+
+{% if r.state == 'failed' %}
+<section class="card stack"><div class="notice bad" role="alert">{{ icon('alert') }}<div><b>Something went wrong.</b> {{ r.error }}</div></div>
+  <div class="cluster"><form method="post" action="/runs/{{ r.id }}/retry"><button class="btn btn-primary" type="submit">Try again</button></form>
+  <form method="post" action="/runs/{{ r.id }}/remove"><button class="btn" type="submit">Remove video</button></form></div></section>
+{% endif %}
+
+{% if d.active %}<script>setTimeout(function () { location.reload(); }, 5000);</script>{% endif %}
+{% endblock %}

@@ -36,6 +36,15 @@
     </div>
   </section>
 
+  <section class="card" aria-labelledby="s2b"><h2 id="s2b" style="margin-bottom:12px">Sending posts</h2>
+    <div class="form">
+      <label>How YouTube posts go out<small>By hand: titles and captions are ready for you to copy. Automatically: sent through YouTube once its audit is recorded as passed on the Accounts page.</small>
+        <select class="field" name="youtube_route"><option value="manual" {{ 'selected' if d.form.youtube_route == 'manual' }}>By hand</option><option value="api" {{ 'selected' if d.form.youtube_route == 'api' }}>Automatically</option></select></label>
+      <label>Send posts for real<small>Off: nothing leaves this computer; each post is only written to a folder so you can check it. Turn it on when you are ready for clips to go live.</small>
+        <select class="field" name="dry_run"><option value="1" {{ 'selected' if d.form.dry_run == '1' }}>No, just write them to a folder</option><option value="0" {{ 'selected' if d.form.dry_run == '0' }}>Yes, send them</option></select></label>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="s3"><h2 id="s3" style="margin-bottom:12px">3. TikTok</h2>
     <div class="form">
       <label>TikTok handle<small>Create the account on TikTok first, then add its name here. Posting to TikTok is built in a later phase; until then clips post to YouTube only.</small>

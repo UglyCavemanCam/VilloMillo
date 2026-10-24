@@ -76,8 +76,11 @@ def format_clip(db: Database, profile: Profile, *, claude_client, jev, video_id:
     return {"recipe": plan.recipe, "dropped": plan.dropped, "text": clip_text}
 
 
-def formatter_for(db: Database, profile: Profile, *, jev=None, breaker: SpendBreaker | None = None):
-    """The clip pipeline's formatter for this channel, or None when the channel keeps the engine's own look."""
+def formatter_for(db: Database, profile: Profile, *, jev=None, breaker: SpendBreaker | None = None, recipe: str | None = None):
+    """The clip pipeline's formatter for this channel, or None when the channel keeps the engine's own look.
+    `recipe` is a look chosen for this video (the kind of video decides it); it replaces the channel's own."""
+    if recipe:
+        profile = profile.model_copy(update={"format": recipe})
     return make_formatter(db, profile, jev=jev, breaker=breaker) if profile.format else None
 
 

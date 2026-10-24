@@ -95,7 +95,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
 
 
 def update(db: Database, profiles: dict[str, Profile], channel_id: str, **changes) -> Profile:
-    """Change a channel. Accepted: name, category, about, brand_handle, tiktok_handle, youtube_tags, youtube_daily_cap, format."""
+    """Change a channel. Accepted: name, category, about, brand_handle, tiktok_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, format."""
     p = profiles[channel_id]
     data = p.model_dump()
     if "name" in changes:
@@ -120,6 +120,12 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         tags = " ".join(changes["youtube_tags"].split())[:200]
         data["posting"]["tags"] = {**data["posting"]["tags"], "youtube_shorts": tags} if tags else {
             k: v for k, v in data["posting"]["tags"].items() if k != "youtube_shorts"}
+    if "youtube_route" in changes:
+        if changes["youtube_route"] not in ("manual", "api"):
+            raise ChannelError("YouTube posts go out by hand (manual) or automatically (api)")
+        data["posting"]["platforms"] = {**data["posting"]["platforms"], "youtube_shorts": changes["youtube_route"]}
+    if "dry_run" in changes:
+        data["posting"]["dry_run"] = str(changes["dry_run"]).lower() not in ("0", "false", "no", "off", "")
     if "youtube_daily_cap" in changes:
         try:
             cap = int(changes["youtube_daily_cap"])

@@ -7,7 +7,7 @@ import threading
 import traceback
 from datetime import timedelta
 
-from . import spend, store, tasks
+from . import runs, safety, spend, store, tasks
 from .services import Services
 
 
@@ -71,7 +71,25 @@ def do_post(sv: Services, payload: dict) -> None:
         store.event(sv.db, "info", "post", line)
 
 
+def _paste_step(step, kind: str):
+    """A step of a pasted link's run. If spending hits the breaker part-way, look again in a minute without counting a failure."""
+
+    def handler(sv: Services, payload: dict) -> None:
+        try:
+            step(sv, payload["run"])
+        except spend.SpendPaused:
+            runs._later(sv, kind, payload["run"], 60)
+
+    return handler
+
+
+def _give_up_on_run(sv: Services, payload: dict, error: str) -> None:
+    runs.fail(sv, payload["run"], error)
+
+
 HANDLERS = {
+    "paste_analyse": _paste_step(runs.analyse, "paste_analyse"),
+    "paste_collect": _paste_step(runs.collect, "paste_collect"),
     "copy": do_copy,
     "post": do_post,
     "clip": do_clip,
@@ -81,6 +99,8 @@ HANDLERS = {
 
 def run_one(sv: Services, worker: str = "worker-1") -> bool:
     """Run the next ready task. Returns False when there was nothing to do."""
+    if safety.is_stopped(sv.db):
+        return False  # the emergency stop is on: nothing runs until you resume
     if spend.current(sv.db, sv.app.spend_breaker):
         return False  # the spend breaker is tripped or an account is out of funds: wait for your approval
     task = tasks.claim(sv.db, worker)
@@ -93,6 +113,8 @@ def run_one(sv: Services, worker: str = "worker-1") -> bool:
         if provider and spend.note_failure(sv.db, provider, e):
             store.event(sv.db, "error", "spend", f"{spend.NAMES[provider]} is out of funds: work is paused", error=str(e)[:300])
         outcome = tasks.fail(sv.db, task, f"{type(e).__name__}: {e}")
+        if outcome == "failed" and task["kind"] in ("paste_analyse", "paste_collect"):
+            _give_up_on_run(sv, json.loads(task["payload_json"]), f"{type(e).__name__}: {e}")
         store.event(sv.db, "error", "runner", f"{task['kind']} failed ({outcome})", error=str(e),
                     trace=traceback.format_exc()[-800:])
     else:

@@ -1067,6 +1067,11 @@ class StateDB:
                         "subscores": c.get("subscores") or {}})
         return out
 
+    def delete_moments(self, video_id: str) -> None:
+        """Throw a preview away (the video was removed from the plan screen)."""
+        self.conn.execute("DELETE FROM moments WHERE video_id = ?", (video_id,))
+        self.conn.commit()
+
     def moment_candidates(self, video_id: str, ids: list[int]) -> list:
         """The stored candidates for these moment ids, in the order asked. Raises LookupError for an id that was not previewed."""
         from core.models import ClipCandidate

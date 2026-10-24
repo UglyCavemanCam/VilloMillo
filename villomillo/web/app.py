@@ -12,7 +12,7 @@ import subprocess
 import threading
 from datetime import date
 from html import escape as html_escape
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -27,8 +27,11 @@ from .. import (
     channels,
     clipper,
     copywriter,
+    links,
     posting,
     routing,
+    runs,
+    safety,
     secrets,
     spend,
     store,
@@ -138,9 +141,9 @@ def create_app(sv: Services) -> FastAPI:
         return {"ok": True}
 
     @app.get("/", response_class=HTMLResponse)
-    def home(profile: str | None = None):
+    def home(profile: str | None = None, problem: str = ""):
         p = profile_or_404(profile)
-        return render("home.html", p, "/", "home", "Home", d=pages.home_page(sv, p))
+        return render("home.html", p, "/", "home", "Home", d={**pages.home_page(sv, p), "problem": problem})
 
     # ---- channels ----------------------------------------------------------------------------------------------
 
@@ -194,7 +197,7 @@ def create_app(sv: Services) -> FastAPI:
         _only_local(request, "changes")
         c = in_profile(channel_id)
         form = {k: str(v) for k, v in (await request.form()).items()}
-        allowed = {"name", "category", "about", "brand_handle", "tiktok_handle", "youtube_tags", "youtube_daily_cap", "format"}
+        allowed = {"name", "category", "about", "brand_handle", "tiktok_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "format"}
         before = c.category
         try:
             updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})
@@ -238,6 +241,68 @@ def create_app(sv: Services) -> FastAPI:
         except channels.ChannelError as e:
             raise HTTPException(422, str(e)) from None
         tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+        return JSONResponse({"ok": True})
+
+    # ---- pasted links --------------------------------------------------------------------------------------------
+
+    @app.post("/paste")
+    def paste(request: Request, link: str = Form(""), profile: str = Form("")):
+        _only_local(request, "changes")
+        p = profile_or_404(profile or None)
+        try:
+            run_id = runs.create(sv, p.id, link)
+        except links.LinkError as e:
+            return RedirectResponse(f"/?profile={p.id}&problem={quote(str(e))}", status_code=303)
+        return RedirectResponse(f"/runs/{run_id}?profile={p.id}", status_code=303)
+
+    @app.get("/runs/{run_id}", response_class=HTMLResponse)
+    def run_detail(run_id: int, profile: str | None = None, problem: str = ""):
+        try:
+            d = pages.run_page(sv, run_id)
+        except LookupError:
+            raise HTTPException(404, "no such video run") from None
+        p = profile_or_404(profile)
+        return render("run.html", p, "/", "home", d["row"]["title"][:60], d={**d, "problem": problem})
+
+    def run_action(run_id: int, request: Request, action):
+        _only_local(request, "changes")
+        try:
+            action(sv, run_id)
+        except LookupError:
+            raise HTTPException(404, "no such video run") from None
+        except (runs.RunError, clipper.EngineUnavailable) as e:
+            return RedirectResponse(f"/runs/{run_id}?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse(f"/runs/{run_id}", status_code=303)
+
+    @app.post("/runs/{run_id}/start")
+    def run_start(run_id: int, request: Request):
+        return run_action(run_id, request, runs.start)
+
+    @app.post("/runs/{run_id}/retry")
+    def run_retry(run_id: int, request: Request):
+        return run_action(run_id, request, runs.retry)
+
+    @app.post("/runs/{run_id}/remove")
+    def run_remove(run_id: int, request: Request):
+        _only_local(request, "changes")
+        try:
+            runs.remove(sv, run_id)
+        except LookupError:
+            raise HTTPException(404, "no such video run") from None
+        except runs.RunError as e:
+            return RedirectResponse(f"/runs/{run_id}?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse("/", status_code=303)
+
+    @app.post("/api/emergency-stop")
+    def emergency_stop(request: Request):
+        _only_local(request, "changes")
+        safety.stop(sv.db)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/emergency-resume")
+    def emergency_resume(request: Request):
+        _only_local(request, "changes")
+        safety.resume(sv.db)
         return JSONResponse({"ok": True})
 
     @app.get("/clips", response_class=HTMLResponse)

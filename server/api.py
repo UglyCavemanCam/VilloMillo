@@ -1588,6 +1588,16 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         finally:
             d.close()
 
+    @app.delete("/videos/{video_id}/moments")
+    def discard_moments(video_id: str):
+        """Throw away what a preview kept for this video."""
+        d = db()
+        try:
+            d.delete_moments(video_id)
+        finally:
+            d.close()
+        return {"ok": True}
+
     @app.get("/videos/{video_id}/preview")
     def preview_for_video(video_id: str):
         """What a preview found: the video's own details and its scored moments (with the words spoken in each)."""

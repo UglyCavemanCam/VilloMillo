@@ -16,7 +16,7 @@ from urllib.parse import quote
 import httpx
 import keyring
 
-from .. import accounts, clipper, posting, routing, secrets, spend, studio, timefmt
+from .. import accounts, clipper, posting, routing, runs, safety, secrets, spend, studio, timefmt
 from ..config import ROOT, Profile
 from ..db import Database
 from ..services import Services
@@ -111,6 +111,13 @@ def has_secret(*names: str) -> bool:
 def needs(sv: Services, p: Profile) -> list[dict]:
     """Everything waiting on you, most important first. Each has a kind: accent, warn, bad or neutral."""
     db, out = sv.db, []
+    for r in runs.recent(db, 30):
+        if r["state"] == "planned":
+            out.append({"title": f"Press Start on \"{(r['title'] or r['video_id'])[:60]}\"", "sub": "Its clips are scored and waiting for you",
+                        "btn": "See the plan", "kind": "accent", "primary": True, "href": f"/runs/{r['id']}?profile={p.id}"})
+        elif r["state"] == "failed":
+            out.append({"title": f"A pasted video failed: {(r['title'] or r['url'])[:60]}", "sub": (r["error"] or "")[:120],
+                        "btn": "Open", "kind": "bad", "primary": False, "href": f"/runs/{r['id']}?profile={p.id}"})
     for held in routing.held_categories(db):
         n, lo, hi = held["clips"], held["low"], held["high"]
         out.append({"title": f"Create a channel for \"{held['category']}\"",
@@ -148,7 +155,7 @@ def needs(sv: Services, p: Profile) -> list[dict]:
                             "sub": "Posts stay manual until you record the audit as passed", "btn": "Accounts", "kind": "warn",
                             "primary": False, "href": f"/accounts?profile={p.id}"})
     if not engine_up():
-        out.append({"title": "Clip engine is off", "sub": "Start it to make more clips from the campaign episodes",
+        out.append({"title": "Clip engine is off", "sub": "Start it so videos you paste can be looked at and clipped",
                     "btn": "Settings", "kind": "neutral", "primary": False, "href": f"/settings?profile={p.id}"})
     return out
 
@@ -165,6 +172,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
     pause = spend.current(sv.db, br)
     return {
         "pause": pause and {"title": pause.title, "text": pause.text, "kind": pause.kind},
+        "stopped": safety.is_stopped(sv.db),
         "current": p, "path": path, "channel_name": channel_name(p), "channel_sub": p.category if p.category and p.category != channel_name(p) else "",
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
@@ -331,6 +339,37 @@ def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
 
 # --- home ------------------------------------------------------------------------------------------------------
 
+RUN_STATE = {
+    "analysing": badge("Analysing", "accent"), "planned": badge("Your Start", "accent"), "nothing": badge("Nothing worth making", ""),
+    "making": badge("Making clips", "accent"), "finished": badge("Done", "good"), "failed": badge("Failed", "bad"), "removed": badge("Removed", ""),
+}
+
+
+def _thumb(run: dict) -> str | None:
+    return f"https://i.ytimg.com/vi/{run['video_id']}/mqdefault.jpg" if run["platform"] == "youtube" else None
+
+
+def _run_row(r: dict) -> dict:
+    sub = {"analysing": "Looking at the video and scoring its clips", "planned": "Scored, waiting for your Start",
+           "making": "Making and checking the clips"}.get(r["state"], r["note"] or r["error"] or "")
+    return {"id": r["id"], "title": r["title"] or r["url"], "platform": {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick"}.get(r["platform"], r["platform"].title()), "state": RUN_STATE[r["state"]], "sub": sub,
+            "thumb": _thumb(r)}
+
+
+def run_page(sv: Services, run_id: int) -> dict:
+    run = runs.get(sv.db, run_id)
+    plan = run["plan"]
+    moments = []
+    for m in (plan["moments"] if plan else []):
+        moments.append({**m, "when": f"{mmss(m['start'])} to {mmss(m['end'])}", "revenue_text": money(m["revenue"]), "cpm_text": money(m["cpm"]),
+                        "views_text": f"{m['views']:,}"})
+    return {"run": run, "row": _run_row(run), "plan": plan, "moments": moments, "thumb": _thumb(run),
+            "makes": sum(1 for m in moments if m["make"]), "total_text": money(plan["expected_total"]) if plan else "",
+            "clips": [{**c, "when": f"{mmss(c['start_s'])} to {mmss(c['end_s'])}"} for c in runs.clips_of(sv.db, run)],
+            "active": run["state"] in ("analysing", "making"), "viral_min": sv.app.scoring.viral_min, "cpm_floor": sv.app.scoring.cpm_floor,
+            "duration": mmss(run["duration"]) if run["duration"] else ""}
+
+
 def home_page(sv: Services, p: Profile) -> dict:
     db = sv.db
     by_state = {r["state"]: r["n"] for r in rows(db, "SELECT state, COUNT(*) AS n FROM clips_ready WHERE profile_id=? GROUP BY state", p.id)}
@@ -382,7 +421,7 @@ def home_page(sv: Services, p: Profile) -> dict:
     health.append({"kind": "warn" if near else "good", "label": "Spend breaker", "value": "Close to the limit" if near else "Well inside the limits"})
     events = [{"when": timefmt.short(e["ts"]), "level": e["level"], "text": f"{e['component']}: {e['message']}"}
               for e in rows(db, "SELECT * FROM events ORDER BY id DESC LIMIT 8")]
-    return {"stats": stats, "pipeline": pipeline, "recent": recent, "week": week, "health": health, "events": events,
+    return {"runs": [_run_row(r) for r in runs.recent(db, 6)], "stats": stats, "pipeline": pipeline, "recent": recent, "week": week, "health": health, "events": events,
             "has_week_items": any(d["total"] for d in week), "needs": needs(sv, p)}
 
 
@@ -447,7 +486,9 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
     ]
     values = {"name": channel_name(c), "category": c.category, "about": c.niche.definition, "brand_handle": c.brand.handle,
               "tiktok_handle": c.tiktok_handle, "youtube_tags": tags, "format": c.format or "",
-              "youtube_daily_cap": c.posting.daily_cap if c.posting else 100, **(form or {})}
+              "youtube_daily_cap": c.posting.daily_cap if c.posting else 100,
+              "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
+              "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0", **(form or {})}
     return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
             "youtube": youtube_connected(c), "card": _channel_card(sv, c),
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
