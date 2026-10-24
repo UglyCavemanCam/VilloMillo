@@ -251,9 +251,16 @@ lists or `403`, the next step is a different kind of sign-in (a user token), not
 
 Keep the key only in the app's keychain. Never paste it into chat, a file or the repository.
 
-## 13. Still to confirm
+## 13. Settled and still open
 
-1. The result of the Whop test script.
-2. The Solved campaign's allowed platforms. The old brief saved in `solved.yaml` did **not** allow TikTok. Does the live Content Rewards page say the same? If so, Solved clips go to YouTube only, and your TikTok is used for
-   everything else.
-3. The TikTok account's name and handle once it exists.
+**Settled by the Whop test (run on your computer):**
+- Your key is valid and works. It can list apps; `/bounties` and `/bounty_submissions` answer but are empty for your account.
+- Whop's documented API has **no Content Rewards campaign endpoints** that a clipper can use. Every address we tried (`/content_rewards`, `/campaigns` and similar) answered "not found". Whop's own documentation for Content Rewards only describes the brand side (creating campaigns and approving submissions); joining and submitting as a clipper is done on the website.
+- So in Phase 7 campaigns are not read through the Whop API. Two ways to feed them in, to be chosen before Phase 7: (a) you paste a campaign link and the system reads that public page; (b) the system also reads the public campaign list on contentrewards.com. Joining and submitting links stay manual either way.
+
+**Settled by you:**
+- The Solved campaign does **not** allow TikTok. Solved clips go to **YouTube only**; the TikTok account is for everything else. Every campaign needs its own "allowed platforms" setting, checked before a clip is posted.
+
+**Still open:**
+1. The TikTok account's name and handle, once the account exists (not needed before Phase 6).
+2. Phase 7 choice (a) or (b) above.
