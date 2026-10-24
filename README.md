@@ -88,7 +88,7 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 | `clip` | clip one video now and wait for the engine |
 | `copy` | write title and caption options for planned posts |
 | `accounts` / `account` / `audit` | channel routes, audits, pause and resume |
-| `youtube-connect` / `tiktok-connect` / `post-now` | sign in to YouTube or TikTok once; send one planned post now |
+| `youtube-connect` / `post-now` | sign in to YouTube once; send one planned post now |
 
 ## Paste a link
 

@@ -14,6 +14,12 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `routing.candidates` | No longer asks whether a channel has permission to use a video. |
 | `clipper.submit` | No longer looks up the YouTube licence or holds videos for rights. Takes no YouTube client. |
 
+## Removed later
+
+| Part | What happened |
+|---|---|
+| TikTok (`tiktok.py`, its channel settings, the Connect TikTok step, its keys and tests) | **Deleted.** Automatic TikTok posting needs a developer approval that is not available. |
+
 ## Module by module
 
 | Module | Purpose | Decision |
@@ -25,10 +31,9 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `clipper.py`, `links.py` | Talks to the clipping engine (preview, make chosen moments), checks finished clips; recognises YouTube, Twitch and Kick links | **Keep.** Phase 3 added "preview" and "make chosen moments" |
 | `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the real campaign rules |
 | `formats/` | The on-screen look recipes (blueprints, text, render) | **Keep** |
-| `copywriter.py` | Titles and captions per platform (YouTube now, TikTok in Phase 6) | **Keep** |
+| `copywriter.py` | Titles and captions for YouTube | **Keep** |
 | `channels.py` | Channels stored in the database: add, edit, delete, one per category | **Keep** (new, Phase 2) |
-| `posting.py`, `accounts.py`, `routing.py` | Posting, per-account pause and audit state, choosing a channel (a clip goes to its category's channel, or is held) | **Keep.** Phase 6 adds TikTok |
-| `tiktok.py` | TikTok sign-in, posting, status and numbers | **Keep** (new, Phase 6) |
+| `posting.py`, `accounts.py`, `routing.py` | Posting, per-account pause and audit state, choosing a channel (a clip goes to its category's channel, or is held) | **Keep** |
 | `youtube.py`, `quota.py` | YouTube Data API reads and their daily allowance | **Keep** (used by the Paste intake and, later, Research) |
 | `runs.py`, `safety.py` | A pasted link from analysis to posted clips; the emergency stop | **Keep** (new, Phase 5) |
 | `studio.py` | Dashboard helper for the live clip-progress view on the Clips page | **Keep.** The run page covers a pasted link's progress |

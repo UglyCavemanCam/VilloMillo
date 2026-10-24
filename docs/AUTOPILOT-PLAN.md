@@ -11,14 +11,15 @@ This replaces all earlier autopilot plans. Two older documents stay because they
 ## 1. The goal in one paragraph
 
 VilloMillo should always be working. It gets videos, picks the moments most likely to earn money, turns them into clips,
-and posts them to the right YouTube and TikTok accounts, with no one approving anything. **Everything is judged
+and posts them to the right YouTube channel, with no one approving anything. **Everything is judged
 by one thing: the best CPM** (what a video earns per 1,000 views). You step in only when something truly needs you.
 
 ## 2. Decided since the first version
 
-- **Instagram is out of the plan and the system** (it allows only 3 reels a day, which does not meet the requirements). Posting is
-  YouTube and TikTok only. (The engine's own code, inherited from Clips Kitty, still has Instagram parts; VilloMillo does not use them.)
-- **First channel: Podcasts.** Its YouTube channel is the one already connected. Its TikTok account still has to be created.
+- **Instagram is out of the plan and the system** (it allows only 3 reels a day, which does not meet the requirements).
+- **TikTok is out of the plan and the system** (posting to it automatically needs a TikTok developer app approval that is not available). Posting is
+  YouTube only. (The engine's own code, inherited from Clips Kitty, still has Instagram and TikTok parts; VilloMillo does not use them.)
+- **First channel: Podcasts.** Its YouTube channel is the one already connected.
 - **The Solved campaign** is already joined by hand on Content Rewards. It becomes the first record on the Campaigns page.
 
 ## 3. Words used in this plan
@@ -28,7 +29,7 @@ by one thing: the best CPM** (what a video earns per 1,000 views). You step in o
 | **CPM** | Dollars earned per 1,000 views. |
 | **Viral score** | A number from 0 to 100: how likely a clip is to do well. Below 75, we don't make or post it. |
 | **Category** | The kind of video: Podcast, Stream clips, Sports, and so on. |
-| **Channel** | One category with its own YouTube channel and TikTok account. A clip posts to both. |
+| **Channel** | One category with its own YouTube channel. A clip posts there. |
 | **Held** | A good clip that has nowhere to go yet (no channel for its category). It waits; nothing is lost. |
 | **Audit** | A platform's approval for posting automatically and publicly. Until it passes, posts stay private or wait for you. |
 
@@ -52,8 +53,8 @@ Only the way a video arrives is different. The scoring, clipping and posting are
 5. **Check them.** Length, sound, picture, the campaign's rules, and the score again on the finished clip. A clip that falls
    short is not posted.
 6. **Pick the channel.** The kind of video decides the category, and the category decides the channel. No channel for it? The clip is held.
-7. **Post it.** A title and caption are written and the clip is posted to the channel's YouTube and TikTok, inside each
-   platform's daily limit. A campaign clip's link is then submitted to the campaign.
+7. **Post it.** A title and caption are written and the clip is posted to the channel's YouTube, inside its
+   daily limit. A campaign clip's link is then submitted to the campaign.
 8. **Learn.** Real views and payouts come back and make the next scores more accurate.
 
 ## 6. How it decides what is worth posting
@@ -65,7 +66,7 @@ Only the way a video arrives is different. The scoring, clipping and posting are
   - **Research:** estimated CPM at least the **rising bar**. It starts at $1.00 and moves up in small steps, but only when real
     results beat what was predicted. It never drops below $1.00. You set the highest it can go.
 - **Before real results exist,** CPM for Paste and Research is an estimate: `$1.00 × category factor × (viral score ÷ 75)`.
-  It is always labelled "estimated" and is replaced by real data as TikTok and YouTube stats come in.
+  It is always labelled "estimated" and is replaced by real data as YouTube stats come in.
 - **Expected revenue** = predicted views × CPM ÷ 1,000. When several clips are waiting, the highest expected revenue goes first.
 
 Example: a clip with a viral score of 91 has an estimated CPM of $1.21. With a rough guess of 8,000 views, that is about
@@ -76,8 +77,8 @@ must be 4 out of 5 or better (otherwise the clip is held).
 
 ## 7. Channels
 
-- A channel is a category plus its two accounts (YouTube and TikTok). All accounts are yours.
-- A **Channels** page lists them. **Add channel** is a short step-by-step: name and category, connect YouTube, connect TikTok,
+- A channel is a category plus its YouTube channel. The account is yours.
+- A **Channels** page lists them. **Add channel** is a short step-by-step: name and category, connect YouTube,
   then caption tags and the look.
 - If a good clip has no matching channel, it is held and Home says **"Create a channel for [category]"** with an Add channel
   button. When you add it, the held clips post.
@@ -96,8 +97,7 @@ All shown on Home under **Needs you**:
   last approval. You approve to let it spend that much more.
 - **Out of money:** if Claude or Jev runs out of funds, the system pauses and tells you which one to top up.
 - **Emergency stop:** one button pauses everything on every channel.
-- **Platform limits:** YouTube 100 posts per channel per day (your number). TikTok is about 15 per account per day (from
-  TikTok's own developer guidelines; it can vary). When an account reaches its limit, its clips wait for the next day.
+- **Platform limit:** YouTube 100 posts per channel per day (your number). When a channel reaches its limit, its clips wait for the next day.
 - **Always on:** it runs on your computer. One start file launches the engine, the worker and the dashboard, starts them when you
   log in, and restarts the engine if it stops. Your computer must not go to sleep.
 
@@ -119,11 +119,11 @@ caps never left spending unguarded. Moving the Solved channel into the new chann
 
 ### Phase 2: Channels (medium)
 **In plain words:** Build the Channels page and the Add channel steps. Channels are stored in the dashboard instead of in files.
-Add the "held, then create a channel" behaviour. YouTube connects first; TikTok plugs in later.
+Add the "held, then create a channel" behaviour. YouTube connects on each channel's page.
 **After this:** you can add and edit channels and see which accounts are connected.
 **Done when:** adding a channel releases clips that were held for it.
-**Status: done.** Channels live in the database. The Channels page lists them with their YouTube and TikTok status; Add channel creates one (name, category,
-what it posts) and then walks you through YouTube, TikTok handle, tags and look on the channel's page. A clip with a category posts only on that
+**Status: done.** Channels live in the database. The Channels page lists them with their YouTube status; Add channel creates one (name, category,
+what it posts) and then walks you through YouTube, tags and look on the channel's page. A clip with a category posts only on that
 category's channel; with none it is held and Home says "Create a channel for ...". Adding the channel plans the held clips, best score first.
 Podcasts is the starting channel (its YouTube sign-in is the one you already made). Clips get their category from their channel until the
 type detector (Phase 4) assigns it. The Solved campaign rules still sit on the Podcasts channel until Phase 7 moves them to Campaigns.
@@ -172,24 +172,19 @@ the look the kind decides. Each finished clip that passes its checks is approved
 Start and any failed video. The **Emergency stop** button in the top bar pauses every automatic step until you resume; the spending guard banner from Phase 1
 is on every page. The Channels page now has "How YouTube posts go out" and "Send posts for real". Posts are only written to a folder until you turn that on
 (and, for automatic YouTube posting, record the YouTube audit as passed). Not done: scoring the finished clip a second time (the existing checks and the
-stand-alone reading still apply), and the TikTok side (Phase 6). The Podcasts channel now has your TikTok handle, @podscliphouse, and a general podcast
+stand-alone reading still apply), The Podcasts channel now has a general podcast
 description instead of the Solved one; if your database already holds the channel, edit those on its page. `run-app.bat` now starts the worker too, which pasted links need.
 
-### Phase 6: TikTok posting (medium)
-**In plain words:** Add posting to TikTok, a daily limit counter for every account, and collection of real view counts for the
-learning step. You will need TikTok's approval; until it passes, posts there are private or wait for you.
-**After this:** one clip posts to a channel's YouTube and TikTok together.
-**Status: built and tested against scripted TikTok answers; not yet tried on a real TikTok account.** A channel with a TikTok handle now plans every clip on YouTube
-**and** TikTok (`villomillo/tiktok.py`): sign-in is TikTok's desktop flow (opens your browser, comes back to `http://127.0.0.1:8788/callback/`), the video is uploaded in
-chunks through the Content Posting API, and the app asks the account which privacy levels it may use, so it never asks for a public post TikTok has not allowed.
-Until TikTok audits your app, every TikTok post is private. Each platform has its own daily cap (YouTube 100, TikTok 15 by default, both editable on the channel's
-page), a post that would go over waits for tomorrow, and the channel page shows "Posted today N of cap" for every account. A TikTok daily-limit answer never counts
-against the account. Every 6 hours the app reads the real views, likes and comments of recent posts (YouTube through your YouTube key, TikTok through the connected
-account, public posts only) and keeps them; Insights shows them. If the last five posts of an account get under a third of its usual views, the account is paused with
-that reason. To set up: in developers.tiktok.com create an app, add **Login Kit** and **Content Posting API** (Direct Post), the scopes `user.info.basic`, `video.publish`
-and `video.list`, and the redirect address above; store its keys with `python -m villomillo key tiktok_key` and `key tiktok_secret`; then press **Connect TikTok** on the channel's page. Also
-changed here: the Podcasts channel no longer carries the Solved campaign's required tags or its 2-a-day / 3-hour spacing, and the YouTube fallback description no longer says "Solved".
-**Done when:** a clip reaches both accounts and the daily limits hold.
+### Phase 6: Real results and the daily limit (small)
+**In plain words:** A daily limit counter for the channel's YouTube account, and collection of real view counts for the learning step. (This phase was
+TikTok posting. TikTok was removed from the plan because its automatic posting needs a developer approval that is not available.)
+**After this:** the channel page shows how many posts went out today against the limit, and Insights shows real views.
+**Status: done.** The channel page shows "Posted today N of cap" (YouTube: 100 by default, editable). A post that would go over waits for tomorrow. Every 6
+hours the app reads the real views, likes and comments of recent posts through your YouTube key (a post you made by hand counts too, because its video is
+found from the link you recorded) and keeps them; Insights shows them. If the last five posts of a channel get under a third of its usual views, its YouTube
+account is paused with that reason. Also changed here: the Podcasts channel no longer carries the Solved campaign's required tags or its 2-a-day / 3-hour
+spacing, and the YouTube fallback description no longer says "Solved". A channel saved while TikTok was part of the app still loads: its TikTok settings are dropped.
+**Done when:** the daily limit holds and real views are collected.
 
 ### Phase 7: Campaigns (large)
 **In plain words:** Whop's API cannot list or join Content Rewards campaigns (the test showed this), so the system reads the public campaign list on
@@ -223,7 +218,7 @@ on Home (engine, worker, funds, last post).
 
 - **No approval step means mistakes can post publicly.** The protection is the scores, the checks, the spending guard, the
   emergency stop, and the ability to delete a post. Early on the CPM numbers for Paste and Research are guesses.
-- **Platform approvals take time and are outside our control.** Until YouTube and TikTok approve automatic posting,
+- **Platform approvals take time and are outside our control.** Until YouTube approves automatic posting,
   those posts are private or wait for you.
 - **Campaign automation depends on something that may not exist.** Whop's docs mention API keys and a bounty-submissions API, but
   I found nothing confirming that Content Rewards campaigns can be joined or submitted to automatically. The fallback is manual.
@@ -299,8 +294,7 @@ Keep the key only in the app's keychain. Never paste it into chat, a file or the
 - So in Phase 7 campaigns are not read through the Whop API. **Decided:** the system reads the public campaign list on contentrewards.com first, and you can paste a campaign link as a fallback (the system then reads that page). Joining and submitting links stay manual either way.
 
 **Settled by you:**
-- The Solved campaign does **not** allow TikTok. Solved clips go to **YouTube only**; the TikTok account is for everything else. Every campaign needs its own "allowed platforms" setting, checked before a clip is posted.
+- The Solved campaign allows **YouTube only**. Every campaign needs its own "allowed platforms" setting, checked before a clip is posted.
 
 **Still open:**
-1. The TikTok account's name and handle, once the account exists (not needed before Phase 6).
 

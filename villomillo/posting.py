@@ -5,8 +5,7 @@ Routes per platform (set in the channel's settings):
 - api: sent through the platform's official API. While the channel's posting is dry-run, nothing is sent:
   the exact payload is written to the outbox and the post is marked dry_run.
 
-A clip goes to every platform its channel has (YouTube and TikTok together). A channel's posts are spaced out and
-capped per day on each platform (YouTube 100 and TikTok about 15 are the platforms' own limits).
+A clip goes to every platform its channel has (today that is YouTube). A channel's posts are spaced out and capped per day.
 """
 
 from __future__ import annotations
@@ -17,13 +16,12 @@ import re
 from collections import Counter
 from datetime import datetime, timedelta
 
-from . import accounts, secrets, store, tiktok, timefmt
+from . import accounts, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
 
 YT_TITLE_MAX = 100
 YT_DESCRIPTION_MAX = 5000
-TIKTOK_CAPTION_MAX = 2200
 DATA = ROOT / "data" / "villomillo"
 OUTBOX_ROOT = DATA / "outbox"
 
@@ -58,9 +56,6 @@ def build_copy(posting: Posting, clip: dict, episode: str, platform: str) -> dic
         title = f"{_fit(hook, YT_TITLE_MAX - 10)} #Shorts"
         description = f"{hook}\n\nClip from: {episode}\n{tag}\n\n#Shorts"
         return {"title": title, "caption": _fit(description, YT_DESCRIPTION_MAX), "tags": ["Shorts"]}
-    if platform == "tiktok":
-        caption = f"{hook}\n{tag}\n\n#fyp".replace("\n\n\n", "\n\n")
-        return {"title": "", "caption": _fit(caption, TIKTOK_CAPTION_MAX), "tags": []}
     raise ValueError(f"no copy rules for {platform}")
 
 
@@ -86,7 +81,7 @@ def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, no
     candidate = now
     if times:
         candidate = max(now, store.parse_time(max(times)) + timedelta(minutes=posting.min_gap_minutes))
-    while taken[timefmt.local_date(candidate)] >= posting.cap_for(platform):
+    while taken[timefmt.local_date(candidate)] >= posting.daily_cap:
         candidate = timefmt.start_of_day_utc(timefmt.local_date(candidate) + timedelta(days=1))
     return candidate
 
@@ -176,52 +171,6 @@ class YouTubeShorts:
         return {"url": f"https://youtube.com/shorts/{result.video_id}", "notes": notes, "remote_id": result.video_id}
 
 
-class TikTokPoster:
-    """Posts through TikTok's Content Posting API (villomillo/tiktok.py). Until TikTok has audited the app, only privately."""
-
-    def __init__(self, client: tiktok.TikTok, handle: str = ""):
-        self.client, self.handle = client, handle.lstrip("@")
-
-    def post(self, *, path: pathlib.Path, copy: dict, privacy: str) -> dict:
-        try:
-            result = self.client.post(path, copy["caption"], privacy)
-        except tiktok.TikTokError as e:
-            raise PostError(str(e)) from None
-        notes = list(result["notes"])
-        if result["status"] != "PUBLISH_COMPLETE":
-            notes.append("TikTok was still processing the video when last asked")
-        base = f"https://www.tiktok.com/@{self.handle}" if self.handle else "https://www.tiktok.com"
-        url = f"{base}/video/{result['post_id']}" if result["post_id"] else base
-        return {"url": url, "notes": notes, "publish_id": result["publish_id"], "remote_id": result["post_id"]}
-
-
-def tiktok_client(profile: Profile) -> tiktok.TikTok | None:
-    """The channel's TikTok account, or None when the app's keys are not stored or the account is not connected."""
-    try:
-        key, secret = secrets.get(secrets.TIKTOK_KEY), secrets.get(secrets.TIKTOK_SECRET)
-    except secrets.MissingSecret:
-        return None
-    path = tiktok.token_path(DATA, profile.id)
-    return tiktok.TikTok(path, key, secret) if tiktok.is_connected(path) else None
-
-
-def tiktok_connected(profile: Profile) -> bool:
-    return tiktok.is_connected(tiktok.token_path(DATA, profile.id))
-
-
-def connect_tiktok(profile: Profile) -> dict:
-    """Sign in to TikTok once, in the browser, and keep the tokens for this channel's account."""
-    try:
-        key, secret = secrets.get(secrets.TIKTOK_KEY), secrets.get(secrets.TIKTOK_SECRET)
-    except secrets.MissingSecret:
-        raise PostError("store your TikTok app's keys first: python -m villomillo key tiktok_key, then key tiktok_secret") from None
-    try:
-        tokens = tiktok.sign_in(tiktok.token_path(DATA, profile.id), key, secret)
-    except tiktok.TikTokError as e:
-        raise PostError(str(e)) from None
-    return {"open_id": tokens.open_id}
-
-
 YOUTUBE_CLIENT = ROOT / "config" / "villomillo" / "youtube_client_secret.json"
 
 
@@ -262,10 +211,6 @@ def default_adapters(profile: Profile) -> dict:
         return adapters
     if posting.platforms.get("youtube_shorts") == "api":
         adapters["youtube_shorts"] = YouTubeShorts(_youtube_publisher(profile))
-    if posting.platforms.get("tiktok") == "api":
-        client = tiktok_client(profile)
-        if client is not None:
-            adapters["tiktok"] = TikTokPoster(client, profile.tiktok_handle)
     return adapters
 
 
@@ -288,9 +233,9 @@ def send_now(db: Database, profile: Profile, post_id: int, adapters: dict) -> st
     status, error, url, extra = _send(db, profile, post, copy, clip, adapters)
     with db.conn() as c:
         c.execute("UPDATE posts SET route='api', status=?, error=?, url=COALESCE(?, url), posted_at=?, "
-                  "publish_id=COALESCE(?, publish_id), remote_id=COALESCE(?, remote_id) WHERE id=?",
+                  "remote_id=COALESCE(?, remote_id) WHERE id=?",
                   (status, error, url, store.iso() if status == "uploaded" else None,
-                   extra.get("publish_id"), extra.get("remote_id"), post_id))
+                   extra.get("remote_id"), post_id))
     return f"post {post_id} ({post['platform']}): {status}" + (f", {error}" if error else f", {url}")
 
 
@@ -321,8 +266,8 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
         elif posting.dry_run:
             status, error, url = "dry_run", None, None
             _write_outbox(profile, post, copy, clip["file_path"])
-        elif posted_today(db, profile.id, post["platform"], now=now) >= posting.cap_for(post["platform"]):
-            lines.append(f"post {post['id']} ({post['platform']}): waiting, today's limit of {posting.cap_for(post['platform'])} is reached")
+        elif posted_today(db, profile.id, post["platform"], now=now) >= posting.daily_cap:
+            lines.append(f"post {post['id']} ({post['platform']}): waiting, today's limit of {posting.daily_cap} is reached")
             continue
         else:
             status, error, url, extra = _send(db, profile, post, copy, clip, adapters)
@@ -334,15 +279,15 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
                     store.event(db, "warn", "post", f"{profile.id} {post['platform']} paused: {paused}")
         with db.conn() as c:
             c.execute("UPDATE posts SET status=?, error=?, url=COALESCE(?, url), posted_at=?, "
-                      "publish_id=COALESCE(?, publish_id), remote_id=COALESCE(?, remote_id) WHERE id=?",
+                      "remote_id=COALESCE(?, remote_id) WHERE id=?",
                       (status, error, url, store.iso(now) if status == "uploaded" else None,
-                       extra.get("publish_id"), extra.get("remote_id"), post["id"]))
+                       extra.get("remote_id"), post["id"]))
         lines.append(f"post {post['id']} ({post['platform']}): {status}" + (f", {error}" if error else ""))
     return lines
 
 
 def _send(db, profile, post, copy, clip, adapters) -> tuple[str, str | None, str | None, dict]:
-    """(status, error, url, extra): extra carries the platform's own ids (publish_id, remote_id) when it gave any."""
+    """(status, error, url, extra): extra carries the platform's own id for the live video (remote_id) when it gave one."""
     adapter = adapters.get(post["platform"])
     if adapter is None:
         return "failed", f"no {post['platform']} connection is set up for this channel", None, {}
@@ -352,7 +297,7 @@ def _send(db, profile, post, copy, clip, adapters) -> tuple[str, str | None, str
         return "failed", str(e), None, {}
     for note in result["notes"]:
         store.event(db, "warn", "post", f"post {post['id']}: {note}")
-    return "uploaded", None, result["url"], {k: result.get(k) for k in ("publish_id", "remote_id")}
+    return "uploaded", None, result["url"], {"remote_id": result.get("remote_id")}
 
 
 def _write_outbox(profile: Profile, post, copy: dict, file_path: str) -> None:
@@ -382,10 +327,10 @@ def _save_stats(db: Database, post_id: int, stats: dict, now: datetime) -> None:
                   (post_id, store.iso(now), stats.get("views"), stats.get("likes"), stats.get("comments"), stats.get("shares")))
 
 
-def collect_stats(db: Database, profile: Profile, *, yt=None, tiktok_account=None, now: datetime | None = None) -> list[str]:
+def collect_stats(db: Database, profile: Profile, *, yt=None, now: datetime | None = None) -> list[str]:
     """Read the real views, likes and comments of this channel's recent posts and keep them. YouTube is read with the
-    YouTube API key (a post you made by hand counts too: its video is found from the link you recorded); TikTok with the
-    connected account, which also learns the id of an upload that was still processing. Returns one line per thing done."""
+    YouTube API key; a post you made by hand counts too, because its video is found from the link you recorded.
+    Returns one line per post read."""
     now = now or store.now()
     since = store.iso(now - timedelta(days=STATS_DAYS))
     with db.conn() as c:
@@ -405,28 +350,6 @@ def collect_stats(db: Database, profile: Profile, *, yt=None, tiktok_account=Non
                 for p in by_video.get(item["video_id"], []):
                     _save_stats(db, p["id"], item, now)
                     lines.append(f"post {p['id']} (YouTube): {item.get('views')} views")
-    if tiktok_account is not None:
-        waiting = [p for p in posts if p["platform"] == "tiktok" and p["publish_id"] and not p["remote_id"]]
-        for p in waiting:
-            try:
-                answer = tiktok_account.status(p["publish_id"])
-            except tiktok.TikTokError as e:
-                lines.append(f"post {p['id']} (TikTok): could not ask TikTok ({e})")
-                continue
-            if answer["post_id"]:
-                with db.conn() as c:
-                    c.execute("UPDATE posts SET remote_id=? WHERE id=?", (answer["post_id"], p["id"]))
-                p["remote_id"] = answer["post_id"]
-        known = {p["remote_id"]: p for p in posts if p["platform"] == "tiktok" and p["remote_id"]}
-        try:
-            numbers = tiktok_account.video_stats(list(known))
-        except tiktok.TikTokError as e:
-            numbers = {}
-            lines.append(f"TikTok numbers could not be read: {e}")
-        for remote_id, stats in numbers.items():
-            if remote_id in known:
-                _save_stats(db, known[remote_id]["id"], stats, now)
-                lines.append(f"post {known[remote_id]['id']} (TikTok): {stats.get('views')} views")
     for platform in {p["platform"] for p in posts}:
         reason = _views_fell(db, profile, platform, posts)
         if reason and not accounts.is_paused(db, profile.id, platform):

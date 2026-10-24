@@ -68,7 +68,7 @@
   {% if r.note %}<p class="muted" style="margin:0">{{ r.note }}</p>{% endif %}
   {% for c in d.clips %}
   <div class="row"><span class="grade" style="font-size:20px;width:34px">{{ c.engine_score }}</span>
-    <span class="grow"><b>{{ c.hook or 'Clip ' ~ c.id }}</b><small>{{ c.when }} · {{ c.reason }}{% if c.posts %} · {{ c.posts.replace('youtube_shorts', 'YouTube').replace('tiktok', 'TikTok').replace(':', ' ') }}{% endif %}</small></span>
+    <span class="grow"><b>{{ c.hook or 'Clip ' ~ c.id }}</b><small>{{ c.when }} · {{ c.reason }}{% if c.posts %} · {{ c.posts.replace('youtube_shorts', 'YouTube').replace(':', ' ') }}{% endif %}</small></span>
     <a class="btn btn-sm" href="/clips?profile={{ shell.current.id }}&panel=/clips/{{ c.id }}/panel">Open</a></div>
   {% else %}<p class="muted">No clips were kept.</p>{% endfor %}
 </section>

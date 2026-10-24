@@ -86,9 +86,9 @@ def test_a_too_long_youtube_title_is_blocked(solved):
 
 
 def test_a_clip_goes_to_the_platform_whose_topic_words_it_uses(solved):
-    two = solved.posting.model_copy(update={"platforms": {"youtube_shorts": "manual", "tiktok": "manual"},
-                                            "topics": {"youtube_shorts": ["growth"], "tiktok": ["dance"]}})
-    assert posting.pick_platform(two, "a talk about dance and dance") == "tiktok"
+    two = solved.posting.model_copy(update={"platforms": {"youtube_shorts": "manual", "other": "manual"},
+                                            "topics": {"youtube_shorts": ["growth"], "other": ["dance"]}})
+    assert posting.pick_platform(two, "a talk about dance and dance") == "other"
     assert posting.pick_platform(two, "a talk about purpose and growth") == "youtube_shorts"
     assert posting.pick_platform(two, "nothing matching at all") == "youtube_shorts"
     assert posting.pick_platform(solved.posting, "anything") == "youtube_shorts"  # the one platform there is
@@ -97,11 +97,6 @@ def test_a_clip_goes_to_the_platform_whose_topic_words_it_uses(solved):
 def test_copy_for_a_platform_with_no_rules_is_refused(solved):
     with pytest.raises(ValueError, match="no copy rules"):
         posting.build_copy(solved.posting, {"hook": "x"}, "Ep", "instagram")
-
-
-def test_tiktok_copy_has_no_title_and_fits_the_limit(solved):
-    copy = posting.build_copy(solved.posting, {"hook": "Discipline is a design problem " * 100}, "Ep", "tiktok")
-    assert copy["title"] == "" and len(copy["caption"]) <= posting.TIKTOK_CAPTION_MAX and copy["tags"] == []
 
 
 # --- spacing ----------------------------------------------------------------------------------------

@@ -102,13 +102,9 @@ class Posting(_Strict):
     platforms: dict[str, Literal["api", "manual"]] = {}  # platform -> how it goes out
     privacy: Literal["private", "unlisted", "public"] = "private"
     min_gap_minutes: int = Field(180, ge=0)
-    daily_cap: int = Field(2, ge=1)  # per platform, per day, unless platform_caps says otherwise
-    platform_caps: dict[str, int] = {}  # platform -> its own daily cap (YouTube 100 and TikTok about 15 are the platforms' limits)
+    daily_cap: int = Field(2, ge=1)  # per platform, per day (YouTube's own limit for a channel is 100)
     topics: dict[str, list[str]] = {}  # platform -> words that send a clip there
     tags: dict[str, str] = {}  # platform -> the campaign's required @mentions, as written
-
-    def cap_for(self, platform: str) -> int:
-        return self.platform_caps.get(platform, self.daily_cap)
 
 
 class Brand(_Strict):
@@ -120,7 +116,6 @@ class Profile(_Strict):
     id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,30}$")
     display_name: str
     category: str = ""  # what this channel posts, such as "Podcasts". One channel per category.
-    tiktok_handle: str = ""  # the channel's TikTok account, such as "@name"; clips post there once it is connected
     autopilot: str = Field("review", pattern=r"^(off|review|auto)$")
     niche: Niche
     campaign: Campaign | None = None

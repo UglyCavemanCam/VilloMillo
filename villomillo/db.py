@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     next_run_at TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
 );
 
--- The channels you have added in the dashboard. Each is a category with its YouTube and TikTok accounts.
+-- The channels you have added in the dashboard. Each is a category with its YouTube channel.
 CREATE TABLE IF NOT EXISTS channels (
     id TEXT PRIMARY KEY, data_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
@@ -106,7 +106,6 @@ CREATE TABLE IF NOT EXISTS posts (
     status TEXT NOT NULL,       -- queued | blocked | dry_run | manual_ready | uploaded | failed | posted
     title TEXT NOT NULL, caption TEXT NOT NULL, tags_json TEXT NOT NULL,
     scheduled_at TEXT NOT NULL, posted_at TEXT, url TEXT, error TEXT, created_at TEXT NOT NULL,
-    publish_id TEXT,            -- the platform's id for an upload still being processed (TikTok)
     remote_id TEXT,             -- the platform's id for the live video, used to read its numbers
     UNIQUE (clip_id, platform)
 );
@@ -151,9 +150,8 @@ class Database:
         try:
             setup.executescript(SCHEMA)
             post_cols = {r[1] for r in setup.execute("PRAGMA table_info(posts)")}
-            for column in ("publish_id", "remote_id"):
-                if column not in post_cols:
-                    setup.execute(f"ALTER TABLE posts ADD COLUMN {column} TEXT")
+            if "remote_id" not in post_cols:
+                setup.execute("ALTER TABLE posts ADD COLUMN remote_id TEXT")
             if "category" not in {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}:
                 setup.execute("ALTER TABLE clips_ready ADD COLUMN category TEXT")  # a database made before channels
             setup.execute(

@@ -5,7 +5,6 @@
 id: solved
 display_name: "Podcasts"
 category: Podcasts
-tiktok_handle: "@podscliphouse"
 autopilot: review
 
 niche:
@@ -35,12 +34,9 @@ posting:
   dry_run: true             # nothing is sent until you turn this off on the channel's page
   platforms:
     youtube_shorts: manual  # by hand until YouTube's audit passes and you switch it to automatic
-    tiktok: manual          # by hand until TikTok is connected and audited
   privacy: private
   min_gap_minutes: 0
   daily_cap: 100            # YouTube: 100 posts a day is the channel's limit
-  platform_caps:
-    tiktok: 15              # TikTok allows about this many a day per account through its API
 
 brand:
   name: Podcasts

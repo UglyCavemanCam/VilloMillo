@@ -32,7 +32,7 @@ def test_links_are_recognised(text, platform, video_id, url):
     ("https://www.twitch.tv/somestreamer/clip/FunnyClipName", "not a past broadcast"),
     ("https://kick.com/somestreamer", "not a past broadcast"),
     ("https://www.youtube.com/@channel", "does not point to a video"),
-    ("https://tiktok.com/@a/video/123", "YouTube, Twitch and Kick"),
+    ("https://vimeo.com/123456", "YouTube, Twitch and Kick"),
     ("https://youtube.com.evil.net/watch?v=aB3dEfGhIjK", "YouTube, Twitch and Kick"),
 ])
 def test_other_links_are_refused_with_a_reason(text, why):

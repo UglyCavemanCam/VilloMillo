@@ -78,7 +78,7 @@ def do_stats(sv: Services, payload: dict) -> None:
     p = _profile(sv, payload)
     if p.posting is None:
         return
-    for line in posting.collect_stats(sv.db, p, yt=sv.yt, tiktok_account=posting.tiktok_client(p)):
+    for line in posting.collect_stats(sv.db, p, yt=sv.yt):
         store.event(sv.db, "info", "stats", line)
 
 

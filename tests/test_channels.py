@@ -75,8 +75,8 @@ def test_names_become_unique_ids_and_a_new_channel_starts_as_a_safe_dry_run(db, 
     a = channels.create(db, profiles, name="Stream clips", category="Stream clips", about="Gaming highlights")
     b = channels.create(db, profiles, name="Stream clips", category="Streams", about="More gaming")
     assert (a.id, b.id) == ("stream-clips", "stream-clips-2")
-    assert a.posting.dry_run and a.posting.privacy == "private" and a.posting.cap_for("youtube_shorts") == 100
-    assert a.posting.cap_for("tiktok") == 15 and list(a.posting.platforms) == ["youtube_shorts"]
+    assert a.posting.dry_run and a.posting.privacy == "private" and a.posting.daily_cap == 100
+    assert list(a.posting.platforms) == ["youtube_shorts"]
 
 
 def test_bad_input_is_refused_with_a_plain_message(db, profiles):
@@ -84,8 +84,6 @@ def test_bad_input_is_refused_with_a_plain_message(db, profiles):
                 {"name": "x", "category": "y", "about": ""}, {"name": "!", "category": "!!", "about": "y"}):
         with pytest.raises(channels.ChannelError):
             channels.create(db, profiles, **bad)
-    with pytest.raises(channels.ChannelError, match="TikTok handle"):
-        channels.update(db, profiles, "solved", tiktok_handle="not a handle!")
     with pytest.raises(channels.ChannelError, match="between 1 and 100"):
         channels.update(db, profiles, "solved", youtube_daily_cap="101")
     with pytest.raises(channels.ChannelError, match="no look called"):
@@ -93,10 +91,10 @@ def test_bad_input_is_refused_with_a_plain_message(db, profiles):
 
 
 def test_edits_are_saved_and_the_live_set_follows(db, profiles):
-    channels.update(db, profiles, "solved", tiktok_handle="podcasts_clips", youtube_tags="@a @b", youtube_daily_cap="50")
+    channels.update(db, profiles, "solved", brand_handle="@pods", youtube_tags="@a @b", youtube_daily_cap="50")
     saved = channels.load(db)["solved"]
-    assert saved.tiktok_handle == "@podcasts_clips" and saved.posting.tags["youtube_shorts"] == "@a @b"
-    assert saved.posting.cap_for("youtube_shorts") == 50 and profiles["solved"].tiktok_handle == "@podcasts_clips"
+    assert saved.brand.handle == "@pods" and saved.posting.tags["youtube_shorts"] == "@a @b"
+    assert saved.posting.daily_cap == 50 and profiles["solved"].posting.daily_cap == 50
 
 
 def test_a_channel_with_clips_cannot_be_deleted_and_the_last_one_stays(db, profiles):
@@ -204,13 +202,13 @@ def test_add_channel_shows_a_plain_error_for_a_taken_category(web):
 
 def test_saving_a_channel_changes_it_and_a_bad_value_changes_nothing(web):
     client, sv = web
-    base = {"name": "Podcasts", "category": "Podcasts", "about": "Talk shows", "brand_handle": "@cavemancam",
-            "tiktok_handle": "@pods", "youtube_tags": "@x", "youtube_daily_cap": "40", "format": ""}
+    base = {"name": "Podcasts", "category": "Podcasts", "about": "Talk shows",
+            "brand_handle": "@pods", "youtube_tags": "@x", "youtube_daily_cap": "40", "format": ""}
     assert client.post("/channels/solved/save", data=base, follow_redirects=False).status_code == 303
-    assert sv.profiles["solved"].tiktok_handle == "@pods" and sv.profiles["solved"].posting.cap_for("youtube_shorts") == 40
-    r = client.post("/channels/solved/save", data={**base, "tiktok_handle": "no no", "youtube_daily_cap": "5"})
-    assert r.status_code == 422 and "TikTok handle" in r.text
-    assert sv.profiles["solved"].posting.cap_for("youtube_shorts") == 40
+    assert sv.profiles["solved"].brand.handle == "@pods" and sv.profiles["solved"].posting.daily_cap == 40
+    r = client.post("/channels/solved/save", data={**base, "youtube_daily_cap": "500"})
+    assert r.status_code == 422 and "between 1 and 100" in r.text
+    assert sv.profiles["solved"].posting.daily_cap == 40
 
 
 def test_requests_from_other_sites_are_refused(web):
@@ -241,3 +239,17 @@ def test_the_post_job_is_scheduled_for_every_channel(db, profiles):
     tasks.ensure_schedules(db, config.AppConfig(), profiles, at=NOW)
     with db.conn() as c:
         assert {r["name"] for r in c.execute("SELECT name FROM schedules")} == {"post:solved", "post:outdoors", "stats:solved", "stats:outdoors"}
+
+
+def test_a_channel_saved_while_tiktok_was_part_of_the_app_still_loads_without_it(db):
+    profiles = channels.load(db)
+    old = profiles["solved"].model_dump()
+    old["tiktok_handle"] = "@podscliphouse"
+    old["posting"]["platforms"]["tiktok"] = "manual"
+    old["posting"]["platform_caps"] = {"tiktok": 15, "youtube_shorts": 60}
+    old["posting"]["tags"]["tiktok"] = "@x"
+    with db.conn() as c:
+        c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(old),))
+    again = channels.load(db)["solved"]
+    assert list(again.posting.platforms) == ["youtube_shorts"] and again.posting.daily_cap == 60
+    assert "tiktok" not in again.model_dump_json().lower()

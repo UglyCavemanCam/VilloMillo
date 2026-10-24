@@ -23,7 +23,7 @@ FILLER_OPENERS = {"now", "so", "and", "but", "well", "um", "uh", "like", "okay",
 CLICKBAIT = ("you won't believe", "you wont believe", "shocking", "gone wrong", "not clickbait", "must watch",
              "will blow your mind", "100% real")
 HASHTAG = re.compile(r"^#[A-Za-z][A-Za-z0-9_]{1,29}$")
-PLATFORM_NAMES = {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok"}
+PLATFORM_NAMES = {"youtube_shorts": "YouTube Shorts"}
 STOP_CRITERIA = [
     "Generic or confusing; gives no reason to stop.",
     "Dull; it names a topic without a point.",
@@ -52,8 +52,6 @@ def option_problems(option: dict, platform: str) -> list[str]:
                 problems.append("title opens with filler")
             if "#" in title:
                 problems.append("title has a hashtag in it")
-    elif title:
-        problems.append("this platform has no title")
     for phrase in CLICKBAIT:
         if phrase in f"{title} {idea}".lower():
             problems.append(f"clickbait phrase: {phrase}")
@@ -84,8 +82,7 @@ def assemble(posting: Posting, platform: str, episode: str, option: dict) -> dic
                 keywords.append(keyword)
                 size += len(keyword)
         return {"title": option["title"], "caption": "\n".join(lines).strip()[:5000], "tags": keywords or ["Shorts"]}
-    lines = [option["idea"], option["question"], "", required, "", hashtag_line]
-    return {"title": "", "caption": "\n".join(lines).strip()[:2200], "tags": []}
+    raise ValueError(f"no copy rules for {platform}")
 
 
 def screen(jev, clip_text: str, niche: str, options: list[dict]) -> tuple[list[dict], dict]:

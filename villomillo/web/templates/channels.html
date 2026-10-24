@@ -2,7 +2,7 @@
 {% from "_ui.html" import icon, empty %}
 {% block action %}<a class="btn btn-primary" href="/channels/new?profile={{ shell.current.id }}">{{ icon('plus', 'icon-sm') }} Add channel</a>{% endblock %}
 {% block content %}
-<div class="page-head"><h1>Channels</h1><span class="sub">Each channel is one category with its own YouTube and TikTok accounts. A clip posts to the channel for its category.</span></div>
+<div class="page-head"><h1>Channels</h1><span class="sub">Each channel is one category with its own YouTube channel. A clip posts to the channel for its category.</span></div>
 
 {% for h in d.held %}
 <div class="notice warn">{{ icon('alert') }}<div><b>{{ h.clips }} clip{{ 's are' if h.clips != 1 else ' is' }} held for "{{ h.category }}".</b> There is no channel for that category yet.
@@ -19,7 +19,6 @@
     </div>
     <dl class="kv">
       <dt>YouTube</dt><dd>{% if c.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>
-      <dt>TikTok</dt><dd>{% if c.tiktok %}{{ c.tiktok }} {% if c.tiktok_connected %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}{% else %}<span class="muted">Not added yet</span>{% endif %}</dd>
     </dl>
     <div class="stats-row"><span class="muted">Clips<b>{{ c.clips }}</b></span><span class="muted">Waiting<b>{{ c.waiting }}</b></span><span class="muted">Posted<b>{{ c.posted }}</b></span>{% if c.held %}<span class="muted">Held<b>{{ c.held }}</b></span>{% endif %}</div>
     <div class="cluster" style="margin-top:auto"><a class="btn btn-sm" href="/channels/{{ c.id }}?profile={{ c.id }}">Open</a></div>

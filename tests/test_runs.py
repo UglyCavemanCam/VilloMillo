@@ -209,9 +209,9 @@ def test_finished_clips_are_approved_routed_to_their_channel_and_planned_for_pos
     with db.conn() as c:
         clips = c.execute("SELECT state, category, reason FROM clips_ready ORDER BY id").fetchall()
         assert [(r["state"], r["category"]) for r in clips] == [("approved", "Podcasts")] * 2
-        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE profile_id='solved'").fetchone()["n"] == 4  # two clips, YouTube and TikTok each
-        assert {r["platform"] for r in c.execute("SELECT platform FROM posts")} == {"youtube_shorts", "tiktok"}
-        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='copy'").fetchone()["n"] == 4
+        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE profile_id='solved'").fetchone()["n"] == 2
+        assert {r["platform"] for r in c.execute("SELECT platform FROM posts")} == {"youtube_shorts"}
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='copy'").fetchone()["n"] == 2
     assert len(runs.clips_of(db, run)) == 2
 
 
@@ -320,7 +320,7 @@ def test_pasting_a_link_creates_a_run_and_a_bad_link_explains_itself(web):
     client, sv, db = web
     r = client.post("/paste", data={"link": LINK, "profile": "solved"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/runs/1")
-    r = client.post("/paste", data={"link": "https://tiktok.com/@a/video/1", "profile": "solved"}, follow_redirects=True)
+    r = client.post("/paste", data={"link": "https://vimeo.com/123456", "profile": "solved"}, follow_redirects=True)
     assert r.status_code == 200 and "YouTube, Twitch and Kick" in r.text
     home = client.get("/?profile=solved").text
     assert 'name="link"' in home and "Analysing" in home
@@ -373,8 +373,9 @@ def test_the_channel_page_can_turn_real_sending_on(web):
     assert client.post("/channels/solved/save", data={**form, "youtube_route": "carrier pigeon"}).status_code == 422
 
 
-def test_the_starting_channel_has_the_tiktok_handle():
-    assert config.load_profiles()["solved"].tiktok_handle == "@podscliphouse"
+def test_the_starting_channel_posts_to_youtube_only_with_no_campaign_tags():
+    p = config.load_profiles()["solved"]
+    assert list(p.posting.platforms) == ["youtube_shorts"] and p.posting.daily_cap == 100 and p.posting.tags == {}
 
 
 def test_scoring_constants_match_what_the_plan_screen_says(env):
