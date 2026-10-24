@@ -529,15 +529,6 @@ EDITOR_TRANSCRIPT = {"language": "en", "segments": [
     {"start": 1003.0, "end": 1010.0, "text": "What a triple bloom!"}]}
 
 
-def suggestion_promise() -> str:
-    """The one sentence that says when a suggested edit reaches a clip, as the
-    app shows it on the Suggest edits switch and in the Marketplace."""
-    marketplace = (ROOT / "ui" / "src" / "renderer" / "src" / "lib" / "marketplace.ts").read_text(encoding="utf-8")
-    m = re.search(r"export const SUGGESTION_PROMISE =\s*'([^']*)'", marketplace)
-    assert m, "SUGGESTION_PROMISE is not in marketplace.ts"
-    return m.group(1)
-
-
 def test_the_steps_page_editor_runs_as_written(tmp_path):
     """The editor in Steps, its manifest and its code exactly as the page shows
     them, run through `python -m clipskitty_sdk run --steps edit` on the
@@ -577,13 +568,10 @@ def test_the_steps_page_editor_runs_as_written(tmp_path):
     assert "`tests/test_plugin_docs.py` runs it, as written here, through `python -m clipskitty_sdk run --steps edit`." in prose
 
 
-def test_the_promise_sentence_is_the_apps():
-    """Steps, Permissions and Security say when a suggestion reaches a clip in
-    the app's own sentence, and none of them says a plugin can't change one."""
-    promise = suggestion_promise()
+def test_the_pages_do_not_say_a_plugin_cannot_change_a_clip():
+    """Steps, Permissions and Security never say a plugin can't change a clip."""
     for name in ("steps.md", "permissions.md", "security.md"):
         text = flat((DEV_DOCS / name).read_text(encoding="utf-8"))
-        assert promise in text, name
         assert not re.search(r"\bplugins? (?:can't|cannot|can not) (?:change|edit) (?:a |the )?clips?\b", text, re.I), name
     # What it is, and what it isn't: a description of what VilloMillo does, not a wall.
     assert "That describes what VilloMillo does with your answer; it is not a sandbox." in flat(

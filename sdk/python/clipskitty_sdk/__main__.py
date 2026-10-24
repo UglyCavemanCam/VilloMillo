@@ -68,8 +68,8 @@ question only when nothing is new, and --watch reinstalls on each save until
 a save adds something. It talks only to VilloMillo on this PC, never
 through a proxy.
 
-`listing` writes the file that lists a finished plugin in Awesome Clips
-Kitty, the catalog the Marketplace reads (clipskitty_sdk.listing), from its
+`listing` writes the file that lists a finished plugin in Awesome
+VilloMillo, the catalog the Marketplace reads (clipskitty_sdk.listing), from its
 folder's git repository: the folder must be committed and pushed, and the
 id's publisher must own the GitHub repository. --to adds this version to a
 listing that exists. It runs only git commands that read, and fetches
@@ -458,8 +458,8 @@ def cmd_frame(args) -> int:
         return 2
     ffmpeg = args.ffmpeg or shutil.which("ffmpeg")
     if not ffmpeg:
-        print("error: frame needs FFmpeg to read the video. Install FFmpeg, or pass --ffmpeg. An installed Clips "
-              f"Kitty has it, in {samples.INSTALLED_FFMPEG}.", file=sys.stderr)
+        print("error: frame needs FFmpeg to read the video. Install FFmpeg, or pass --ffmpeg. An installed "
+              f"VilloMillo has it, in {samples.INSTALLED_FFMPEG}.", file=sys.stderr)
         return 2
     try:
         width, height, box = samples.write_frame(ffmpeg, video, args.at, out, region)

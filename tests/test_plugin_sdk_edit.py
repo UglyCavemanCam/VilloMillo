@@ -9,7 +9,6 @@ imports nothing from VilloMillo's engine, so it also runs in CI's SDK
 
 import io
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -21,8 +20,6 @@ if str(SDK) not in sys.path:
     sys.path.insert(0, str(SDK))
 
 from clipskitty_sdk import ContractError, Suggested, contract, host, read_job  # noqa: E402
-
-TIMELINE_EDITOR = ROOT / "ui" / "src" / "renderer" / "src" / "components" / "TimelineEditor.tsx"
 
 # Two clips VilloMillo is about to make, as an edit run hands them over.
 CLIPS = [
@@ -160,28 +157,6 @@ def test_fades_speed_and_hook_seconds_are_set_to_the_editors_choices(tmp_path):
         "changed: m1's fade_out 0.4 s to 0.3 s, the nearest the editor offers",
         "changed: m1's speed 1.125 to 1, the nearest the editor offers",
         "changed: m1's title_overlay seconds 4 s to 3 s, the nearest the editor offers"])
-
-
-def _numbers(text: str) -> tuple[float, ...]:
-    return tuple(float(n) for n in re.findall(r"\d+(?:\.\d+)?", text))
-
-
-def test_the_choices_are_the_editors_own():
-    """The fades, speeds and hook title lengths VilloMillo fits a suggestion
-    to are the ones the timeline editor's controls offer, so every control
-    shows what the clip will get. Changing a list there fails here until the
-    SDK's list follows. The layouts are the editor's Layout buttons."""
-    text = TIMELINE_EDITOR.read_text(encoding="utf-8")
-    fades = re.search(r"\['fade_in', 'fade_out'\] as const\)\.map(.*?)</select>", text, re.S).group(1)
-    assert _numbers(" ".join(re.findall(r"<option value=\{([\d.]+)\}", fades))) == tuple(
-        map(float, contract.FADE_CHOICES))
-    speeds = re.search(r"value=\{edit\.speed \?\? 1\}.*?\{\[([\d., ]+)\]\.map", text, re.S).group(1)
-    assert _numbers(speeds) == tuple(map(float, contract.SPEED_CHOICES))
-    seconds = re.search(r"value=\{edit\.hook\.seconds\}.*?\{\[([\d., ]+)\]\.map", text, re.S).group(1)
-    assert _numbers(seconds) == tuple(map(float, contract.HOOK_SECONDS_CHOICES))
-    layouts = re.search(r"<span className=\"text-muted\">Layout</span>(.*?)\] as const", text, re.S).group(1)
-    buttons = re.findall(r"^\s*\['(\w+)',", layouts, re.M)
-    assert set(contract.CROPS) == set(buttons) - {"split"}  # split is the Gaming / Reaction layout
 
 
 def test_fields_outside_the_allow_list_are_ignored_and_logged(tmp_path):

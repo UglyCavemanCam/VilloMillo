@@ -403,8 +403,8 @@ def test_the_secret_comes_from_data_dir_then_the_403_then_localappdata(capsys, m
     app = apps(secrets=everything, session_path=tmp_path / "gone" / "plugins" / "session.secret")
     code, out, err, asked = _install(capsys, monkeypatch, plugin, "--api", app.url)
     assert code == 2 and asked == []
-    assert err.splitlines()[-1] == ("error: couldn't find VilloMillo's session file. Pass --data-dir with Clips "
-                                    "Kitty's data folder (the one holding plugins/session.secret)")
+    assert err.splitlines()[-1] == ("error: couldn't find VilloMillo's session file. Pass --data-dir with "
+                                    "VilloMillo's data folder (the one holding plugins/session.secret)")
     assert ("POST", "/plugins/plan") not in app.calls()
 
 

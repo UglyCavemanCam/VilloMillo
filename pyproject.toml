@@ -10,7 +10,7 @@ target-version = "py310"
 # third_party holds code vendored verbatim from other projects. Linting it
 # would only invite edits, and an edited copy is no longer the thing that
 # was audited and licensed.
-exclude = ["ui", "vendor", "third_party", "build", "dist", "release", "data", "site"]
+exclude = ["vendor", "third_party", "build", "dist", "release", "data"]
 
 [tool.ruff.lint]
 select = [

@@ -1,7 +1,7 @@
 # Format blueprints: how every clip gets the right look, automatically
 
-Status: **F1 built and tested; F2-F4 designed, not built.** Written 2026-10-24 after the Option A / A2 previews (`scripts/format_preview.py`,
-`scripts/format_variants.py`). Chosen base look: **A2 "Clean frame"**.
+Status: **F1 built and tested; F2-F4 designed, not built.** Written 2026-10-24 after the Option A / A2 previews (throwaway scripts, since removed;
+they are in git history before the clean-up). Chosen base look: **A2 "Clean frame"**.
 
 ## 1. The problem
 

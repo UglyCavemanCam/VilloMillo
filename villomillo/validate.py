@@ -18,9 +18,11 @@ class ValidationError(RuntimeError):
 
 
 def _tool(name: str) -> str:
-    path = shutil.which(name)
-    if not path:
-        raise ValidationError(f"{name} is not on PATH")
+    from core import binaries
+
+    path = {"ffmpeg": binaries.ffmpeg, "ffprobe": binaries.ffprobe}[name]()
+    if not (Path(path).exists() or shutil.which(path)):
+        raise ValidationError(f"{name} was not found: install FFmpeg or put it on PATH")
     return path
 
 

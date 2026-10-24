@@ -40,7 +40,7 @@ from .host import APP_PYTHON
 ENGINE_PACKAGES = frozenset({
     "analysis", "core", "creator", "gaming", "llm", "longform", "main", "multilingual", "plugins",
     "publish", "remote_render", "server", "sources", "sports", "third_party", "transcription",
-    "video", "video_editor", "_clipskitty_script_host",
+    "video", "video_editor", "villomillo", "_clipskitty_script_host",
 })
 
 # Standard library modules the installed app leaves out on purpose: GUI
@@ -168,8 +168,8 @@ def _import_problem(name: str, own: set[str], folder: Path, *, at_root: bool, sc
         return None
     if not at_root and name in _modules_in(folder):
         shown = f"{name}.py" if (folder / f"{name}.py").is_file() else f"{name}/"
-        return (f"imports {name}, but {shown} is at the plugin's root, which isn't on the path when Clips "
-                f"Kitty runs {script}: move it into {home}/")
+        return (f"imports {name}, but {shown} is at the plugin's root, which isn't on the path when "
+                f"VilloMillo runs {script}: move it into {home}/")
     return (f"imports {name}. Pipelines run on VilloMillo's own Python, which promises only the standard "
             "library and clipskitty_sdk, so this may fail on creators' PCs")
 

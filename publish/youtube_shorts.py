@@ -213,8 +213,8 @@ class YouTubeShortsPublisher(Publisher):
     def authenticate(self, interactive: bool = False):
         """Return valid credentials.
 
-        The explicit `auth` command requests every YouTube permission Clips
-        Kitty knows how to use: upload plus read-only Analytics. Background
+        The explicit `auth` command requests every YouTube permission
+        VilloMillo knows how to use: upload plus read-only Analytics. Background
         uploads still require only the original upload scope, so an existing
         upload-only token does not regress.
         """

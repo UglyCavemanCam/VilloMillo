@@ -268,8 +268,8 @@ def test_lint_warns_about_imports_clips_kitty_doesnt_promise(tmp_path):
     assert problems == [
         ("src/main.py line 2: imports numpy. Pipelines run on VilloMillo's own Python, which promises only the "
          "standard library and clipskitty_sdk, so this may fail on creators' PCs"),
-        ("src/main.py line 3: imports core, which is VilloMillo's own code: pipelines can't use it, and Clips "
-         "Kitty stops a run that tries"),
+        ("src/main.py line 3: imports core, which is VilloMillo's own code: pipelines can't use it, and "
+         "VilloMillo stops a run that tries"),
         "src/main.py line 4: imports tkinter, which VilloMillo's Python leaves out",
         ("src/main.py line 12: imports yaml. Pipelines run on VilloMillo's own Python, which promises only the "
          "standard library and clipskitty_sdk, so this may fail on creators' PCs"),

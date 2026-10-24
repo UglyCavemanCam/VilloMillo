@@ -13,7 +13,6 @@ import re
 import subprocess
 import tarfile
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import pytest
 
@@ -863,12 +862,6 @@ def test_the_online_list_is_the_catalogs_index_on_the_main_branch():
     assert registry.CATALOG_REPOSITORY == listing.CATALOG_REPOSITORY == "ColinGPT9/awesome-clips-kitty"
     assert registry.bundled_path().relative_to(ROOT).as_posix() == "plugins/catalog_index.json"
     assert registry.index_urls({"plugins": {"registry_urls": [registry.ONLINE_URL]}}) == []
-
-
-def test_the_privacy_policy_tells_people_about_the_list_check():
-    text = (ROOT / "site" / "privacy.html").read_text(encoding="utf-8")
-    host = urlsplit(registry.ONLINE_URL).hostname  # the website the app actually contacts
-    assert "Checking for new pipelines" in text and text.count(host) >= 1
 
 
 def test_a_failed_check_says_why_in_plain_words_and_keeps_details_out(tmp_path):

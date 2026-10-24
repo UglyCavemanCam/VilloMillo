@@ -1,108 +1,47 @@
 # Contributing to VilloMillo
 
-Thanks for helping! VilloMillo is a local-first AI clipping app. Python
-FastAPI backend + Electron/React UI. Issues labeled
-[`good-first-issue`](../../labels/good-first-issue) are small and
-well-scoped if you want a place to start.
-
-## Fixing a bug from a Feedback Hub report
-
-Most bug reports arrive through the app's in-app Feedback Hub (label
-[`from-app`](../../labels/from-app)). They're written by non-technical
-streamers, but each one carries an auto-collected **Diagnostics** block:
-
-- exact app commit, Windows version, CPU/GPU/VRAM/RAM
-- the AI model in use (name, parameter size, quantization, Ollama version)
-- FFmpeg / OpenCV / faster-whisper / yt-dlp versions
-- the non-secret settings, the video's platform, and the recent log tail
-
-That block is the reproduction recipe: match the model + settings and feed
-a similar video (platform matters. Twitch/Kick VODs are H.264; YouTube
-sources are H.264 by design, see `video/encoding.py`). Secrets and
-usernames are redacted before reports ever leave the reporter's machine.
+VilloMillo is a local-first system that researches, clips and plans posts for videos. It is Python: the VilloMillo code
+in [`villomillo/`](villomillo/) (with a FastAPI dashboard) on top of a clipping engine forked from Clips Kitty. See the
+[README](README.md) for what is where.
 
 ## Dev setup
 
 ```
-pip install -r requirements.txt
-pip install ruff pytest          # the checks CI runs
-cd ui && npm install
-npm run dev                      # starts Electron + the backend together
+pip install -r requirements-villomillo.txt     # the research engine, dashboard and renderer
+pip install -r requirements.txt                # the clipping engine (large: PyTorch, OpenCV)
+pip install pytest pytest-timeout ruff         # the checks CI runs
+python -m ruff check .
+python -m pytest tests -q
 ```
 
-Working on the interface only? `npm run dev:web` serves it in a browser
-instead, with no Electron and no rebuild loop. The Electron-only calls
-(file pickers) are stubbed there. See
-`ui/src/renderer/src/lib/browserShim.ts`.
+The suite needs no GPU, no network and no real footage. The engine's dependencies are only needed to run the engine
+itself, not to work on the dashboard or the research code.
 
-Before a PR:
-
-```
-pytest                                   # deterministic logic
-ruff check .                             # lint
-cd ui && npm run typecheck && npm run build
-```
-
-Want to add a language, a model, a platform or an export format? Each is a
-small, well-defined change. See [docs/EXTENDING.md](docs/EXTENDING.md).
-
-### Or use Docker: nothing else to install
-
-Install [Docker Desktop](https://docs.docker.com/get-started/get-docker/) and
-that is the whole list. Compose ships inside it; there is no second install.
-
-```
-docker compose pull             # prebuilt engine image, skips a 10-min build
-docker compose up               # engine :8765, interface :5173, Ollama
-docker compose run --rm engine pytest
-```
-
-Saves installing Python, FFmpeg, PyTorch, OpenCV and Node locally, and lets
-you contribute from Linux or macOS to an app that only ships for Windows.
-Electron itself still runs on your host, since it needs a display. See
-[docs/DOCKER.md](docs/DOCKER.md).
+To see the dashboard: `python -m villomillo serve`, then open http://127.0.0.1:8780 (on Windows, `run-app.bat` does both).
 
 ## Something to run against
 
-You do not need a stream to start. There is a written-out transcript and a
-generator for synthetic footage in [tests/assets/](tests/assets/):
+You do not need real footage to start. [tests/assets/](tests/assets/) has a written-out transcript and a generator for
+synthetic footage:
 
 ```
 python tests/assets/make_sample_video.py     # 2 min, 1080p, known audio peaks
 ```
 
-And [examples/](examples/) has small runnable programs for the two things
-you are most likely to be doing:
+[examples/](examples/) has small runnable programs for scoring a transcript and driving the engine's API.
 
-```
-python examples/score_a_transcript.py --fake   # clip selection, seconds per run
-python examples/drive_the_api.py               # the pipeline over HTTP
-```
+## Building on it rather than in it
 
-`--fake` uses a canned model reply, so scoring logic can be worked on with
-no Ollama and no waiting, and behaves the same way every run. If you are
-changing how clips get picked, that loop is worth learning first. The
-alternative is a full transcribe-and-render per attempt.
+The engine is a local HTTP API on `127.0.0.1:8765`, and VilloMillo is one client of it. Anything else can be another.
 
-## Building on the app rather than in it
-
-You do not have to change VilloMillo to use it. The desktop window is one
-client of a local HTTP API, and anything else can be another. A bot, a batch
-runner, a different interface entirely.
-
-- **[docs/API.md](docs/API.md)**: the endpoints meant to be built on, the
-  supported-versus-internal line, and the traps worth knowing first
-- **[docs/EXTENDING.md](docs/EXTENDING.md)**: changing the app itself, by adding
-  a language, a platform, an AI model or an export format
-
-If you build something, say so in an issue. Needing an endpoint is the fastest
-way to get it moved from internal to supported.
+- **[docs/API.md](docs/API.md)**: the endpoints meant to be built on, and the traps worth knowing first
+- **[docs/EXTENDING.md](docs/EXTENDING.md)**: adding a language, a platform, an AI model or an export format
+- **[docs/developers/](docs/developers/README.md)**: writing a plugin with the SDK in [`sdk/python/`](sdk/python/) (MIT)
 
 ### Write a plugin
 
-A plugin finds, understands or rates the moments in a video, for one game,
-sport or kind of show, without changing VilloMillo. Three commands start one
-and run it on a test video (in PowerShell, write `py -m` for `python -m`):
+A plugin finds, understands or rates the moments in a video, for one game, sport or kind of show, without changing
+VilloMillo. Three commands start one and run it on a test video (in PowerShell, write `py -m` for `python -m`):
 
 ```bash
 python -m pip install "clipskitty-sdk[yaml,test] @ git+https://github.com/UglyCavemanCam/VilloMillo#subdirectory=sdk/python"
@@ -111,80 +50,34 @@ python -m clipskitty_sdk run my-plugin --sample
 ```
 
 VilloMillo 2.1.0 is the first release that runs plugins, and it comes with SDK 1.3.0. The walk-through is
-[docs/developers/first-game-pipeline.md](docs/developers/first-game-pipeline.md),
-and everything else for plugin developers is in
-[docs/developers/](docs/developers/README.md). The SDK is MIT, so your plugin
-can use any licence you choose.
+[docs/developers/first-game-pipeline.md](docs/developers/first-game-pipeline.md), and everything else for plugin
+developers is in [docs/developers/](docs/developers/README.md). The SDK is MIT, so your plugin can use any licence you
+choose.
 
-## Building the Windows installer
+## Rules that tests enforce
 
-```
-pip install -r requirements-build.txt
-python scripts/build_installer.py
-```
-
-That runs the whole chain and stops at the first failure with an
-explanation: fetch FFmpeg → freeze the Python engine with PyInstaller →
-smoke-test the frozen engine → build the renderer → wrap it all up. The
-results land in `release/`: a small **Web Setup .exe**, the **.7z payload**
-it downloads, and a **.zip** for offline installs.
-
-Publish the Web Setup and the .7z to the *same* GitHub release. The setup
-fetches the payload by name, so one without the other is useless. Full
-release checklist: [docs/RELEASING.md](docs/RELEASING.md).
-
-Expect it to take a while and to need disk: the frozen engine is ~4.8 GB
-unpacked, mostly CUDA PyTorch. `--skip-backend` and `--skip-ui` reuse the
-previous run's output while iterating, and `--backend-only` stops after the
-freeze.
-
-Things worth knowing before you change any of it:
-
-- **The backend is frozen as a console app on purpose.** A windowed
-  PyInstaller build gives the process no stdout, and every `print()` in the
-  pipeline then raises. Electron passes `windowsHide` so no console appears.
-- **PyTorch ships as the CUDA build.** It isn't only for tracking: those
-  wheels carry the cuBLAS/cuDNN DLLs that CTranslate2 needs for GPU
-  transcription, so a CPU build silently drops Whisper to CPU as well.
-- **FFmpeg comes from `vendor/`,** fetched by `scripts/fetch_ffmpeg.py` and
-  gitignored. Never call `ffmpeg` by bare name. Use `core.binaries.ffmpeg()`,
-  or an installed copy will look for a binary the user doesn't have.
-- **Code signing is off** (`signAndEditExecutable: false`). electron-builder
-  otherwise downloads a bundle containing macOS symlinks, which an ordinary
-  Windows account cannot extract. The trade-off and how to re-enable it are
-  documented in `ui/electron-builder.yml`.
-- **Don't switch the target back to plain `nsis`.** `makensis.exe` is 32-bit
-  and memory-maps the payload to embed it, so it dies around 2 GB with
-  `failed creating mmap`. The app is ~5 GB unpacked. That is a ceiling, not
-  a setting.
+- **FFmpeg is never called by bare name.** Use `core.binaries.ffmpeg()` / `ffprobe()`, so a bundled copy is found.
+- **OpenCV captures go through `video.capture.video_capture()`**, so the file handle is always released.
+- **`third_party/` is vendored verbatim.** Do not edit it. Change the code that wraps it instead.
+- **A new top-level package must be added to `ENGINE_PACKAGES`** in `_clipskitty_script_host.py` and in
+  `sdk/python/clipskitty_sdk/lint.py`, or a plugin could import it.
+- **Keys never go in a file in this folder.** They live in the OS keychain (`villomillo/secrets.py`).
+- **The dashboard only answers this computer**, and every change refuses a request from another site.
 
 ## Pull requests
 
-- Keep PRs focused on one issue; link it ("Fixes #123").
-- `npm run typecheck` clean; try the affected flow in the running app.
+- Keep each one focused on one change.
+- `python -m ruff check .` and `python -m pytest tests -q` pass, and you tried the affected page or command.
 - Match the style around you: comments explain *why*, not *what*.
 
-CI runs on every PR: Python compiles, config and prompts parse, the desktop
-app typechecks and builds, and website links resolve. It is fast and it is
-narrow. A runner has no GPU, no Ollama and no footage, so **a green tick does
-not mean clips still come out well.** Anything touching scoring, tracking,
-captions or rendering needs testing against a real video, and the PR should
-say which one.
-
-## Triage (maintainers)
-
-Priority = 👍 reactions + comment count on issues, `critical` /
-`high-priority` labels first. Duplicates: close with a link to the
-canonical issue so reactions concentrate in one place.
+CI runs the same checks on every pull request. It is fast and narrow: a runner has no GPU, no Ollama and no footage, so
+**a green tick does not mean clips still come out well.** A change to grading, framing, captions or rendering needs
+trying on a real video, and the pull request should say which one.
 
 ## Licence
 
-VilloMillo is **AGPL-3.0**, and contributions are accepted under the same
-terms: opening a PR means you are licensing your change that way.
+VilloMillo is **AGPL-3.0-or-later**, and contributions are accepted under the same terms: opening a pull request means you
+are licensing your change that way. The plugin SDK and the example plugins are MIT.
 
-Practically: your work stays available to the creators this was built for,
-and nobody can take the project closed.
-
-Adding a dependency? Check its licence first. Anything the installer bundles
-has to be compatible with AGPL-3.0, and a new one belongs in the third-party
-list in [NOTICE](NOTICE).
+Adding a dependency? Check its licence first: it has to be compatible with the AGPL, and a new one belongs in the
+third-party list in [NOTICE](NOTICE).

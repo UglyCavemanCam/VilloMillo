@@ -25,36 +25,6 @@
 version: 2
 
 updates:
-  # ---- desktop app ---------------------------------------------------
-  - package-ecosystem: npm
-    directory: /ui
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    groups:
-      # Electron and the build tooling move together and are best reviewed
-      # in one go, since they only matter when packaging.
-      build-tooling:
-        patterns:
-          - 'electron*'
-          - 'vite'
-          - '@vitejs/*'
-          - 'typescript'
-      # Everything else, patch and minor only — a major React bump should be
-      # a deliberate decision, not a Monday morning PR.
-      minor-and-patch:
-        update-types:
-          - minor
-          - patch
-    ignore:
-      # Same rule as the engine: no majors. Electron 31 -> 43 is twelve major
-      # versions and would need the packaging chain re-tested end to end
-      # (nsis-web, the unsigned-build workaround, the rcedit icon hook).
-      # Worth doing one day, on purpose, not as a drive-by merge.
-      - dependency-name: '*'
-        update-types: ['version-update:semver-major']
-
   # ---- python engine -------------------------------------------------
   - package-ecosystem: pip
     directory: /

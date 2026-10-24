@@ -16,6 +16,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from core import binaries
+from video.capture import video_capture
+
 from .blueprints import Plan
 
 W, H = 1080, 1920
@@ -295,10 +298,14 @@ def composite(frame_rgb: np.ndarray, paint) -> np.ndarray:
 # --- the render -------------------------------------------------------------------------------------------------
 
 def render(job: Job) -> pathlib.Path:
+    with video_capture(job.source, required=False) as cap:
+        if cap is None:
+            raise RenderError(f"cannot open the source video {job.source}")
+        return _render(job, cap)
+
+
+def _render(job: Job, cap: cv2.VideoCapture) -> pathlib.Path:
     plan, text = job.plan, job.text
-    cap = cv2.VideoCapture(str(job.source))
-    if not cap.isOpened():
-        raise RenderError(f"cannot open the source video {job.source}")
     fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
     n = int(round((job.end - job.start) * fps))
     total = n / fps
@@ -341,9 +348,9 @@ def render(job: Job) -> pathlib.Path:
             rgb, edges = framing(frame, cx, fy, 1 + zoom_amount(plan, t, total, pulses), plan)
             yield composite(rgb, lambda d, t=t, edges=edges: paint(d, t, edges))
 
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        raise RenderError("ffmpeg is not on PATH")
+    ffmpeg = binaries.ffmpeg()
+    if not (pathlib.Path(ffmpeg).exists() or shutil.which(ffmpeg)):
+        raise RenderError("ffmpeg was not found: install FFmpeg or put it on PATH")
     job.out.parent.mkdir(parents=True, exist_ok=True)
     cmd = [ffmpeg, "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", f"{fps}",
            "-i", "pipe:0", "-ss", f"{job.start:.3f}", "-t", f"{total:.3f}", "-i", str(job.source),
@@ -360,7 +367,6 @@ def render(job: Job) -> pathlib.Path:
         proc.stdin.close()
         stderr = proc.stderr.read().decode(errors="replace")
         proc.wait()
-        cap.release()
     if proc.returncode:
         raise RenderError(f"ffmpeg failed: {stderr[-400:]}")
     return job.out

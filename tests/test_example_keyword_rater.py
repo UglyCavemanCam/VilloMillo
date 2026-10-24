@@ -110,7 +110,7 @@ def test_it_installs_on_this_apps_version(tmp_path):
     pytest.importorskip("yaml")
     from plugins import manager
 
-    app = json.loads((ROOT / "ui" / "package.json").read_text(encoding="utf-8"))["version"]
+    app = json.loads((ROOT / "version.json").read_text(encoding="utf-8"))["version"]
     plan = manager.plan(tmp_path / "data", {"kind": "folder", "path": str(EXAMPLE)}, app_version=app)
     assert plan["ok"] and not plan["errors"], plan["errors"]
     assert not plan["warnings"] and not plan["technical"], (plan["warnings"], plan["technical"])

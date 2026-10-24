@@ -8,7 +8,7 @@ undiagnosable:
     failure that line is `video/cutter.py`'s own "ffmpeg cut failed:" prefix,
     so the 2000 characters of stderr underneath were captured and thrown away
     one line later.
-  * `_app_version` read `ui/package.json` next to the source. In a frozen
+  * `_app_version` read the version file next to the source. In a frozen
     build that path is inside the executable and does not exist, so every
     installed copy reported `"app": "?"` and no report could be dated.
 
@@ -97,10 +97,10 @@ def test_the_app_version_is_reported_from_a_checkout():
 
 
 def test_the_app_version_survives_freezing(monkeypatch, tmp_path):
-    """In a frozen build ui/package.json is not beside the code — it is
+    """In a frozen build version.json is not beside the code — it is
     bundled, and sys._MEIPASS is where it lands. Reading only the source-tree
     path is what produced three undateable reports."""
-    (tmp_path / "package.json").write_text(json.dumps({"version": "9.9.9"}), encoding="utf-8")
+    (tmp_path / "version.json").write_text(json.dumps({"version": "9.9.9"}), encoding="utf-8")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
 

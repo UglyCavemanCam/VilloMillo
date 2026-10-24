@@ -556,8 +556,8 @@ def test_the_catalog_route_lists_the_directory_with_honest_labels(tmp_path, monk
 
     every = client.get("/marketplace/catalog").json()
     # By name with no query; the two bad entries are dropped.
-    assert [e["id"] for e in every["entries"]] == ["tools/clips-kitty-sdk", "apps/example-clipper",
-                                                    "models/example-speech", "apps/example-game-clipper"]
+    assert [e["id"] for e in every["entries"]] == ["apps/example-clipper", "models/example-speech",
+                                                    "apps/example-game-clipper", "tools/clips-kitty-sdk"]
     by_id = {e["id"]: e for e in every["entries"]}
     assert by_id["apps/example-clipper"]["badges"] == ["community", "featured"]  # not the project's own
     assert by_id["tools/clips-kitty-sdk"]["badges"] == ["official"]

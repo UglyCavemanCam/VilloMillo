@@ -1,4 +1,0 @@
-# Never commit credentials or wrangler's local state.
-token.txt
-.wrangler/
-.dev.vars

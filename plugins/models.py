@@ -606,8 +606,8 @@ def for_job(data_dir, data: dict, *, ollama_host: str | None = None, fetch_json=
                 missing.append(f"{model} isn't part of this copy of VilloMillo.")
             elif ref["gated"]:  # no Download button for it (plan()'s problem is GATED)
                 where = " on Hugging Face" if ref["source"] == "huggingface" else ""
-                missing.append(f"{model} is shared only with people its makers give access to{where}, so Clips "
-                               "Kitty can't download it for you yet.")
+                missing.append(f"{model} is shared only with people its makers give access to{where}, so "
+                               "VilloMillo can't download it for you yet.")
             else:
                 size = f" ({size_text(ref['size_bytes'])})" if ref["size_bytes"] else ""
                 missing.append(f"{model} isn't downloaded yet. Open Marketplace › Installed and press "

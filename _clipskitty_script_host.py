@@ -51,7 +51,7 @@ SCRIPT = "CLIPSKITTY_SCRIPT"  # the running script, for multiprocessing children
 ENGINE_PACKAGES = frozenset({
     "analysis", "core", "creator", "gaming", "llm", "longform", "main", "multilingual", "plugins",
     "publish", "remote_render", "server", "sources", "sports", "third_party", "transcription",
-    "video", "video_editor", "_clipskitty_script_host",
+    "video", "video_editor", "villomillo", "_clipskitty_script_host",
 })
 
 # Engine commands (main.py). With one of these first, the command line is the

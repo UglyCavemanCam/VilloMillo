@@ -589,8 +589,8 @@ class ChannelWatcher(threading.Thread):
             for video in hold:
                 self._insert(d, watch, video, now, "skipped", _MISSED)
             if hold:
-                self._say(f"{len(hold)} older video(s) on {name} were posted while Clips "
-                          "Kitty wasn't watching. Set aside, one click to clip.", "info")
+                self._say(f"{len(hold)} older video(s) on {name} were posted while "
+                          "VilloMillo wasn't watching. Set aside, one click to clip.", "info")
             if not fresh:
                 # Worth a line too: a panel that only speaks when something is
                 # found looks, for hours at a time, exactly like one that died.

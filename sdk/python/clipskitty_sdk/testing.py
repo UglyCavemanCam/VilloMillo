@@ -131,8 +131,8 @@ def sample_video(folder) -> Path:
 
     It needs FFmpeg on PATH. Without it, a pytest test that calls this is
     skipped ("needs FFmpeg"); anywhere else it raises SampleUnavailable. A
-    folder inside a plugin's folder is refused (ValueError), because Clips
-    Kitty copies everything there on install: use pytest's tmp_path."""
+    folder inside a plugin's folder is refused (ValueError), because
+    VilloMillo copies everything there on install: use pytest's tmp_path."""
     out = Path(folder) / "sample.mp4"
     if samples.plugin_folder_holding(out) is not None:
         raise ValueError("that is inside a plugin's folder, and VilloMillo copies everything there on install. "

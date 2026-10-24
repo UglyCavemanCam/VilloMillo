@@ -212,8 +212,8 @@ _FOLDER_PROBLEMS = {
                    "allow. Its developer needs to correct the listing or link."),
     "outside": ("its listing or link names a folder ({name!r}) outside its own files. Its developer needs to "
                 "correct the listing or link."),
-    "git": ("its listing or link names a folder ({name!r}) inside a .git folder of version history, which Clips "
-            "Kitty doesn't install. Its developer needs to correct the listing or link."),
+    "git": ("its listing or link names a folder ({name!r}) inside a .git folder of version history, which "
+            "VilloMillo doesn't install. Its developer needs to correct the listing or link."),
     "windows": ("its listing or link names a folder ({name!r}) that Windows can't create. Its developer needs to "
                 "correct the listing or link."),
 }

@@ -1,3 +1,5 @@
+> **Inherited document.** This describes the Clips Kitty engine before VilloMillo forked it. Parts about its desktop app, installer, Microsoft Store listing, website and Whop store no longer apply: those were removed from this repository (see git history). VilloMillo's own docs are in [README.md](README.md) and [docs/](docs/).
+
 # Changelog
 
 What changed, written for people who use Clips Studio rather than people who

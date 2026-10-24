@@ -509,8 +509,8 @@ class EditSuggestion:
 
     @property
     def length(self) -> float:
-        """Seconds of the clip left after the cuts and the speed, as Clips
-        Kitty measures it: pieces shorter than contract.MIN_PIECE don't
+        """Seconds of the clip left after the cuts and the speed, as
+        VilloMillo measures it: pieces shorter than contract.MIN_PIECE don't
         count, and the speed is the nearest of the editor's choices."""
         m = self._m
         return kept_length(m.start, m.end, self._cuts) / self._speed()

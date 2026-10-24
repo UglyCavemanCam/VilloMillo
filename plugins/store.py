@@ -66,7 +66,7 @@ def load(data_dir) -> dict:
 
 @functools.lru_cache(maxsize=1)
 def app_version() -> str:
-    """This VilloMillo's version (ui/package.json, as GET /health reports it), or "?"."""
+    """This VilloMillo's version (version.json, as GET /health reports it), or "?"."""
     from server.feedback import _app_version
 
     return str(_app_version().get("app") or "?")

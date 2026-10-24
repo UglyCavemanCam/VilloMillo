@@ -265,20 +265,19 @@ def _app_version() -> dict:
     against the newest build that read exactly like an old one against an old
     build. Worth some care.
 
-    The version lives in ui/package.json and nowhere else. Beside the code in a
-    checkout; bundled into the executable in a frozen build, where sys._MEIPASS
-    is the unpack directory and Path(__file__).parent.parent points inside the
-    exe at a path that does not exist.
+    The version lives in version.json at the repository root and nowhere else.
+    Beside the code in a checkout; bundled into the executable in a frozen build,
+    where sys._MEIPASS is the unpack directory and Path(__file__).parent.parent
+    points inside the exe at a path that does not exist.
     """
     import sys
 
     root = Path(__file__).parent.parent
-    candidates = [root / "ui" / "package.json"]
+    candidates = [root / "version.json"]
     if getattr(sys, "frozen", False):
-        # Bundled at the root of the unpack dir; see the datas block in
-        # clips-studio.spec. Tried first, because in a frozen build the
-        # checkout path is the one that cannot work.
-        candidates.insert(0, Path(getattr(sys, "_MEIPASS", root)) / "package.json")
+        # Bundled at the root of the unpack dir. Tried first, because in a
+        # frozen build the checkout path is the one that cannot work.
+        candidates.insert(0, Path(getattr(sys, "_MEIPASS", root)) / "version.json")
 
     out: dict = {"app": "?"}
     for path in candidates:

@@ -357,14 +357,14 @@ def test_sample_without_ffmpeg_says_how_to_get_it(tmp_path, capsys, monkeypatch)
         assert not (tmp_path / "job").exists()
     assert _cli("sample", tmp_path / "media" / "sample.mp4") == 2
     assert capsys.readouterr().err == (
-        "error: sample needs FFmpeg to make the test video. Install FFmpeg, or pass --ffmpeg. An installed Clips "
-        "Kitty has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was installed to.\n")
+        "error: sample needs FFmpeg to make the test video. Install FFmpeg, or pass --ffmpeg. An installed "
+        "VilloMillo has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was installed to.\n")
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"not decoded")
     assert _cli("frame", video, "--at", "1", "--out", tmp_path / "frame.png") == 2
     assert capsys.readouterr().err == (
-        "error: frame needs FFmpeg to read the video. Install FFmpeg, or pass --ffmpeg. An installed Clips "
-        "Kitty has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was installed to.\n")
+        "error: frame needs FFmpeg to read the video. Install FFmpeg, or pass --ffmpeg. An installed "
+        "VilloMillo has it, in resources\\backend\\_internal\\ffmpeg inside the folder it was installed to.\n")
     assert not (tmp_path / "media").exists() and not (tmp_path / "frame.png").exists()
 
 

@@ -42,8 +42,10 @@ def _thumbnail(source: pathlib.Path, clip_id: int) -> pathlib.Path | None:
     if dest.exists() and dest.stat().st_mtime >= source.stat().st_mtime:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
+    from core import binaries
+
     try:
-        run = subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "1.0", "-i", str(source), "-frames:v", "1",
+        run = subprocess.run([binaries.ffmpeg(), "-y", "-v", "error", "-ss", "1.0", "-i", str(source), "-frames:v", "1",
                               "-vf", "scale=360:-2", "-q:v", "4", str(dest)], capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
         return None

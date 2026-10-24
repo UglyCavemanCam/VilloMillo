@@ -1,3 +1,5 @@
+> **Inherited document.** This describes the Clips Kitty engine before VilloMillo forked it. Parts about its desktop app, installer, Microsoft Store listing, website and Whop store no longer apply: those were removed from this repository (see git history). VilloMillo's own docs are in [README.md](README.md) and [docs/](docs/).
+
 # Roadmap
 
 Where VilloMillo is going, and what is already done. Anything marked shipped

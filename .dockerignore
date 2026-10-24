@@ -9,13 +9,8 @@ build/
 dist/
 release/
 
-ui/node_modules/
-ui/out/
-ui/dist/
-
 .git/
 .github/
-site/
 
 __pycache__/
 *.py[cod]

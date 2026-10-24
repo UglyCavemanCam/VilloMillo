@@ -63,7 +63,7 @@ The validator ties the words together with four rules. It never gives two of the
 | `edits` in outputs without `moments` in inputs (and without `ratings` in outputs, which the first rule covers) | `outputs[i]: edits are suggested for the clips VilloMillo makes from moments: add moments to inputs` |
 | `context` in outputs with no `ranges` in outputs, no `moments` in inputs and neither `ratings` nor `edits` in outputs | `outputs[i]: context describes moments: add ranges to outputs, or moments to inputs` |
 
-Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1}` like any pipeline. Rate and understand come in the same release as the Marketplace, so every VilloMillo that can install a plugin can run them. Editors declare `">=2.0"` too, for now: a VilloMillo without the edit step refuses to install a plugin with `outputs: [edits]`, so it never runs an editor wrongly ([Versioning](versioning.md#the-edit-step-and-older-clips-kitty)).
+Raters and understanders declare `requires: {clips_kitty: ">=2.0", plugin_api: 1}` like any pipeline. Rate and understand come in the same release as the Marketplace, so every VilloMillo that can install a plugin can run them. Editors declare `">=2.0"` too, for now: a VilloMillo without the edit step refuses to install a plugin with `outputs: [edits]`, so it never runs an editor wrongly ([Versioning](versioning.md#the-edit-step-and-older-villomillo)).
 
 ## `job.json` in a moment run
 
@@ -330,7 +330,7 @@ So a video's first run renders every clip with exactly the options it would have
 
 - **`steps`** is always exactly `["edit"]`.
 - **`moments`** are the clips that will be made, in VilloMillo's order, handed over as a moment run hands over moments (ids `m1`, `m2`…, at most 200). `start` and `end` are each clip's window, in seconds of the video. Nothing between this run and the render moves a window.
-- **`suggested`** is what the edit plugins before yours in the same job suggested for that clip, as VilloMillo keeps it ([below](#how-clips-kitty-fits-a-suggestion)): `by` (that plugin's id), `name`, `edit` and `reason`. It is read-only, and absent when there is nothing. Another plugin's `reason` and hook title may come from what was said, so without `transcript.read` they are left out, as `title`, `reason` and `context` are.
+- **`suggested`** is what the edit plugins before yours in the same job suggested for that clip, as VilloMillo keeps it ([below](#how-villomillo-fits-a-suggestion)): `by` (that plugin's id), `name`, `edit` and `reason`. It is read-only, and absent when there is nothing. Another plugin's `reason` and hook title may come from what was said, so without `transcript.read` they are left out, as `title`, `reason` and `context` are.
 - **`limits.crops`** lists the layouts this job's clips can use ([Layouts](#layouts)). It is only in edit runs.
 - **`limits.min_score`** is not sent: the clips are already chosen.
 
@@ -352,7 +352,7 @@ At most one answer for each clip's id. A clip you leave out gets no suggestion f
 
 ### What a plugin may suggest
 
-Each field is one the timeline editor already has. A value outside its limit refuses the whole answer, as in a moment run, and nothing of it is used. A value inside it is never refused: VilloMillo fits it to the clip and to the editor's own controls ([below](#how-clips-kitty-fits-a-suggestion)).
+Each field is one the timeline editor already has. A value outside its limit refuses the whole answer, as in a moment run, and nothing of it is used. A value inside it is never refused: VilloMillo fits it to the clip and to the editor's own controls ([below](#how-villomillo-fits-a-suggestion)).
 
 | Field | What it is | Limit |
 |---|---|---|

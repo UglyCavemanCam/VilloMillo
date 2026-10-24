@@ -76,8 +76,8 @@ class SampleError(Exception):
 
 def sample_transcript() -> dict:
     """What is said in the sample video, in transcript.json's shape: three
-    segments, each with its words spread evenly over it, in the shape Clips
-    Kitty's transcripts give word timings ({"start", "end", "word"}).
+    segments, each with its words spread evenly over it, in the shape
+    VilloMillo's transcripts give word timings ({"start", "end", "word"}).
 
         8.0-12.0 s   round one, here we go
         21.0-26.0 s  what a quark burst

@@ -1,6 +1,6 @@
 # Dashboard redesign plan
 
-Status: **built (R1 to R6 done; R0 clean-up waits for your OK).** Written 2026-10-24, built the same day. Clickable mock-ups of Home, Clips and Calendar (amber accent, dark mode): https://claude.ai/artifact/XffCRE4X6RM2oppfP2GZSG (private to your account). Reference studied: Opus Clip's web app (clip.opus.pro), read in your
+Status: **built (R0 to R6 done).** Written 2026-10-24, built the same day. Clickable mock-ups of Home, Clips and Calendar (amber accent, dark mode): https://claude.ai/artifact/XffCRE4X6RM2oppfP2GZSG (private to your account). Reference studied: Opus Clip's web app (clip.opus.pro), read in your
 Chrome while signed in (read only: nothing was changed or clicked that saves anything).
 
 ## 1. What Opus Clip's UI is made of (measured from the page, not guessed)
@@ -97,7 +97,7 @@ against the caps), notifications (paused accounts, failed posts, failed looks), 
 
 - **Tokens** as CSS variables in one stylesheet: background `#0E1015`, sidebar `#151518`, surface `#18181B`, border
   `#27272A`, text `#FAFAFA`, muted `#9B9EA3`, label `#A1A1AA`, accent `#FFB000` (only for grades, the primary action and
-  progress), success `#4CC38A`, warning `#E3A54A`, danger `#E5484D`. Dark first; light tokens defined but not shipped.
+  progress), success `#4CC38A`, warning `#E3A54A`, danger `#E5484D`. Dark only: light mode is not planned.
 - **Type:** Geist Sans, self-hosted (OFL). Scale 12 / 14 / 16 / 20 / 24 / 32. Numbers use tabular figures.
 - **Spacing:** 4 px grid. Radii 6 / 8 / 10 / 16 / full.
 - **Icons:** Lucide line icons, vendored as one SVG sprite (license to be confirmed before vendoring).
@@ -114,20 +114,29 @@ dialogs, palette, partial refresh). No Node build step, nothing new to install, 
 Alternative considered: a React + shadcn/ui single-page app. It would match shadcn exactly, but it needs a Node
 toolchain, a second codebase and a JSON API for every page. Not worth it for a single-user local tool.
 
-## 7. Leftovers in the repository (separate step, needs your OK)
+## 7. Leftovers in the repository: done
 
-The fork still carries Clips Kitty's product pieces that VilloMillo does not use: the Next.js app (`web/`), `ui/`,
-`site/`, `whop-app/`, `packaging/`, `feedback-relay/`, `twitch-proxy/`, the Microsoft Store and Whop store material in
-`docs/`, and more. **Some engine folders look unused but may be imported by the engine at run time** (for example
-`multilingual/`, `longform/`, `video_editor/`), so nothing is deleted on a guess: an import trace while the engine
-clips a real video decides what stays, then a full engine run and all tests confirm nothing broke. Git keeps every
-deleted file recoverable.
+The fork carried Clips Kitty's product pieces that VilloMillo does not use. With your OK they were removed in one
+commit, so `git revert` of that commit brings all of it back:
+
+- **Removed:** the Electron app (`ui/`), the Next.js app (`web/`), the website (`site/`), `whop-app/`, `packaging/`,
+  `feedback-relay/`, `twitch-proxy/`; the Microsoft Store, Whop, release, mirror and launch documents and images; the
+  installer, MSIX and sitemap scripts and the PyInstaller spec; the release, Pages, mirror, stats, label and image
+  workflows; the Electron and website jobs in CI; and the tests that only checked those pieces against the engine.
+- **Kept on purpose:** every Python engine folder. A static import trace from `main.py`, `server/` and `villomillo/` reaches
+  `analysis`, `core`, `creator`, `gaming`, `llm`, `longform`, `multilingual`, `plugins`, `publish`, `remote_render`,
+  `sdk`, `server`, `sources`, `sports`, `transcription`, `video` and `video_editor`, some only through lazy imports
+  inside functions. Nothing there is deleted on a guess; the real-engine run you will do later is the last check.
+- **Moved:** the engine's version, which lived in `ui/package.json`, is now `version.json` at the repository root.
+- **Fixed on the way:** the repository's own checks flagged VilloMillo code that called FFmpeg by bare name and opened
+  OpenCV captures directly (both now go through `core.binaries` and `video.capture`), `villomillo` was missing from the
+  plugin guard's package list, and some user-facing messages still said "Clips Kitty".
 
 ## 8. Build order
 
 | Step | Work | Done when | Status |
 |---|---|---|---|
-| R0 | Repository clean-up (only with your OK) | Engine clips a test video; all tests pass | **Waiting for your OK.** Nothing was deleted. |
+| R0 | Repository clean-up (only with your OK) | Engine clips a test video; all tests pass | Done with your OK. Tests pass here; the real-engine clip is yours to run. |
 | R1 | Design system and app shell: tokens, fonts, icons, sidebar, top bar, base components, templates split out | Every existing page renders inside the new shell | Done |
 | R2 | Home | Shows real counts, needs-you list and the next 7 days | Done |
 | R3 | Clips: grid, tabs, review drawer, in-progress timeline | Approve and reject work from the drawer; old studio and review pages removed | Done (old addresses redirect) |
@@ -135,12 +144,12 @@ deleted file recoverable.
 | R5 | Research, Accounts, Insights, Settings | All pages on the new system | Done |
 | R6 | Polish: empty, loading and error states, Ctrl K palette, keyboard shortcuts, laptop widths | Every page checked in the browser at 1366 and 1920 px; tests pass | Done: empty states on every page; drawer and search show a loading state; errors show a page inside the dashboard (JSON stays for scripts); `g` + letter, `/`, `[` and `?` shortcuts; Geist font vendored; content widens to 1560 px; reduced-motion respected. Checked at 1366 and 1920 px with demo data: no horizontal overflow, no script errors. |
 
-Not shipped, by design: light mode (dark only, decision 2). Tokens for it are not defined yet.
+Not built, by decision: light mode. The dashboard is dark only.
 
 ## 9. Decisions needed
 
 1. Accent colour: amber `#FFB000` (matches the clips; recommended) or something else.
-2. Dark only for now (recommended), or light mode too.
+2. Dark only. Decided: no light mode, ever.
 3. A logo or wordmark for CavemanCam, or a simple text wordmark for now.
-4. Whether to do R0 (repository clean-up).
+4. R0 (repository clean-up): approved and done.
 5. Whether to see clickable mock-ups of Home, Clips and Calendar before R1.

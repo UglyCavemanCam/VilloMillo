@@ -25,9 +25,12 @@ def face_share(path: pathlib.Path, window_s: float) -> float:
     """The share of sampled frames in the first `window_s` seconds that contain a face."""
     import cv2
 
+    from video.capture import video_capture
+
     cascade = cv2.CascadeClassifier(str(pathlib.Path(cv2.data.haarcascades) / CASCADE))
-    cap = cv2.VideoCapture(str(path))
-    try:
+    with video_capture(path, required=False) as cap:
+        if cap is None:
+            return 0.0
         hits = total = 0
         at = 0.0
         while at < window_s:
@@ -41,8 +44,6 @@ def face_share(path: pathlib.Path, window_s: float) -> float:
             hits += len(cascade.detectMultiScale(gray, 1.1, 5, minSize=(side, side))) > 0
             at += FACE_SAMPLE_S
         return hits / total if total else 0.0
-    finally:
-        cap.release()
 
 
 def check(rules: Campaign, *, path: pathlib.Path, duration_s: float, caption_text: str, ad_read: float | None,

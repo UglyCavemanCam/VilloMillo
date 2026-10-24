@@ -196,13 +196,6 @@ def test_prebuilt_cards_are_actually_committed():
         f"{sorted(on_disk - committed)}")
 
 
-def test_spec_bundles_the_prebuilt_cards():
-    spec = (ROOT / "clips-studio.spec").read_text(encoding="utf-8")
-    assert 'assets" / "outro"' in spec or "assets/outro" in spec, (
-        "clips-studio.spec must bundle assets/outro, or the frozen build "
-        "renders every format from scratch")
-
-
 # ---------------------------------------------------------------- the setting
 def test_absent_setting_means_on():
     """Existing users have no `outro:` line. They must get it on upgrade, and

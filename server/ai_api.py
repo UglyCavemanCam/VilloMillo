@@ -3,8 +3,8 @@
 Local (Ollama on this PC) is the default and is listed first. The cloud
 providers are an opt-in for PCs that cannot run the models, and every one of
 them is bring-your-own-key: the key is the user's, requests go from this PC
-straight to the provider, and the provider bills the user. There is no Clips
-Kitty key, account or proxy.
+straight to the provider, and the provider bills the user. There is no VilloMillo
+key, account or proxy.
 
 The same rules as the WoopSocial key (server/woopsocial_api.py): a key is
 checked with the provider before it is kept, and no route ever returns it; the

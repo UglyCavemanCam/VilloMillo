@@ -103,7 +103,7 @@ def test_every_template_plans_cleanly_on_this_apps_version(template, tmp_path):
     from plugins import manager
 
     folder = _made(tmp_path, template)
-    app = json.loads((ROOT / "ui" / "package.json").read_text(encoding="utf-8"))["version"]
+    app = json.loads((ROOT / "version.json").read_text(encoding="utf-8"))["version"]
     plan = manager.plan(tmp_path / "data", {"kind": "folder", "path": str(folder)}, app_version=app)
     assert plan["ok"] and not plan["errors"], plan["errors"]
     assert not plan["warnings"] and not plan["technical"], (plan["warnings"], plan["technical"])

@@ -220,7 +220,7 @@ app (Veo tags its goals), the match report, or the video's own description.
 Each one becomes a clip, and it's certain: "from your match events".
 
 The box needs a Gemma 4 model. If it says no installed model can use tools, see
-[The text box at the bottom needs Gemma 4](../README.md#the-text-box-at-the-bottom-needs-gemma-4).
+[AI backends](AI-BACKENDS.md).
 
 ```
 09:22 Kick off

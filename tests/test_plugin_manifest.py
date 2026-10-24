@@ -335,7 +335,7 @@ def test_the_built_in_modes_have_valid_manifests(name):
 
 
 def test_the_built_in_versions_follow_the_app():
-    app = json.loads((ROOT / "ui" / "package.json").read_text(encoding="utf-8"))["version"]
+    app = json.loads((ROOT / "version.json").read_text(encoding="utf-8"))["version"]
     for name in ("shorts", "gaming", "sports"):
         data = yaml.safe_load((ROOT / "plugins" / "builtin" / f"{name}.yaml").read_text(encoding="utf-8"))
         assert data["version"] == app, f"plugins/builtin/{name}.yaml says {data['version']}, the app is {app}"
