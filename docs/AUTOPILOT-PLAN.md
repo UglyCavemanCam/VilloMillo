@@ -196,8 +196,9 @@ on Home (engine, worker, funds, last post).
 This asks Whop what your API key is allowed to see. It only reads, never changes anything, never saves your key and never prints it.
 
 1. **Get the script.** Double-click `get-from-github.bat`.
-2. **Make a read-only key** (what to tick is explained under "Which permissions" below). In Whop, open the Developer area, then
-   API keys, then Create. Set an **expiry** (a week is enough) if the page offers one.
+2. **Make the one key** with the permissions listed under "Which permissions the key needs" below (everything the app will ever
+   need, so it is made once). In Whop, open the Developer area, then API keys, then Create. The test script itself only reads,
+   whatever the key is allowed to do.
 3. **Open PowerShell in the VilloMillo folder** (the same place you ran `.\.venv\Scripts\python.exe -m villomillo serve`).
 4. **Run:** `.\.venv\Scripts\python.exe scripts\whop_probe.py`
 5. **Paste the key** when it asks (nothing shows as you type) and press Enter.
@@ -210,23 +211,33 @@ A line saying `"status": 200` means that part works. `403` means the key lacks p
 
 ### Which permissions the key needs
 
-I could not read Whop's permission list from here, so these are the kinds to look for, not exact names. The test script prints Whop's
-real list (the `permissions` part of its output) so we can be exact next time.
+I could not read Whop's permission list from here, so these are the **abilities** to look for, not exact names. The test script prints
+Whop's real list (the `permissions` part of its output) so we can match names exactly. Whop also lets you **edit a key's permissions
+later** (the "Edit permissions" option on the key), so you do not have to remake it if one is missing.
 
-**For the test key, tick only reading:**
-- Reading **campaigns / content rewards / bounties** and their **submissions** (one example I have seen named: `bounty:basic:read`).
-- Reading basic **company or account** information, so we can see which account the key belongs to.
+**Tick all of these (everything the app will ever do on Whop):**
+1. **Read campaigns, content rewards or bounties**: the list and each one's details (pay rate, budget left, rules, source,
+   allowed platforms). Needed to find and vet campaigns.
+2. **Join or apply to a campaign.** Needed for automatic joining.
+3. **Create, read, edit and delete your own submissions.** Needed to submit a clip's link, and to fix or withdraw a wrong one.
+4. **Read submission status, approved views and per-submission payouts.** Needed to learn real results.
+5. **Read earnings, balance and payout history (read only).** Needed for "budget worth it" checks and the Learn step.
+6. **Read basic account and company information.** Needed to know which account the key belongs to.
 
-**Never tick** (for the test key or later): anything about **payouts, transfers, withdrawals, billing, payments, members or
-refunds** (for example `payout:transfer_funds`), and do not use the **Admin** role, which allows everything.
+**Leave these off, always** (the app never needs them, and a mistake here costs real money or access):
+- **Sending, transferring or withdrawing money** (for example `payout:transfer_funds`). You withdraw by hand.
+- **Billing, payments you make, refunds, subscriptions or plan changes.**
+- **Managing members, staff, other API keys, apps or webhooks.**
+- The **Admin** role. It includes all of the above.
 
-**Later, only if the test shows it is possible:** if joining a campaign or submitting a link can be done through the API, the key
-will also need the matching **create or edit** permission for submissions or joining, and nothing else. We decide that from the test
-result, not before.
+If an ability on the first list is not offered for an API key at all, that part cannot be automatic with a key. It then stays a manual
+tap, or needs a different kind of sign-in (a user token). The test result tells us which.
 
 **A catch to know about:** Whop's docs say an account key lists the submissions on that account's *own* bounties. You are on the
 clipper side (you joined someone else's campaign), so a key may not be able to see your campaigns at all. If the test shows empty
-lists or `403`, the next step is a different kind of sign-in (a user token), not a bigger key.
+lists or `403`, the next step is a user token, not a bigger key.
+
+Keep the key only in the app's keychain (the app asks for it once). Never paste it into chat, a file or the repository.
 
 ## 13. Still to confirm
 
