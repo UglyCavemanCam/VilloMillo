@@ -799,6 +799,21 @@ def create_app(sv: Services) -> FastAPI:
                       dedupe_key=f"send_post:{post['id']}:{store.now():%Y%m%d%H%M}", priority=10)
         return JSONResponse({"ok": True})
 
+    @app.post("/api/clip-handin")
+    def clip_handin(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
+        """Hand in now: queue this posted campaign clip's link for Content Rewards again."""
+        _only_local(request, "posts")
+        in_profile(profile)
+        with sv.db.conn() as c:
+            row = c.execute("SELECT po.id FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id WHERE po.clip_id=? AND cl.campaign_id IS NOT NULL "
+                            "AND po.status IN ('uploaded','posted') AND (cl.profile_id=? OR po.profile_id=?) ORDER BY po.id LIMIT 1", (clip_id, profile, profile)).fetchone()
+        if row is None:
+            raise HTTPException(422, "only a posted clip made for a campaign can be handed in")
+        if not rewards.settings(sv.db)["auto"]:
+            rewards.set_auto(sv.db, True)  # pressing Hand in now means you want it handed in
+        rewards.queue(sv.db, row["id"])
+        return JSONResponse({"ok": True})
+
     @app.post("/api/clip-relook")
     def clip_relook(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
         """Apply the look again: a clip that came out in the engine's own look is cut again in the channel's look."""

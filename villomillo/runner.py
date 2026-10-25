@@ -197,13 +197,13 @@ HANDLERS = {
 }
 
 
-def run_one(sv: Services, worker: str = "worker-1") -> bool:
+def run_one(sv: Services, worker: str = "worker-1", *, kinds: tuple[str, ...] | None = None, skip: tuple[str, ...] | None = None) -> bool:
     """Run the next ready task. Returns False when there was nothing to do."""
     if safety.is_stopped(sv.db):
         return False  # the emergency stop is on: nothing runs until you resume
     if spend.current(sv.db, sv.app.spend_breaker):
         return False  # the spend breaker is tripped or an account is out of funds: wait for your approval
-    task = tasks.claim(sv.db, worker)
+    task = tasks.claim(sv.db, worker, kinds=kinds, skip=skip)
     if not task:
         return False
     health.beat(sv.db, task["kind"])
@@ -225,7 +225,18 @@ def run_one(sv: Services, worker: str = "worker-1") -> bool:
     return True
 
 
-def loop(sv: Services, stop: threading.Event, *, idle_seconds: float = 5.0) -> None:
+def lane(sv: Services, stop: threading.Event, kinds: tuple[str, ...], *, name: str = "lane", idle_seconds: float = 3.0) -> None:
+    """A second worker for one kind of task, so it is never held up behind a long job: handing a link in to Content Rewards has a
+    10 minute window after the clip is posted, and the main worker can be busy making or uploading a clip for longer than that."""
+    while not stop.is_set():
+        try:
+            if not run_one(sv, name, kinds=kinds):
+                stop.wait(idle_seconds)
+        except Exception:  # a lane must outlive any one failure
+            stop.wait(idle_seconds)
+
+
+def loop(sv: Services, stop: threading.Event, *, idle_seconds: float = 5.0, skip: tuple[str, ...] | None = None) -> None:
     from . import posting
 
     tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
@@ -234,6 +245,6 @@ def loop(sv: Services, stop: threading.Event, *, idle_seconds: float = 5.0) -> N
     while not stop.is_set():
         health.beat(sv.db)
         tasks.tick_schedules(sv.db)
-        if not run_one(sv):
+        if not run_one(sv, skip=skip):
             stop.wait(idle_seconds)
     store.event(sv.db, "info", "runner", "Worker stopped")

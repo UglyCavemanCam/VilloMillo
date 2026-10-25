@@ -25,10 +25,18 @@ def enqueue(db: Database, kind: str, payload: dict | None = None, *, dedupe_key:
         return cur.lastrowid if cur.rowcount else None
 
 
-def claim(db: Database, worker: str, *, lease_s: int = 900, at: datetime | None = None) -> dict | None:
-    """Take the next ready task (or one whose worker vanished) and lease it to `worker`."""
+def claim(db: Database, worker: str, *, lease_s: int = 900, at: datetime | None = None,
+          kinds: tuple[str, ...] | None = None, skip: tuple[str, ...] | None = None) -> dict | None:
+    """Take the next ready task (or one whose worker vanished) and lease it to `worker`. `kinds` limits it to those kinds of task,
+    `skip` leaves those kinds to another worker."""
     at = at or store.now()
     stamp = store.iso(at)
+    only = ""
+    extra: tuple = ()
+    if kinds:
+        only, extra = f" AND kind IN ({','.join('?' * len(kinds))})", tuple(kinds)
+    elif skip:
+        only, extra = f" AND kind NOT IN ({','.join('?' * len(skip))})", tuple(skip)
     with db.conn(immediate=True) as c:
         c.execute(
             "UPDATE tasks SET status='failed', last_error='lease ran out too many times', finished_at=? "
@@ -37,9 +45,9 @@ def claim(db: Database, worker: str, *, lease_s: int = 900, at: datetime | None 
         )
         row = c.execute(
             "UPDATE tasks SET status='running', lease_owner=?, lease_expires=?, attempts=attempts+1 "
-            "WHERE id=(SELECT id FROM tasks WHERE (status='queued' AND run_after<=?) "
-            "OR (status='running' AND lease_expires<?) ORDER BY priority, id LIMIT 1) RETURNING *",
-            (worker, store.iso(at + timedelta(seconds=lease_s)), stamp, stamp),
+            "WHERE id=(SELECT id FROM tasks WHERE ((status='queued' AND run_after<=?) "
+            f"OR (status='running' AND lease_expires<?)){only} ORDER BY priority, id LIMIT 1) RETURNING *",
+            (worker, store.iso(at + timedelta(seconds=lease_s)), stamp, stamp, *extra),
         ).fetchone()
     return dict(row) if row else None
 

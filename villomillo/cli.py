@@ -445,8 +445,11 @@ def cmd_run(args) -> None:
 
     sv = _services()
     stop = threading.Event()
-    worker = threading.Thread(target=runner.loop, args=(sv, stop), name="worker", daemon=True)
+    from . import rewards
+
+    worker = threading.Thread(target=runner.loop, args=(sv, stop), kwargs={"skip": rewards.KINDS}, name="worker", daemon=True)
     worker.start()
+    threading.Thread(target=runner.lane, args=(sv, stop, rewards.KINDS), kwargs={"name": "rewards"}, name="rewards", daemon=True).start()
     try:  # Claude finds the moments when you want it and have a key: the engine needs its own copy of the key
         engine_ai.sync_key()
     except Exception as e:  # never stops the app starting

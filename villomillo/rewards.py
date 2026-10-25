@@ -33,7 +33,8 @@ SITE_HOST = "contentrewards.com"
 SITE_PREFIX = "/c"  # the creator pages; the sign-in page (/login) is outside it
 LOGIN_URL = "https://contentrewards.com/login?next=%2Fc%2Fdiscover"
 GAP_S = (20, 60)  # a random pause between two submissions, so they do not arrive in a burst
-RETRY_AFTER = timedelta(minutes=10)
+KINDS = ("submit_clip", "rewards_check")  # handled by their own worker, so a long upload never delays a hand-in
+RETRY_AFTER = timedelta(minutes=2)  # the window after posting is short: try again soon
 MAX_ATTEMPTS = 3
 LOGIN_WAIT_S = 600
 
@@ -374,7 +375,7 @@ def queue(db: Database, post_id: int, *, delay_s: float = 0) -> int | None:
     if _get(db, AUTO) == "0":
         return None
     when = store.now() + timedelta(seconds=delay_s) if delay_s else None
-    return tasks.enqueue(db, "submit_clip", {"post_id": post_id}, dedupe_key=f"submit:{post_id}:{int(store.now().timestamp() // 20)}:{int(delay_s)}", run_after=when, priority=50)
+    return tasks.enqueue(db, "submit_clip", {"post_id": post_id}, dedupe_key=f"submit:{post_id}:{int(store.now().timestamp() // 20)}:{int(delay_s)}", run_after=when, priority=5)
 
 
 def queue_waiting(db: Database) -> int:

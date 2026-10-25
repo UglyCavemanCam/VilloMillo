@@ -304,6 +304,25 @@ def clips_page(sv: Services, p: Profile, tab: str, *, sort: str = "best", min_sc
                                                 studio_data["job"]["status"] in ("submitted", "running", "queued"))}
 
 
+def _clip_rewards(sv: Services, clip: dict, post: dict | None) -> dict:
+    """What the clip panel says about handing this clip in to Content Rewards."""
+    if not clip["campaign_id"]:
+        return {"kind": "none", "text": "This clip was not made for a campaign, so nothing is handed in to Content Rewards for it."}
+    if post is None or post["status"] not in ("uploaded", "posted"):
+        return {"kind": "later", "text": "Its link is handed in to Content Rewards as soon as it is posted to YouTube."}
+    st = rewards.state_of(sv.db, post["id"])
+    with sv.db.conn() as c:
+        handed = c.execute("SELECT 1 FROM campaign_submissions WHERE post_id=?", (post["id"],)).fetchone() is not None
+    s = rewards.settings(sv.db)
+    if st is None:
+        why = ("Automatic handing in is off." if not s["auto"] else "The browser tool is not installed." if s["missing"]
+               else "You are not signed in to Content Rewards yet." if not s["signed_in"] else "It is queued and goes in a moment.")
+        return {"kind": "waiting", "text": f"Not handed in yet. {why}", "handed": handed, "post_id": post["id"]}
+    text, kind, _ = rewards.STATUS.get(st["status"], (st["status"], "", False))
+    return {"kind": "state", "badge": kind, "text": text, "detail": st["detail"], "handed": handed, "post_id": post["id"], "status": st["status"],
+            "trial": st["status"] == "dry_run"}
+
+
 def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
     r = one(sv.db, "SELECT * FROM clips_ready WHERE id=? AND (profile_id=? OR id IN (SELECT clip_id FROM posts WHERE profile_id=?))",
             clip_id, p.id, p.id)
@@ -343,6 +362,7 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
             "look_failed": bool(grade.get("look_failed")) or (grade.get("look") or "").startswith("look not applied"),
             "look_why": (grade.get("look") or "").replace("look not applied:", "").strip(),
+            "rewards": _clip_rewards(sv, r, post),
             "can_repost": r["state"] == "approved" and bool(post) and post["status"] in posting.RESENT,
             "handed_in": one(sv.db, "SELECT COUNT(*) AS n FROM campaign_submissions WHERE post_id=?", post["id"])["n"] if post else 0,
             "can_post": r["state"] == "approved" and (post is None or post["status"] in (*posting.RESENDABLE, "queued", "failed")),

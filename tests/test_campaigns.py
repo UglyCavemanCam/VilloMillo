@@ -294,6 +294,7 @@ def test_video_links_are_queued_and_nothing_is_queued_twice(db):
 def sv(tmp_path, monkeypatch):
     database = Database(tmp_path / "sv.db")
     monkeypatch.setattr(clipper, "OUTBOX", tmp_path / "outbox")
+    monkeypatch.setattr("villomillo.formats.formatter_for", lambda *a, **k: None)  # not about the look: the engine's own render is used
     monkeypatch.setattr(clipper.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
     from villomillo import campaign as rules_check
     monkeypatch.setitem(rules_check.check.__kwdefaults__, "face", lambda path, window: 1.0)

@@ -503,3 +503,76 @@ def test_signing_in_starts_on_the_login_page_and_finishes_once_the_creator_pages
     assert rewards.login(sv.db, driver_factory=lambda **k: Watching(headless=True), wait_s=60, poll_s=0.2) is True
     assert visited[0].startswith(f"{site}/login") and rewards.settings(sv.db)["signed_in"] is True
     assert not [u for u in visited[1:2] if "/discover" in u and Watching.n < 3]  # it did not leave the login page while waiting
+
+
+def _panel(sv, client, post_id):
+    with sv.db.conn() as c:
+        clip_id = c.execute("SELECT clip_id FROM posts WHERE id=?", (post_id,)).fetchone()["clip_id"]
+    return clip_id, client.get(f"/clips/{clip_id}/panel?profile=solved").text
+
+
+def test_the_clip_panel_says_what_happened_with_content_rewards(sv, client):
+    plain = campaign_post(sv, campaign=None)
+    assert "not made for a campaign" in _panel(sv, client, plain)[1]
+    waiting = campaign_post(sv, status="queued", url="")
+    assert "as soon as it is posted" in _panel(sv, client, waiting)[1]
+    post = campaign_post(sv)
+    clip_id, page = _panel(sv, client, post)
+    assert "Not handed in yet" in page and "not signed in" in page and "Hand in now" in page
+    rewards.record(sv.db, post, SOLVED, Outcome("dry_run", "stopped before Submit"))
+    page = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Checked, not sent" in page and "Trial mode is on" in page
+    rewards.record(sv.db, post, SOLVED, Outcome("submitted", "Sent."))
+    page = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Handed in" in page and "Hand in now" not in page
+
+
+def test_hand_in_now_queues_a_posted_campaign_clip_and_refuses_the_rest(sv, client):
+    post = campaign_post(sv)
+    clip_id, _ = _panel(sv, client, post)
+    assert client.post("/api/clip-handin", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    with sv.db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='submit_clip'").fetchone()["n"] == 1
+    plain_clip, _ = _panel(sv, client, campaign_post(sv, campaign=None))
+    assert client.post("/api/clip-handin", data={"profile": "solved", "clip_id": plain_clip}).status_code == 422
+    rewards.set_auto(sv.db, False)
+    assert client.post("/api/clip-handin", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    assert rewards.settings(sv.db)["auto"] is True  # pressing Hand in now turns automatic handing in back on
+
+
+def test_posting_from_the_clip_panel_queues_the_hand_in(sv, client, monkeypatch):
+    """The path the owner used: Post clip -> a send task -> uploaded -> the link is queued for Content Rewards."""
+    from villomillo import accounts
+
+    p = sv.profiles["solved"]
+    sv.profiles["solved"] = p.model_copy(update={"posting": p.posting.model_copy(update={"dry_run": False, "platforms": {"youtube_shorts": "api"}, "min_gap_minutes": 0, "max_gap_minutes": 0})})
+    accounts.set_audit(sv.db, "solved", "youtube_shorts", True, "t")
+    monkeypatch.setattr(posting, "default_adapters", lambda profile: {"youtube_shorts": type("A", (), {"post": lambda self, **k: {"url": "https://youtube.com/shorts/new", "notes": [], "remote_id": "new"}})()})
+    from villomillo import copywriter
+
+    monkeypatch.setattr(copywriter, "generate_with_keys", lambda *a, **k: "ok")
+    post = campaign_post(sv, status="manual_ready", url="")
+    clip_id, _ = _panel(sv, client, post)
+    assert client.post("/api/clip-post", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    runner.run_one(sv)  # sends it
+    with sv.db.conn() as c:
+        assert c.execute("SELECT status FROM posts WHERE id=?", (post,)).fetchone()["status"] == "uploaded"
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='submit_clip'").fetchone()["n"] == 1
+
+
+def test_a_hand_in_runs_on_its_own_worker_and_is_never_taken_by_the_main_one(sv, monkeypatch):
+    from villomillo import tasks
+
+    ready(sv)
+    post = campaign_post(sv)
+    done = []
+    monkeypatch.setattr(rewards, "work", lambda sv_, pid, **k: done.append(pid) or "ok")
+    tasks.enqueue(sv.db, "submit_clip", {"post_id": post}, dedupe_key="x")
+    assert runner.run_one(sv, "worker-1", skip=rewards.KINDS) is False and done == []  # the main worker leaves it alone
+    assert runner.run_one(sv, "rewards", kinds=rewards.KINDS) is True and done == [post]
+    tasks.enqueue(sv.db, "usage", {}, dedupe_key="y")
+    assert runner.run_one(sv, "rewards", kinds=rewards.KINDS) is False  # and the hand-in worker leaves other jobs alone
+
+
+def test_a_failed_hand_in_is_tried_again_within_minutes_not_after_the_window(sv):
+    assert rewards.RETRY_AFTER <= timedelta(minutes=3)
