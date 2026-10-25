@@ -27,7 +27,7 @@ posting:
   privacy: public
   min_gap_minutes: 10       # each clip waits a random time between these two after the last post
   max_gap_minutes: 20
-  auto_post_min_score: 80   # a clip scoring under this waits for your decision instead of posting by itself
+  auto_post_min_score: 70   # a clip scoring under this waits for your decision instead of posting by itself
   daily_cap: 100            # YouTube: 100 posts a day is the channel's limit
 
 brand:

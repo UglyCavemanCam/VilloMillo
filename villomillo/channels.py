@@ -74,6 +74,22 @@ def _make_public_once(db: Database) -> None:
         c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (PUBLIC_ONCE,))
 
 
+SCORE_ONCE = "auto_score_70_v1"
+
+
+def _score_70_once(db: Database) -> None:
+    """The score a clip needs to post by itself became 70 (it was briefly 80): set it on saved channels once."""
+    with db.conn(immediate=True) as c:
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (SCORE_ONCE,)).fetchone():
+            return
+        for r in c.execute("SELECT id, data_json FROM channels").fetchall():
+            data = json.loads(r["data_json"])
+            if data.get("posting"):
+                data["posting"]["auto_post_min_score"] = 70
+                c.execute("UPDATE channels SET data_json=?, updated_at=? WHERE id=?", (json.dumps(data), store.iso(), r["id"]))
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (SCORE_ONCE,))
+
+
 GAP_ONCE = "gap_10_20_v1"
 
 
@@ -95,6 +111,7 @@ def load(db: Database) -> dict[str, Profile]:
     _seed(db)
     _make_public_once(db)
     _new_gaps_once(db)
+    _score_70_once(db)
     with db.conn() as c:
         rows = c.execute("SELECT id, data_json FROM channels ORDER BY created_at, id").fetchall()
     return {r["id"]: Profile(**_without_retired(json.loads(r["data_json"]))) for r in rows}

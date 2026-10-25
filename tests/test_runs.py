@@ -219,7 +219,7 @@ def test_finished_clips_are_approved_routed_to_their_channel_and_planned_for_pos
 
 def test_a_clip_scoring_under_the_channels_minimum_waits_for_you_instead_of_posting(env):
     sv, db = env
-    assert sv.profiles["solved"].posting.auto_post_min_score == 80
+    assert sv.profiles["solved"].posting.auto_post_min_score == 70
     sv.profiles["solved"] = sv.profiles["solved"].model_copy(update={"posting": sv.profiles["solved"].posting.model_copy(update={"auto_post_min_score": 89})})
     run_id, engine = to_plan(sv)
     runs.start(sv, run_id, engine)

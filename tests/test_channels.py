@@ -375,3 +375,19 @@ def test_the_upload_size_is_a_channel_setting(web):
     assert channels.load(sv.db)["solved"].posting.upload_size == "1440"
     with pytest.raises(channels.ChannelError):
         channels.update(sv.db, sv.profiles, "solved", upload_size="4000")
+
+
+def test_the_score_a_clip_needs_to_post_by_itself_is_70_and_saved_channels_get_it_once(tmp_path):
+    fresh = Database(tmp_path / "score.db")
+    assert channels.load(fresh)["solved"].posting.auto_post_min_score == 70
+    with fresh.conn() as c:  # a channel saved while it was briefly 80
+        data = json.loads(c.execute("SELECT data_json FROM channels WHERE id='solved'").fetchone()["data_json"])
+        data["posting"]["auto_post_min_score"] = 80
+        c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(data),))
+        c.execute("DELETE FROM meta WHERE key='auto_score_70_v1'")
+    profs = channels.load(fresh)
+    assert profs["solved"].posting.auto_post_min_score == 70
+    channels.update(fresh, profs, "solved", auto_post_min_score="85")
+    assert channels.load(fresh)["solved"].posting.auto_post_min_score == 85  # a later choice is kept
+    with pytest.raises(channels.ChannelError):
+        channels.update(fresh, profs, "solved", auto_post_min_score="150")
