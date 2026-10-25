@@ -79,6 +79,11 @@ class Engine:
         except EngineUnavailable:
             pass
 
+    def discard_download(self, video_id: str) -> int:
+        """Delete the engine's downloaded copy of a video so the next job fetches it again. Returns how many files went."""
+        r = self._call("DELETE", f"/videos/{video_id}/download")
+        return int(r.json().get("removed", 0)) if r.status_code == 200 else 0
+
     def moments(self, video_id: str) -> list[dict]:
         """The scored moments a preview found for this video, best first (empty until a preview has run)."""
         r = self._call("GET", f"/videos/{video_id}/moments")

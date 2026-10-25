@@ -1598,6 +1598,18 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             d.close()
         return {"ok": True}
 
+    @app.delete("/videos/{video_id}/download")
+    def discard_download(video_id: str):
+        """Delete the downloaded copy of a video (every file kept for it), so the next job downloads it again. For a copy that turned
+        out to be damaged: an interrupted download can leave a file that every later job trusts and then cannot read."""
+        from core.paths import cached_source, discard
+
+        removed = 0
+        downloads = data_dir / "downloads"
+        while (found := cached_source(downloads, video_id)) is not None and discard(found):
+            removed += 1
+        return {"removed": removed}
+
     @app.get("/videos/{video_id}/preview")
     def preview_for_video(video_id: str):
         """What a preview found: the video's own details and its scored moments (with the words spoken in each)."""

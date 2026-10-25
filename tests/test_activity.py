@@ -181,3 +181,71 @@ def test_a_finished_video_page_says_what_happened(sv):
     client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
     page = client.get(f"/runs/{run_id}").text
     assert "What happened" in page and "planned on Podcasts" in page and 'data-live-url' not in page.split("Timeline")[1].split("</section>")[0]
+
+
+# ---- a damaged download is deleted and fetched again, once ------------------------------------------------------------------
+
+BAD = "ffmpeg audio decode failed: [aac] Number of bands (19) exceeds limit (8). Error submitting packet to decoder: Invalid data found when processing input"
+
+
+class DamagedEngine(FakeEngine):
+    def __init__(self, *a, bad_jobs=1, removes=1, **k):
+        super().__init__(*a, **k)
+        self.bad_jobs, self.removes, self.deleted = bad_jobs, removes, []
+
+    def job(self, job_id):
+        if job_id - 10 <= self.bad_jobs:  # the first jobs hit the damaged file
+            return {"status": "failed", "error": BAD}
+        return {"status": "done", "error": ""}
+
+    def discard_download(self, video_id):
+        self.deleted.append(video_id)
+        return self.removes
+
+
+def test_a_damaged_download_is_deleted_and_the_video_is_looked_at_again_once(sv):
+    engine = DamagedEngine()
+    run_id = runs.create(sv, "solved", LINK)
+    runs.analyse(sv, run_id, engine)  # submits job 11
+    runs.analyse(sv, run_id, engine)  # it failed on the damaged file: delete it and start over
+    assert engine.deleted == ["aB3dEfGhIjK"] and runs.get(sv.db, run_id)["state"] == "analysing" and runs.get(sv.db, run_id)["preview_job_id"] is None
+    assert messages(sv, run_id)[-1].startswith("The downloaded file was damaged (the engine could not read it), so it was deleted")
+    runs.analyse(sv, run_id, engine)  # asks again, and forces a fresh look
+    assert engine.submitted[-1]["force"] is True and len(engine.submitted) == 2
+    runs.analyse(sv, run_id, engine)
+    runs.analyse(sv, run_id, engine)
+    assert runs.get(sv.db, run_id)["state"] == "planned"
+
+
+def test_a_second_failure_after_the_fresh_download_is_reported_not_repeated(sv):
+    engine = DamagedEngine(bad_jobs=2)
+    run_id = runs.create(sv, "solved", LINK)
+    for _ in range(5):
+        runs.analyse(sv, run_id, engine)
+    run = runs.get(sv.db, run_id)
+    assert run["state"] == "failed" and "decode failed" in run["error"] and engine.deleted == ["aB3dEfGhIjK"]  # deleted once only
+
+
+def test_nothing_is_retried_when_there_was_no_file_to_delete_or_the_error_is_something_else(sv):
+    run_id = runs.create(sv, "solved", LINK)
+    engine = DamagedEngine(removes=0)
+    runs.analyse(sv, run_id, engine)
+    runs.analyse(sv, run_id, engine)
+    assert runs.get(sv.db, run_id)["state"] == "failed"
+    other = FakeEngine(statuses=["failed"])
+    other.error = "the video is private"
+    run2 = runs.create(sv, "solved", "https://www.youtube.com/watch?v=bBcDeFgHiJk")
+    runs.analyse(sv, run2, other)
+    runs.analyse(sv, run2, other)
+    assert runs.get(sv.db, run2)["state"] == "failed" and "private" in runs.get(sv.db, run2)["error"]
+
+
+def test_trying_again_on_a_video_that_failed_this_way_also_heals_it(sv):
+    engine = DamagedEngine(bad_jobs=1, removes=1)
+    run_id = runs.create(sv, "solved", LINK)
+    runs.analyse(sv, run_id, engine)
+    runs.fail(sv, run_id, "the engine could not look at this video: " + BAD)  # what you saw before the fix
+    runs.retry(sv, run_id)
+    for _ in range(4):
+        runs.analyse(sv, run_id, DamagedEngine(bad_jobs=0))
+    assert runs.get(sv.db, run_id)["state"] == "planned"

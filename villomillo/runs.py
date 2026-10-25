@@ -12,6 +12,7 @@ The state of a run is kept in the `runs` table, so the dashboard can show it and
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
 from datetime import timedelta
 
@@ -31,6 +32,8 @@ from . import (
 )
 from .services import Services
 
+DAMAGED = re.compile(r"decode failed|Invalid data found|moov atom not found|InvalidDataError|Error submitting packet", re.IGNORECASE)
+HEALED = "The downloaded file was damaged"  # the start of the line written when it is deleted and fetched again
 POLL_S = 20  # how often a waiting engine job is looked at
 ENGINE_WAIT_S = 1800  # a video waits this long, with no progress, for an engine that is not answering before it is marked failed
 ACTIVE = ("analysing", "planned", "making")
@@ -74,6 +77,11 @@ def _engine_down(sv: Services, run_id: int, kind: str, step: str, error: Excepti
         return fail(sv, run_id, f"the clip engine was not answering for {ENGINE_WAIT_S // 60} minutes: {error}")
     note(sv, run, "Waiting: the clip engine is not answering. This video carries on when it is back.", step, "warn")
     _later(sv, kind, run_id)
+
+
+def _healed(sv: Services, run: dict) -> bool:
+    """Whether this video's damaged download was already deleted once: a second failure is not fixed by downloading again."""
+    return any(x["message"].startswith(HEALED) for x in activity.for_run(sv.db, run["id"]))
 
 
 def _stage_line(engine, job_id) -> str:
@@ -133,7 +141,7 @@ def analyse(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
     link = links.parse(run["url"])
     try:
         if run["preview_job_id"] is None:
-            job_id = clipper.start_preview(engine, link, focus="")
+            job_id = clipper.start_preview(engine, link, focus="", force=_healed(sv, run))
             _set(sv.db, run_id, preview_job_id=job_id)
             note(sv, run, f"Asked the engine to look at the video (its job {job_id}).", "look")
             return _later(sv, "paste_analyse", run_id)
@@ -143,6 +151,10 @@ def analyse(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
             note(sv, run, line, "look")
             return _later(sv, "paste_analyse", run_id)
         if job["status"] != "done":
+            if job["status"] == "failed" and DAMAGED.search(job.get("error") or "") and not _healed(sv, run) and engine.discard_download(link.video_id):
+                note(sv, run, f"{HEALED} (the engine could not read it), so it was deleted and is being downloaded again.", "look", "warn")
+                _set(sv.db, run_id, preview_job_id=None)
+                return _later(sv, "paste_analyse", run_id, 2)
             return fail(sv, run_id, f"the engine could not look at this video: {job.get('error') or job['status']}")
         preview = engine.preview(link.video_id)
     except clipper.EngineUnavailable as e:
