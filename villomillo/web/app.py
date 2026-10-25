@@ -707,6 +707,33 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(502, f"could not write options: {type(e).__name__}: {str(e)[:160]}") from None
         return JSONResponse({"ok": True, "status": status})
 
+    @app.post("/api/post-send-now")
+    def post_send_now(request: Request, profile: str = Form(...), post_id: int = Form(...)):
+        _only_local(request, "posts")
+        p = in_profile(profile)
+        with sv.db.conn() as c:
+            row = c.execute("SELECT platform, status FROM posts WHERE profile_id=? AND id=?", (profile, post_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, "no such post")
+        if row["status"] in ("uploaded", "posted"):
+            raise HTTPException(422, "this post is already out")
+        if (why := posting.why_not_sending(sv.db, p, row["platform"])):
+            raise HTTPException(422, why)
+        tasks.enqueue(sv.db, "send_post", {"profile": profile, "post_id": post_id}, dedupe_key=f"send_post:{post_id}:{store.now():%Y%m%d%H%M}", priority=10)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/posts-send-waiting")
+    def posts_send_waiting(request: Request, profile: str = Form(...), platform: str = Form(...)):
+        _only_local(request, "posts")
+        p = in_profile(profile, platform)
+        try:
+            n = posting.resend_waiting(sv.db, p, platform)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        if n:
+            tasks.enqueue(sv.db, "post", {"profile": profile}, dedupe_key=f"post-now:{profile}:{store.now():%Y%m%d%H%M}", priority=10)  # the schedule would pick them up too; this is sooner
+        return JSONResponse({"ok": True, "queued": n})
+
     @app.post("/api/post-done")
     def post_done(request: Request, profile: str = Form(...), post_id: int = Form(...), url: str = Form(...)):
         _only_local(request, "posts")

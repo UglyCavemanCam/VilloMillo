@@ -241,6 +241,52 @@ def send_now(db: Database, profile: Profile, post_id: int, adapters: dict) -> st
     return f"post {post_id} ({post['platform']}): {status}" + (f", {error}" if error else f", {url}")
 
 
+RESENDABLE = ("manual_ready", "dry_run")  # planned before the channel could post for real: nothing sends these again by itself
+
+
+def why_not_sending(db: Database, profile: Profile, platform: str) -> str | None:
+    """Why this channel cannot send to the platform for real right now, in plain words; None when it can."""
+    posting = profile.posting
+    if posting is None or posting.platforms.get(platform, "manual") != "api":
+        return "This channel's posts are set to go out by hand. Change that to Automatically on the channel's page."
+    if posting.dry_run:
+        return "Dry run is on, so nothing is sent. Turn it off on the channel's page."
+    if not accounts.audit_passed(db, profile.id, platform):
+        return "The platform's audit is not recorded as passed. Record it under Accounts and safety stops."
+    if accounts.is_paused(db, profile.id, platform):
+        return "This account is paused. Resume it first."
+    return None
+
+
+def resend_waiting(db: Database, profile: Profile, platform: str, *, now: datetime | None = None) -> int:
+    """Put the posts that were planned before the channel could post for real back in the queue, best clip first, spaced the way
+    new posts are (gap and daily limit). Returns how many. Raises ValueError (with the reason) when the channel cannot send yet."""
+    if (why := why_not_sending(db, profile, platform)):
+        raise ValueError(why)
+    now = now or store.now()
+    with db.conn() as c:
+        waiting = c.execute(
+            "SELECT po.id FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id WHERE po.profile_id=? AND po.platform=? "
+            f"AND po.status IN ({','.join('?' * len(RESENDABLE))}) AND cl.state='approved' ORDER BY cl.engine_score DESC, po.id",
+            (profile.id, platform, *RESENDABLE)).fetchall()
+    for row in waiting:
+        when = next_slot(db, profile.posting, profile.id, platform, now)
+        with db.conn() as c:
+            c.execute("UPDATE posts SET status='queued', route='api', error=NULL, scheduled_at=? WHERE id=?", (store.iso(when), row["id"]))
+    return len(waiting)
+
+
+def send_post_now(db: Database, profile: Profile, post_id: int) -> str:
+    """The explicit go for one post: refuses with the reason when the channel cannot send for real yet."""
+    with db.conn() as c:
+        post = c.execute("SELECT platform FROM posts WHERE profile_id=? AND id=?", (profile.id, post_id)).fetchone()
+    if post is None:
+        raise LookupError("no such post")
+    if (why := why_not_sending(db, profile, post["platform"])):
+        raise ValueError(why)
+    return send_now(db, profile, post_id, default_adapters(profile))
+
+
 def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adapters: dict | None = None) -> list[str]:
     """Send every post that is due. Returns one short line per post."""
     posting = profile.posting

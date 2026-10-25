@@ -107,6 +107,7 @@ and `run-app.bat` (which starts the worker). The **Emergency stop** button pause
 ## Settings
 
 - [`config/villomillo/app.yaml`](config/villomillo/app.yaml): YouTube allowances, spend breaker, schedule, dashboard port, database path.
+- Posts planned before a channel could post for real (set to by hand, or dry run) are not sent by themselves. Once the channel is set to Automatically, dry run is off and the audit is recorded as passed, **Send N waiting clips** on the channel's page queues them (best clip first, spaced by the gap and daily limit), and **Send now** in a post's panel sends that one straight away.
 - The switch at the top of **Channels** (on by default) sends every clip to one chosen channel, whatever its category, for the time before each category has its own YouTube channel. Turn it off and each clip goes to its category's channel; clips for a category with no channel are held. Turning it on again plans any held clips on the chosen channel.
 - Channels are added and edited on the dashboard's **Channels** page and stored in the database. [`config/villomillo/channels/`](config/villomillo/channels/) only holds the starting channel (Podcasts), read once into an empty database.
 - [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml): the format recipes.

@@ -28,6 +28,7 @@
       <dt>Audit</dt><dd>{{ 'Passed' if a.audit else 'Not passed yet' }}</dd>
       <dt>Posted today</dt><dd class="num">{{ a.today }} of {{ a.cap }}</dd>
       <dt>Waiting posts</dt><dd class="num">{{ a.waiting }}</dd>
+      {% if a.resendable %}<dt>Planned before posting was on</dt><dd class="num">{{ a.resendable }}<br><span class="muted" style="font-size:13px;font-weight:400">These do not send by themselves. Use Send waiting clips.</span></dd>{% endif %}
       {% if a.failures and a.status == 'active' %}<dt>Failed in a row</dt><dd class="num">{{ a.failures }} of 3</dd>{% endif %}
     </dl>
     {% if a.reason %}<div class="notice bad">{{ icon('alert') }}<div>{{ a.reason }}</div></div>{% endif %}
@@ -37,6 +38,9 @@
       <button type="button" class="btn btn-primary btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "resume"}|tojson }}' data-ok="Resumed">Resume</button>
       {% else %}
       <button type="button" class="btn btn-sm" data-act="/api/account-state" data-fields='{{ {"profile": a.profile, "platform": a.platform, "action": "pause"}|tojson }}' data-ok="Paused" data-confirm="No post will be sent for this account until you resume it. Posts stay planned and wait." data-confirm-title="Pause this account?">Pause</button>
+      {% endif %}
+      {% if a.resendable %}
+      <button type="button" class="btn btn-sm btn-primary" data-act="/api/posts-send-waiting" data-fields='{{ {"profile": a.profile, "platform": a.platform}|tojson }}' data-ok="Queued. They go out one at a time, within the daily limit." data-confirm-title="Send {{ a.resendable }} waiting clip{{ '' if a.resendable == 1 else 's' }}?" data-confirm="These were planned before this channel could post for real. They are queued now, best clip first, and posted to YouTube spaced by the gap and daily limit in the channel's settings.">Send {{ a.resendable }} waiting clip{{ '' if a.resendable == 1 else 's' }}</button>
       {% endif %}
       {% if a.audit %}
       <button type="button" class="btn btn-sm btn-ghost" data-act="/api/audit" data-fields='{{ {"profile": a.profile, "platform": a.platform, "passed": "0"}|tojson }}' data-ok="Audit recorded as not passed" data-confirm="Posts for this platform go back to manual." data-confirm-title="Record the audit as not passed?">Audit not passed</button>

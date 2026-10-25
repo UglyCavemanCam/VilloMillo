@@ -374,6 +374,7 @@ def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
     paused = accounts.is_paused(sv.db, p.id, r["platform"])
     return {"post": view, "tags": json.loads(r["tags_json"] or "[]"), "options": options, "route": route, "route_why": why, "paused": paused,
             "clip": _clip_card(p, clip, r) if clip else None, "can_edit": r["status"] not in ("uploaded", "posted"),
+            "can_resend": r["status"] in ("queued", "manual_ready", "dry_run") and bool(clip) and clip["state"] == "approved",
             "is_hand": r["status"] in ("manual_ready", "queued") and r["route"] == "manual",
             "file_url": f"/clips/{r['clip_id']}/file?profile={p.id}"}
 

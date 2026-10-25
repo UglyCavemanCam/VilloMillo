@@ -144,7 +144,11 @@ def overview(db: Database, profiles: dict[str, Profile], at: datetime | None = N
             with db.conn() as c:
                 waiting = c.execute("SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND platform=? AND status IN "
                                     "('queued','manual_ready')", (profile.id, platform)).fetchone()["n"]
-            rows.append({"profile": profile.id, "name": profile.display_name, "platform": platform,
+            with db.conn() as c:  # planned before the channel could post for real; nothing sends these by itself
+                resendable = c.execute("SELECT COUNT(*) AS n FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id WHERE po.profile_id=? "
+                                       "AND po.platform=? AND po.status IN ('manual_ready','dry_run') AND cl.state='approved'",
+                                       (profile.id, platform)).fetchone()["n"]
+            rows.append({"profile": profile.id, "name": profile.display_name, "platform": platform, "resendable": resendable,
                          "configured": configured, "route": route, "why": why,
                          "audit": audit_passed(db, profile.id, platform), "status": current["status"],
                          "reason": current["reason"], "failures": current["failures"], "waiting": waiting,

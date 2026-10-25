@@ -73,6 +73,17 @@ def do_post(sv: Services, payload: dict) -> None:
         store.event(sv.db, "info", "post", line)
 
 
+def do_send_post(sv: Services, payload: dict) -> None:
+    """Send one post right now: the Send now button."""
+    from . import posting
+
+    try:
+        line = posting.send_post_now(sv.db, _profile(sv, payload), payload["post_id"])
+    except (ValueError, LookupError) as e:  # not allowed any more, or already out: nothing to retry
+        line = f"post {payload['post_id']}: not sent, {e}"
+    store.event(sv.db, "info", "post", line)
+
+
 def do_stats(sv: Services, payload: dict) -> None:
     """Read the real numbers of this channel's recent posts."""
     from . import posting
@@ -129,6 +140,7 @@ HANDLERS = {
     "paste_collect": _paste_step(runs.collect, "paste_collect"),
     "copy": do_copy,
     "post": do_post,
+    "send_post": do_send_post,
     "stats": do_stats,
     "campaigns": do_campaigns,
     "research": do_research,

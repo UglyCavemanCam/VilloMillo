@@ -37,6 +37,10 @@
   {% endif %}
 </div>
 <div class="drawer-foot" style="flex-direction:column;align-items:stretch">
+  {% if d.can_resend %}
+  <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">Not sent yet. Sends to YouTube straight away.</div>
+    <button type="button" class="btn btn-primary btn-sm" data-act="/api/post-send-now" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Sending. This takes a minute." data-confirm-title="Send this clip to YouTube now?" data-confirm="It goes out now, without waiting for its slot.">Send now</button></div>
+  {% endif %}
   {% if d.is_hand %}
   <form data-act="/api/post-done" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-ok="Marked as posted" style="display:flex;gap:8px">
     <input class="field pill" style="flex:1" type="url" name="url" required placeholder="Paste the post link (https://...)" aria-label="Post link">
