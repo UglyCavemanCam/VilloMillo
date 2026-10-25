@@ -10,6 +10,12 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ---
 
+## VilloMillo: the end card is removed
+
+Clips no longer get a branded end card, and no setting brings it back. Clips end where the moment ends. The `outro-backfill` command, the `clips.outro` setting and the prebuilt card videos are gone, and story reels are now joined from whole clips.
+
+---
+
 ## Unreleased
 
 Clips are framed and chosen in two new ways, on for everyone. Either can be turned off

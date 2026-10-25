@@ -91,7 +91,7 @@ def rerun(monkeypatch, tmp_path, capsys):
     the same job once more on the same database."""
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
-    pytest.importorskip("PIL")  # the end card (video/outro.py)
+    pytest.importorskip("PIL")
     import core.pipeline as pipeline
     from analysis.metadata import ClipMetadata
     from core.state import StateDB
@@ -402,33 +402,6 @@ class _RenderPC:
                                            opts, language)
 
 
-def _match_with_reels(monkeypatch) -> list:
-    """A match read with story reels asked for, and the reels spied: for
-    each call, the length each clip was made, by its window's start."""
-    pytest.importorskip("numpy")
-    pytest.importorskip("cv2")
-    import core.pipeline as pipeline
-
-    class Reading:
-        def __init__(self, config, video):
-            self.config = config
-
-        def finish(self, hype_out=None):
-            return SimpleNamespace(option={"reels": ["recap"]}), None, None
-
-    asked: list = []
-
-    def reels(_db, _video_id, _profile, clips, *_a, made_seconds=None, **_k):
-        asked.append({round(c.candidate.start, 2): round((made_seconds or {}).get(str(c.path), -1.0), 6)
-                      for c in clips})
-        return []
-
-    monkeypatch.setattr(pipeline, "MatchReading", Reading)
-    monkeypatch.setattr(pipeline, "_sport_reels", reels)
-    return asked
-
-
-
 def test_a_split_turned_off_for_a_clip_stays_off_in_a_gaming_job(monkeypatch, tmp_path):
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
@@ -450,7 +423,7 @@ def test_a_split_turned_off_for_a_clip_stays_off_in_a_gaming_job(monkeypatch, tm
     monkeypatch.setattr(tracker, "compute_tracking", lambda *_a, **_k: {"mode": "track", "path": [(0.0, 0.5)]})
     monkeypatch.setattr(cropper, "render_vertical", standard)
     monkeypatch.setattr(pipeline, "_try_gaming_render", gaming)
-    config = {"clips": {"captions": False, "outro": False, "vertical": True, "gaming": True},
+    config = {"clips": {"captions": False, "vertical": True, "gaming": True},
               "paths": {"data_dir": str(tmp_path)}, "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8}}
 
     def render(opts):
@@ -464,52 +437,6 @@ def test_a_split_turned_off_for_a_clip_stays_off_in_a_gaming_job(monkeypatch, tm
     # The failed search's {} isn't a split turned off: the job's Gaming is tried.
     render({"gaming": {}})
     assert tried == ["gaming"] and ran == ["standard", "standard"]
-
-
-def test_a_story_reel_trims_an_edited_clips_card_by_its_made_length(monkeypatch, tmp_path, db):
-    pytest.importorskip("numpy")
-    pytest.importorskip("cv2")
-    import core.pipeline as pipeline
-    from sports.core import reels
-    from video import outro
-
-    asked: list = []
-
-    def has_outro(path, seconds):
-        asked.append((path, seconds))
-        return True
-
-    monkeypatch.setattr(outro, "has_outro", has_outro)
-    monkeypatch.setattr(outro, "enabled", lambda _config: False)
-    monkeypatch.setattr(reels, "join", lambda paths, _out, _trims: [9.0 for _p in paths])
-    monkeypatch.setattr(reels, "plan", lambda clips, *_a, **_k: [
-        SimpleNamespace(kind="recap", subject="", title="Match recap", parts=list(clips))])
-    db.upsert_video("vid", title="A Quarkbloom Arena match")
-    path = tmp_path / "clip_00100-00130.mp4"
-    clip = SimpleNamespace(candidate=ClipCandidate(start=100.0, end=130.0, score=80, hook="",
-                                                   subscores={"sport_label": "Goal"}), path=path)
-    profile = SimpleNamespace(option={"reels": ["recap"]}, report_data={})
-    pipeline._sport_reels(db, "vid", profile, [clip], tmp_path, {}, made_seconds={str(path): 9.0})
-    assert asked == [(path, 9.0)]
-    asked.clear()
-    # A clip with no edit: its window, as before.
-    pipeline._sport_reels(db, "vid", profile, [clip], tmp_path, {})
-    assert asked == [(path, 30.0)]
-
-    window = ClipCandidate(start=10.0, end=40.0, score=80)
-    assert pipeline._made_seconds(window, json.dumps({"edit": {"keep": [[0, 10]], "speed": 2}})) == 5.0
-    assert pipeline._made_seconds(window, "") == 30.0
-    assert pipeline._made_seconds(window, "{not json") == 30.0
-
-
-def test_a_match_reel_gets_the_length_an_edited_clip_was_made(rerun, monkeypatch):
-    """A re-run's story reels join its clips as made: the clip the creator
-    cut reaches them with the length its edit keeps, the others with their
-    window."""
-    asked = _match_with_reels(monkeypatch)
-    got = rerun(_found(), rows=[(100.0, 120.0, {"edit": E})], **SOCCER)
-    assert dict(got.renders)[(100.0, 120.0)] == {"edit": E}
-    assert asked == [{10.0: 20.0, 100.0: 18.0, 200.0: 20.0, 300.0: 20.0}]
 
 
 def _lf(start: float) -> tuple:
@@ -580,19 +507,6 @@ def test_a_longform_rerun_makes_an_edited_16x9_clip_with_its_edits(monkeypatch, 
     assert got.saved == saved
 
 
-def test_a_longform_match_keeps_an_edited_clips_look_and_made_length(monkeypatch, tmp_path):
-    """A match's 16:9 clip the creator edited is made with their cut in the
-    job's look, keeps the look saved on it, and reaches the reels with the
-    length its edit keeps."""
-    asked = _match_with_reels(monkeypatch)
-    saved = {"profile": "short_clips", "edit": E, "caption_style": {"font": "Georgia"}}
-    got = _longform(monkeypatch, tmp_path, saved, **SOCCER)
-    assert got.renders == {_lf(s): {"profile": "short_clips", **({"edit": E} if s == 100.0 else {})}
-                           for s in STARTS}
-    assert got.saved == saved
-    assert asked == [{_lf(s)[0]: 18.0 if s == 100.0 else 20.0 for s in STARTS}]
-
-
 # ---- render PCs ----------------------------------------------------------------------------
 
 
@@ -632,7 +546,6 @@ def test_a_longform_render_pc_gets_an_edited_clip_with_its_edits(monkeypatch, tm
     assert pc.job_opts == {"profile": "short_clips"}
     assert pc.sent == {_lf(s): saved if s == 100.0 else {"profile": "short_clips"} for s in STARTS}
     assert got.renders == pc.sent and got.saved == saved
-
 
 
 def test_a_render_pc_clip_is_checked_against_what_its_edit_keeps(monkeypatch, tmp_path):

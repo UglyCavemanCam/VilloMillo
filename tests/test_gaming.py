@@ -483,7 +483,7 @@ def _render_clip(pipeline_mod, tmp_path, opts=None, **clips):
 
     from core.models import ClipCandidate
 
-    config = {"clips": {"captions": False, "outro": False, "vertical": True, **clips},
+    config = {"clips": {"captions": False, "vertical": True, **clips},
               "paths": {"data_dir": str(tmp_path)}, "tracking": CONFIG["tracking"]}
     final, opts_json = pipeline_mod._render_files(tmp_path / "s.mp4", ClipCandidate(start=10, end=40, score=80),
                                                   [], tmp_path / "clips", config, opts)

@@ -61,7 +61,7 @@ def render(pipeline, monkeypatch, tmp_path):
 
     def run(captions, opts=None):
         config = {
-            "clips": {"captions": captions, "outro": False, "vertical": True, "vertical_live": True},
+            "clips": {"captions": captions, "vertical": True, "vertical_live": True},
             "paths": {"data_dir": str(tmp_path)},
             "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8},
         }

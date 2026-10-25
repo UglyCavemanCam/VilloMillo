@@ -1334,7 +1334,7 @@ def _trim(env, monkeypatch, clip_id, start) -> int:
         return clip_dir / "clip.mp4", json.dumps(render_opts)
 
     monkeypatch.setattr(pipeline, "_render_files", render)
-    job = SimpleNamespace(config={"paths": {"data_dir": str(env.data_dir)}, "clips": {"outro": False}})
+    job = SimpleNamespace(config={"paths": {"data_dir": str(env.data_dir)}, "clips": {}})
     env.run(lambda d: Worker._rerender_clip(job, d, {"clip_id": clip_id, "start": start}))
     return _windows(env)[start]
 

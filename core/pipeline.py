@@ -201,12 +201,6 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     data_dir = Path(config["paths"]["data_dir"])
     started = time.monotonic()
 
-    # Per-job, not per-process: the server is long-lived, so without this the
-    # end-card tally would report every job it had ever run.
-    from video import outro as _outro
-
-    _outro.reset_tally()
-
     print(f"[1/4] Downloading: {url}")
     progress.emit(stage="download", message=url)
     video = _cached_or_download(url, data_dir, db, vertical=_vertical_live_requested(config))
@@ -570,7 +564,6 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # This run's clips, the re-rendered ones too (a re-run registers nothing
     # new): a match's story reels are joined from them.
     made = []
-    made_seconds: dict = {}   # each clip's file's length before its card, for its story reels
     # Human-browsable layout: clips/<channel>/<video title> [id]/clip_*.mp4
     clip_dir = (
         data_dir / "clips"
@@ -707,7 +700,6 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
                 repeated_failures = 0
                 print(f"      Render failed for {where}: {reason}")
             return
-        made_seconds[str(final_path)] = _made_seconds(candidate, render_opts_json)
         clip = _register_clip(db, video.video_id, candidate, final_path, meta,
                               render_opts_json, config)
         if clip:
@@ -750,8 +742,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # A match's story reels, when asked for (sports/core/reels.py): joined
     # from the clips just rendered.
     if sport_profile is not None and made and (sport_profile.option or {}).get("reels"):
-        rendered += _sport_reels(db, video.video_id, sport_profile, made, clip_dir, config, segments,
-                                 made_seconds=made_seconds)
+        rendered += _sport_reels(db, video.video_id, sport_profile, made, clip_dir, config, segments)
 
     elapsed = time.monotonic() - started
     db.set_process_seconds(video.video_id, elapsed)
@@ -759,17 +750,12 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     progress.emit(
         stage="done", video_id=video.video_id, clips=len(rendered), seconds=round(elapsed, 1)
     )
-    from video import outro as _outro
-
-    if (_line := _outro.summary()):
-        print(f"      {_line}")
     print(f"      Done in {elapsed / 60:.1f} min ({len(rendered)} clips)")
     return rendered
 
 
 def _sport_reels(db: StateDB, video_id: str, profile, clips: list, clip_dir: Path, config: dict,
-                 segments: list | None = None, start: float = 0.0, opts: dict | None = None,
-                 made_seconds: dict | None = None) -> list:
+                 segments: list | None = None, start: float = 0.0, opts: dict | None = None) -> list:
     """The story reels a Sports job asked for, joined from this run's
     `clips` and registered as clips of their own: the recap, a reel per
     team, per player (the transcript's `segments` say which clips' commentary
@@ -779,16 +765,11 @@ def _sport_reels(db: StateDB, video_id: str, profile, clips: list, clip_dir: Pat
 
     A reel is known by what it is (its kind, its team or player, its
     format), not by its length: a re-run makes it again into its own row and
-    file, and a reel never takes another clip's row because it is as long.
-
-    `made_seconds` is each clip file's length before its card, by path,
-    where an edit changed it (D33)."""
+    file, and a reel never takes another clip's row because it is as long."""
     reel_clips = []
     try:
         from analysis.metadata import ClipMetadata
         from sports.core import reels
-        from video import outro
-
         report = getattr(profile, "report_data", None) or {}
 
         def said(clip) -> str:
@@ -798,31 +779,20 @@ def _sport_reels(db: StateDB, video_id: str, profile, clips: list, clip_dir: Pat
         planned = reels.plan(clips, profile.option.get("reels"), report.get("score", ""),
                              profile.option.get("teams", ""), said if segments else None)
         labels = {"recap": "Match recap", "team": "Team reel", "player": "Player reel"}
-        card = outro.enabled(config)
         before = _reel_rows(db, video_id)
         for reel in planned:
             label = labels[reel.kind]
-            # Each clip's end card off (a clip whose card was skipped keeps
-            # all of it), and one at the end of the reel, made the way a
-            # clip's is: outro.finish writes the reel from the join.
             paths = [c.path for c in reel.parts]
-            trims = [outro.DURATION if outro.has_outro(c.path, (made_seconds or {}).get(
-                str(c.path), c.candidate.end - c.candidate.start)) else 0.0 for c in reel.parts]
             out = clip_dir / reels.file_name(reel)
-            joined = out.with_name(f"{out.stem}.pre-card.mp4") if card else out
             try:
-                lengths = reels.join(paths, joined, trims)
+                lengths = reels.join(paths, out)
             except Exception as e:
-                if card:
-                    discard(joined)
                 print(f"      ({label.lower()} not made: {e})")
                 continue
-            if card:
-                outro.finish(joined, out, config)
             scores = {"sport_reel": reel.kind, "sport_label": label, "sport_parts": len(reel.parts)}
             chapters = reels.chapters(reel.parts, lengths)
             row = before.get((reel.kind, reel.subject, (opts or {}).get("profile")))
-            # Its own length, not the source's span: the card shows it.
+            # Its own length, not the source's span.
             end = _free_end(db, video_id, start, start + sum(lengths), row["id"] if row else None)
             if row is not None:
                 # Made again: its title is kept (it may have been edited),
@@ -972,26 +942,6 @@ def _with_choices(job_opts: dict | None, choices: dict | None) -> dict | None:
     if not choices:
         return job_opts
     return {**(job_opts or {}), **choices}
-
-
-def _made_seconds(candidate, render_opts_json: str) -> float:
-    """How long a clip plays as rendered, before its end card: its window,
-    or what the edit it was rendered with keeps of it, at its speed. A story
-    reel trims each clip's card by it."""
-    window = candidate.end - candidate.start
-    try:
-        opts = json.loads(render_opts_json) if render_opts_json else {}
-    except ValueError:
-        return window
-    edit = opts.get("edit") if isinstance(opts, dict) else None
-    if not edit:
-        return window
-    from video_editor.timeline import made_seconds
-
-    try:
-        return made_seconds(edit, window)
-    except (TypeError, ValueError):
-        return window
 
 
 def _remote_renderer(config: dict):
@@ -1401,20 +1351,7 @@ def _render_files(
     final_path = clip_dir / f"{stem}.mp4"
     clip_dir.mkdir(parents=True, exist_ok=True)
 
-    # The end card is part of PRODUCING the clip, not something applied to it
-    # afterwards -- the same way CapCut exports its outro. So when it is on,
-    # everything below renders to a scratch file and the final clip is written
-    # once, by the concat in outro.finish(), already containing the card.
-    #
-    # This is not a style preference. A clip open in the app's preview holds a
-    # Windows handle that forbids DELETING the file but permits WRITING it, so
-    # every version that replaced a finished clip lost its card to whichever
-    # clips you happened to be looking at -- one run managed 37 of 49 and spent
-    # twelve minutes stalling on locks it could never win.
-    from video import outro as _outro
-
-    wants_card = _outro.enabled(config)
-    render_path = clip_dir / f"{stem}.pre-card.mp4" if wants_card else final_path
+    render_path = final_path
 
     # Longform rendering profile (render_opts["profile"], set only by the
     # longform module): 16:9 1920x1080 output, no vertical crop/tracking.
@@ -1699,13 +1636,6 @@ def _render_files(
     if wm_cfg and _wm.has_image(wm_cfg, wm_assets):
         _wm.apply_image(render_path, wm_cfg, canvas, wm_assets)
 
-    # Writes final_path complete, with the card. Never raises and never loses
-    # the clip: if the card cannot be made it still writes final_path without
-    # one, because every step here WRITES the destination rather than
-    # replacing it, which is what a held file permits.
-    if wants_card:
-        _outro.finish(render_path, final_path, config)
-
     # A clip the gaming layout handed to the standard renderer (the camera
     # filled the frame) is saved as what it got, so the editor shows that and
     # a re-render frames it the same way.
@@ -1887,12 +1817,8 @@ def _register_clip(
     """DB write for one rendered clip. Main thread only (sqlite connections
     are not shareable across threads).
 
-    The branded end card is appended HERE rather than in _render_files,
-    because this is the one place every finished video passes through. The
-    longform Highlights and Edited Stream modes build their output with
-    longform.assemble and never call _render_files at all, so hooking the
-    renderer silently left two of the four longform profiles with no end card.
-    Hooking the funnel means a mode added later cannot miss it either.
+    This is the one place every finished video passes through, including the
+    longform Highlights and Edited Stream modes, which never call _render_files.
     """
     clip_id = db.add_clip(
         video_id,

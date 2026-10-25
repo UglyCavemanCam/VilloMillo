@@ -58,7 +58,7 @@ ENGINE_PACKAGES = frozenset({
 # engine's even when the marker is set, so a stray marker can never turn
 # `api.exe serve` into something else.
 ENGINE_COMMANDS = frozenset({
-    "process", "run", "status", "outro-backfill", "auth", "upload", "serve", "mcp", "channels",
+    "process", "run", "status", "auth", "upload", "serve", "mcp", "channels",
     "models", "render-worker", "--config", "-h", "--help",
 })
 

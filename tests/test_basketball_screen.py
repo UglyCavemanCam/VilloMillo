@@ -46,7 +46,7 @@ def render(monkeypatch, tmp_path):
 
     def run(sport, opts=None):
         config = {
-            "clips": {"captions": False, "outro": False, "vertical": True, "sport": sport},
+            "clips": {"captions": False, "vertical": True, "sport": sport},
             "paths": {"data_dir": str(tmp_path)},
             "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8},
         }

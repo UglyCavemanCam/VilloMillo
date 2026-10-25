@@ -50,4 +50,4 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 ## Not yet decided
 
 - Solved's rules moved to `campaigns.SOLVED_RULES` in Phase 7; `Profile.campaign` is gone.
-- Twelve tests fail on a clean checkout for reasons unrelated to this work: eleven outro-font tests need Windows fonts, and one engine signal-peak test (`test_clip_intent`).
+- One test fails on a clean checkout for a reason unrelated to this work: an engine signal-peak test (`test_clip_intent`). The end card and its font-dependent tests were removed.

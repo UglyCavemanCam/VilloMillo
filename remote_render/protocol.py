@@ -43,7 +43,7 @@ def job_id(video_id: str, start: float, end: float, render_opts: dict | None, co
 
 
 def expected_seconds(spec: dict) -> float:
-    """How long a job's clip plays, before any end card: its window, or what
+    """How long a job's clip plays: its window, or what
     the clip's saved edit keeps of it at its speed (video_editor/timeline.py).
     The main PC checks a returned clip against it."""
     window = float(spec["end"]) - float(spec["start"])

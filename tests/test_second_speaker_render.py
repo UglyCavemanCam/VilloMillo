@@ -97,7 +97,7 @@ def _render(pipeline, monkeypatch, tmp_path, style=None, opts=None, source=None,
     monkeypatch.setattr(export, "apply_edits", fake_edits)
     monkeypatch.setattr(modes, "probe_size", lambda _path: (1080, 1920))
     config = {
-        "clips": {"captions": True, "outro": False, "vertical": True, "vertical_live": True,
+        "clips": {"captions": True, "vertical": True, "vertical_live": True,
                   **({"caption_style": style} if style else {})},
         "paths": {"data_dir": str(tmp_path)},
         "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8},
@@ -414,7 +414,7 @@ def test_an_editor_rerender_leaves_the_clip_with_the_turns_of_that_render(
         return clip_dir / "clip.mp4", json.dumps({**out, **({"speaker_turns": rendered} if rendered else {})})
 
     monkeypatch.setattr(pipeline, "_render_files", fake_render)
-    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {"outro": False}})
+    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {}})
 
     Worker._rerender_clip(job, db, {"clip_id": clip_id})
 
@@ -436,7 +436,7 @@ def test_processing_the_video_again_does_the_same_for_a_clip_it_already_has(
 
     pipeline._register_clip(db, "v1", ClipCandidate(start=10.0, end=20.0, score=91), tmp_path / "new.mp4",
                             ClipMetadata(title="t", description="", hashtags=[]), fresh,
-                            {"paths": {"data_dir": str(tmp_path)}, "clips": {"outro": False}})
+                            {"paths": {"data_dir": str(tmp_path)}, "clips": {}})
 
     assert _saved(db).get("speaker_turns") == after
     assert _saved(db)["crop"] == "track"        # the rest of what the clip had stays
@@ -456,7 +456,7 @@ def _rerender(pipeline, monkeypatch, db, tmp_path, payload: dict) -> dict:
         return clip_dir / "clip.mp4", json.dumps(render_opts)
 
     monkeypatch.setattr(pipeline, "_render_files", fake_render)
-    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {"outro": False}})
+    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {}})
     clip_id = db.conn.execute("SELECT id FROM clips").fetchone()["id"]
     Worker._rerender_clip(job, db, {"clip_id": clip_id, **payload})
     return handed

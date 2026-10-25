@@ -1,14 +1,10 @@
 """#137: a watermark re-render failed with WinError 5 because the clip was open
 in the editor's player, and Windows refuses a rename over an open file. The
-watermark now puts its result in place the way the end card does: retry the
+watermark now puts its result in place like this: retry the
 rename, then write into the open file."""
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("numpy", reason="video.outro draws the end card with numpy, which CI does not install")
-
-from video import outro
+from core import paths
 from video_editor import watermark
 
 
@@ -21,8 +17,8 @@ def _locked(target: Path, monkeypatch):
         return real(self, dst)
 
     monkeypatch.setattr(Path, "replace", replace)
-    monkeypatch.setattr(outro, "REPLACE_BUDGET", 0.2)
-    monkeypatch.setattr(outro._replace_with_retry, "__defaults__", (0.2, "End card"))
+    monkeypatch.setattr(paths, "REPLACE_BUDGET", 0.2)
+    monkeypatch.setattr(paths.replace_with_retry, "__defaults__", (0.2, "Clip"))
 
 
 def test_a_watermark_reaches_a_clip_the_player_holds_open(tmp_path, monkeypatch):

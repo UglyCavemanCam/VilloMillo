@@ -10,6 +10,7 @@ import os
 import shutil
 import stat
 import sys
+import time
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -296,3 +297,106 @@ def discard(path: Path | None) -> bool:
         # handle this process failed to close — a bug, just not a fatal one.
         print(f"      (could not remove {path.name}: {e})")
         return False
+
+
+# How long to keep trying the atomic rename before writing in place instead.
+# Short on purpose: a scanner's memory map clears in seconds, and anything
+# still holding the file after that is a reader the rename can never beat.
+REPLACE_BUDGET = 10.0
+
+
+def overwrite_in_place(src: Path, dst: Path) -> bool:
+    """Copy `src`'s bytes over `dst`, keeping `dst`'s identity.
+
+    This is the one that beats a reader. Measured, with a file held the way a
+    media player holds it (read access, sharing read+write but NOT delete):
+
+        os.replace(src, dst)   -> BLOCKED, WinError 5 Access is denied
+        open(dst, "r+b") write -> SUCCEEDS
+
+    MoveFileEx(REPLACE_EXISTING) has to DELETE the destination and the reader's
+    share mode forbids exactly that; writing to the existing file needs only
+    write access, which it permits. That asymmetry is why the renderer could
+    overwrite a clip without complaint while a rename over it failed.
+
+    Not atomic, so it is a fallback and never the first move. `src` is left on
+    disk until the result is verified, so the bytes are always recoverable.
+    """
+    payload = src.read_bytes()
+    for attempt in (1, 2):
+        try:
+            with open(dst, "r+b") as f:
+                f.seek(0)
+                f.write(payload)
+                f.truncate()
+                f.flush()
+                os.fsync(f.fileno())
+        except OSError as exc:
+            if attempt == 2:
+                print(f"  could not write {dst.name} ({exc})")
+                return False
+            time.sleep(0.5)
+            continue
+        if dst.stat().st_size == len(payload):
+            return True
+        # Short write. src still holds the good bytes, so try once more before
+        # giving up -- and if it never verifies, say where the copy is rather
+        # than deleting the only intact version of the clip.
+        if attempt == 2:
+            print(f"  skipped: {dst.name} did not verify after writing; "
+                  f"the joined copy is at {src}")
+            return False
+    return False
+
+
+def replace_with_retry(src: Path, dst: Path, budget: float = REPLACE_BUDGET, label: str = "Clip") -> bool:
+    """Put `src` in `dst`'s place, against whatever is holding the file.
+
+    Two strategies, because two different things block this and they need
+    opposite answers:
+
+    * **A scanner** memory-maps a just-written clip, which blocks the rename
+      AND a write, and clears after a few seconds. Waiting is the answer.
+    * **The app itself** holds a clip open whenever the desktop UI previews it
+      (`GET /media/<id>` keeps a Chromium media handle). That is held for as
+      long as the user leaves it open, so waiting never wins -- one clip sat
+      locked for the full 59s budget and still was never replaced. Writing in
+      place is the answer, because a reader permits writes but not deletes.
+
+    So: rename first, briefly -- it is atomic and it is right for the scanner
+    -- then fall back to the in-place write, which beats the reader. The first
+    budget is deliberately short now that a fallback exists; the old 60s bought
+    nothing except a minute of stalling per held clip.
+
+    Returns False rather than raising: the caller then leaves the clip exactly
+    as it was, which is the right outcome either way. `label` names the step
+    in the log (the watermark and the editor's preview use this, #137).
+    """
+    started = time.monotonic()
+    delay = 0.1
+    while True:
+        try:
+            src.replace(dst)
+            waited = time.monotonic() - started
+            if waited > 0.5:
+                print(f"      {label}: {dst.name} was locked for "
+                      f"{waited:.1f}s — replaced anyway")
+            return True
+        except PermissionError:
+            if time.monotonic() - started + delay >= budget:
+                break
+            time.sleep(delay)
+            delay = min(delay * 2, 2.0)      # ceiling, not unbounded doubling
+
+    # Still held after the rename budget: almost certainly a preview open in
+    # the app rather than a scan, so stop waiting and write through it.
+    if overwrite_in_place(src, dst):
+        print(f"      {label}: {dst.name} was open elsewhere — written in "
+              f"place instead")
+        return True
+
+    # Both refused, which a memory-mapped file will do. Say so: a clip that
+    # quietly keeps its old contents with no reason in the log would go unexplained.
+    print(f"  {label} skipped: {dst.name} could not be replaced or written "
+          f"({time.monotonic() - started:.0f}s)")
+    return False

@@ -733,7 +733,7 @@ def made(monkeypatch, tmp_path, data_dir):
     a database of its own."""
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
-    pytest.importorskip("PIL")  # the end card (video/outro.py)
+    pytest.importorskip("PIL")
     import core.pipeline as pipeline
     from analysis.metadata import ClipMetadata
     from core.state import StateDB

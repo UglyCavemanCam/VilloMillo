@@ -4,8 +4,7 @@ and a reel per team and per player, in match order.
 Built from the clips already rendered (9:16, or 16:9 with Longform), so a
 reel costs a join, not a render: the clips are joined with the concat
 demuxer and no re-encode (they come out of the same renderer in the same
-format), each one's end card trimmed off and one added at the end of the
-reel. What each reel holds:
+format). What each reel holds:
 - the recap: every named moment, the goals and cards and saves, in order;
 - a team's reel: the moments the scoreboard or the match events give to it;
 - a player's reel: the moments the match events name them in, and for a
@@ -159,31 +158,20 @@ def duration(path) -> float:
         return 0.0
 
 
-def lengths(paths: list, trims: list[float] | None = None) -> list[float]:
-    """Each clip's length in a reel: its own, less the `trims[i]` seconds
-    (its end card, when it has one) left off."""
-    kept = []
-    for p, trim in zip(paths, trims or [0.0] * len(paths)):
-        whole = duration(p)
-        kept.append(max(0.5, whole - trim) if trim else whole)
-    return kept
+def lengths(paths: list) -> list[float]:
+    """Each clip's length in a reel: its own."""
+    return [duration(p) for p in paths]
 
 
-def join(paths: list, out: Path, trims: list[float] | None = None) -> list[float]:
-    """The clips joined into `out` without re-encoding, each with its last
-    `trims[i]` seconds left off. Returns each part's length as it went in."""
+def join(paths: list, out: Path) -> list[float]:
+    """The clips joined into `out` without re-encoding. Returns each part's length as it went in."""
     from core.binaries import ffmpeg
     from core.paths import discard
 
     out.parent.mkdir(parents=True, exist_ok=True)
     listing = out.with_suffix(".txt")
-    trims = trims or [0.0] * len(paths)
-    kept = lengths(paths, trims)
-    rows = []
-    for p, trim, keep in zip(paths, trims, kept):
-        rows.append(f"file '{Path(p).resolve().as_posix()}'")
-        if trim:
-            rows.append(f"outpoint {keep:.3f}")
+    kept = lengths(paths)
+    rows = [f"file '{Path(p).resolve().as_posix()}'" for p in paths]
     listing.write_text("\n".join(rows) + "\n", encoding="utf-8")
     try:
         r = subprocess.run([ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",

@@ -27,15 +27,11 @@ _NUDGE = 0.011
 
 def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None:
     from analysis.fusion import find_clips
-    from video import outro as _outro
-
-    _outro.reset_tally()
     from analysis.metadata import generate_metadata_batch
     from core.models import RenderedClip
     from core.pipeline import (
         _cached_or_download,
         _creator_choices,
-        _made_seconds,
         _register_clip,
         _render_files,
         _safe_name,
@@ -175,7 +171,6 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     workers = max(1, int(config.get("video", {}).get("parallel_renders", 2)))
     done_count = 0
     made = []   # this run's clips, re-rendered ones too, for a match's reels
-    made_seconds: dict = {}   # each clip's file's length before its card, for its reels
 
     def _finish(candidate, meta, get_result) -> None:
         nonlocal done_count
@@ -186,7 +181,6 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
         except Exception as e:
             print(f"      Render failed for {candidate.start:.0f}s-{candidate.end:.0f}s: {e}")
             return
-        made_seconds[str(final_path)] = _made_seconds(candidate, render_opts_json)
         clip = _register_clip(db, video.video_id, candidate, final_path, meta,
                               render_opts_json, config)
         made.append(clip or RenderedClip(source_video_id=video.video_id, candidate=candidate, path=final_path))
@@ -220,16 +214,12 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
         from core.pipeline import _sport_reels
 
         _sport_reels(db, video.video_id, sport_profile, made, clip_dir, config, segments,
-                     start=_NUDGE, opts={"profile": mode}, made_seconds=made_seconds)
+                     start=_NUDGE, opts={"profile": mode})
 
     elapsed = time.monotonic() - started
     db.set_process_seconds(video.video_id, elapsed)
     db.set_video_status(video.video_id, "done")
     progress.emit(stage="done", video_id=video.video_id, clips=done_count, seconds=round(elapsed, 1))
-    from video import outro as _outro
-
-    if (_line := _outro.summary()):
-        print(f"      {_line}")
     print(f"      Longform done in {elapsed / 60:.1f} min ({done_count} clips)")
 
 
@@ -318,10 +308,6 @@ def _highlights(
     db.set_process_seconds(video.video_id, elapsed)
     db.set_video_status(video.video_id, "done")
     progress.emit(stage="done", video_id=video.video_id, clips=1, seconds=round(elapsed, 1))
-    from video import outro as _outro
-
-    if (_line := _outro.summary()):
-        print(f"      {_line}")
     print(f"      Highlights done in {elapsed / 60:.1f} min -> {out.name}")
 
 
@@ -382,8 +368,4 @@ def _edited_stream(video, config: dict, db: StateDB, data_dir: Path, profile: di
     db.set_process_seconds(video.video_id, elapsed)
     db.set_video_status(video.video_id, "done")
     progress.emit(stage="done", video_id=video.video_id, clips=1, seconds=round(elapsed, 1))
-    from video import outro as _outro
-
-    if (_line := _outro.summary()):
-        print(f"      {_line}")
     print(f"      Edited stream done in {elapsed / 60:.1f} min -> {out.name}")

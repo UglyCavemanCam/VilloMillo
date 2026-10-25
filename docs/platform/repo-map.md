@@ -1,5 +1,7 @@
 # Clips Kitty repo map (Phase 0A of the open-platform plan)
 
+> Note: VilloMillo removed the end card (`video/outro.py`, `assets/outro`, `clips.outro`, `outro-backfill`). Entries in this map that mention it are out of date.
+
 Written 2026-10-06 against branch `claude/open-platform-w4eh9g` at `1d13723` (== `main` after PRs #123 and #125).
 Read-only survey of the repository; nothing here was produced by running the app on real footage.
 Every claim cites a repo-relative path; "(inferred)" marks a judgement rather than something the code says.

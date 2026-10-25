@@ -2459,7 +2459,7 @@ def test_a_render_never_pads_past_the_next_shot(db, tmp_path, monkeypatch):
     cut: list = []
     monkeypatch.setattr(pipeline, "cut_clip",
                         lambda _s, c, output, **_k: cut.append(round(c.end, 2)) or Path(output).write_bytes(b"cut"))
-    config = {"clips": {"captions": False, "outro": False, "vertical": False}, "paths": {"data_dir": str(tmp_path)}}
+    config = {"clips": {"captions": False, "vertical": False}, "paths": {"data_dir": str(tmp_path)}}
     for opts in (None, {"stop_by": 10.25}, {"stop_by": 10.0}, {"stop_by": 8.0}):
         pipeline._render_files(tmp_path / "source.mp4", ClipCandidate(start=100.0, end=110.0, score=80),
                                [], tmp_path / "clips", config, opts)
@@ -2836,7 +2836,7 @@ def test_a_16x9_game_is_framed_by_the_play_not_a_face(monkeypatch, tmp_path):
     monkeypatch.setattr(sports, "framing", lambda name, path, config, hints=None: {"mode": "track", "path": [(0.0, 0.7)]})
     monkeypatch.setattr(cropper, "render_vertical", render)
     monkeypatch.setattr(tracker, "compute_tracking", no_faces)
-    config = {"clips": {"captions": False, "outro": False, "vertical": True, "sport": {"name": "basketball"}},
+    config = {"clips": {"captions": False, "vertical": True, "sport": {"name": "basketball"}},
               "paths": {"data_dir": str(tmp_path)}, "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8}}
     final, opts_json = pipeline._render_files(tmp_path / "source.mp4", ClipCandidate(start=10.0, end=40.0, score=80),
                                               [], tmp_path / "clips", config)

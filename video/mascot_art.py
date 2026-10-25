@@ -10,8 +10,7 @@ writes the PNGs and the icon:
     python scripts/make_mascot.py
 
 It moved here because `scripts/` is not packaged into the frozen build, and
-`video/outro.py` needs this geometry at runtime to animate Clippy. Editing the
-numbers below still changes the mascot everywhere; re-run that command to
+it is the one source of the mascot's geometry. Editing the numbers below still changes the mascot everywhere; re-run that command to
 regenerate the files.
 
 Drawn for plush and print, which is a real constraint on the shapes:
@@ -76,9 +75,8 @@ def blob(d, points, fill):
 def canvas() -> Image.Image:
     """A transparent working canvas at the current supersampling factor.
 
-    Sized from SS at call time rather than from a module constant, because
-    video/outro.py lowers SS to draw animation frames cheaply — a constant
-    computed at import would keep handing it the 4x canvas.
+    Sized from SS at call time rather than from a module constant, so a
+    caller that lowers SS gets a matching canvas.
     """
     return Image.new("RGBA", (SIZE * SS, SIZE * SS), (0, 0, 0, 0))
 
@@ -144,7 +142,7 @@ def draw_arm(d, sx):
     three toe beans, same as the feet. Without the pads the hands were just
     blue mittens with no read on them at all.
 
-    Split out per side so video/outro.py can rotate each one about its own
+    Split out per side so each one can be rotated about its own
     shoulder; draw_body() still draws both, so the mascot is unchanged.
     """
     shoulder_x = 512 + sx * 150
@@ -206,9 +204,8 @@ def _ident(v):
 def draw_eyes(d, X=_ident, Y=_ident, R=_ident, whites=True, pupils=True):
     """Big, low, wide apart. Cuteness lives here.
 
-    The whites and the pupils can be drawn separately so video/outro.py can
-    hold the pupils back and composite them at an offset — that is how
-    Clippy's eyes follow the yarn. Drawing both, at the identity transform,
+    The whites and the pupils can be drawn separately so a caller can
+    hold the pupils back and composite them at an offset. Drawing both, at the identity transform,
     is what draw_head does and what the mascot has always been.
     """
     for sx in (-1, 1):
@@ -271,7 +268,7 @@ def draw_head_back(d, X, Y, R):
 def draw_head_front(d, X, Y, R):
     """Blush, nose, mouth and whiskers — everything OVER the eyes.
 
-    Kept separate from draw_head_back so video/outro.py can sandwich the
+    Kept separate from draw_head_back so a caller can sandwich the
     pupils between the two and keep this exact z-order while moving them.
     Drawing the eyes last instead put the whites on top of the blush, which
     is 529 pixels of difference from the shipped artwork.

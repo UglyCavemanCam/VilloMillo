@@ -583,7 +583,7 @@ def pipeline_run(monkeypatch, tmp_path, db):
     the run stops at the detector. `run.calls` is the record while it runs."""
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
-    pytest.importorskip("PIL")  # the end card (video/outro.py)
+    pytest.importorskip("PIL")
     import core.pipeline as pipeline
     from core.models import DownloadedVideo, Segment
     from main import BUNDLED_CONFIG, load_config

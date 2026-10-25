@@ -9,8 +9,7 @@ Outputs:
 
 The artwork itself lives in `video/mascot_art.py` — edit the numbers there and
 re-run this. It moved out of here because `scripts/` is not packaged into the
-frozen build, and `video/outro.py` needs the same geometry at runtime to
-animate Clippy for the end card. One source, three consumers.
+frozen build. One source, several consumers.
 """
 
 import sys

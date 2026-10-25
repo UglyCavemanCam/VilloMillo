@@ -25,7 +25,6 @@ The 14 failures are environment limits, not code regressions, and every one of t
 
 | Test | Why it fails here |
 |---|---|
-| `tests/test_outro.py` (7) and `tests/test_outro_join.py` (3), `tests/test_vertical_live.py::test_a_vertical_live_clip_still_ends_with_the_clips_kitty_card` | `PIL.ImageFont` "cannot open resource": the end-card font is not installed in this sandbox |
 | `tests/test_haar_cascade_missing.py` (2) | `opencv-python-headless` 5.0 ships no `cv2/data/haarcascades` |
 | `tests/test_clip_intent.py::test_a_time_range_gets_windows_and_points` | fails on main here too (`assert []` at line 294); noted by the Basketball thread as a sandbox-only failure, not investigated tonight |
 

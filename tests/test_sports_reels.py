@@ -108,49 +108,36 @@ def _ffmpeg():
     return exe
 
 
-def test_clips_are_joined_without_their_end_cards(tmp_path):
+def test_clips_are_joined_without_re_encoding(tmp_path):
     exe = _ffmpeg()
     parts = []
     for i in range(2):
         p = tmp_path / f"part{i}.mp4"
-        subprocess.run([exe, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=108x192:rate=30:duration=4",
-                        "-f", "lavfi", "-i", "sine=duration=4", "-c:v", "libx264", "-g", "30", "-pix_fmt", "yuv420p",
+        subprocess.run([exe, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=108x192:rate=30:duration=3",
+                        "-f", "lavfi", "-i", "sine=duration=3", "-c:v", "libx264", "-g", "30", "-pix_fmt", "yuv420p",
                         "-c:a", "aac", "-shortest", str(p)], check=True)
         parts.append(p)
     out = tmp_path / "reel.mp4"
-    # The first has a 1 s card to leave off; the second has none, and keeps it all.
-    lengths = reels.join(parts, out, [1.0, 0.0])
-    assert out.exists() and abs(lengths[0] - 3.0) < 0.2 and abs(lengths[1] - 4.0) < 0.2
-    assert abs(reels.duration(out) - 7.0) < 0.6
+    lengths = reels.join(parts, out)
+    assert out.exists() and abs(lengths[0] - 3.0) < 0.2 and abs(lengths[1] - 3.0) < 0.2
+    assert abs(reels.duration(out) - 6.0) < 0.6
 
 
 def test_a_reel_is_made_again_into_its_own_row(tmp_path, db, monkeypatch):
     """The reels are joined from every clip of the run, the re-rendered ones
     too. A reel is known by what it is, not by its length: a re-run makes it
-    again into its own row and file, with one end card, and a reel as long
+    again into its own row and file, and a reel as long
     as another never takes its row."""
     exe = _ffmpeg()
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
     from core import pipeline
     from core.models import ClipCandidate, Segment
-    from video import outro
-
-    monkeypatch.setattr(outro, "DURATION", 1.0)
-    cards = []
-
-    def finish(src, dst, _config):
-        cards.append(Path(dst).name)
-        shutil.copyfile(src, dst)
-        Path(src).unlink()
-        return True
-
-    monkeypatch.setattr(outro, "finish", finish)
     db.upsert_video("vid", title="A match")
     clips = []
     for i, t in enumerate((1000, 2000)):
         p = tmp_path / f"clip{i}.mp4"
-        # 3 s of window and a 1 s card: the file is 4 s long.
+        # 3 s of window: the file is 3 s long.
         subprocess.run([exe, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=108x192:rate=30:duration=4",
                         "-f", "lavfi", "-i", "sine=duration=4", "-c:v", "libx264", "-g", "30", "-pix_fmt", "yuv420p",
                         "-c:a", "aac", "-shortest", str(p)], check=True)
@@ -164,14 +151,13 @@ def test_a_reel_is_made_again_into_its_own_row(tmp_path, db, monkeypatch):
 
     made = pipeline._sport_reels(db, "vid", recap, clips, tmp_path, {})
     assert [m.path.name for m in made] == ["reel_recap.mp4"] and abs(made[0].candidate.end - 6.0) < 0.2
-    assert cards == [] and not list(tmp_path.glob("*.pre-card.mp4"))
+    assert not list(tmp_path.glob("*.pre-card.mp4"))
     assert abs(reels.duration(made[0].path) - 6.0) < 0.6
 
-    # The same clips again: made again into its row and file, one more card.
+    # The same clips again: made again into its row and file.
     db.set_clip(rows()["reel_recap.mp4"]["id"], title="My title")
     assert pipeline._sport_reels(db, "vid", recap, clips, tmp_path, {}) == []
     assert list(rows()) == ["reel_recap.mp4"] and rows()["reel_recap.mp4"]["title"] == "My title"
-    assert cards == []
 
     # Longform's 16:9 reel: a row of its own, its profile marking it Longform.
     wide = pipeline._sport_reels(db, "vid", recap, clips, tmp_path / "Longform", {},

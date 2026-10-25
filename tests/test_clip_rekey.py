@@ -214,7 +214,7 @@ def test_a_rerender_drops_the_old_draft_and_says_where_the_clip_went(db, tmp_pat
     monkeypatch.setattr(pipeline, "_render_files", render)
     events = []
     monkeypatch.setattr(jobs.broadcaster, "publish", events.append)
-    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {"outro": False}})
+    job = SimpleNamespace(config={"paths": {"data_dir": str(tmp_path)}, "clips": {}})
 
     jobs.Worker._rerender_clip(job, db, {"clip_id": clip_id, "start": 2.0})
 

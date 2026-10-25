@@ -336,7 +336,6 @@ class SettingsPatch(BaseModel):
     privacy: str | None = None
     content_language: str | None = None  # auto / ISO code (es, pt, hi, id...)
     translation_model: str | None = None  # local model used for translation
-    outro: bool | None = None  # append the VilloMillo end card (clips.outro)
     min_score: int | None = None  # clips.min_score: the quality bar, 0-100
     # "" none or "firefox": asked with only when YouTube takes the PC for a
     # bot (sources/ytdlp_common.py, #136). A cookies.txt comes as its text in
@@ -1955,8 +1954,8 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             )
             # The last preview may still be playing in the editor: Windows
             # refuses deleting or renaming over it (#137), so put the new one
-            # in its place the way the end card does.
-            from video.outro import _replace_with_retry
+            # in its place the way the watermark does.
+            from core.paths import replace_with_retry as _replace_with_retry
 
             if not _replace_with_retry(rendered, out, label="Preview"):
                 raise RuntimeError(f"{out.name} is open elsewhere and could not be written")
@@ -3247,7 +3246,6 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             "privacy": config.get("upload", {}).get("privacy", "public"),
             "content_language": config.get("content_language", "auto"),
             "translation_model": config.get("llm", {}).get("translation_model", ""),
-            "outro": False,  # the end card is removed: clips end where the moment ends
             "min_score": int(config.get("clips", {}).get("min_score", 55)),
             "youtube_cookies": ytdlp_common.cookies(),  # as the engine uses it: "", "firefox" or "file"
         }
@@ -3268,23 +3266,8 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             r"auto|[a-z]{2,3}", body.content_language
         ):
             raise HTTPException(400, "content_language must be 'auto' or an ISO code")
-        if False:  # the end card is removed; a request to turn it on is ignored
-            # clips.outro is NESTED under `clips:`, so the flat rewrite below --
-            # which is anchored at column 0 -- can never match its indented
-            # line. Same shape as translation_model above, plus an insert: no
-            # existing user's settings.yaml has an `outro:` line, so without
-            # the insert this would 400 for exactly the people turning it off.
-            value = "true" if body.outro else "false"
-            text, n = re.subn(r"(?m)^(\s*outro:\s*)\S*", rf"\g<1>{value}",
-                              text, count=1)
-            if n == 0:
-                text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
-                                  rf"\g<1>\n  outro: {value}", text, count=1)
-            if n == 0:
-                raise HTTPException(400, "no 'clips:' section in settings.yaml")
-            config.setdefault("clips", {})["outro"] = body.outro
         if body.min_score is not None:
-            # Nested under `clips:` like outro. The "no clips" message sends
+            # Nested under `clips:`. The "no clips" message sends
             # people to change it in Settings (#111), where it wasn't. The
             # line's comment is kept.
             if not 0 <= body.min_score <= 100:

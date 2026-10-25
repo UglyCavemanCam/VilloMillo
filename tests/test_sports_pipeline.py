@@ -301,7 +301,7 @@ def test_a_16x9_match_is_framed_by_the_ball_not_a_face(monkeypatch, tmp_path):
     monkeypatch.setattr(sports, "framing", lambda name, path, config, hints=None: {"mode": "track", "path": [(0.0, 0.3)]})
     monkeypatch.setattr(cropper, "render_vertical", render)
     monkeypatch.setattr(tracker, "compute_tracking", no_faces)
-    config = {"clips": {"captions": False, "outro": False, "vertical": True, "sport": {"name": "soccer"}},
+    config = {"clips": {"captions": False, "vertical": True, "sport": {"name": "soccer"}},
               "paths": {"data_dir": str(tmp_path)}, "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8}}
     final, opts_json = pipeline._render_files(tmp_path / "source.mp4", ClipCandidate(start=10.0, end=40.0, score=80),
                                               [], tmp_path / "clips", config)
@@ -346,7 +346,7 @@ def _game_job(monkeypatch, tmp_path, profile, order: list, **clips) -> dict:
     renders were handed, the clip rows, and each render's options."""
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
-    pytest.importorskip("PIL")  # the end card (video/outro.py)
+    pytest.importorskip("PIL")
     import core.pipeline as pipeline
     from analysis.metadata import ClipMetadata
     from core import modes

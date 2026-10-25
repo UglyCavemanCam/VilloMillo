@@ -429,7 +429,7 @@ def test_the_pipeline_passes_the_settings_and_they_default_to_on(settings, passe
     monkeypatch.setattr(modes, "probe_size", lambda _p: (1920, 1080))
     monkeypatch.setattr(cropper, "render_vertical", render)
     monkeypatch.setattr(tracker, "compute_tracking", tracking)
-    config = {"clips": {"captions": False, "outro": False, "vertical": True},
+    config = {"clips": {"captions": False, "vertical": True},
               "paths": {"data_dir": str(tmp_path)},
               "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8, **settings}}
     pipeline._render_files(tmp_path / "source.mp4", ClipCandidate(start=10.0, end=40.0, score=80),

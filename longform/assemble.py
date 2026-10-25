@@ -30,7 +30,7 @@ def assemble(
     on_progress: Callable[[int, int], None] | None = None,
     config: dict | None = None,
 ) -> Path:
-    """Join the keep-ranges into one video, with the end card as the last part.
+    """Join the keep-ranges into one video.
 
     The card is appended HERE, as one more entry in the concat list, rather
     than added to the finished file afterwards. Every part is already encoded
@@ -63,25 +63,6 @@ def assemble(
             parts.append(seg)
             if on_progress:
                 on_progress(i + 1, len(keep))
-
-        # The end card, matched to the parts' own format so the join stays
-        # lossless. It goes in the LIST rather than onto the finished file:
-        # the output is then written once, complete, which is what stops a
-        # video open in the app's preview from costing it the card.
-        #
-        # Failure here must never cost the video -- without it the assembly
-        # simply carries on unbranded.
-        if config is not None and parts:
-            try:
-                from video import outro
-
-                if outro.enabled(config):
-                    fmt = outro.probe(parts[0])
-                    if fmt:
-                        parts.append(outro.ensure_outro(fmt, config))
-                        outro._tally["added"] += 1
-            except Exception as exc:
-                print(f"  end card skipped: {type(exc).__name__}: {exc}")
 
         # Identical codec parameters on every part -> lossless concat join.
         listfile = segdir / "concat.txt"

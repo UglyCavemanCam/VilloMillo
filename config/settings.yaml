@@ -68,7 +68,6 @@ clips:
                         # (turn on the 60s+ toggle for TikTok-length clips)
   vertical: true        # true 9:16 1080x1920 with YOLOv8 subject tracking
   captions: true        # burn word-synced captions into the clips
-  outro: false          # the end card is removed: this is ignored and clips always end where the moment ends.
 
 scoring:
   # Multimodal fusion weights (must sum to 1.0). Raise audio/visual for
