@@ -31,7 +31,7 @@ LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000"
 # faces turn mushy. So the file is made with plenty of detail (CRF 14, a low number is more detail) and told which colour standard
 # it uses (BT.709, what every player and YouTube assume for HD), because raw frames carry no colour tag of their own.
 VIDEO_ARGS = ["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
-              "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-maxrate", "40M", "-bufsize", "80M",
+              "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-maxrate", "40M", "-bufsize", "80M",
               "-profile:v", "high", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
 
 
@@ -140,8 +140,18 @@ class Face:
 
 # --- framing ----------------------------------------------------------------------------------------------------
 
+SHARPEN = 0.5  # how much crispness goes back after the picture is enlarged to fill the frame (0 is none)
+
+
+def sharpen(picture: np.ndarray, amount: float = SHARPEN) -> np.ndarray:
+    """Give edges back the crispness that enlarging a picture takes away (an unsharp mask: the picture plus a little of what a blur removes)."""
+    if amount <= 0:
+        return picture
+    return cv2.addWeighted(picture, 1 + amount, cv2.GaussianBlur(picture, (0, 0), 1.2), -amount, 0)
+
+
 def crop_to(frame: np.ndarray, cx: float, face_y: float, out_w: int, out_h: int, crop_w: float, face_at: float,
-            left_limit: float = 0.0) -> np.ndarray:
+            left_limit: float = 0.0, crisp: bool = False) -> np.ndarray:
     """A window of the source with the output's shape, the face `face_at` of the way down, never left of `left_limit`."""
     sh, sw = frame.shape[:2]
     crop_h = crop_w * out_h / out_w
@@ -152,7 +162,8 @@ def crop_to(frame: np.ndarray, cx: float, face_y: float, out_w: int, out_h: int,
     x0 = int(round(min(max(cx - crop_w / 2, left_limit), sw - crop_w)))
     y0 = int(round(min(max(face_y - face_at * crop_h, 0), sh - crop_h)))
     piece = frame[y0: y0 + int(crop_h), x0: x0 + int(crop_w)]
-    return cv2.resize(piece, (out_w, out_h), interpolation=cv2.INTER_LANCZOS4)
+    out = cv2.resize(piece, (out_w, out_h), interpolation=cv2.INTER_LANCZOS4)
+    return sharpen(out) if crisp else out
 
 
 def backdrop(frame: np.ndarray, cx: float, fy: float) -> np.ndarray:
@@ -166,13 +177,13 @@ def frame_clean(frame, cx, fy, zoom, plan: Plan):
     y, h = plan.framing_param("window_y"), plan.framing_param("window_h")
     back = backdrop(frame, cx, fy)
     back[y: y + h] = crop_to(frame, cx, fy, W, h, plan.framing_param("crop_w") / zoom, plan.framing_param("face_at"),
-                             plan.framing_param("keep_right_of", 0.0) * frame.shape[1])
+                             plan.framing_param("keep_right_of", 0.0) * frame.shape[1], crisp=True)
     return back[:, :, ::-1].copy(), [y - 3, y + h - 1]
 
 
 def frame_full(frame, cx, fy, zoom, plan: Plan):
     view = crop_to(frame, cx, fy, W, H, plan.framing_param("crop_w") / zoom, plan.framing_param("face_at"),
-                   plan.framing_param("keep_right_of", 0.0) * frame.shape[1])
+                   plan.framing_param("keep_right_of", 0.0) * frame.shape[1], crisp=True)
     return view[:, :, ::-1].copy(), []
 
 
@@ -182,8 +193,8 @@ def frame_blur(frame, cx, fy, zoom, plan: Plan):
     h = min(H, int(W * sh / sw))
     zw, zh = sw / zoom, sh / zoom
     x0, y0 = int((sw - zw) / 2), int((sh - zh) / 2)
-    back[(H - h) // 2: (H - h) // 2 + h] = cv2.resize(frame[y0: y0 + int(zh), x0: x0 + int(zw)], (W, h),
-                                                     interpolation=cv2.INTER_AREA)
+    back[(H - h) // 2: (H - h) // 2 + h] = sharpen(cv2.resize(frame[y0: y0 + int(zh), x0: x0 + int(zw)], (W, h),
+                                                              interpolation=cv2.INTER_AREA))
     return back[:, :, ::-1].copy(), []
 
 
