@@ -57,8 +57,26 @@ def _without_retired(data: dict) -> dict:
     return data
 
 
+PUBLIC_ONCE = "privacy_public_v1"
+
+
+def _make_public_once(db: Database) -> None:
+    """Channels saved before the privacy setting existed were all private because nothing let anyone choose: make them public, once.
+    A channel set to private or unlisted on its page afterwards is left alone."""
+    with db.conn(immediate=True) as c:
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (PUBLIC_ONCE,)).fetchone():
+            return
+        for r in c.execute("SELECT id, data_json FROM channels").fetchall():
+            data = json.loads(r["data_json"])
+            if data.get("posting") and data["posting"].get("privacy", "private") == "private":
+                data["posting"]["privacy"] = "public"
+                c.execute("UPDATE channels SET data_json=?, updated_at=? WHERE id=?", (json.dumps(data), store.iso(), r["id"]))
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (PUBLIC_ONCE,))
+
+
 def load(db: Database) -> dict[str, Profile]:
     _seed(db)
+    _make_public_once(db)
     with db.conn() as c:
         rows = c.execute("SELECT id, data_json FROM channels ORDER BY created_at, id").fetchall()
     return {r["id"]: Profile(**_without_retired(json.loads(r["data_json"]))) for r in rows}
@@ -130,7 +148,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
         cid, n = f"{base[:27]}-{n}", n + 1
     profile = Profile(
         id=cid, display_name=name, category=category, niche=Niche(definition=about),
-        posting=Posting(dry_run=True, platforms={"youtube_shorts": "manual"}, privacy="private",
+        posting=Posting(dry_run=True, platforms={"youtube_shorts": "manual"}, privacy="public",
                         daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=0),
         brand=Brand(name=name),
     )
@@ -140,7 +158,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
 
 
 def update(db: Database, profiles: dict[str, Profile], channel_id: str, **changes) -> Profile:
-    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, format."""
+    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, privacy, format."""
     p = profiles[channel_id]
     data = p.model_dump()
     if "name" in changes:
@@ -164,6 +182,10 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         if changes["youtube_route"] not in ("manual", "api"):
             raise ChannelError("YouTube posts go out by hand (manual) or automatically (api)")
         data["posting"]["platforms"] = {**data["posting"]["platforms"], "youtube_shorts": changes["youtube_route"]}
+    if "privacy" in changes:
+        if changes["privacy"] not in ("public", "unlisted", "private"):
+            raise ChannelError("who can watch the videos: public, unlisted or private")
+        data["posting"]["privacy"] = changes["privacy"]
     if "dry_run" in changes:
         data["posting"]["dry_run"] = str(changes["dry_run"]).lower() not in ("0", "false", "no", "off", "")
     if "youtube_daily_cap" in changes:

@@ -47,7 +47,7 @@
     <button type="submit" class="btn btn-primary btn-pill">Mark as posted</button>
   </form>
   {% elif po.url %}
-  <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Private test. Delete it in YouTube Studio if you do not want to keep it.' if po.status == 'uploaded' else 'Posted.' }}</div>
+  <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ ('Uploaded as ' ~ d.privacy ~ '. Change who can watch it in YouTube Studio.') if po.status == 'uploaded' and d.privacy != 'public' else ('Uploaded.' if po.status == 'uploaded' else 'Posted.') }}</div>
     <a class="btn btn-sm" href="{{ po.url }}" target="_blank" rel="noopener noreferrer">Open post {{ icon('external', 'icon-sm') }}</a></div>
   {% else %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
 </div>

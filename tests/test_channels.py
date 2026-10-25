@@ -82,7 +82,7 @@ def test_names_become_unique_ids_and_a_new_channel_starts_as_a_safe_dry_run(db, 
     a = channels.create(db, profiles, name="Stream clips", category="Stream clips", about="Gaming highlights")
     b = channels.create(db, profiles, name="Stream clips", category="Streams", about="More gaming")
     assert (a.id, b.id) == ("stream-clips", "stream-clips-2")
-    assert a.posting.dry_run and a.posting.privacy == "private" and a.posting.daily_cap == 100
+    assert a.posting.dry_run and a.posting.privacy == "public" and a.posting.daily_cap == 100
     assert list(a.posting.platforms) == ["youtube_shorts"]
 
 
@@ -324,3 +324,29 @@ def test_turning_the_switch_on_releases_clips_held_for_a_missing_channel(web):
     assert client.post("/channels/catch-all", data={"on": "0", "channel": "solved"}, follow_redirects=False).status_code == 303
     assert channels.catch_all_target(sv.db, sv.profiles) is None
     assert client.post("/channels/catch-all", data={"on": "1", "channel": "nope"}).status_code == 400
+
+
+def test_a_channel_saved_before_the_privacy_setting_existed_becomes_public_once(tmp_path):
+    old = Database(tmp_path / "old.db")
+    first = channels.load(old)
+    assert first["solved"].posting.privacy == "public"  # the starting file now says public
+    with old.conn() as c:  # what an older version stored: private, with no way to have chosen it
+        data = json.loads(c.execute("SELECT data_json FROM channels WHERE id='solved'").fetchone()["data_json"])
+        data["posting"]["privacy"] = "private"
+        c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(data),))
+        c.execute("DELETE FROM meta WHERE key='privacy_public_v1'")
+    assert channels.load(old)["solved"].posting.privacy == "public"
+    profs = channels.load(old)
+    channels.update(old, profs, "solved", privacy="unlisted")
+    assert channels.load(old)["solved"].posting.privacy == "unlisted"  # a later choice is kept
+
+
+def test_who_can_watch_is_changed_on_the_channel_page_and_a_bad_value_is_refused(web):
+    client, sv = web
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+            "youtube_route": "api", "dry_run": "1", "privacy": "unlisted"}
+    assert "Who can watch the videos" in client.get("/channels/solved?profile=solved").text
+    assert client.post("/channels/solved/save", data=form, follow_redirects=False).status_code == 303
+    assert sv.profiles["solved"].posting.privacy == "unlisted"
+    with pytest.raises(channels.ChannelError):
+        channels.update(sv.db, sv.profiles, "solved", privacy="everyone")

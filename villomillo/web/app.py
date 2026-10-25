@@ -218,7 +218,7 @@ def create_app(sv: Services) -> FastAPI:
         _only_local(request, "changes")
         c = in_profile(channel_id)
         form = {k: str(v) for k, v in (await request.form()).items()}
-        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "format"}
+        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "privacy", "format"}
         before = c.category
         try:
             updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})

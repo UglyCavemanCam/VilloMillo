@@ -397,7 +397,7 @@ def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
     route, why = accounts.effective_route(sv.db, p, r["platform"])
     paused = accounts.is_paused(sv.db, p.id, r["platform"])
     return {"post": view, "tags": json.loads(r["tags_json"] or "[]"), "options": options, "route": route, "route_why": why, "paused": paused,
-            "clip": _clip_card(p, clip, r) if clip else None, "can_edit": r["status"] not in ("uploaded", "posted"),
+            "clip": _clip_card(p, clip, r) if clip else None, "privacy": p.posting.privacy if p.posting else "", "can_edit": r["status"] not in ("uploaded", "posted"),
             "can_resend": r["status"] in ("queued", "manual_ready", "dry_run") and bool(clip) and clip["state"] == "approved",
             "is_hand": r["status"] in ("manual_ready", "queued") and r["route"] == "manual",
             "file_url": f"/clips/{r['clip_id']}/file?profile={p.id}"}
@@ -615,7 +615,8 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
               "youtube_tags": tags, "format": c.format or "",
               "youtube_daily_cap": c.posting.daily_cap if c.posting else 100,
               "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
-              "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0", **(form or {})}
+              "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0",
+              "privacy": c.posting.privacy if c.posting else "public", **(form or {})}
     return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
             "youtube": youtube_connected(c), "card": _channel_card(sv, c), "accounts": _account_rows(sv, c),
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
