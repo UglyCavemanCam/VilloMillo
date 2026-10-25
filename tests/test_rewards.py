@@ -346,7 +346,7 @@ if (input) input.oninput = () => {{
 const go = document.getElementById('go');
 if (go) go.onclick = () => {{ dlg.style.display = 'none'; document.getElementById('toast').textContent = 'Clip submitted. It is now under review.'; fetch('/sent?u=' + encodeURIComponent(input.value)); }};
 </script></body></html>"""
-SIGNED_OUT = '<nav><a href="/signin" role="button">Sign in</a></nav>'
+SIGNED_OUT = '<nav><a href="/login?next=%2Fc%2Fdiscover">Sign in</a></nav>'
 SIGNED_IN = '<nav><span>Creator menu</span></nav>'
 FORM = """<button id="open">Submit clip</button><div id="toast"></div>
 <div id="dlg" role="dialog" style="display:none"><input id="link" placeholder="Paste your post link"><p id="note"></p><button id="go">Submit</button><button>Cancel</button></div>"""
@@ -361,6 +361,13 @@ class Site(BaseHTTPRequestHandler):
 
     def do_GET(self):
         signed = "s=1" in (self.headers.get("Cookie") or "")
+        if self.path.startswith("/login"):
+            html = "<html><body><h1>Log in</h1><button>Continue with Whop</button><a href='/signin'>Use email</a></body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode())
+            return
         if self.path.startswith("/signin"):
             self.send_response(302)
             self.send_header("Set-Cookie", "s=1; Path=/; Max-Age=86400")
@@ -450,6 +457,7 @@ def test_the_real_browser_says_when_the_campaign_has_not_been_joined(driver, sit
 def test_while_you_sign_in_the_window_is_never_sent_back_to_another_page(driver, site, monkeypatch):
     """The bug: looking for the sign-in each few seconds reloaded the main page and pulled you out of the login."""
     monkeypatch.setattr(rewards, "SITE_HOST", "127.0.0.1")
+    monkeypatch.setattr(rewards, "SITE_PREFIX", "")
     with driver as d:
         d.goto(f"{site}/somewhere-else")
         before = d.page.url
@@ -460,3 +468,38 @@ def test_while_you_sign_in_the_window_is_never_sent_back_to_another_page(driver,
         assert d.seems_signed_in() is True and d.page.url == before
         d.page.goto("about:blank")
         assert d.seems_signed_in() is False  # a page that is not Content Rewards (a sign-in page elsewhere) is left alone
+
+
+def test_the_sign_in_page_itself_is_never_taken_for_signed_in_and_is_not_left(driver, site, monkeypatch):
+    """The bug: the login page has no button named exactly Sign in, so it looked signed in and the window was sent to the main page."""
+    monkeypatch.setattr(rewards, "SITE_HOST", "127.0.0.1")
+    with driver as d:
+        d.goto(f"{site}/login?next=%2Fc%2Fdiscover")
+        before = d.page.url
+        assert d.seems_signed_in() is False and d.page.url == before
+        monkeypatch.setattr(rewards, "SITE_PREFIX", "/discover")
+        assert d.seems_signed_in() is False and d.page.url == before  # even on a page that passes the address test it still offers Continue with Whop
+
+
+def test_signing_in_starts_on_the_login_page_and_finishes_once_the_creator_pages_accept_the_session(driver, site, monkeypatch, sv):
+    monkeypatch.setattr(rewards, "SITE_HOST", "127.0.0.1")
+    monkeypatch.setattr(rewards, "SITE_PREFIX", "")
+    monkeypatch.setattr(rewards, "LOGIN_URL", f"{site}/login?next=%2Fc%2Fdiscover")
+    visited = []
+
+    class Watching(rewards.BrowserDriver):
+        n = 0
+
+        def goto(self, url):
+            visited.append(url)
+            super().goto(url)
+
+        def seems_signed_in(self):
+            Watching.n += 1
+            if Watching.n == 3:  # the person signs in on the login page, and lands back on the site
+                self.page.goto(f"{site}/signin")
+            return super().seems_signed_in()
+
+    assert rewards.login(sv.db, driver_factory=lambda **k: Watching(headless=True), wait_s=60, poll_s=0.2) is True
+    assert visited[0].startswith(f"{site}/login") and rewards.settings(sv.db)["signed_in"] is True
+    assert not [u for u in visited[1:2] if "/discover" in u and Watching.n < 3]  # it did not leave the login page while waiting

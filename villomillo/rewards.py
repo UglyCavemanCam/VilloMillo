@@ -30,6 +30,8 @@ PROFILE_DIR = ROOT / "data" / "villomillo" / "rewards-browser"
 SHOTS_DIR = ROOT / "data" / "villomillo" / "rewards-shots"
 SIGN_IN_PAGE = f"{contentrewards.BASE}/discover"
 SITE_HOST = "contentrewards.com"
+SITE_PREFIX = "/c"  # the creator pages; the sign-in page (/login) is outside it
+LOGIN_URL = "https://contentrewards.com/login?next=%2Fc%2Fdiscover"
 GAP_S = (20, 60)  # a random pause between two submissions, so they do not arrive in a burst
 RETRY_AFTER = timedelta(minutes=10)
 MAX_ATTEMPTS = 3
@@ -182,14 +184,17 @@ class BrowserDriver:
         except Exception:  # a page that never goes quiet is still usable
             pass
 
+    def _asks_to_sign_in(self) -> bool:
+        """The page offers a way to sign in: a link to the login page, or a button saying so."""
+        names = re.compile(r"^\s*(sign in|log in|login|continue with \w+|log in with \w+)\s*$", re.I)
+        if self.page.locator("a[href^='/login'], a[href*='contentrewards.com/login']").count():
+            return True
+        return any(self.page.get_by_role(role, name=names).count() for role in ("button", "link"))
+
     def signed_in(self, url: str | None = None) -> bool:
-        """True when the page offers no Sign in / Log in button: the session is accepted."""
+        """True when the page offers no way to sign in: the session is accepted."""
         self.goto(url or SIGN_IN_PAGE)
-        names = re.compile(r"^\s*(sign in|log in|login|continue with whop)\s*$", re.I)
-        for role in ("button", "link"):
-            if self.page.get_by_role(role, name=names).count():
-                return False
-        return True
+        return not self._asks_to_sign_in()
 
     def seems_signed_in(self) -> bool:
         """Look at the page you are on, without opening another: True only on a Content Rewards page that offers no Sign in button.
@@ -197,11 +202,11 @@ class BrowserDriver:
         from urllib.parse import urlparse
 
         try:
-            host = urlparse(self.page.url).hostname or ""
-            if not (host == SITE_HOST or host.endswith("." + SITE_HOST)):
-                return False
-            names = re.compile(r"^\s*(sign in|log in|login|continue with whop)\s*$", re.I)
-            return not any(self.page.get_by_role(role, name=names).count() for role in ("button", "link"))
+            where = urlparse(self.page.url)
+            host = where.hostname or ""
+            if not (host == SITE_HOST or host.endswith("." + SITE_HOST)) or not where.path.startswith(SITE_PREFIX):
+                return False  # not a creator page (the sign-in page, or another site's): leave it alone
+            return not self._asks_to_sign_in()
         except Exception:  # the page is changing under us: look again next time
             return False
 
@@ -275,7 +280,7 @@ def login(db: Database, *, driver_factory=BrowserDriver, wait_s: int = LOGIN_WAI
     LOGIN.update(state="waiting", message="A browser window opened on this computer. Sign in to Content Rewards there; it closes by itself.")
     try:
         with driver_factory(headless=False) as driver:
-            driver.goto(SIGN_IN_PAGE)
+            driver.goto(LOGIN_URL)  # straight to the sign-in page, so there is nothing to click first
             waited = 0.0
             while waited < wait_s:
                 if driver.seems_signed_in() and driver.signed_in():  # look in place first; open a page only to confirm
