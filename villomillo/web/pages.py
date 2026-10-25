@@ -647,7 +647,7 @@ def campaign_page(sv: Services, cid: str) -> dict | None:
         else:
             state = RUN_STATE.get(q["run_state"]) if q["run_state"] else badge("Waiting", "")
         queue.append({**q, "state": state, "title": q["title"] or q["video_id"]})
-    how = [("Rules", (f"{rules['min_s']:g} to {rules['max_s']:g} seconds" + (f" · a face in the first {rules['face_window_s']:g} seconds" if rules.get("face_window_s") else "")
+    how = [("Rules", (f"{rules['min_s']:g} to {rules['max_s']:g} seconds" + (f" · a face in the first {rules['face_window_s']:g} seconds" if rules.get("require_face", True) and rules.get("face_window_s") else "")
                       + (" · captions on the whole clip" if rules.get("require_captions") else "") + (" · no ad reads" if rules.get("no_ad_reads") else ""))
                      if rules else "No rules entered yet: add the ones from the campaign's brief below"),
            ("Required tags", c["tags"] or "None entered yet"),
@@ -655,7 +655,7 @@ def campaign_page(sv: Services, cid: str) -> dict | None:
            ("Before each clip", "its budget is read again; clipping stops when the money runs out")]
     return {"how": how, "c": _campaign_view(sv, c), "form": {"sources": c["sources"], "tags": c["tags"], "use_rules": bool(rules),
                                                  "min_s": rules.get("min_s", 20), "max_s": rules.get("max_s", 60),
-                                                 "face_window_s": rules.get("face_window_s", 5),
+                                                 "face_window_s": rules.get("face_window_s", 5), "require_face": rules.get("require_face", True) if rules else False,
                                                  "require_captions": rules.get("require_captions", True), "no_ad_reads": rules.get("no_ad_reads", True)},
             "queue": queue, "ready": [r for r in campaigns.ready_to_submit(sv.db) if r["campaign_id"] == c["id"]],
             "keys": has_secret(secrets.YOUTUBE), "sends": any((not ch.posting.dry_run) for ch in sv.profiles.values() if ch.posting)}

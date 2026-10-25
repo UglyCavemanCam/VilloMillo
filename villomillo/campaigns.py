@@ -168,7 +168,7 @@ def parse_sources(text: str) -> list[tuple[str, object]]:
 
 
 def save_setup(db: Database, cid: str, *, sources: str, tags: str, min_s=None, max_s=None, face_window_s=None,
-               require_captions=False, no_ad_reads=False, use_rules=False) -> None:
+               require_captions=False, no_ad_reads=False, use_rules=False, require_face=False) -> None:
     """Sources (where its videos are), required caption tags, and the rules a program can check on a clip."""
     c = get(db, cid)
     if c is None:
@@ -178,7 +178,7 @@ def save_setup(db: Database, cid: str, *, sources: str, tags: str, min_s=None, m
     rules = None
     if use_rules:
         try:
-            rules = Campaign(name=c["title"], min_s=float(min_s or 20), max_s=float(max_s or 60), face_window_s=float(face_window_s or 5),
+            rules = Campaign(name=c["title"], min_s=float(min_s or 20), max_s=float(max_s or 60), face_window_s=float(face_window_s or 5), require_face=bool(require_face),
                              require_captions=bool(require_captions), no_ad_reads=bool(no_ad_reads)).model_dump(exclude={"name"})
         except (ValueError, TypeError) as e:
             raise CampaignError(f"the rules do not make sense: {str(e).splitlines()[0][:120]}") from None

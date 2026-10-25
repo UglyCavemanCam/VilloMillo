@@ -106,7 +106,8 @@ class Campaign(_Strict):
     name: str
     min_s: float = Field(20, ge=5)
     max_s: float = Field(60, ge=10)
-    face_window_s: float = Field(5, gt=0)  # the campaign's face rule: the host on screen in the first N seconds
+    require_face: bool = True  # only a campaign that says so needs the host on screen early; rules saved before this existed keep it
+    face_window_s: float = Field(5, gt=0)  # the face rule: the host on screen in the first N seconds
     require_captions: bool = True
     no_ad_reads: bool = True
 

@@ -385,7 +385,7 @@ def create_app(sv: Services) -> FastAPI:
         form = {k: str(v) for k, v in (await request.form()).items()}
         try:
             campaigns.save_setup(sv.db, campaign_id, sources=form.get("sources", ""), tags=form.get("tags", ""), min_s=form.get("min_s"),
-                                 max_s=form.get("max_s"), face_window_s=form.get("face_window_s"), use_rules=form.get("use_rules") == "1",
+                                 max_s=form.get("max_s"), face_window_s=form.get("face_window_s"), use_rules=form.get("use_rules") == "1", require_face=form.get("require_face") == "1",
                                  require_captions=form.get("require_captions") == "1", no_ad_reads=form.get("no_ad_reads") == "1")
         except LookupError:
             raise HTTPException(404, "no such campaign") from None

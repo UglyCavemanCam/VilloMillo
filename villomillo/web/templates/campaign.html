@@ -55,7 +55,8 @@
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="use_rules" value="1" {{ 'checked' if d.form.use_rules }}> Check the rules a program can check on each clip</label>
       <label>Shortest clip (seconds)<input class="field" name="min_s" type="number" min="5" value="{{ d.form.min_s }}"></label>
       <label>Longest clip (seconds)<input class="field" name="max_s" type="number" min="10" value="{{ d.form.max_s }}"></label>
-      <label>A face must be on screen in the first (seconds)<input class="field" name="face_window_s" type="number" min="1" value="{{ d.form.face_window_s }}"></label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="require_face" value="1" {{ 'checked' if d.form.require_face }}> The campaign requires a face on screen early</label>
+      <label>How early (seconds)<small>Only used when the box above is ticked. Leave it unticked unless the campaign's brief asks for it.</small><input class="field" name="face_window_s" type="number" min="1" value="{{ d.form.face_window_s }}"></label>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="require_captions" value="1" {{ 'checked' if d.form.require_captions }}> Captions on the whole clip</label>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="no_ad_reads" value="1" {{ 'checked' if d.form.no_ad_reads }}> No ad reads</label>
     </div>

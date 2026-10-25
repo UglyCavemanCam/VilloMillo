@@ -27,7 +27,7 @@ def sv(tmp_path, monkeypatch):
 
 def joined(sv, sources="@show"):
     campaigns.seed_solved(sv.db, RULES)
-    campaigns.save_setup(sv.db, SOLVED, sources=sources, tags="@solvedclips", use_rules=True, min_s="20", max_s="60", face_window_s="5", require_captions=True, no_ad_reads=True)
+    campaigns.save_setup(sv.db, SOLVED, sources=sources, tags="@solvedclips", use_rules=True, min_s="20", max_s="60", face_window_s="5", require_face=True, require_captions=True, no_ad_reads=True)
     return campaigns.get(sv.db, SOLVED)
 
 

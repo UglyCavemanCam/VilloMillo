@@ -233,6 +233,9 @@ def test_rules_are_saved_checked_for_sense_and_turned_back_into_the_clip_checks(
     assert (rules.min_s, rules.max_s, rules.face_window_s, rules.require_captions, rules.no_ad_reads) == (30, 45, 3, True, False)
     with pytest.raises(campaigns.CampaignError, match="do not make sense"):
         campaigns.save_setup(db, SOLVED, sources="", tags="", use_rules=True, min_s="50", max_s="40")
+    assert rules.require_face is False  # the form's face box was left unticked
+    campaigns.save_setup(db, SOLVED, sources="", tags="", use_rules=True, require_face=True)
+    assert campaigns.rules_for(campaigns.get(db, SOLVED)).require_face is True
 
 
 def test_a_campaigns_tags_replace_the_channels_for_its_clips_only():
@@ -301,7 +304,7 @@ def sv(tmp_path, monkeypatch):
 def ready_campaign(sv):
     campaigns.seed_solved(sv.db, RULES)
     campaigns.save_setup(sv.db, SOLVED, sources="@show", tags="@solvedclips @iammarkmanson", use_rules=True, min_s="20", max_s="60",
-                         face_window_s="5", require_captions=True, no_ad_reads=True)
+                         face_window_s="5", require_face=True, require_captions=True, no_ad_reads=True)
     return campaigns.get(sv.db, SOLVED)
 
 

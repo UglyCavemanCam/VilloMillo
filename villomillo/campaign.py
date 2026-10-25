@@ -54,11 +54,13 @@ def check(rules: Campaign, *, path: pathlib.Path, duration_s: float, caption_tex
     if not rules.min_s <= duration_s <= rules.max_s:
         problems.append(f"{duration_s:.0f} s; the campaign wants {rules.min_s:.0f} to {rules.max_s:.0f} s")
 
-    share = face(path, rules.face_window_s)
-    if share < FACE_MIN_SHARE:
-        problems.append(f"no clear face in the first {rules.face_window_s:.0f} s (seen in {share:.0%} of frames)")
-    else:
-        warnings.append("a face is on screen early: confirm it is Mark when you review")
+    share = None
+    if rules.require_face:  # only when the campaign itself asks for it
+        share = face(path, rules.face_window_s)
+        if share < FACE_MIN_SHARE:
+            problems.append(f"no clear face in the first {rules.face_window_s:.0f} s (seen in {share:.0%} of frames)")
+        else:
+            warnings.append("a face is on screen early: confirm it is Mark when you review")
 
     if rules.require_captions and not caption_text.strip():
         problems.append("no subtitle text: the campaign needs subtitles on the whole clip")
@@ -73,7 +75,7 @@ def check(rules: Campaign, *, path: pathlib.Path, duration_s: float, caption_tex
         "ok": not problems,
         "problems": problems,
         "warnings": warnings,
-        "facts": {"face_share": round(share, 2), "ad_read": ad_read},
+        "facts": {"face_share": None if share is None else round(share, 2), "ad_read": ad_read},
     }
 
 

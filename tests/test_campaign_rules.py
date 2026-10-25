@@ -90,3 +90,22 @@ def test_the_rule_result_is_kept_on_the_clip(tmp_path):
         grade = json.loads(c.execute("SELECT grade_json FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["grade_json"])
     assert grade["self_contained"] == 0.9
     assert grade["campaign"]["ok"] is True and "checked_at" in grade["campaign"]
+
+
+def test_the_face_rule_runs_only_when_the_campaign_requires_it():
+    no_face_needed = RULES.model_copy(update={"require_face": False})
+    asked = []
+
+    def face(path, window):
+        asked.append(window)
+        return 0.0
+
+    result = campaign.check(no_face_needed, path=CLIP, duration_s=40, caption_text="some words", ad_read=0.02, face=face)
+    assert result["ok"] and asked == [] and result["facts"]["face_share"] is None
+    assert not any("confirm it is Mark" in w for w in result["warnings"])
+    required = campaign.check(RULES, path=CLIP, duration_s=40, caption_text="some words", ad_read=0.02, face=face)
+    assert not required["ok"] and asked == [5]
+
+
+def test_rules_saved_before_the_switch_existed_still_require_a_face():
+    assert Campaign(name="old", min_s=20, max_s=60, face_window_s=5).require_face is True
