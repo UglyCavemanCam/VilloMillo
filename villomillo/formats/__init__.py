@@ -48,7 +48,9 @@ def format_clip(db: Database, profile: Profile, *, claude_client, jev, video_id:
     """Render one clip in the profile's recipe. Returns {"recipe", "dropped"}; raises FormatError if it cannot."""
     if not profile.format:
         raise FormatError("this channel has no format recipe set")
-    source = source or DOWNLOADS / f"{video_id}.mp4"
+    from core.paths import cached_source
+
+    source = source or cached_source(DOWNLOADS, video_id) or DOWNLOADS / f"{video_id}.mp4"  # the download may be .mp4, .mkv or .webm
     if not source.exists():
         raise FormatError(f"the source video is not on disk ({source.name})")
     words = words if words is not None else clip_words(video_id, start_s, end_s)

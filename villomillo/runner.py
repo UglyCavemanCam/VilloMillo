@@ -115,6 +115,19 @@ def do_rewards_check(sv: Services, payload: dict) -> None:
         rewards.retry_failed(sv.db)  # clips that were waiting for the sign-in go out now
 
 
+def do_relook(sv: Services, payload: dict) -> None:
+    """Give one clip its channel's look again (the Apply the look again button)."""
+    from . import activity, relook
+
+    try:
+        line, level = relook.apply(sv, payload["clip_id"]), "info"
+    except relook.RelookError as e:
+        line, level = f"clip {payload['clip_id']}: {e}", "warn"
+        with sv.db.conn() as c:
+            c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (str(e)[:240], payload["clip_id"]))
+    activity.log(sv.db, "campaign", line, level=level)
+
+
 def do_stats(sv: Services, payload: dict) -> None:
     """Read the real numbers of this channel's recent posts."""
     from . import posting
@@ -174,6 +187,7 @@ HANDLERS = {
     "send_post": do_send_post,
     "submit_clip": do_submit_clip,
     "rewards_check": do_rewards_check,
+    "relook": do_relook,
     "stats": do_stats,
     "campaigns": do_campaigns,
     "research": do_research,

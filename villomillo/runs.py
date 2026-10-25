@@ -344,14 +344,18 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
     plan = run["plan"]
     with sv.db.conn() as c:
         ready = [dict(r) for r in c.execute(
-            "SELECT id, engine_score FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
+            "SELECT id, engine_score, grade_json FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
             (run["profile_id"], run["video_id"]))]
     owner = sv.profiles.get(run["profile_id"])
     needed = owner.posting.auto_post_min_score if owner and owner.posting else 0  # the score a clip needs to post by itself
-    approved = held = low = 0
+    approved = held = low = unlooked = 0
     for clip in ready:
         if not plan["fit_ok"]:
             continue  # stays in the review queue, with the reason on the plan
+        if json.loads(clip["grade_json"] or "{}").get("look_failed"):  # made in the engine's own look, not the channel's: never posted unseen
+            unlooked += 1
+            note(sv, run, f"Clip {clip['id']} was not given the channel's look, so it waits for you instead of posting.", "post", "warn")
+            continue
         if (clip["engine_score"] or 0) < needed:  # waits for you: the checks passed, the score is not high enough to post unseen
             low += 1
             with sv.db.conn() as c:
@@ -382,6 +386,8 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
         parts.append(f"{waiting} waiting for your review: the video fits the channel only {plan['fit']} of 5.")
     if low:
         parts.append(parts_low)
+    if unlooked:
+        parts.append(f"{unlooked} did not get the channel's look, so they wait for you: open one and press Apply the look again.")
     note(sv, run, "Done. " + " ".join(parts[1:]) if len(parts) > 1 else "Done.", "post")
     _set(sv.db, run_id, state="finished", note=" ".join(parts))
     store.event(sv.db, "info", "run", f"run {run_id}: {' '.join(parts)}")

@@ -341,6 +341,8 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
+            "look_failed": bool(grade.get("look_failed")) or (grade.get("look") or "").startswith("look not applied"),
+            "look_why": (grade.get("look") or "").replace("look not applied:", "").strip(),
             "can_repost": r["state"] == "approved" and bool(post) and post["status"] in posting.RESENT,
             "handed_in": one(sv.db, "SELECT COUNT(*) AS n FROM campaign_submissions WHERE post_id=?", post["id"])["n"] if post else 0,
             "can_post": r["state"] == "approved" and (post is None or post["status"] in (*posting.RESENDABLE, "queued", "failed")),

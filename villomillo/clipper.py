@@ -229,11 +229,19 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
         else:
             raw = path.with_name(f"{clip['id']}.engine.mp4")
             raw.write_bytes(engine.media(clip["id"]))
-            try:
-                look = f"recipe {formatter(clip, job, path)['recipe']}"
-            except Exception as e:  # a failed look never loses the clip
+            failure = None
+            for attempt in (1, 2):  # a second try settles a text or network hiccup
+                try:
+                    look = f"recipe {formatter(clip, job, path)['recipe']}"
+                    failure = None
+                    break
+                except Exception as e:  # a failed look never loses the clip
+                    failure = f"{type(e).__name__}: {e}" if not str(e) or isinstance(e, KeyError) else str(e)
+            if failure is not None:
                 shutil.copyfile(raw, path)
-                look = f"look not applied: {str(e)[:160]}"
+                look = f"look not applied: {failure[:160]}"
+                if note:
+                    note(f"Clip {clip['id']}: the look could not be applied ({failure[:120]}). It has the engine's own look, so it waits for you instead of posting.", "warn")
         verdict = validate.check(path)
         text = engine.captions_text(clip["id"])
         if verdict["ok"]:
@@ -241,7 +249,8 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
             self_contained = float(answers["self_contained"]["noul"])
             grade = {"self_contained": round(self_contained, 3),
                      "hook": answers["hook"]["score"], "payoff": answers["payoff"]["score"],
-                     "ad_read": campaign.ad_read_from(answers), "caption_text": text[:4000], "look": look}
+                     "ad_read": campaign.ad_read_from(answers), "caption_text": text[:4000], "look": look,
+                     "look_failed": look.startswith("look not applied")}
             state, reason = "review", "passed checks; waiting for your decision" + (
                 f" ({look})" if look.startswith("look not applied") else "")
             if self_contained < SELF_CONTAINED_MIN:

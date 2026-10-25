@@ -799,6 +799,19 @@ def create_app(sv: Services) -> FastAPI:
                       dedupe_key=f"send_post:{post['id']}:{store.now():%Y%m%d%H%M}", priority=10)
         return JSONResponse({"ok": True})
 
+    @app.post("/api/clip-relook")
+    def clip_relook(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
+        """Apply the look again: a clip that came out in the engine's own look is cut again in the channel's look."""
+        _only_local(request, "changes")
+        in_profile(profile)
+        with sv.db.conn() as c:
+            row = c.execute("SELECT id FROM clips_ready WHERE id=? AND state NOT IN ('removed','superseded') AND (profile_id=? OR id IN "
+                            "(SELECT clip_id FROM posts WHERE profile_id=?))", (clip_id, profile, profile)).fetchone()
+        if row is None:
+            raise HTTPException(404, "no such clip")
+        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id}, dedupe_key=f"relook:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
+        return JSONResponse({"ok": True})
+
     @app.post("/api/clip-repost")
     def clip_repost(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
         """Post again: a clip whose post already went out (its video was deleted from YouTube, say) goes out once more."""

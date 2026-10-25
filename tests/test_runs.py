@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -95,6 +97,7 @@ def env(tmp_path, monkeypatch):
         c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('catch_all', '{\"on\": false}')")
     monkeypatch.setattr(clipper, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setattr(clipper.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
+    monkeypatch.setattr("villomillo.formats.formatter_for", lambda *a, **k: None)  # these tests are not about the look: the engine's own render is used
     sv = Services(config.AppConfig(), channels.load(db), db, Quota(db, general_cap=9, search_cap=9), None, FakeJev())
     return sv, db
 
@@ -415,3 +418,106 @@ def test_the_starting_channel_posts_to_youtube_only_with_no_campaign_tags():
 def test_scoring_constants_match_what_the_plan_screen_says(env):
     sv, _ = env
     assert (sv.app.scoring.viral_min, sv.app.scoring.cpm_floor) == (75, 1.0) and scoring.FIT_MIN == 4
+
+
+def _made(env, formatter_factory, monkeypatch):
+    from villomillo import formats
+
+    sv, db = env
+    monkeypatch.setattr(formats, "formatter_for", lambda *a, **k: formatter_factory())
+    run_id, engine = to_plan(sv)
+    runs.start(sv, run_id, engine)
+    runs.collect(sv, run_id, engine)
+    return sv, db, run_id
+
+
+def test_a_clip_whose_look_failed_waits_for_you_and_is_never_posted_unseen(env, monkeypatch):
+    def broken(clip, job, out):
+        raise RuntimeError("no trustworthy on-screen text")
+
+    sv, db, run_id = _made(env, lambda: broken, monkeypatch)
+    run = runs.get(db, run_id)
+    assert run["state"] == "finished" and "did not get the channel's look" in run["note"] and "planned for posting" not in run["note"]
+    with db.conn() as c:
+        rows = c.execute("SELECT state, reason, grade_json FROM clips_ready").fetchall()
+        assert {r["state"] for r in rows} == {"review"} and all("look not applied" in r["reason"] for r in rows)
+        assert all(json.loads(r["grade_json"])["look_failed"] for r in rows)
+        assert c.execute("SELECT COUNT(*) AS n FROM posts").fetchone()["n"] == 0
+
+
+def test_the_look_is_tried_a_second_time_before_giving_up(env, monkeypatch):
+    calls = []
+
+    def flaky(clip, job, out):
+        calls.append(clip["id"])
+        if len(calls) == 1:
+            raise RuntimeError("a hiccup")
+        return {"recipe": "podcast_talk"}
+
+    sv, db, run_id = _made(env, lambda: flaky, monkeypatch)
+    assert len(calls) == 3  # two clips: the first tried twice, the second once
+    with db.conn() as c:
+        assert {r["state"] for r in c.execute("SELECT state FROM clips_ready")} == {"approved"}
+
+
+def test_a_download_that_is_not_an_mp4_is_still_found(tmp_path, monkeypatch):
+    from villomillo import formats
+
+    monkeypatch.setattr(formats, "DOWNLOADS", tmp_path)
+    (tmp_path / "vidAAAAAAAA.webm").write_bytes(b"x")
+    profile = channels.load(Database(tmp_path / "x.db"))["solved"]
+    kw = {"claude_client": None, "jev": None, "start_s": 0.0, "end_s": 5.0, "out_path": tmp_path / "o.mp4", "episode": "e", "words": []}
+    with pytest.raises(formats.FormatError, match="no words"):  # it got past finding the source
+        formats.format_clip(Database(tmp_path / "y.db"), profile.model_copy(update={"format": "podcast_talk"}), video_id="vidAAAAAAAA", **kw)
+    with pytest.raises(formats.FormatError, match="not on disk"):
+        formats.format_clip(Database(tmp_path / "y.db"), profile.model_copy(update={"format": "podcast_talk"}), video_id="vidBBBBBBBB", **kw)
+
+
+def test_apply_the_look_again_replaces_the_file_and_clears_the_warning(env, monkeypatch, tmp_path):
+    from villomillo import formats, relook
+
+    def broken(clip, job, out):
+        raise RuntimeError("it failed")
+
+    sv, db, run_id = _made(env, lambda: broken, monkeypatch)
+    with db.conn() as c:
+        clip_id = c.execute("SELECT id FROM clips_ready ORDER BY id").fetchone()["id"]
+        file = c.execute("SELECT file_path FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["file_path"]
+
+    def good(clip, job, out):
+        out.write_bytes(b"new look")
+        return {"recipe": "podcast_talk"}
+
+    monkeypatch.setattr(formats, "formatter_for", lambda *a, **k: good)
+    monkeypatch.setattr(relook.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
+    assert "applied again" in relook.apply(sv, clip_id)
+    assert pathlib_read(file) == b"new look"
+    with db.conn() as c:
+        row = c.execute("SELECT grade_json, reason FROM clips_ready WHERE id=?", (clip_id,)).fetchone()
+    assert json.loads(row["grade_json"])["look_failed"] is False and "look not applied" not in row["reason"]
+    monkeypatch.setattr(formats, "formatter_for", lambda *a, **k: broken)
+    with pytest.raises(relook.RelookError, match="could not be applied"):
+        relook.apply(sv, clip_id)
+
+
+def pathlib_read(path):
+    import pathlib
+
+    return pathlib.Path(path).read_bytes()
+
+
+def test_the_panel_offers_apply_the_look_again_only_for_a_clip_in_the_wrong_look(env, monkeypatch):
+    def broken(clip, job, out):
+        raise RuntimeError("it failed")
+
+    sv, db, run_id = _made(env, lambda: broken, monkeypatch)
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    with db.conn() as c:
+        clip_id = c.execute("SELECT id FROM clips_ready ORDER BY id").fetchone()["id"]
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Apply the look again" in panel and "it failed" in panel
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='relook'").fetchone()["n"] == 1
+    assert "relook" in runner.HANDLERS
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": 9999}).status_code == 404

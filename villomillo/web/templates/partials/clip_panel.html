@@ -15,6 +15,11 @@
     {% if d.note %}<p class="muted" style="font-size:12px;margin-top:8px;line-height:17px">{{ d.note }}</p>{% endif %}
     {% if d.reason and d.row.state in ('rejected_auto', 'failed_validation') %}<div class="notice bad" style="margin-top:10px">{{ icon('alert') }}<div>{{ d.reason }}</div></div>{% endif %}</div>
 
+  {% if d.look_failed %}
+  <div class="notice warn">{{ icon('alert') }}<div><b>This clip is in the engine's own look, not the channel's.</b>{% if d.look_why %}<br><span class="muted">{{ d.look_why }}</span>{% endif %}<br>
+    <button type="button" class="btn btn-sm btn-primary" style="margin-top:8px" data-act="/api/clip-relook" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Applying the look again. It takes a minute; reopen the clip after.">Apply the look again</button></div></div>
+  {% endif %}
+
   <div><h3 style="margin-bottom:8px">Post</h3>
     {% if d.post %}
     <div class="card" style="padding:14px"><div class="cluster" style="margin-bottom:6px"><span class="badge {{ d.post.state.kind }}">{{ d.post.state.text }}</span><span class="muted" style="font-size:13px">{{ d.post.platform_name }} · {{ d.post.when }}</span></div>
