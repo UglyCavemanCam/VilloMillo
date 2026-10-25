@@ -138,8 +138,8 @@ def test_a_reel_is_made_again_into_its_own_row(tmp_path, db, monkeypatch):
     for i, t in enumerate((1000, 2000)):
         p = tmp_path / f"clip{i}.mp4"
         # 3 s of window: the file is 3 s long.
-        subprocess.run([exe, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=108x192:rate=30:duration=4",
-                        "-f", "lavfi", "-i", "sine=duration=4", "-c:v", "libx264", "-g", "30", "-pix_fmt", "yuv420p",
+        subprocess.run([exe, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=108x192:rate=30:duration=3",
+                        "-f", "lavfi", "-i", "sine=duration=3", "-c:v", "libx264", "-g", "30", "-pix_fmt", "yuv420p",
                         "-c:a", "aac", "-shortest", str(p)], check=True)
         scores = {"sport_event": "goal", "sport_label": "Goal", "sport_t": float(t), "sport_team": "HOM"}
         clips.append(SimpleNamespace(candidate=ClipCandidate(start=t - 2.0, end=t + 1.0, score=80, hook="",
