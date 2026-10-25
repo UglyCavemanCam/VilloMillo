@@ -19,6 +19,8 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 
+from core.paths import discard
+
 from . import accounts, campaigns, research, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
@@ -446,8 +448,7 @@ def _send(db, profile, post, copy, clip, adapters) -> tuple[str, str | None, str
     except PostError as e:
         return "failed", str(e), None, {}
     finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+        discard(temporary)  # never raises: a locked scratch file must not replace the real result
     for note in result["notes"]:
         store.event(db, "warn", "post", f"post {post['id']}: {note}")
     return "uploaded", None, result["url"], {"remote_id": result.get("remote_id")}
