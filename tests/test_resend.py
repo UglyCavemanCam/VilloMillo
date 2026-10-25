@@ -459,3 +459,21 @@ def test_the_channel_page_saves_the_gap_and_the_score_and_respaces_the_queue(db)
     last = store.parse_time(status_of(db, ids[-1])["scheduled_at"])
     assert last - store.now() < timedelta(hours=1)
     assert client.post("/channels/solved/save", data={**form, "min_gap_minutes": "30", "max_gap_minutes": "5"}, follow_redirects=False).status_code == 422
+
+
+def test_posts_that_are_not_in_the_queue_do_not_push_the_next_slot_later(db):
+    import random
+    from datetime import timedelta
+
+    profiles, p = _with_gaps(db, 10, 20)
+    far = store.iso(NOW + timedelta(hours=20))
+    for status in ("cancelled", "dry_run", "manual_ready", "failed", "blocked"):
+        with db.conn() as c:
+            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (far, post(db, status)))
+    slot = posting.next_slot(db, p.posting, "solved", "youtube_shorts", NOW, random.Random(1))
+    assert slot == NOW  # nothing is queued, so the next clip is due now, not 20 hours out
+    queued = post(db, "queued")
+    with db.conn() as c:
+        c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(NOW + timedelta(minutes=30)), queued))
+    after = posting.next_slot(db, p.posting, "solved", "youtube_shorts", NOW, random.Random(1))
+    assert timedelta(minutes=40) <= after - NOW <= timedelta(minutes=50)  # after the last queued post, by 10 to 20 minutes

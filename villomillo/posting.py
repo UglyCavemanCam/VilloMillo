@@ -80,7 +80,7 @@ def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, no
     """
     with db.conn() as c:
         times = [r["scheduled_at"] for r in c.execute(
-            "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status!='blocked'",
+            "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status IN ('queued','uploaded','posted')",
             (profile_id, platform))]
     taken = Counter(timefmt.local_date(t) for t in times)
     candidate = now
@@ -112,7 +112,7 @@ def respace_queued(db: Database, profile: Profile, *, now: datetime | None = Non
         when = max(now, last[platform] + wait) if platform in last else now
         with db.conn() as c:
             taken = Counter(timefmt.local_date(r["scheduled_at"]) for r in c.execute(
-                "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status NOT IN ('blocked','cancelled') AND id!=?",
+                "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status IN ('queued','uploaded','posted') AND id!=?",
                 (profile.id, platform, row["id"])))
         while taken[timefmt.local_date(store.iso(when))] >= posting.daily_cap:
             when = timefmt.start_of_day_utc(timefmt.local_date(store.iso(when)) + timedelta(days=1))
