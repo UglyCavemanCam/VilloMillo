@@ -96,6 +96,12 @@ CREATE TABLE IF NOT EXISTS campaign_submissions (
     post_id INTEGER PRIMARY KEY, campaign_id TEXT NOT NULL, submitted_at TEXT NOT NULL
 );
 
+-- Handing a posted clip's link in to Content Rewards by a browser signed in as you: where each attempt stands (see rewards.py).
+CREATE TABLE IF NOT EXISTS rewards_submissions (
+    post_id INTEGER PRIMARY KEY, campaign_id TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', screenshot TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+);
+
 -- Research: channels it watches (yours, and ones it learned from a Creative Commons hit), and every video it looked at.
 CREATE TABLE IF NOT EXISTS research_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, channel_key TEXT NOT NULL, name TEXT NOT NULL,

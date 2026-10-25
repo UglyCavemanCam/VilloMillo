@@ -26,6 +26,7 @@ from .. import (
     posting,
     removal,
     research,
+    rewards,
     routing,
     runs,
     safety,
@@ -686,9 +687,30 @@ def _connection(sv: Services) -> dict:
     return {"count": len(every), "last": _ago(activity.age_s(last)) if last else "never"}
 
 
+def _rewards_view(sv: Services) -> dict:
+    """What the Campaigns page shows about handing clips in to Content Rewards automatically."""
+    s = rewards.settings(sv.db)
+    n = rewards.counts(sv.db)
+    if s["missing"]:
+        state = ("The browser tool is not installed", "warn")
+    elif s["signed_in"]:
+        state = ("Signed in", "good")
+    elif s["signed_in"] is False:
+        state = ("Sign in needed", "warn")
+    else:
+        state = ("Not signed in yet", "warn")
+    return {**s, "state": state, "login": dict(rewards.LOGIN), "recent": rewards.states(sv.db, 8),
+            "handed": n.get("submitted", 0) + n.get("duplicate", 0), "stuck": sum(v for k, v in n.items() if k not in ("submitted", "duplicate", "dry_run")),
+            "tried": n.get("dry_run", 0)}
+
+
 def campaigns_page(sv: Services, p: Profile) -> dict:
-    return {"campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)],
-            "ready": campaigns.ready_to_submit(sv.db), "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd,
+    ready = campaigns.ready_to_submit(sv.db)
+    for r in ready:
+        st = rewards.state_of(sv.db, r["post_id"])
+        r["rewards"] = {**st, "text": rewards.STATUS.get(st["status"], (st["status"], "", False))[0], "kind": rewards.STATUS.get(st["status"], ("", "", False))[1]} if st else None
+    return {"campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)], "rewards": _rewards_view(sv),
+            "ready": ready, "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd,
             "feed": feed_lines(activity.recent(sv.db, "campaign", 25)), "connection": _connection(sv),
             "pass_line": pass_line(sv, "campaigns", "read", (activity.recent(sv.db, "campaign", 1) or [None])[0])}
 

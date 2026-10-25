@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from core.paths import discard
 
-from . import accounts, campaigns, research, store, timefmt
+from . import accounts, campaigns, research, rewards, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
 
@@ -289,6 +289,8 @@ def send_now(db: Database, profile: Profile, post_id: int, adapters: dict) -> st
                   "remote_id=COALESCE(?, remote_id) WHERE id=?",
                   (status, error, url, store.iso() if status == "uploaded" else None,
                    extra.get("remote_id"), post_id))
+    if status == "uploaded":
+        rewards.queue(db, post_id)
     return f"post {post_id} ({post['platform']}): {status}" + (f", {error}" if error else f", {url}")
 
 
@@ -409,6 +411,8 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
                       "remote_id=COALESCE(?, remote_id) WHERE id=?",
                       (status, error, url, store.iso(now) if status == "uploaded" else None,
                        extra.get("remote_id"), post["id"]))
+        if status == "uploaded":
+            rewards.queue(db, post["id"])  # a campaign clip's link is handed in to Content Rewards straight away
         lines.append(f"post {post['id']} ({post['platform']}): {status}" + (f", {error}" if error else ""))
     return lines
 

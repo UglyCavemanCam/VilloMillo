@@ -19,3 +19,4 @@ numpy>=1.26
 pillow>=10.4
 anthropic>=0.40
 google-auth-oauthlib>=1.4.0,<2
+playwright>=1.45,<2   # the browser that hands clips in to Content Rewards, signed in as you

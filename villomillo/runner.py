@@ -96,6 +96,25 @@ def do_send_post(sv: Services, payload: dict) -> None:
     store.event(sv.db, "info", "post", line)
 
 
+def do_submit_clip(sv: Services, payload: dict) -> None:
+    """Hand one posted campaign clip's link in to Content Rewards."""
+    from . import activity, rewards
+
+    line = rewards.work(sv, payload["post_id"])
+    activity.log(sv.db, "campaign", line, level="warn" if any(w in line for w in ("failed", "needs a look", "sign in needed")) else "info")
+
+
+def do_rewards_check(sv: Services, payload: dict) -> None:
+    """Look whether the saved Content Rewards sign-in is still accepted (the Check sign-in button)."""
+    from . import activity, rewards
+
+    ok = rewards.check_signed_in(sv.db)
+    activity.log(sv.db, "campaign", {True: "Content Rewards: signed in.", False: "Content Rewards: not signed in. Press Sign in.", None: "Content Rewards: could not check."}[ok],
+                 level="info" if ok else "warn")
+    if ok:
+        rewards.retry_failed(sv.db)  # clips that were waiting for the sign-in go out now
+
+
 def do_stats(sv: Services, payload: dict) -> None:
     """Read the real numbers of this channel's recent posts."""
     from . import posting
@@ -153,6 +172,8 @@ HANDLERS = {
     "copy": do_copy,
     "post": do_post,
     "send_post": do_send_post,
+    "submit_clip": do_submit_clip,
+    "rewards_check": do_rewards_check,
     "stats": do_stats,
     "campaigns": do_campaigns,
     "research": do_research,

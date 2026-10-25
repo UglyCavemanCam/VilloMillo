@@ -62,6 +62,22 @@ if errorlevel 1 (
     )
 )
 
+rem The browser tool that hands clips in to Content Rewards, signed in as you. It uses the Chrome already on this computer;
+rem the browser it brings itself is fetched once as a fallback. A problem here never stops the app from starting.
+%PY% -c "import playwright" >nul 2>nul
+if errorlevel 1 (
+    echo Installing the browser tool that hands clips in to Content Rewards. This only happens once...
+    %PY% -m pip install "playwright>=1.45,<2"
+    if errorlevel 1 echo The browser tool did not install. The app still starts; automatic hand-in stays off until it does.
+)
+if not exist "data\villomillo" mkdir "data\villomillo"
+if not exist "data\villomillo\.playwright-ready" (
+    %PY% -c "import playwright" >nul 2>nul && (
+        echo Fetching the fallback browser. This only happens once...
+        %PY% -m playwright install chromium && echo ready> "data\villomillo\.playwright-ready"
+    )
+)
+
 echo.
 echo Starting VilloMillo ^(%MODE%^). The clip engine can take a minute or two to load the first time. The browser opens in a few seconds.
 start "" cmd /c "timeout /t 4 /nobreak >nul & start %URL%"

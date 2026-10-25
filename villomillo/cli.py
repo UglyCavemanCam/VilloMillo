@@ -341,6 +341,29 @@ def cmd_research(args) -> None:
         print(f"[{c['state']:8}] {c['platform']:7} {(c['title'] or c['video_id'])[:55]}  {c['reason'] or c['run_note'] or ''}")
 
 
+def cmd_rewards_login(args) -> None:
+    """Open a browser window on Content Rewards and wait for you to sign in. The same as the Sign in button on the Campaigns page."""
+    from . import rewards
+
+    sv = _services(with_apis=False)
+    if (why := rewards.missing()):
+        raise SystemExit(why)
+    print("A browser window is opening. Sign in to Content Rewards there; it closes by itself when you are in.")
+    if rewards.login(sv.db):
+        print("Signed in. Clips for campaigns are now handed in automatically.")
+    else:
+        raise SystemExit(rewards.LOGIN["message"])
+
+
+def cmd_rewards_check(args) -> None:
+    """Say whether the saved Content Rewards sign-in is still accepted."""
+    from . import rewards
+
+    sv = _services(with_apis=False)
+    ok = rewards.check_signed_in(sv.db)
+    print({True: "Signed in.", False: "Not signed in: run  python -m villomillo cr-login", None: "Could not check (is the browser tool installed?)."}[ok])
+
+
 def cmd_key(args) -> None:
     """Store an API key in the credential store, or say which keys are stored. The key is never printed or saved to a file."""
     import getpass
@@ -490,6 +513,8 @@ def main(argv: list[str] | None = None) -> None:
     key = sub.add_parser("key", help="store an API key safely (no name: show which keys are stored)")
     key.add_argument("name", nargs="?", choices=sorted([*_secrets.KEYS, "twitch"]))
     key.set_defaults(fn=cmd_key)
+    sub.add_parser("cr-login", help="sign in to Content Rewards once, in a browser window, so clips are handed in by themselves").set_defaults(fn=cmd_rewards_login)
+    sub.add_parser("cr-check", help="check that the saved Content Rewards sign-in is still accepted").set_defaults(fn=cmd_rewards_check)
     yt_connect = sub.add_parser("youtube-connect", help="sign in to YouTube once so clips can be uploaded")
     yt_connect.add_argument("--profile")
     yt_connect.set_defaults(fn=cmd_youtube_connect)

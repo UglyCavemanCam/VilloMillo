@@ -9,7 +9,7 @@ from __future__ import annotations
 import shutil
 from datetime import timedelta
 
-from . import accounts, engine_ai, engine_manager, posting, safety, secrets, spend, store
+from . import accounts, engine_ai, engine_manager, posting, rewards, safety, secrets, spend, store
 from .config import ROOT
 from .db import Database
 
@@ -88,6 +88,14 @@ def checks(sv) -> list[dict]:
         else:
             mode, state, fix = f"Automatic ({p.posting.privacy} uploads)", "ok", ""
         out.append(_check(f"post:{p.id}", f"{name}: posting", state, mode, fix))
+    rw = rewards.settings(sv.db)
+    if rw["missing"]:
+        out.append(_check("rewards", "Content Rewards hand-in", "warn", "Browser tool not installed", "Start the app with run-app.bat: it installs it."))
+    elif rw["signed_in"]:
+        out.append(_check("rewards", "Content Rewards hand-in", "warn" if rw["dry_run"] else "ok", "Signed in, trial mode: nothing is sent" if rw["dry_run"] else "Signed in",
+                          "Turn trial mode off on the Campaigns page when the first picture looks right." if rw["dry_run"] else ""))
+    else:
+        out.append(_check("rewards", "Content Rewards hand-in", "warn", "Not signed in", "Press Sign in to Content Rewards on the Campaigns page."))
     if safety.is_stopped(sv.db):
         out.append(_check("stop", "Emergency stop", "bad", "On: nothing runs", "Press Resume in the top bar."))
     pause = spend.current(sv.db, sv.app.spend_breaker)

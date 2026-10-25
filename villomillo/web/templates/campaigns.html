@@ -5,12 +5,40 @@
 
 {% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
 
-<div class="notice">{{ icon('info') }}<div>A campaign is worth joining only if it pays by views, allows YouTube, pays at least ${{ '%.2f'|format(d.floor) }} per 1,000 views and has at least ${{ '{:,.0f}'.format(d.min_budget) }} of budget left. <b>Joining a campaign and handing in each clip's link are done by hand on Content Rewards</b>: it offers no way for a program to do either. Nothing is clipped for a campaign until you press "I've joined".</div></div>
+<div class="notice">{{ icon('info') }}<div>A campaign is worth joining only if it pays by views, allows YouTube, pays at least ${{ '%.2f'|format(d.floor) }} per 1,000 views and has at least ${{ '{:,.0f}'.format(d.min_budget) }} of budget left. <b>Joining a campaign is done by hand on Content Rewards.</b> Nothing is clipped for a campaign until you press "I've joined". Handing in each clip's link can be automatic once you sign in below.</div></div>
+
+{% set rw = d.rewards %}
+<section class="card stack" aria-labelledby="rw-h"><h2 id="rw-h">Handing in clips to Content Rewards</h2>
+  {% if d.rewards_note == 'opened' %}<div class="notice">{{ icon('info') }}<div>A browser window opened on this computer. Sign in to Content Rewards there. It closes by itself when you are in. Then press "Check sign-in" here.</div></div>
+  {% elif d.rewards_note == 'already' %}<div class="notice warn">{{ icon('alert') }}<div>The sign-in window is already open on this computer.</div></div>
+  {% elif d.rewards_note == 'checking' %}<div class="notice">{{ icon('info') }}<div>Checking the sign-in. Reload this page in a few seconds.</div></div>
+  {% elif d.rewards_note == 'queued' %}<div class="notice">{{ icon('check') }}<div>{{ d.rewards_n }} clip{{ '' if d.rewards_n == 1 else 's' }} queued to be handed in, one at a time.</div></div>
+  {% elif d.rewards_note == 'saved' %}<div class="notice">{{ icon('check') }}<div>Saved.</div></div>{% endif %}
+  {% if rw.login.state in ('waiting', 'error') %}<div class="notice {{ 'warn' if rw.login.state == 'error' else '' }}">{{ icon('info') }}<div>{{ rw.login.message }}</div></div>{% endif %}
+  <p class="muted" style="margin:0;line-height:1.5">When a campaign clip is posted to YouTube, a browser signed in as you opens the campaign, chooses Submit clip, pastes the link and sends it, one at a time with random pauses. You only sign in once. Your password is never seen or kept: only the browser's own session is saved on this computer.</p>
+  <dl class="kv"><dt>Sign-in</dt><dd><span class="badge {{ rw.state[1] }}">{{ rw.state[0] }}</span></dd>
+    <dt>Automatic</dt><dd>{{ 'On' if rw.auto else 'Off' }}</dd>
+    <dt>Trial mode</dt><dd>{% if rw.dry_run %}<b>On</b>: the form is filled in and a picture is saved, but nothing is sent. Check the first picture, then turn trial mode off.{% else %}Off: clips are sent for real.{% endif %}</dd>
+    <dt>So far</dt><dd>{{ rw.handed }} handed in{% if rw.tried %} · {{ rw.tried }} tried in trial mode{% endif %}{% if rw.stuck %} · <span style="color:var(--warn)">{{ rw.stuck }} need a look</span>{% endif %}</dd></dl>
+  {% if rw.missing %}<div class="notice warn">{{ icon('alert') }}<div>{{ rw.missing }}</div></div>{% endif %}
+  <div class="cluster">
+    <form method="post" action="/campaigns/rewards/login"><button class="btn btn-primary" type="submit" {{ 'disabled' if rw.missing }}>Sign in to Content Rewards</button></form>
+    <form method="post" action="/campaigns/rewards/check"><button class="btn" type="submit" {{ 'disabled' if rw.missing }}>Check sign-in</button></form>
+    <form method="post" action="/campaigns/rewards/submit-waiting"><button class="btn" type="submit">Hand in waiting clips</button></form>
+    <form method="post" action="/campaigns/rewards/settings"><input type="hidden" name="dry_run" value="{{ '0' if rw.dry_run else '1' }}"><button class="btn btn-ghost" type="submit">{{ 'Turn trial mode off' if rw.dry_run else 'Turn trial mode on' }}</button></form>
+    <form method="post" action="/campaigns/rewards/settings"><input type="hidden" name="auto" value="{{ '0' if rw.auto else '1' }}"><button class="btn btn-ghost" type="submit">{{ 'Turn automatic off' if rw.auto else 'Turn automatic on' }}</button></form>
+  </div>
+  {% if rw.recent %}
+  <div class="stack" style="gap:8px">{% for s in rw.recent %}
+    <div class="row"><span class="grow"><b>{{ s.campaign_title or 'Campaign' }}</b><small>{{ s.url or '' }}{% if s.detail %} · {{ s.detail }}{% endif %}</small></span><span class="badge {{ s.kind }}">{{ s.text }}</span></div>
+  {% endfor %}</div>{% endif %}
+</section>
 
 {% if d.ready %}
-<section class="card stack" aria-labelledby="ready-h"><h2 id="ready-h">Links to hand in</h2>
+<section class="card stack" aria-labelledby="ready-h"><h2 id="ready-h">Links not handed in yet</h2>
   {% for r in d.ready %}
   <div class="row"><span class="grow"><b>{{ r.hook or 'A clip' }}</b><small>{{ r.campaign_title }} · {{ r.url }}</small></span>
+    {% if r.rewards %}<span class="badge {{ r.rewards.kind }}" title="{{ r.rewards.detail }}">{{ r.rewards.text }}</span>{% endif %}
     <a class="btn btn-sm" href="/campaigns/{{ r.campaign_id }}?profile={{ shell.current.id }}">Open</a></div>
   {% endfor %}
 </section>
@@ -18,7 +46,7 @@
 
 <section class="card stack" aria-label="Connection"><h2 style="margin:0">Connection</h2>
   <dl class="kv"><dt>Content Rewards</dt><dd>Public campaign list: {{ d.connection.count }} campaign{{ '' if d.connection.count == 1 else 's' }} read, last {{ d.connection.last }}</dd>
-    <dt>Joining and links</dt><dd>By hand on Content Rewards: it has no way for a program to do either. Everything else is prepared for you.</dd></dl>
+    <dt>Joining a campaign</dt><dd>By hand on Content Rewards. Handing in clips is automatic once you sign in above.</dd></dl>
 </section>
 
 <section class="card stack" aria-labelledby="add-h"><h2 id="add-h">Add a campaign by link</h2>

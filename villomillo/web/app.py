@@ -34,6 +34,7 @@ from .. import (
     posting,
     removal,
     research,
+    rewards,
     routing,
     runs,
     safety,
@@ -351,9 +352,9 @@ def create_app(sv: Services) -> FastAPI:
     # ---- campaigns -----------------------------------------------------------------------------------------------
 
     @app.get("/campaigns", response_class=HTMLResponse)
-    def campaigns_list(profile: str | None = None, problem: str = ""):
+    def campaigns_list(profile: str | None = None, problem: str = "", rewards: str = "", n: int = 0):
         p = profile_or_404(profile)
-        return render("campaigns.html", p, "/campaigns", "campaigns", "Campaigns", d={**pages.campaigns_page(sv, p), "problem": problem})
+        return render("campaigns.html", p, "/campaigns", "campaigns", "Campaigns", d={**pages.campaigns_page(sv, p), "problem": problem, "rewards_note": rewards, "rewards_n": n})
 
     @app.post("/campaigns/add")
     def campaign_add(request: Request, link: str = Form("")):
@@ -363,6 +364,36 @@ def create_app(sv: Services) -> FastAPI:
         except campaigns.CampaignError as e:
             return RedirectResponse(f"/campaigns?problem={quote(str(e))}", status_code=303)
         return RedirectResponse(f"/campaigns/{c['id']}", status_code=303)
+
+    @app.post("/campaigns/rewards/login")
+    def rewards_login(request: Request):
+        """Open the sign-in window on this computer. You sign in there once; the app only keeps the browser's own session."""
+        _only_local(request, "changes")
+        started = rewards.start_login(sv.db)
+        return RedirectResponse("/campaigns?rewards=" + ("opened" if started else "already"), status_code=303)
+
+    @app.post("/campaigns/rewards/check")
+    def rewards_check(request: Request):
+        _only_local(request, "changes")
+        tasks.enqueue(sv.db, "rewards_check", {}, dedupe_key=f"rewards_check:{int(store.now().timestamp() // 20)}", priority=10)
+        return RedirectResponse("/campaigns?rewards=checking", status_code=303)
+
+    @app.post("/campaigns/rewards/settings")
+    async def rewards_settings(request: Request):
+        _only_local(request, "changes")
+        form = {k: str(v) for k, v in (await request.form()).items()}
+        if "auto" in form:
+            rewards.set_auto(sv.db, form["auto"] == "1")
+        if "dry_run" in form:
+            rewards.set_dry_run(sv.db, form["dry_run"] == "1")
+        return RedirectResponse("/campaigns?rewards=saved", status_code=303)
+
+    @app.post("/campaigns/rewards/submit-waiting")
+    def rewards_submit_waiting(request: Request):
+        """Hand in every posted campaign clip that has not been handed in yet, one at a time with random pauses."""
+        _only_local(request, "changes")
+        n = rewards.queue_waiting(sv.db) + rewards.retry_failed(sv.db)
+        return RedirectResponse(f"/campaigns?rewards=queued&n={n}", status_code=303)
 
     @app.post("/campaigns/look-again")
     def campaigns_look_again(request: Request):
