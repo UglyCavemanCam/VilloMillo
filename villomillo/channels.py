@@ -158,7 +158,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
 
 
 def update(db: Database, profiles: dict[str, Profile], channel_id: str, **changes) -> Profile:
-    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, privacy, format."""
+    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, privacy, upload_size, format."""
     p = profiles[channel_id]
     data = p.model_dump()
     if "name" in changes:
@@ -182,6 +182,10 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         if changes["youtube_route"] not in ("manual", "api"):
             raise ChannelError("YouTube posts go out by hand (manual) or automatically (api)")
         data["posting"]["platforms"] = {**data["posting"]["platforms"], "youtube_shorts": changes["youtube_route"]}
+    if "upload_size" in changes:
+        if changes["upload_size"] not in ("1080", "1440"):
+            raise ChannelError("upload size: normal (1080) or larger (1440)")
+        data["posting"]["upload_size"] = changes["upload_size"]
     if "privacy" in changes:
         if changes["privacy"] not in ("public", "unlisted", "private"):
             raise ChannelError("who can watch the videos: public, unlisted or private")

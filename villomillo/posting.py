@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import subprocess
+import time
 from collections import Counter
 from datetime import datetime, timedelta
 
@@ -287,8 +289,11 @@ def send_post_now(db: Database, profile: Profile, post_id: int) -> str:
     return send_now(db, profile, post_id, default_adapters(profile))
 
 
-def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adapters: dict | None = None) -> list[str]:
-    """Send every post that is due. Returns one short line per post."""
+def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adapters: dict | None = None,
+            budget_s: float | None = None) -> list[str]:
+    """Send every post that is due. Returns one short line per post. With `budget_s`, stops starting new posts once that many seconds
+    have passed (enlarging and uploading a clip takes a minute or more), and the next run does the rest."""
+    started = time.monotonic()
     posting = profile.posting
     if posting is None:
         return []
@@ -299,6 +304,9 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
                         "ORDER BY scheduled_at", (profile.id, store.iso(now))).fetchall()
     lines = []
     for post in due:
+        if budget_s is not None and time.monotonic() - started > budget_s:
+            lines.append("more posts are due: the next run sends them")
+            break
         if accounts.is_paused(db, profile.id, post["platform"]):  # the post waits; the reason is on the channel's page
             lines.append(f"post {post['id']} ({post['platform']}): waiting, the account is paused")
             continue
@@ -334,15 +342,43 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
     return lines
 
 
+UPLOAD_W, UPLOAD_H = 1440, 2560
+
+
+def enlarged_copy(path: pathlib.Path, out: pathlib.Path) -> pathlib.Path:
+    """A 1440x2560 copy of a finished clip, for the upload only (YouTube treats a bigger upload better). The clip itself is untouched.
+    The picture is enlarged with Lanczos, kept at high quality and tagged BT.709; the sound is copied as it is."""
+    from core import binaries
+
+    cmd = [binaries.ffmpeg(), "-y", "-v", "error", "-i", str(path), "-vf", f"scale={UPLOAD_W}:{UPLOAD_H}:flags=lanczos,format=yuv420p",
+           "-c:v", "libx264", "-preset", "slow", "-crf", "12", "-profile:v", "high", "-colorspace", "bt709", "-color_primaries", "bt709",
+           "-color_trc", "bt709", "-color_range", "tv", "-c:a", "copy", "-movflags", "+faststart", str(out)]
+    run = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    if run.returncode != 0 or not out.exists():
+        out.unlink(missing_ok=True)
+        raise PostError("could not enlarge the clip for upload: " + (run.stderr.strip()[-200:] or "ffmpeg failed"))
+    return out
+
+
 def _send(db, profile, post, copy, clip, adapters) -> tuple[str, str | None, str | None, dict]:
     """(status, error, url, extra): extra carries the platform's own id for the live video (remote_id) when it gave one."""
     adapter = adapters.get(post["platform"])
     if adapter is None:
         return "failed", f"no {post['platform']} connection is set up for this channel", None, {}
+    path, temporary = pathlib.Path(clip["file_path"]), None
+    if profile.posting.upload_size == "1440":
+        try:
+            temporary = enlarged_copy(path, path.with_name(f"{path.stem}.upload.mp4"))
+            path = temporary
+        except (PostError, OSError, subprocess.SubprocessError) as e:  # the clip still goes out, at its own size
+            store.event(db, "warn", "post", f"post {post['id']}: sent at its own size, {e}")
     try:
-        result = adapter.post(path=pathlib.Path(clip["file_path"]), copy=copy, privacy=profile.posting.privacy)
+        result = adapter.post(path=path, copy=copy, privacy=profile.posting.privacy)
     except PostError as e:
         return "failed", str(e), None, {}
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     for note in result["notes"]:
         store.event(db, "warn", "post", f"post {post['id']}: {note}")
     return "uploaded", None, result["url"], {"remote_id": result.get("remote_id")}

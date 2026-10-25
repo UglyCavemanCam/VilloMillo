@@ -57,3 +57,73 @@ def test_a_low_bitrate_clip_is_flagged_and_the_figure_is_reported(tmp_path):
     info = validate.probe(low)
     rate = validate._video_bitrate(next(s for s in info["streams"] if s["codec_type"] == "video"), info)
     assert rate is not None and rate < validate.LOW_BITRATE_MBPS
+
+
+# ---- the larger upload ---------------------------------------------------------------------------------------------
+
+
+def _clip(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    subprocess.run([_ffmpeg(), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=270x480:rate=30:duration=1",
+                    "-f", "lavfi", "-i", "sine=duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(clip)], check=True)
+    return clip
+
+
+def test_the_enlarged_copy_is_1440_by_2560_tagged_and_keeps_its_sound(tmp_path, monkeypatch):
+    from villomillo import posting
+
+    monkeypatch.setattr(posting, "UPLOAD_W", 540)  # the real size is 1440x2560; a small one keeps the test quick
+    monkeypatch.setattr(posting, "UPLOAD_H", 960)
+    clip = _clip(tmp_path)
+    big = posting.enlarged_copy(clip, tmp_path / "big.mp4")
+    info = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height,color_space", "-of", "json", str(big)],
+                          capture_output=True, text=True, check=True)
+    streams = {s["codec_type"]: s for s in json.loads(info.stdout)["streams"]}
+    assert (streams["video"]["width"], streams["video"]["height"], streams["video"]["color_space"]) == (540, 960, "bt709")
+    assert "audio" in streams and clip.exists()
+    assert (posting.UPLOAD_W, posting.UPLOAD_H) == (540, 960)  # (restored below by monkeypatch)
+
+
+def _send_with(tmp_path, monkeypatch, size):
+    from types import SimpleNamespace
+
+    from villomillo import config, posting
+
+    monkeypatch.setattr(posting, "UPLOAD_W", 540)
+    monkeypatch.setattr(posting, "UPLOAD_H", 960)
+    clip = _clip(tmp_path)
+    seen = {}
+
+    class Adapter:
+        def post(self, *, path, copy, privacy):
+            seen["path"], seen["existed"] = path, path.exists()
+            return {"url": "https://youtube.com/shorts/x", "notes": [], "remote_id": "x"}
+
+    profile = SimpleNamespace(posting=config.Posting(upload_size=size, privacy="public"))
+    from villomillo.db import Database
+
+    status = posting._send(Database(tmp_path / "s.db"), profile, {"id": 1, "platform": "youtube_shorts"}, {"title": "t"},
+                           {"file_path": str(clip)}, {"youtube_shorts": Adapter()})
+    return status, seen, clip
+
+
+def test_a_channel_set_to_larger_uploads_the_enlarged_copy_and_removes_it_afterwards(tmp_path, monkeypatch):
+    status, seen, clip = _send_with(tmp_path, monkeypatch, "1440")
+    assert status[0] == "uploaded" and seen["path"].name == "clip.upload.mp4" and seen["existed"]
+    assert not seen["path"].exists() and clip.exists()
+
+
+def test_a_channel_on_normal_size_uploads_the_clip_itself(tmp_path, monkeypatch):
+    status, seen, clip = _send_with(tmp_path, monkeypatch, "1080")
+    assert status[0] == "uploaded" and seen["path"] == clip
+
+
+def test_if_the_enlarging_fails_the_clip_still_goes_out_at_its_own_size(tmp_path, monkeypatch):
+    from villomillo import posting
+
+    def broken(path, out):
+        raise posting.PostError("ffmpeg failed")
+
+    monkeypatch.setattr(posting, "enlarged_copy", broken)
+    status, seen, clip = _send_with(tmp_path, monkeypatch, "1440")
+    assert status[0] == "uploaded" and seen["path"] == clip

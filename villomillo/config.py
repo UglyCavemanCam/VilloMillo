@@ -123,6 +123,7 @@ class Posting(_Strict):
     dry_run: bool = True  # write what would be posted to the outbox; send nothing
     platforms: dict[str, Literal["api", "manual"]] = {}  # platform -> how it goes out
     privacy: Literal["private", "unlisted", "public"] = "private"
+    upload_size: Literal["1080", "1440"] = "1080"  # 1440: the finished clip is enlarged to 1440x2560 for the upload only
     min_gap_minutes: int = Field(180, ge=0)
     daily_cap: int = Field(2, ge=1)  # per platform, per day (YouTube's own limit for a channel is 100)
     topics: dict[str, list[str]] = {}  # platform -> words that send a clip there

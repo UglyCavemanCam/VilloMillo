@@ -621,7 +621,8 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
               "youtube_daily_cap": c.posting.daily_cap if c.posting else 100,
               "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
               "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0",
-              "privacy": c.posting.privacy if c.posting else "public", **(form or {})}
+              "privacy": c.posting.privacy if c.posting else "public",
+              "upload_size": c.posting.upload_size if c.posting else "1080", **(form or {})}
     return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
             "youtube": youtube_connected(c), "card": _channel_card(sv, c), "accounts": _account_rows(sv, c),
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}

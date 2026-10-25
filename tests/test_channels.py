@@ -363,3 +363,15 @@ def test_the_public_private_switch_on_the_channels_page_changes_what_is_sent(web
     assert sv.profiles["solved"].posting.privacy == "public"
     assert client.post("/api/channel-privacy", data={"profile": "solved", "privacy": "friends"}).status_code == 422
     assert client.post("/api/channel-privacy", data={"profile": "nope", "privacy": "public"}).status_code == 404
+
+
+def test_the_upload_size_is_a_channel_setting(web):
+    client, sv = web
+    assert sv.profiles["solved"].posting.upload_size == "1080"
+    assert "Upload size" in client.get("/channels/solved?profile=solved").text
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+            "youtube_route": "api", "dry_run": "1", "privacy": "public", "upload_size": "1440"}
+    assert client.post("/channels/solved/save", data=form, follow_redirects=False).status_code == 303
+    assert channels.load(sv.db)["solved"].posting.upload_size == "1440"
+    with pytest.raises(channels.ChannelError):
+        channels.update(sv.db, sv.profiles, "solved", upload_size="4000")

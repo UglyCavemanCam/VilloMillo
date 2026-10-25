@@ -223,3 +223,22 @@ def test_post_clip_says_why_when_no_channel_can_take_the_clip(db):
     assert "Why: approved, but not posted: no channel" in client.get(f"/clips/{clip_id}/panel?profile=solved").text
     rejected = scored(db, 80, state="rejected")
     assert client.post("/api/clip-post", data={"profile": "solved", "clip_id": rejected}).status_code == 422
+
+
+def test_a_run_stops_starting_new_posts_once_its_time_budget_is_spent(db, monkeypatch):
+    profiles, p = channel(db)
+    sent = []
+
+    class Slow:
+        def post(self, *, path, copy, privacy):
+            sent.append(1)
+            return {"url": "https://youtube.com/shorts/abc", "notes": [], "remote_id": "abc"}
+
+    for _ in range(3):
+        post(db, "queued")
+    from types import SimpleNamespace
+
+    ticks = iter([0, 0, 1000, 2000, 3000])  # the start, the first post's check, then well past the budget
+    monkeypatch.setattr(posting, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+    lines = posting.run_due(db, p, now=NOW, adapters={"youtube_shorts": Slow()}, budget_s=600)
+    assert len(sent) == 1 and any("next run" in x for x in lines)

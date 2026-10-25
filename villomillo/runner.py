@@ -69,7 +69,7 @@ def do_post(sv: Services, payload: dict) -> None:
     if p.posting is None:
         return
     adapters = {} if p.posting.dry_run else posting.default_adapters(p)
-    for line in posting.run_due(sv.db, p, adapters=adapters):
+    for line in posting.run_due(sv.db, p, adapters=adapters, budget_s=600):  # under the task's 15 minute lease
         store.event(sv.db, "info", "post", line)
 
 
