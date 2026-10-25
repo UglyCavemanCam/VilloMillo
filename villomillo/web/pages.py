@@ -20,6 +20,7 @@ from .. import (
     campaigns,
     channels,
     clipper,
+    engine_ai,
     engine_manager,
     health,
     posting,
@@ -853,7 +854,10 @@ def settings_page(sv: Services, p: Profile) -> dict:
             {"name": "Whop API key", "present": has_secret(secrets.WHOP)},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
-    return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine": engine_card(), "engine_url": clipper.ENGINE_URL, "health": (items := health.checks(sv)), "health_summary": health.summary(items),
+    ai = engine_ai.settings(sv.db)
+    moment_ai = {**ai, "active": engine_ai.active(sv.db), "key": engine_ai.key_stored(),
+                 "find_price": engine_ai.PRICES.get(ai["find"]), "judge_price": engine_ai.PRICES.get(ai["judge"])}
+    return {"moment_ai": moment_ai, "channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine": engine_card(), "engine_url": clipper.ENGINE_URL, "health": (items := health.checks(sv)), "health_summary": health.summary(items),
             "zone": f"Eastern Time ({timefmt.zone_label()})", "dashboard": f"{sv.app.dashboard.host}:{sv.app.dashboard.port}",
             "schedule": [("Send due posts", s.post_every_minutes)],
             "database": str(sv.db.path)}

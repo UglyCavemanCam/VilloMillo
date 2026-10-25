@@ -164,6 +164,12 @@ def find_clips(
               f"{len(voice_events)} voice jump(s)")
 
     # ---- 2. candidate pools ---------------------------------------------
+    # A cloud model reads far more at once than the small local model the 5-minute chunks were sized for: fewer, larger chunks.
+    from llm.spec import is_local
+
+    cloud = not is_local((config.get("llm") or {}).get("backend") or "")
+    chunk_seconds = analysis_cfg.get("cloud_chunk_seconds", 1200) if cloud else analysis_cfg["chunk_seconds"]
+    chunk_overlap = analysis_cfg.get("cloud_chunk_overlap_seconds", 60) if cloud else analysis_cfg["chunk_overlap_seconds"]
     candidates, _ = highlights.find_highlights(
         segments, llm,
         min_score=0,  # fusion owns thresholding now
@@ -173,8 +179,8 @@ def find_clips(
         max_overlap=1.1,  # fusion owns dedup too — keep all for scoring
         max_text_similarity=1.1,
         max_segment_reuse=1.1,
-        chunk_seconds=analysis_cfg["chunk_seconds"],
-        chunk_overlap_seconds=analysis_cfg["chunk_overlap_seconds"],
+        chunk_seconds=chunk_seconds,
+        chunk_overlap_seconds=chunk_overlap,
         long_video_threshold_seconds=analysis_cfg["long_video_threshold_seconds"],
         events=events,
         **({"guidance": guidance, "events_title": events_title} if gaming is not None else {}),
@@ -621,6 +627,7 @@ def find_clips(
     # long videos with many finalists are reranked in rerank_pool-sized
     # batches of similar-scoring clips instead of being capped.
     batch_size = max(2, scoring_cfg.get("rerank_pool", 8))
+    rerank_llm = _rerank_backend(config, llm)  # a stronger model may judge the finalists
     if len(finalists) > 1:
         finalists.sort(key=lambda c: c.score, reverse=True)
         reranked: list[ClipCandidate] = []
@@ -634,7 +641,7 @@ def find_clips(
             cancel.check_active()  # one more LLM call per batch
             progress.emit(stage="ranking", current=bi, total=n_batches)
             batch = finalists[i : i + batch_size]
-            reranked += (_rerank(batch, segments, llm, gaming) if len(batch) > 1 else batch)
+            reranked += (_rerank(batch, segments, rerank_llm, gaming) if len(batch) > 1 else batch)
         finalists = sorted(reranked, key=lambda c: c.score, reverse=True)
     if first is not None:
         finalists.sort(key=first, reverse=True)  # a must-have survives the cap below too
@@ -1047,6 +1054,22 @@ def _strongest_peak_windows(
 
 
 # ---- rerank ------------------------------------------------------------------
+
+
+def _rerank_backend(config: dict, llm: LLMBackend) -> LLMBackend:
+    """The model that orders the finalists: `llm.rerank_backend` when one is set (Claude Sonnet judging what Haiku found), else the
+    same model as everything else. A backend that cannot be made is said so and the main model does the job."""
+    llm_cfg = config.get("llm") or {}
+    spec = str(llm_cfg.get("rerank_backend") or "").strip()
+    if not spec or spec == str(llm_cfg.get("backend") or ""):
+        return llm
+    try:
+        from llm.registry import create_backend
+
+        return create_backend({**llm_cfg, "backend": spec, "effort": llm_cfg.get("rerank_effort", "medium")})
+    except Exception as e:
+        print(f"  Rerank: could not set up {spec} ({e}); using {llm.name}")
+        return llm
 
 
 def _rerank(finalists: list[ClipCandidate], segments: list[Segment], llm: LLMBackend,

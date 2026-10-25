@@ -32,6 +32,7 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the rules saved on each campaign |
 | `engine_manager.py`, `health.py` | Keeps the clip engine running under `run`, honest engine status; worker heartbeat, the health checks behind Settings and `doctor` | **Keep** (new) |
 | `activity.py` | The live activity log and each video's timeline | **Keep** (new) |
+| `engine_ai.py` | Which AI finds the moments (Claude Haiku reads, Sonnet judges, or the engine's own model): key copy, engine environment, spend counting | **Keep** (new) |
 | `claims.py` | One video, one owner: who has a video, in words | **Keep** (new) |
 | `removal.py` | Remove and restore clips, cancel unposted posts, purge old files | **Keep** (new) |
 | `twitch.py` | Twitch lookups for Research (category search, live channels) | **Keep** (new) |

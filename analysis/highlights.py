@@ -148,13 +148,11 @@ def find_highlights(
     chunks = _chunk_segments(segments, chunk_seconds, chunk_overlap_seconds, long_video_threshold_seconds)
     print(f"  Analyzing {len(chunks)} chunk(s) with {llm.name}...")
 
-    candidates: list[ClipCandidate] = []
-    for i, chunk in enumerate(chunks, 1):
+    def read_chunk(i: int, chunk: list[Segment]) -> list[ClipCandidate] | None:
         # One LLM call per chunk, and a 12b model on a long stream makes each
         # of those minutes long. Checking here bounds how long Cancel takes to
         # land at roughly one chunk instead of the entire analysis stage.
         cancel.check_active()
-        progress.emit(stage="analyze", current=i, total=len(chunks))
         transcript_text = "\n".join(f"[{s.start:.1f} - {s.end:.1f}] {s.text}" for s in chunk)
         prompt = prompt_template.replace("{transcript}", transcript_text)
         # Guidance can depend on where in the video the chunk is (a stream that
@@ -169,9 +167,26 @@ def find_highlights(
         if parsed is None:
             snippet = " ".join(raw.split())[:150]
             print(f"  Chunk {i}/{len(chunks)}: unparseable LLM output, skipping chunk (got: {snippet!r})")
-            continue
+            return None
         print(f"  Chunk {i}/{len(chunks)}: {len(parsed)} candidate(s)")
-        candidates.extend(parsed)
+        return parsed
+
+    candidates: list[ClipCandidate] = []
+    workers = max(1, min(int(getattr(llm, "parallel", 1) or 1), len(chunks)))
+    if workers == 1:  # a local model answers one at a time: in order, as always
+        for i, chunk in enumerate(chunks, 1):
+            progress.emit(stage="analyze", current=i, total=len(chunks))
+            candidates.extend(read_chunk(i, chunk) or [])
+    else:  # a cloud model answers several chunks at once; results are kept in chunk order
+        from concurrent.futures import ThreadPoolExecutor
+
+        print(f"  Reading {workers} chunks at a time")
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(read_chunk, i, chunk) for i, chunk in enumerate(chunks, 1)]
+            for done, future in enumerate(futures, 1):
+                result = future.result()  # raises the first failure (a cancel included), as the loop did
+                progress.emit(stage="analyze", current=done, total=len(chunks))
+                candidates.extend(result or [])
 
     candidates = [c for c in candidates if _valid_range(c, video_end)]
     candidates = [_fit_to_segments(c, segments, min_duration, max_duration, **start_rules(selection, c))

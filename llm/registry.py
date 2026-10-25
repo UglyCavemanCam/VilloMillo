@@ -47,6 +47,7 @@ def create_backend(llm_config: dict) -> LLMBackend:
             raise ValueError("No data directory to read the API key from (llm.data_dir)")
         from llm.providers.cloud_backend import CloudBackend
 
-        return CloudBackend(cloud, model, data_dir)
+        return CloudBackend(cloud, model, data_dir, parallel=int(llm_config.get("cloud_parallel", 4)),
+                            effort=llm_config.get("effort") or ("low" if provider == "anthropic" else None))
 
     raise ValueError(f"Unknown LLM provider '{provider}' in backend spec '{spec}'")

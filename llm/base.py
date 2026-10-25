@@ -32,6 +32,8 @@ class LLMBackend(ABC):
     # backend that can enforce one says so; everything else is called exactly
     # as it always was (see generate_json below).
     supports_schema = False
+    # How many requests may be in flight at once. Local models answer one at a time; a cloud provider answers many.
+    parallel = 1
 
     @abstractmethod
     def generate(self, prompt: str, *, json_mode: bool = False) -> str:

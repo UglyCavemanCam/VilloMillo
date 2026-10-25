@@ -98,6 +98,14 @@ def do_research(sv: Services, payload: dict) -> None:
     research.work(sv)  # writes what it does to the activity log
 
 
+def do_usage(sv: Services, payload: dict) -> None:
+    """Count what the engine's Claude calls used, so the spending limit sees them."""
+    from . import engine_ai
+
+    for line in engine_ai.poll_usage(sv):
+        store.event(sv.db, "info", "spend", line)
+
+
 def _paste_step(step, kind: str):
     """A step of a pasted link's run. If spending hits the breaker part-way, look again in a minute without counting a failure."""
 
@@ -124,6 +132,7 @@ HANDLERS = {
     "stats": do_stats,
     "campaigns": do_campaigns,
     "research": do_research,
+    "usage": do_usage,
     "clip": do_clip,
     "collect": do_collect,
 }

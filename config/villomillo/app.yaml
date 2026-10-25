@@ -50,3 +50,4 @@ schedule:
   stats_every_minutes: 360       # read the real views of recent posts
   campaigns_every_minutes: 60    # read Content Rewards and keep each joined campaign's queue full
   research_every_minutes: 30     # look for videos worth clipping, when Research is on
+  usage_every_minutes: 2         # count what the engine's Claude calls used toward the spending limit

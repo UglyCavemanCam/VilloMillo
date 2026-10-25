@@ -78,6 +78,7 @@ class Schedule(_Strict):
     stats_every_minutes: int = Field(360, ge=30)  # read the real views of recent posts
     campaigns_every_minutes: int = Field(60, ge=15)  # read Content Rewards and keep campaign queues full
     research_every_minutes: int = Field(30, ge=5)  # look for videos worth clipping, when Research is switched on
+    usage_every_minutes: int = Field(2, ge=1)  # read what the engine's Claude calls used, for the spending limit
 
 
 class AppConfig(_Strict):

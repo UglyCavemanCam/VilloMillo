@@ -9,7 +9,7 @@ from __future__ import annotations
 import shutil
 from datetime import timedelta
 
-from . import accounts, engine_manager, posting, safety, secrets, spend, store
+from . import accounts, engine_ai, engine_manager, posting, safety, secrets, spend, store
 from .config import ROOT
 from .db import Database
 
@@ -45,6 +45,14 @@ def checks(sv) -> list[dict]:
     out.append(_check("engine", "Clip engine", "ok" if eng["state"] == "on" else ("warn" if eng["state"] in ("starting", "not_responding") else "bad"),
                       eng["text"] + (f" ({eng['last_error']})" if eng["last_error"] and eng["state"] != "on" else ""),
                       "" if eng["state"] == "on" else "Open Settings and press Start, or start the app with run-app.bat."))
+    ai = engine_ai.settings(sv.db)
+    if engine_ai.active(sv.db):
+        out.append(_check("moments_ai", "Finding moments", "ok", f"Claude: {ai['find']} reads the video, {ai['judge']} judges the finalists"))
+    elif ai["use_claude"]:
+        out.append(_check("moments_ai", "Finding moments", "warn", "Using the engine's own local model: slow on long videos (no Claude key stored)",
+                          "Store your Claude key and restart: .\\.venv\\Scripts\\python.exe -m villomillo key claude"))
+    else:
+        out.append(_check("moments_ai", "Finding moments", "warn", "Using the engine's own local model: slow on long videos", "Settings, Finding moments: switch Claude on."))
     w = worker(sv.db)
     out.append(_check("worker", "Background worker", "ok" if w["state"] == "running" else "bad",
                       {"running": "Working" + (f" on: {w['task']}" if w["task"] else ", waiting for the next job"),

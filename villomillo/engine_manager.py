@@ -101,6 +101,7 @@ class EngineManager:
         self.log_path = pathlib.Path(log_path or LOG_PATH)
         self._popen, self._probe, self._clock = popen, probe or (lambda: _probe(self.url)), clock
         self._wall = wall or (lambda: datetime.now(timezone.utc))
+        self.env_for = lambda: {}  # extra environment for the engine (which AI finds the moments); set by `villomillo run`
         self.supervised = False
         self.proc = None
         self._lock = threading.RLock()
@@ -186,7 +187,8 @@ class EngineManager:
         log.write(f"\n--- engine starting {self._wall().isoformat(timespec='seconds')} ---\n".encode())
         log.flush()
         try:
-            self.proc = self._popen(self.command, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+            self.proc = self._popen(self.command, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    env={**os.environ, **self.env_for()})
         finally:
             log.close()  # the child has its own copy of the handle
         self.launched_at, self.exited, self.restart_at = self._clock(), False, None

@@ -102,7 +102,7 @@ def ensure_schedules(db: Database, app: AppConfig, profiles: dict[str, Profile],
                     "ON CONFLICT(name) DO UPDATE SET interval_s=excluded.interval_s",
                     (f"{kind}:{profile_id}", kind, profile_id, minutes * 60, store.iso(at)),
                 )
-        for kind, minutes in (("campaigns", s.campaigns_every_minutes), ("research", s.research_every_minutes)):
+        for kind, minutes in (("campaigns", s.campaigns_every_minutes), ("research", s.research_every_minutes), ("usage", s.usage_every_minutes)):
             c.execute(  # not tied to a channel: one pass reads Content Rewards, or looks for videos, for all of them
                 "INSERT INTO schedules (name, kind, profile_id, interval_s, next_run_at) VALUES (?, ?, NULL, ?, ?) "
                 "ON CONFLICT(name) DO UPDATE SET interval_s=excluded.interval_s", (kind, kind, minutes * 60, store.iso(at)))

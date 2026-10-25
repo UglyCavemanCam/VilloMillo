@@ -418,12 +418,18 @@ def cmd_serve(args) -> None:
 
 
 def cmd_run(args) -> None:
-    from . import engine_manager
+    from . import engine_ai, engine_manager
 
     sv = _services()
     stop = threading.Event()
     worker = threading.Thread(target=runner.loop, args=(sv, stop), name="worker", daemon=True)
     worker.start()
+    try:  # Claude finds the moments when you want it and have a key: the engine needs its own copy of the key
+        engine_ai.sync_key()
+    except Exception as e:  # never stops the app starting
+        print(f"Could not give the engine your Claude key: {e}")
+    engine_manager.manager.env_for = lambda: engine_ai.env(sv.db)
+    print("Claude finds the moments in videos." if engine_ai.active(sv.db) else "The engine's own model finds the moments in videos.")
     print(engine_manager.manager.enable())
     keeper = threading.Thread(target=engine_manager.manager.run_forever, args=(stop,), name="engine", daemon=True)
     keeper.start()

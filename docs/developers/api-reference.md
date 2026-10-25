@@ -4,7 +4,7 @@
 
 API version **1** (`GET /health` → `api_version`). The engine listens on `http://127.0.0.1:8765`. How to call it, with examples and the gotchas, is in [`docs/API.md`](../API.md); what the labels promise is in [API](api.md).
 
-201 routes: **60 stable**, **25 experimental**, 116 internal.
+202 routes: **60 stable**, **25 experimental**, 117 internal.
 
 | Label | Promise |
 |---|---|
@@ -203,6 +203,7 @@ Everything else. Grouped by the first part of the path; the module is where it i
 | `/sources` | `GET /sources/frame`<br>`GET /sources/people`<br>`GET /sources/snap`<br>`GET /sources/suggest` | `server.api` |
 | `/storage` | `GET /storage`<br>`GET /storage/videos` | `server.api` |
 | `/uploadpost` | `POST /uploadpost/batch`<br>`GET /uploadpost/capabilities`<br>`GET /uploadpost/clips/{clip_id}`<br>`POST /uploadpost/clips/{clip_id}/publish`<br>`POST /uploadpost/connect`<br>`GET /uploadpost/connections`<br>`DELETE /uploadpost/key`<br>`PUT /uploadpost/key`<br>`GET /uploadpost/profiles`<br>`POST /uploadpost/refresh/{request_id}`<br>`POST /uploadpost/retry/{request_id}`<br>`PATCH /uploadpost/settings`<br>`GET /uploadpost/status` | `server.uploadpost_api` |
+| `/usage` | `GET /usage/llm` | `server.api` |
 | `/videos` | `GET /videos/local/shape`<br>`DELETE /videos/{video_id}`<br>`DELETE /videos/{video_id}/download`<br>`DELETE /videos/{video_id}/moments`<br>`GET /videos/{video_id}/moments`<br>`GET /videos/{video_id}/preview` | `server.api` |
 | `/voices` | `GET /voices`<br>`GET /voices/preview` | `server.api` |
 | `/woopsocial` | `POST /woopsocial/batch`<br>`POST /woopsocial/batch/plan`<br>`POST /woopsocial/clips/{clip_id}/publish`<br>`POST /woopsocial/connect`<br>`GET /woopsocial/connections`<br>`GET /woopsocial/in-flight`<br>`DELETE /woopsocial/key`<br>`PUT /woopsocial/key`<br>`POST /woopsocial/refresh`<br>`POST /woopsocial/refresh/{post_id}`<br>`GET /woopsocial/schedule`<br>`PATCH /woopsocial/settings`<br>`GET /woopsocial/status` | `server.woopsocial_api` |

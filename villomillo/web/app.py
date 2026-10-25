@@ -569,6 +569,20 @@ def create_app(sv: Services) -> FastAPI:
         p = profile_or_404(profile)
         return render("settings.html", p, "/settings", "settings", "Settings", d={**pages.settings_page(sv, p), "engine_message": engine_message})
 
+    @app.post("/settings/moment-ai")
+    def moment_ai_switch(request: Request, use_claude: str = Form("1")):
+        from .. import engine_ai
+
+        _only_local(request, "changes")
+        engine_ai.save(sv.db, use_claude=use_claude == "1")
+        if use_claude == "1":
+            try:
+                engine_ai.sync_key()
+            except Exception:  # shown below as "no key" when it cannot be given
+                pass
+        message = engine_manager.manager.restart() if engine_manager.manager.supervised else "Saved. Restart the app so the clip engine starts with it."
+        return RedirectResponse(f"/settings?engine_message={quote(message)}#moment-ai", status_code=303)
+
     @app.post("/api/engine/{action}")
     def engine_action(action: str, request: Request):
         _only_local(request, "changes")

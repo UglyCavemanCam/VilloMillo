@@ -113,6 +113,15 @@ def load_config(path: Path) -> dict:
     if ollama_host:
         config.setdefault("llm", {})["ollama_host"] = ollama_host.rstrip("/")
 
+    # VilloMillo starts the engine with these when Claude finds the moments (Haiku) and judges the finalists (Sonnet): the settings
+    # file stays as the person left it, and running the engine by hand still uses their own model.
+    llm_backend = os.environ.get("CLIPS_STUDIO_LLM_BACKEND")
+    if llm_backend:
+        config.setdefault("llm", {})["backend"] = llm_backend.strip()
+    rerank_backend = os.environ.get("CLIPS_STUDIO_RERANK_BACKEND")
+    if rerank_backend:
+        config.setdefault("llm", {})["rerank_backend"] = rerank_backend.strip()
+
     data_dir = os.environ.get("CLIPS_STUDIO_DATA_DIR")
     if data_dir:
         config.setdefault("paths", {})["data_dir"] = data_dir

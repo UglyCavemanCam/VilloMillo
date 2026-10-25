@@ -5,6 +5,7 @@ models refuse a pre-filled answer, so asking for JSON in the prompt alone is
 the fallback, not the plan. `max_tokens` is required by this API.
 """
 
+from llm import usage
 from llm.base import ChatTurn, ToolCall
 from llm.providers.adapters.chat_completions import check_key_generic
 from llm.providers.base import LLMError, ModelInfo, ProviderSpec
@@ -17,24 +18,37 @@ _working_format: dict[tuple[str, str], int] = {}
 
 
 def generate(spec: ProviderSpec, key: str, model: str, prompt: str, *,
-             json_mode: bool = False, schema: dict | None = None) -> str:
+             json_mode: bool = False, schema: dict | None = None, effort: str | None = None) -> str:
+    """`effort` ("low" ... "max") is how hard the model thinks: finding moments needs little, so the caller asks for "low" and pays for
+    far fewer thinking tokens. A model that does not accept it is asked again without it."""
     formats: list[dict | None] = [{"type": "json_schema", "schema": schema}] if schema else []
     formats.append(None)
+    efforts: list[str | None] = [effort, None] if effort else [None]
     start = min(_working_format.get((spec.id, model), 0), len(formats) - 1)
     last: LLMError | None = None
     for index in range(start, len(formats)):
-        body: dict = {"model": model, "max_tokens": GENERATE_MAX_TOKENS,
-                      "messages": [{"role": "user", "content": prompt}]}
-        if formats[index]:
-            body["output_config"] = {"format": formats[index]}
-        try:
-            data = send(spec, key, "POST", "/messages", json_body=body)
-        except LLMError as e:
-            if formats[index] is None or e.kind not in ("rejected", "model_unavailable"):
-                raise
-            last = e
-            continue
+        for eff in efforts:
+            body: dict = {"model": model, "max_tokens": GENERATE_MAX_TOKENS,
+                          "messages": [{"role": "user", "content": prompt}]}
+            config: dict = {}
+            if formats[index]:
+                config["format"] = formats[index]
+            if eff:
+                config["effort"] = eff
+            if config:
+                body["output_config"] = config
+            try:
+                data = send(spec, key, "POST", "/messages", json_body=body)
+            except LLMError as e:
+                if e.kind not in ("rejected", "model_unavailable") or (formats[index] is None and eff is None):
+                    raise
+                last = e
+                continue
+            break
+        else:
+            continue  # every way of asking at this format was refused: try the next format
         _working_format[(spec.id, model)] = index
+        usage.record(spec.id, model, data.get("usage"))
         text = _text(data)
         if not text.strip():
             if data.get("stop_reason") == "max_tokens":

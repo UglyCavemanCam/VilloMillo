@@ -9,10 +9,12 @@ from llm.providers.base import LLMError, ProviderSpec
 class CloudBackend(LLMBackend):
     supports_schema = True
 
-    def __init__(self, spec: ProviderSpec, model: str, data_dir):
+    def __init__(self, spec: ProviderSpec, model: str, data_dir, *, parallel: int = 1, effort: str | None = None):
         self.spec = spec
         self.model = model
         self.data_dir = data_dir
+        self.parallel = max(1, int(parallel))
+        self.effort = effort  # only Anthropic's adapter takes it
         self._adapter = adapter_for(spec)
 
     def _keyed(self) -> tuple[ProviderSpec, str]:
@@ -28,8 +30,9 @@ class CloudBackend(LLMBackend):
     def generate(self, prompt: str, *, json_mode: bool = False, schema: dict | None = None) -> str:
         spec, key = self._keyed()
         try:
+            extra = {"effort": self.effort} if self.effort and spec.adapter == "anthropic_messages" else {}
             return self._adapter.generate(spec, key, self.model, prompt,
-                                          json_mode=json_mode, schema=schema)
+                                          json_mode=json_mode, schema=schema, **extra)
         except LLMError as e:
             raise self._said_plainly(e) from e
 

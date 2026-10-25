@@ -48,6 +48,21 @@
 
 <p style="margin:0 0 16px"><a class="btn btn-sm" href="/rules?profile={{ shell.current.id }}">Scoring and safety rules</a> <span class="muted" style="font-size:13px">The numbers and rules that decide what is made and posted.</span></p>
 
+<section class="card stack" id="moment-ai" aria-labelledby="mai-h" style="margin-bottom:16px">
+  {% set m = d.moment_ai %}
+  <h2 id="mai-h" style="margin:0">Finding moments</h2>
+  <p class="muted" style="margin:0;line-height:1.5">The clip engine reads each video's words with an AI model to find the moments worth clipping.
+    {% if m.active %}<b>Claude is doing it now:</b> {{ m.find }} reads the video in large pieces, several at once, and {{ m.judge }} judges the best moments.
+    A 4-hour video takes minutes, not hours, and costs roughly 2 cents for the reading plus a few cents for the judging. What it uses counts toward your Claude limit.
+    {% else %}<b>The engine's own model on this PC is doing it:</b> free, but slow: minutes per 5-minute piece, so a long video can take hours.{% endif %}</p>
+  {% if m.use_claude and not m.key %}<div class="notice warn">{{ icon('alert') }}<div>Claude is switched on but no Claude key is stored, so the engine's own model is used. Store it with <code>.\.venv\Scripts\python.exe -m villomillo key claude</code>, then restart the app.</div></div>{% endif %}
+  <div class="cluster">
+    {% if m.use_claude %}<form method="post" action="/settings/moment-ai"><input type="hidden" name="use_claude" value="0"><button class="btn" type="submit">Use the engine's own model instead</button></form>
+    {% else %}<form method="post" action="/settings/moment-ai"><input type="hidden" name="use_claude" value="1"><button class="btn btn-primary" type="submit">Use Claude ({{ m.find }} reads, {{ m.judge }} judges)</button></form>{% endif %}
+  </div>
+  <p class="muted" style="margin:0;font-size:13px">Changing it restarts the clip engine, which interrupts a video it is working on.</p>
+</section>
+
 <section class="card" aria-labelledby="health-h" style="margin-bottom:16px">
   <h2 id="health-h" style="margin-bottom:4px">Health</h2>
   <p class="muted" style="margin:0 0 12px">{{ d.health_summary }} The same checks run with <code>python -m villomillo doctor</code>.</p>

@@ -706,6 +706,17 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         # threads; per-request connections are effectively free.
         return StateDB(db_path)
 
+    def _record_llm_usage(provider: str, model: str, input_tokens: int, output_tokens: int) -> None:
+        d = db()
+        try:
+            d.add_llm_usage(provider, model, input_tokens, output_tokens)
+        finally:
+            d.close()
+
+    from llm import usage as llm_usage
+
+    llm_usage.set_sink(_record_llm_usage)  # cloud answers are counted, so the app can hold them to a spending limit
+
     # Uploads get their own thread. They must not queue behind an hour of GPU
     # work, must not be blocked by the queue's default-paused state, and must
     # never be re-run by crash recovery — see server/publisher.py.
@@ -1597,6 +1608,16 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         finally:
             d.close()
         return {"ok": True}
+
+    @app.get("/usage/llm")
+    def llm_usage_rows(after: int = 0):
+        """What cloud AI answers used since row `after`: tokens by provider and model, for the app's spending limit."""
+        d = db()
+        try:
+            rows = d.llm_usage_after(after)
+        finally:
+            d.close()
+        return {"rows": rows, "last_id": rows[-1]["id"] if rows else after}
 
     @app.delete("/videos/{video_id}/download")
     def discard_download(video_id: str):

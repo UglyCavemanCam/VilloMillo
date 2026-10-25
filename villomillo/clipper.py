@@ -79,6 +79,11 @@ class Engine:
         except EngineUnavailable:
             pass
 
+    def llm_usage(self, after: int = 0) -> dict:
+        """What the engine's cloud AI calls used since row `after`: {"rows": [...], "last_id": n}."""
+        r = self._call("GET", "/usage/llm", params={"after": after})
+        return r.json() if r.status_code == 200 else {"rows": [], "last_id": after}
+
     def discard_download(self, video_id: str) -> int:
         """Delete the engine's downloaded copy of a video so the next job fetches it again. Returns how many files went."""
         r = self._call("DELETE", f"/videos/{video_id}/download")

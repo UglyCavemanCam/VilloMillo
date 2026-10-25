@@ -261,6 +261,12 @@ CREATE TABLE IF NOT EXISTS clip_publishes (
 -- Small key/value store for app-level flags that must outlive a restart.
 -- Currently just the queue's paused state: stopping the queue is a decision
 -- the user made, so a crash or a reboot must not quietly resume processing.
+-- What cloud AI answers used (tokens only: no prompt, no key). The app reads it to count the spend.
+CREATE TABLE IF NOT EXISTS llm_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS app_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -375,6 +381,17 @@ class StateDB:
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.commit()
+
+    def add_llm_usage(self, provider: str, model: str, input_tokens: int, output_tokens: int) -> None:
+        self.conn.execute("INSERT INTO llm_usage (ts, provider, model, input_tokens, output_tokens) VALUES (?,?,?,?,?)",
+                          (_now(), provider, model, input_tokens, output_tokens))
+        self.conn.commit()
+
+    def llm_usage_after(self, after_id: int, limit: int = 500) -> list[dict]:
+        """Usage rows newer than `after_id`, oldest first."""
+        rows = self.conn.execute("SELECT id, ts, provider, model, input_tokens, output_tokens FROM llm_usage WHERE id > ? ORDER BY id LIMIT ?",
+                                 (int(after_id), int(limit))).fetchall()
+        return [dict(r) for r in rows]
 
     def _migrate(self) -> None:
         """Add columns introduced after a DB was first created."""
