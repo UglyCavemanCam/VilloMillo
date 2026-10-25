@@ -30,6 +30,12 @@
   <div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Approved by you.' if d.row.state == 'approved' else 'Rejected by you.' if d.row.state == 'rejected' else 'Removed by you. It can be restored for 30 days.' if d.row.state == 'removed' else 'Stopped by the checks before it reached you.' }}</div>
   {% if d.post and d.row.state != 'removed' %}<a class="btn btn-sm" href="/calendar?profile={{ p.id }}&view=list&panel=/calendar/post/{{ d.post.id }}">Open post</a>{% endif %}
   {% endif %}
+  {% if d.can_post %}
+  <button type="button" class="btn btn-primary btn-pill" data-act="/api/post-send-now" data-fields='{{ {"post_id": d.post.id, "profile": d.post.profile_id}|tojson }}' data-after="panel" data-ok="Posting. Titles are written first, then it goes to YouTube; this takes a minute."
+    data-confirm-title="Post this clip now?" data-confirm="It goes to YouTube now on {{ d.post_to }}, without waiting for its slot. Its titles are written first if they are not yet.">Post clip</button>
+  {% elif d.post and d.post.url %}
+  <a class="btn btn-sm" href="{{ d.post.url }}" target="_blank" rel="noopener noreferrer">Open on YouTube {{ icon('external', 'icon-sm') }}</a>
+  {% endif %}
   {% if d.row.state == 'removed' %}
   <button type="button" class="btn btn-primary btn-pill" data-act="/api/clips/restore" data-fields='{{ {"clip_ids": d.row.id|string, "profile": p.id}|tojson }}' data-ok="Restored. It is waiting for your decision." data-after="/clips?profile={{ p.id }}&tab=review">Restore</button>
   {% else %}

@@ -142,6 +142,9 @@
     window.addEventListener("pagehide", function () { clearInterval(timer); });
   });
 
+  /* ---- clip filters: a changed choice applies at once ---- */
+  $$("select[data-autosubmit]").forEach(function (sel) { sel.addEventListener("change", function () { sel.form.submit(); }); });
+
   /* ---- select clips: remove or restore several at once ---- */
   var bar = $("#select-bar"), toggle = $("#select-toggle");
   function chosen() { return $$(".clip-card.is-selected").map(function (c) { return c.dataset.clipId; }); }

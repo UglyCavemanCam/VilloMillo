@@ -114,3 +114,82 @@ def test_the_buttons_show_on_the_channel_page_and_the_post_panel(db):
     two = post(db, "manual_ready")
     panel = client.get(f"/calendar/post/{two}?profile=solved")
     assert panel.status_code == 200 and "Send now" in panel.text
+
+
+# ---- the Clips page: sorting, filters and the Post clip button ------------------------------------------------------
+
+
+def web(db):
+    profiles, _ = channel(db)
+    sv = Services(config.AppConfig(), profiles, db, Quota(db, general_cap=9, search_cap=9))
+    return TestClient(create_app(sv), base_url="http://127.0.0.1:8780"), sv
+
+
+def scored(db, score, *, video="vid00000001", state="approved", seconds=30) -> int:
+    with db.conn() as c:
+        c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, "
+                  "validation_json, grade_json, state, reason, created_at) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 "
+                  "FROM clips_ready), ?, 0, ?, ?, ?, 'f.mp4', '{}', '{}', ?, 'r', ?)", (video, seconds, score, f"hook {score}", state, store.iso()))
+        return c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
+
+
+def order(client, query=""):
+    import re
+
+    page = client.get("/clips?profile=solved" + query).text
+    return re.findall(r'class="grade">(\d+)</span>', page)
+
+
+def test_clips_show_the_highest_score_first_by_default_and_other_sorts_work(db):
+    client, _ = web(db)
+    for s, secs in ((72, 50), (91, 20), (85, 35)):
+        scored(db, s, seconds=secs)
+    assert order(client) == ["91", "85", "72"]
+    assert order(client, "&sort=lowest") == ["72", "85", "91"]
+    assert order(client, "&sort=newest") == ["85", "91", "72"]
+    assert order(client, "&sort=longest") == ["72", "85", "91"]
+    assert order(client, "&sort=nonsense") == ["91", "85", "72"]
+
+
+def test_clips_can_be_filtered_by_score_video_and_post(db):
+    client, _ = web(db)
+    a = scored(db, 95)
+    scored(db, 65, video="vid00000002")
+    scored(db, 80)
+    with db.conn() as c:
+        c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, created_at) "
+                  "VALUES ('solved', ?, 'youtube_shorts', 'api', 'uploaded', 't', 'c', '[]', ?, ?)", (a, store.iso(NOW), store.iso(NOW)))
+    assert order(client, "&min_score=80") == ["95", "80"]
+    assert order(client, "&video=vid00000002") == ["65"]
+    assert order(client, "&post=posted") == ["95"]
+    assert order(client, "&post=none") == ["80", "65"]
+    assert "No clips match these filters" in client.get("/clips?profile=solved&min_score=90&video=vid00000002").text
+    assert "Showing 2 of 3" in client.get("/clips?profile=solved&min_score=70").text
+
+
+def test_the_clip_panel_has_post_clip_for_an_approved_clip_with_a_waiting_post(db):
+    client, _ = web(db)
+    waiting = post(db, "manual_ready")
+    with db.conn() as c:
+        clip_id = c.execute("SELECT clip_id FROM posts WHERE id=?", (waiting,)).fetchone()["clip_id"]
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Post clip" in panel and "/api/post-send-now" in panel
+    out = post(db, "uploaded")
+    with db.conn() as c:
+        done = c.execute("SELECT clip_id FROM posts WHERE id=?", (out,)).fetchone()["clip_id"]
+    assert "Post clip" not in client.get(f"/clips/{done}/panel?profile=solved").text
+
+
+def test_post_clip_writes_the_titles_first_when_they_are_missing(db, monkeypatch):
+    profiles, p = channel(db)
+    monkeypatch.setattr(posting, "default_adapters", lambda profile: {"youtube_shorts": FakeYouTube()})
+    sv = Services(config.AppConfig(), profiles, db, Quota(db, general_cap=9, search_cap=9))
+    wrote = []
+    from villomillo import copywriter
+
+    monkeypatch.setattr(copywriter, "generate_with_keys", lambda *a, **k: wrote.append(a[2]) or "2 options written")
+    one = post(db, "manual_ready")
+    posting_tasks = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    assert posting_tasks.post("/api/post-send-now", data={"profile": "solved", "post_id": one}).status_code == 200
+    runner.run_one(sv)
+    assert wrote == [one] and status_of(db, one)["status"] == "uploaded"

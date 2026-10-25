@@ -516,9 +516,10 @@ def create_app(sv: Services) -> FastAPI:
         return JSONResponse({"ok": True})
 
     @app.get("/clips", response_class=HTMLResponse)
-    def clips(profile: str | None = None, tab: str = "all"):
+    def clips(profile: str | None = None, tab: str = "all", sort: str = "best", min_score: str = "0", video: str = "", post: str = "any"):
         p = profile_or_404(profile)
-        return render("clips.html", p, "/clips", "clips", "Clips", d=pages.clips_page(sv, p, tab))
+        score = int(min_score) if min_score.isdigit() else 0
+        return render("clips.html", p, "/clips", "clips", "Clips", d=pages.clips_page(sv, p, tab, sort=sort, min_score=score, video=video, post=post))
 
     @app.get("/clips/{clip_id}/panel", response_class=HTMLResponse)
     def clip_panel(clip_id: int, profile: str):

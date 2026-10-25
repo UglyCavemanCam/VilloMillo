@@ -6,10 +6,26 @@
 
 <div class="toolbar">
   <nav class="tabs" aria-label="Clip status">
-    {% for t in d.tabs %}<a class="tab" href="/clips?profile={{ shell.current.id }}&tab={{ t.key }}" {% if t.key == d.tab %}aria-current="page"{% endif %}>{{ t.label }}<small>{{ t.count }}</small></a>{% endfor %}
+    {% for t in d.tabs %}<a class="tab" href="/clips?profile={{ shell.current.id }}&tab={{ t.key }}&sort={{ d.filters.sort }}" {% if t.key == d.tab %}aria-current="page"{% endif %}>{{ t.label }}<small>{{ t.count }}</small></a>{% endfor %}
   </nav>
   {% if d.cards %}<button type="button" class="btn btn-sm" id="select-toggle">Select</button>{% endif %}
 </div>
+{% if d.tab != 'progress' and d.total %}
+<form class="toolbar clip-filters" method="get" action="/clips" aria-label="Sort and filter clips">
+  <input type="hidden" name="profile" value="{{ shell.current.id }}"><input type="hidden" name="tab" value="{{ d.tab }}">
+  <label class="cluster" style="gap:6px"><span class="muted">Sort</span>
+    <select class="field" name="sort" data-autosubmit>{% for k, label in d.sorts %}<option value="{{ k }}" {{ 'selected' if k == d.filters.sort }}>{{ label }}</option>{% endfor %}</select></label>
+  <label class="cluster" style="gap:6px"><span class="muted">Score</span>
+    <select class="field" name="min_score" data-autosubmit>{% for m in d.min_scores %}<option value="{{ m }}" {{ 'selected' if m == d.filters.min_score }}>{{ 'Any score' if m == 0 else (m ~ ' and up') }}</option>{% endfor %}</select></label>
+  <label class="cluster" style="gap:6px"><span class="muted">Video</span>
+    <select class="field" name="video" data-autosubmit style="max-width:260px"><option value="">All videos</option>{% for v in d.videos %}<option value="{{ v.id }}" {{ 'selected' if v.id == d.filters.video }}>{{ v.title }}</option>{% endfor %}</select></label>
+  <label class="cluster" style="gap:6px"><span class="muted">Post</span>
+    <select class="field" name="post" data-autosubmit>{% for k, label in d.post_filters %}<option value="{{ k }}" {{ 'selected' if k == d.filters.post }}>{{ label }}</option>{% endfor %}</select></label>
+  <noscript><button class="btn btn-sm" type="submit">Apply</button></noscript>
+  {% if d.filtered %}<a class="btn btn-sm btn-ghost" href="/clips?profile={{ shell.current.id }}&tab={{ d.tab }}&sort={{ d.filters.sort }}">Clear filters</a>{% endif %}
+  <span class="muted spacer" style="font-size:13px">Showing {{ d.cards|length }} of {{ d.total }}</span>
+</form>
+{% endif %}
 {% if d.cards %}
 <div class="select-bar" id="select-bar" hidden><span id="select-count">0 selected</span>
   <button type="button" class="btn btn-sm" id="select-all">Select all</button>
@@ -45,6 +61,8 @@
     </button>
     {% endfor %}
   </div>
+{% elif d.total %}
+  {{ empty('clips', 'No clips match these filters', 'Change the score, video or post filter, or clear the filters.') }}
 {% else %}
   {% set copy = {
     'review': ('Nothing is waiting for you', 'New clips that pass every check land here for your decision.'),

@@ -256,10 +256,21 @@ def _clip_card(p: Profile, r: dict, post: dict | None) -> dict:
         "thumb": f"/clips/{r['id']}/thumb?profile={p.id}", "look": "A2 look" if (grade.get("look") or "").startswith("recipe") else "Engine look",
         "rules": badge("Rules failed" if failed else ("Rules passed" if rules else "Checked"), "bad" if failed else "good"),
         "panel": f"/clips/{r['id']}/panel?profile={p.id}",
+        "score": r["engine_score"] or 0, "seconds": val.get("facts", {}).get("duration_s") or (r["end_s"] - r["start_s"]),
+        "video": r["video_id"], "post_key": ("none" if not post else "posted" if post["status"] in ("uploaded", "posted") else "waiting"),
     }
 
 
-def clips_page(sv: Services, p: Profile, tab: str) -> dict:
+CLIP_SORTS = {  # key: (label, sort key, newest first among equals)
+    "best": ("Highest score first", lambda c: -c["score"]), "lowest": ("Lowest score first", lambda c: c["score"]),
+    "newest": ("Newest first", lambda c: -c["id"]), "oldest": ("Oldest first", lambda c: c["id"]),
+    "longest": ("Longest first", lambda c: -c["seconds"]), "shortest": ("Shortest first", lambda c: c["seconds"]),
+}
+CLIP_MIN_SCORES = (0, 60, 70, 80, 90)
+CLIP_POST_FILTERS = (("any", "Any"), ("none", "No post planned"), ("waiting", "Post waiting to go out"), ("posted", "Posted"))
+
+
+def clips_page(sv: Services, p: Profile, tab: str, *, sort: str = "best", min_score: int = 0, video: str = "", post: str = "any") -> dict:
     db = sv.db
     found = rows(db, "SELECT * FROM clips_ready WHERE profile_id=? AND state!='superseded' ORDER BY id DESC", p.id)  # removed ones show only in their tab
     posts = {r["clip_id"]: r for r in rows(db, "SELECT * FROM posts WHERE profile_id=? ORDER BY id", p.id)}
@@ -275,7 +286,18 @@ def clips_page(sv: Services, p: Profile, tab: str) -> dict:
             (("all", "All"), ("review", "Waiting for you"), ("approved", "Approved"), ("rejected", "Rejected"), ("removed", "Removed"), ("progress", "In progress"))]
     tab = tab if tab in counts else "all"
     studio_data = studio.build(db, clipper.Engine().log, p.id) if tab == "progress" else None
-    return {"tab": tab, "tabs": tabs, "cards": [c for c in cards if groups.get(tab, lambda _: False)(c)],
+    in_tab = [c for c in cards if groups.get(tab, lambda _: False)(c)]
+    sort = sort if sort in CLIP_SORTS else "best"
+    post = post if post in dict(CLIP_POST_FILTERS) else "any"
+    min_score = min_score if min_score in CLIP_MIN_SCORES else 0
+    titles = {r["video_id"]: r["title"] for r in rows(db, "SELECT video_id, title FROM videos WHERE profile_id=?", p.id)}
+    videos = [{"id": v, "title": (titles.get(v) or v)[:60]} for v in dict.fromkeys(c["video"] for c in in_tab)]
+    video = video if video in {v["id"] for v in videos} else ""
+    shown = [c for c in in_tab if c["score"] >= min_score and (not video or c["video"] == video) and (post == "any" or c["post_key"] == post)]
+    shown.sort(key=lambda c: (CLIP_SORTS[sort][1](c), -c["id"]))  # ties: the newer clip first
+    filters = {"sort": sort, "min_score": min_score, "video": video, "post": post}
+    return {"tab": tab, "tabs": tabs, "cards": shown, "total": len(in_tab), "filters": filters, "filtered": (min_score, video, post) != (0, "", "any"),
+            "sorts": [(k, v[0]) for k, v in CLIP_SORTS.items()], "min_scores": CLIP_MIN_SCORES, "videos": videos, "post_filters": CLIP_POST_FILTERS,
             "studio": studio_data, "live": bool(studio_data and studio_data["job"] and
                                                 studio_data["job"]["status"] in ("submitted", "running", "queued"))}
 
@@ -313,7 +335,9 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
                                               "when": timefmt.full(post["scheduled_at"])} if post else None),
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
-            "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]])}
+            "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
+            "can_post": bool(post) and r["state"] == "approved" and post["status"] in (*posting.RESENDABLE, "queued", "failed"),
+            "post_to": (channel_name(sv.profiles[post["profile_id"]]) if post["profile_id"] in sv.profiles else post["profile_id"]) if post else ""}
 
 
 # --- calendar --------------------------------------------------------------------------------------------------

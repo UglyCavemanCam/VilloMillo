@@ -75,10 +75,19 @@ def do_post(sv: Services, payload: dict) -> None:
 
 def do_send_post(sv: Services, payload: dict) -> None:
     """Send one post right now: the Send now button."""
-    from . import posting
+    from . import copywriter, posting
 
+    p = _profile(sv, payload)
+    with sv.db.conn() as c:
+        written = c.execute("SELECT 1 FROM copy_options WHERE post_id=?", (payload["post_id"],)).fetchone()
+    if not written:  # the clip was approved a moment ago: write its titles first, as the copy task would
+        try:
+            store.event(sv.db, "info", "copy", f"post {payload['post_id']}: " + copywriter.generate_with_keys(
+                sv.db, p, payload["post_id"], jev=sv.jev, breaker=sv.app.spend_breaker))
+        except Exception as e:  # no keys, or Claude is unreachable: the basic title and caption go out instead
+            store.event(sv.db, "warn", "copy", f"post {payload['post_id']}: sent with the basic copy, {type(e).__name__}: {str(e)[:160]}")
     try:
-        line = posting.send_post_now(sv.db, _profile(sv, payload), payload["post_id"])
+        line = posting.send_post_now(sv.db, p, payload["post_id"])
     except (ValueError, LookupError) as e:  # not allowed any more, or already out: nothing to retry
         line = f"post {payload['post_id']}: not sent, {e}"
     store.event(sv.db, "info", "post", line)
