@@ -164,14 +164,14 @@ def test_a_reel_is_made_again_into_its_own_row(tmp_path, db, monkeypatch):
 
     made = pipeline._sport_reels(db, "vid", recap, clips, tmp_path, {})
     assert [m.path.name for m in made] == ["reel_recap.mp4"] and abs(made[0].candidate.end - 6.0) < 0.2
-    assert cards == ["reel_recap.mp4"] and not list(tmp_path.glob("*.pre-card.mp4"))
+    assert cards == [] and not list(tmp_path.glob("*.pre-card.mp4"))
     assert abs(reels.duration(made[0].path) - 6.0) < 0.6
 
     # The same clips again: made again into its row and file, one more card.
     db.set_clip(rows()["reel_recap.mp4"]["id"], title="My title")
     assert pipeline._sport_reels(db, "vid", recap, clips, tmp_path, {}) == []
     assert list(rows()) == ["reel_recap.mp4"] and rows()["reel_recap.mp4"]["title"] == "My title"
-    assert cards == ["reel_recap.mp4"] * 2
+    assert cards == []
 
     # Longform's 16:9 reel: a row of its own, its profile marking it Longform.
     wide = pipeline._sport_reels(db, "vid", recap, clips, tmp_path / "Longform", {},

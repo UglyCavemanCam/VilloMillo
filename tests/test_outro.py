@@ -197,12 +197,11 @@ def test_prebuilt_cards_are_actually_committed():
 
 
 # ---------------------------------------------------------------- the setting
-def test_absent_setting_means_on():
-    """Existing users have no `outro:` line. They must get it on upgrade, and
-    anyone who turned it off must keep it off."""
-    assert outro.enabled({}) is True
-    assert outro.enabled({"clips": {}}) is True
-    assert outro.enabled({"clips": {"outro": True}}) is True
+def test_the_end_card_is_always_off():
+    """The end card is removed from VilloMillo: no setting turns it on."""
+    assert outro.enabled({}) is False
+    assert outro.enabled({"clips": {}}) is False
+    assert outro.enabled({"clips": {"outro": True}}) is False
     assert outro.enabled({"clips": {"outro": False}}) is False
 
 
@@ -234,9 +233,9 @@ def test_toggling_off_works_on_a_file_with_no_outro_line():
     assert yaml.safe_load(back)["clips"]["outro"] is True
 
 
-def test_shipped_settings_yaml_has_the_key():
+def test_shipped_settings_yaml_has_the_end_card_off():
     cfg = yaml.safe_load((ROOT / "config" / "settings.yaml").read_text(encoding="utf-8"))
-    assert cfg["clips"]["outro"] is True
+    assert cfg["clips"]["outro"] is False
 
 
 def test_every_longform_mode_gets_a_card_by_construction():
@@ -338,43 +337,10 @@ def cfg(tmp_path):
     return c
 
 
-@needs_ffmpeg
-def test_append_does_not_re_encode_the_clip(clip_factory, cfg):
-    """The whole reason the cache is keyed on the clip's format: `-c copy`
-    only concatenates when both files agree, and that agreement is what makes
-    the append free and lossless."""
-    clip = clip_factory()
-    before = _packets(clip)
-    original = _video_hash(clip, before)
-
-    appended = outro.append(clip, cfg)
-    assert appended is True
-
-    assert _packets(clip) == before + round(30 * outro.DURATION)
-    assert _video_hash(clip, before) == original, "the clip was re-encoded"
 
 
-@needs_ffmpeg
-def test_a_shipped_format_never_renders(clip_factory, cfg, monkeypatch):
-    """Prebuilt cards exist precisely so the common paths cost nothing. If
-    this fails, the first clip on every install stalls for ~20 seconds."""
-    calls = []
-    monkeypatch.setattr(outro, "_render",
-                        lambda *a, **k: calls.append(a) or pytest.fail(
-                            "rendered a format that ships prebuilt"))
-    outro.append(clip_factory(), cfg)
-    assert not calls
 
 
-@needs_ffmpeg
-def test_second_clip_reuses_the_cache(clip_factory, cfg, monkeypatch):
-    """Built once per format on a machine — not once per video, and certainly
-    not once per clip."""
-    outro.append(clip_factory("a.mp4"), cfg)
-    calls = []
-    monkeypatch.setattr(outro, "_render", lambda *a, **k: calls.append(a))
-    outro.append(clip_factory("b.mp4"), cfg)
-    assert not calls
 
 
 @needs_ffmpeg
@@ -389,21 +355,6 @@ def test_disabled_leaves_the_clip_exactly_as_it_was(clip_factory, cfg):
     assert _video_hash(clip, before) == digest
 
 
-@needs_ffmpeg
-def test_a_broken_outro_never_costs_the_clip(clip_factory, cfg, monkeypatch, capsys):
-    """A clip without an end card beats no clip. Issue #74 is the precedent:
-    a post-render step that raised destroyed work that had already succeeded.
-    """
-    clip = clip_factory()
-    before, digest = _packets(clip), _video_hash(clip, _packets(clip))
-    monkeypatch.setattr(outro, "ensure_outro",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
-
-    appended = outro.append(clip, cfg)
-    assert appended is False       # no exception escapes
-    assert _packets(clip) == before
-    assert _video_hash(clip, before) == digest
-    assert "outro skipped" in capsys.readouterr().out
 
 
 def test_replace_waits_out_a_transient_windows_lock(tmp_path, monkeypatch):
@@ -430,29 +381,6 @@ def test_replace_waits_out_a_transient_windows_lock(tmp_path, monkeypatch):
     assert dst.read_bytes() == b"new"
 
 
-@needs_ffmpeg
-def test_a_truly_unwritable_clip_is_left_alone(clip_factory, cfg, monkeypatch, capsys):
-    """"Locked" now means BOTH strategies fail — a rename that is refused and a
-    write that is refused, which is what a memory-mapped file does.
-
-    The guarantee is unchanged and is the important one: when the end card
-    cannot be added, the clip survives byte-for-byte rather than being
-    half-written or lost.
-    """
-    clip = clip_factory()
-    before, digest = _packets(clip), _video_hash(clip, _packets(clip))
-
-    monkeypatch.setattr(
-        Path, "replace",
-        lambda self, target: (_ for _ in ()).throw(PermissionError(5, "denied")))
-    monkeypatch.setattr(outro, "_overwrite_in_place", lambda s, d: False)
-    monkeypatch.setattr(outro.time, "sleep", lambda _s: None)
-
-    appended = outro.append(clip, cfg)
-    assert appended is False
-    assert _packets(clip) == before
-    assert _video_hash(clip, before) == digest
-    assert "End card skipped" in capsys.readouterr().out
 
 
 def test_stale_build_dirs_are_swept(tmp_path):
@@ -483,52 +411,8 @@ def test_unprobeable_input_is_skipped_not_fatal(tmp_path, cfg):
     assert junk.read_bytes() == b"nonsense"
 
 
-@needs_ffmpeg
-def test_an_unshipped_format_still_works(clip_factory, cfg):
-    """44.1kHz audio is not one of the prebuilt cards. It must render one and
-    still stream-copy, rather than failing or re-encoding the clip."""
-    clip = clip_factory(secs=2)
-    subprocess.run([binaries.ffmpeg(), "-y", "-v", "error", "-i", str(clip),
-                    "-c:v", "copy", "-c:a", "aac", "-ar", "44100", "-ac", "2",
-                    str(clip.with_name("odd.mp4"))], check=True, capture_output=True)
-    odd = clip.with_name("odd.mp4")
-    assert outro.probe(odd)["sample_rate"] == 44100
-    before = _packets(odd)
-    original = _video_hash(odd, before)
-
-    appended = outro.append(odd, cfg)
-    assert appended is True
-    assert _packets(odd) == before + round(30 * outro.DURATION)
-    assert _video_hash(odd, before) == original
 
 
-@needs_ffmpeg
-def test_concurrent_appends_build_the_card_once(clip_factory, cfg, monkeypatch):
-    """Clips render on threads. Two of them hitting an unbuilt format must not
-    render it twice, or race on a half-written file.
-
-    An earlier version deadlocked here instead: ensure_outro held a plain Lock
-    across _render, which reaches _parts() and takes the same lock again.
-    """
-    import threading
-
-    real, calls = outro._render, []
-    monkeypatch.setattr(outro, "_render",
-                        lambda *a, **k: (calls.append(a), real(*a, **k))[1])
-    fmt = {"w": 640, "h": 640, "fps": 30, "pix_fmt": "yuv420p",
-           "sample_rate": 48000, "channels": 2}      # deliberately not shipped
-
-    results = []
-    threads = [threading.Thread(target=lambda: results.append(
-        outro.ensure_outro(fmt, cfg))) for _ in range(3)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join(timeout=180)
-
-    assert not any(t.is_alive() for t in threads), "ensure_outro deadlocked"
-    assert len(calls) == 1, f"rendered {len(calls)} times, expected once"
-    assert len(set(results)) == 1 and results[0].exists()
 
 
 # ---------------------------------------------------------------------------
@@ -608,54 +492,8 @@ def test_tally_reports_the_rate(tmp_path, monkeypatch):
     assert outro.summary() == "End card added to 5 of 5 clip(s)"
 
 
-@needs_ffmpeg
-def test_backfill_adds_only_what_is_missing(clip_factory, cfg, tmp_path):
-    """Repairing a library must not re-render, must not double up, and must
-    leave the clip's own video untouched."""
-    from core.state import StateDB
-
-    plain = clip_factory("plain.mp4", secs=3)
-    done = clip_factory("done.mp4", secs=3)
-    outro.append(done, cfg)                       # this one already has a card
-
-    db = StateDB(tmp_path / "state.db")
-    db.upsert_video("v1", title="t", channel_name="c", duration=60)
-    # Distinct windows: clips is UNIQUE on (video_id, start_s, end_s), so two
-    # rows with the same window silently collapse into one.
-    for start, p in ((0.0, plain), (10.0, done)):
-        db.add_clip("v1", start, start + 3.0, 90, "hook", path=str(p),
-                    status="queued", title="t", description="d",
-                    hashtags="[]", scores="{}", render_opts="{}")
-
-    before, digest = _packets(plain), _video_hash(plain, _packets(plain))
-    stats = outro.backfill(db, cfg)
-    assert stats["added"] == 1 and stats["already"] == 1, stats
-    assert _packets(plain) == before + round(30 * outro.DURATION)
-    assert _video_hash(plain, before) == digest, "backfill re-encoded the clip"
-
-    again = outro.backfill(db, cfg)               # idempotent
-    assert again["added"] == 0 and again["already"] == 2, again
-    db.conn.close()
 
 
-@needs_ffmpeg
-def test_a_relative_clip_path_still_works(clip_factory, cfg, monkeypatch):
-    """The concat demuxer resolves list entries relative to the LIST's own
-    directory, so a relative clip path inside it points nowhere.
-
-    settings.yaml's data_dir is relative in a checkout, so the database holds
-    both shapes — and this quietly cost 365 of 1098 clips their end card.
-    Every relative one failed; every absolute one worked.
-    """
-    clip = clip_factory(secs=2)
-    monkeypatch.chdir(clip.parent.parent)
-    relative = Path(clip.parent.name) / clip.name
-    assert not relative.is_absolute()
-
-    before = _packets(clip)
-    appended = outro.append(relative, cfg)
-    assert appended is True
-    assert _packets(clip) == before + round(30 * outro.DURATION)
 
 
 # ---------------------------------------------------------------------------

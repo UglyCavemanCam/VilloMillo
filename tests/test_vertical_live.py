@@ -233,7 +233,7 @@ def test_a_real_vertical_live_render_comes_out_1080x1920(pipeline, tmp_path, siz
     assert modes.probe_size(final) == (1080, 1920)
 
 
-def test_a_vertical_live_clip_still_ends_with_the_clips_kitty_card(pipeline, tmp_path):
+def test_a_vertical_live_clip_gets_no_end_card_even_when_the_setting_asks_for_one(pipeline, tmp_path):
     from core.models import ClipCandidate
     from video import outro
 
@@ -243,9 +243,9 @@ def test_a_vertical_live_clip_still_ends_with_the_clips_kitty_card(pipeline, tmp
                     "-f", "lavfi", "-i", "sine=sample_rate=48000", "-t", "6", "-c:v", "libx264",
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(source)], check=True)
     config = _config(tmp_path, vertical_live=True)
-    del config["clips"]["outro"]  # the app's default: the end card is on
+    config["clips"]["outro"] = True  # the end card is removed: this is ignored
     outro.reset_tally()
     final, _opts = pipeline._render_files(source, ClipCandidate(start=0.5, end=4.0, score=80), [],
                                           tmp_path / "clips", config)
     assert modes.probe_size(final) == (1080, 1920)
-    assert outro.summary().startswith("End card added to 1 of 1")
+    assert outro.summary() == ""

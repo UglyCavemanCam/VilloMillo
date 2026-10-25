@@ -3247,9 +3247,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             "privacy": config.get("upload", {}).get("privacy", "public"),
             "content_language": config.get("content_language", "auto"),
             "translation_model": config.get("llm", {}).get("translation_model", ""),
-            # Absent counts as ON, matching how the pipeline reads it, so the
-            # toggle shows the state an upgrading user actually gets.
-            "outro": config.get("clips", {}).get("outro", True),
+            "outro": False,  # the end card is removed: clips end where the moment ends
             "min_score": int(config.get("clips", {}).get("min_score", 55)),
             "youtube_cookies": ytdlp_common.cookies(),  # as the engine uses it: "", "firefox" or "file"
         }
@@ -3270,7 +3268,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             r"auto|[a-z]{2,3}", body.content_language
         ):
             raise HTTPException(400, "content_language must be 'auto' or an ISO code")
-        if body.outro is not None:
+        if False:  # the end card is removed; a request to turn it on is ignored
             # clips.outro is NESTED under `clips:`, so the flat rewrite below --
             # which is anchored at column 0 -- can never match its indented
             # line. Same shape as translation_model above, plus an insert: no

@@ -1062,9 +1062,9 @@ def _render(fmt: dict, dst: Path) -> None:
 
 
 def enabled(config: dict) -> bool:
-    """Absent means ON, so existing users get it on upgrade without their
-    settings.yaml being rewritten, and anyone who turned it off keeps it off."""
-    return bool(config.get("clips", {}).get("outro", True))
+    """Always off: VilloMillo clips end where the moment ends. Every place that would add the end card asks this first, so nothing
+    in settings.yaml, the engine's Settings or an old config can turn it back on."""
+    return False
 
 
 # How long to keep trying the atomic rename before writing in place instead.
