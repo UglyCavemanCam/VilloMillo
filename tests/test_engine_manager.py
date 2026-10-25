@@ -139,6 +139,16 @@ def test_restart_stops_what_it_started_and_starts_it_again_and_stop_ends_the_eng
     assert state["procs"][1][1].ended == ["terminate"] and not m.supervised
 
 
+def test_a_library_that_will_not_load_raises_an_error_instead_of_opening_a_box(tmp_path):
+    calls = []
+    fake = type("K", (), {"SetErrorMode": staticmethod(lambda mode: calls.append(mode))})()
+    assert engine_manager.quiet_dialogs(fake) is True and calls == [0x8001]
+    assert engine_manager.quiet_dialogs() in (True, False)  # on Linux it does nothing; on Windows it sets the same mode
+    m, state, clock = make(tmp_path)
+    m.enable()  # starting the engine sets it first, so the engine inherits it
+    assert state["procs"]
+
+
 def test_the_last_error_is_the_telling_line_of_the_log(tmp_path):
     log = tmp_path / "engine.log"
     log.write_text("starting\nTraceback (most recent call last):\n  File x\nOSError: [Errno 98] Address already in use\nbye\n")

@@ -11,6 +11,7 @@ An engine you started yourself is left alone: it is shown as on, but Restart can
 
 from __future__ import annotations
 
+import os
 import pathlib
 import re
 import subprocess
@@ -36,6 +37,24 @@ ERROR_WORDS = re.compile(r"(Traceback|Error|Exception|CRITICAL|ModuleNotFound|No
 
 TEXT = {"on": ("Clip engine is on", "good"), "starting": ("Clip engine is starting", "warn"), "not_responding": ("Clip engine is not responding", "warn"),
         "error": ("Clip engine has stopped", "bad"), "off": ("Clip engine is off", "")}
+
+
+SEM_FAILCRITICALERRORS = 0x0001
+SEM_NOOPENFILEERRORBOX = 0x8000
+
+
+def quiet_dialogs(kernel32=None) -> bool:
+    """Windows only: make a library that cannot be loaded (a wrong-version CUDA DLL, say) raise an error instead of opening a modal
+    "Entry Point Not Found" box that freezes the program until someone presses OK. Programs this one starts inherit the setting, so
+    the engine's real error lands in engine.log and shows in Settings. Returns whether it was set."""
+    if kernel32 is None:
+        if os.name != "nt":
+            return False
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+    kernel32.SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX)
+    return True
 
 
 def _probe(url: str) -> bool:
@@ -162,6 +181,7 @@ class EngineManager:
 
     def _launch(self) -> None:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        quiet_dialogs()  # the engine inherits it: a DLL problem becomes a line in engine.log, not a box on screen
         log = open(self.log_path, "ab")
         log.write(f"\n--- engine starting {self._wall().isoformat(timespec='seconds')} ---\n".encode())
         log.flush()
