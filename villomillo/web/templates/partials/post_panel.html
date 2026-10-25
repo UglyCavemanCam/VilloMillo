@@ -1,6 +1,6 @@
 {% from "_ui.html" import icon %}
 {% set po = d.post %}
-<div class="drawer-head"><h2>{{ po.platform_name }}</h2><span class="badge {{ po.state.kind }}">{{ po.state.text }}</span>
+<div class="drawer-head">{% if back %}<button type="button" class="icon-btn" data-panel="{{ back }}" aria-label="Back to the day's posts" title="Back to the day's posts">{{ icon('left') }}</button>{% endif %}<h2>{{ po.platform_name }}</h2><span class="badge {{ po.state.kind }}">{{ po.state.text }}</span>
   <button type="button" class="icon-btn" data-close aria-label="Close">{{ icon('x') }}</button></div>
 <div class="drawer-body">
   <div class="panel-top">
@@ -49,5 +49,5 @@
   {% elif po.url %}
   <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ ('Uploaded as ' ~ d.privacy ~ '. Change who can watch it in YouTube Studio.') if po.status == 'uploaded' and d.privacy != 'public' else ('Uploaded.' if po.status == 'uploaded' else 'Posted.') }}</div>
     <a class="btn btn-sm" href="{{ po.url }}" target="_blank" rel="noopener noreferrer">Open post {{ icon('external', 'icon-sm') }}</a></div>
-  {% else %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
+  {% elif not d.can_resend %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
 </div>

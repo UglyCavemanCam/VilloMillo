@@ -242,3 +242,47 @@ def test_a_run_stops_starting_new_posts_once_its_time_budget_is_spent(db, monkey
     monkeypatch.setattr(posting, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
     lines = posting.run_due(db, p, now=NOW, adapters={"youtube_shorts": Slow()}, budget_s=600)
     assert len(sent) == 1 and any("next run" in x for x in lines)
+
+
+# ---- the calendar: every post of a busy day, and a centred page -----------------------------------------------------
+
+
+def _busy_day(db, n=5):
+    clips = [scored(db, 70 + i) for i in range(n)]
+    with db.conn() as c:
+        for i, clip_id in enumerate(clips):
+            c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, created_at) "
+                      "VALUES ('solved', ?, 'youtube_shorts', 'api', 'queued', ?, 'c', '[]', ?, ?)",
+                      (clip_id, f"Hook number {i}", store.iso(store.now().replace(hour=15, minute=i * 10)), store.iso(NOW)))
+    from villomillo import timefmt
+
+    return timefmt.to_et(store.iso(store.now().replace(hour=15, minute=0))).date()  # the Eastern Time day those posts fall on
+
+
+def test_a_busy_day_shows_three_posts_and_a_button_that_lists_all_of_them(db):
+    client, _ = web(db)
+    day = _busy_day(db)
+    page = client.get("/calendar?profile=solved").text
+    assert "+2 more" in page and f"/calendar/day/{day}?profile=solved" in page and page.count("cal-chip ") >= 3
+    panel = client.get(f"/calendar/day/{day}?profile=solved").text
+    assert all(f"Hook number {i}" in panel for i in range(5)) and "5 posts" in panel
+    assert client.get("/calendar/day/not-a-date?profile=solved").status_code == 404
+
+
+def test_a_post_opened_from_the_day_list_has_a_way_back(db):
+    client, _ = web(db)
+    _busy_day(db, 1)
+    with db.conn() as c:
+        post_id = c.execute("SELECT MAX(id) AS id FROM posts").fetchone()["id"]
+    back = "/calendar/day/2026-10-25?profile=solved"
+    assert "Back to the day" in client.get(f"/calendar/post/{post_id}?profile=solved&back={back}").text
+    assert "Back to the day" not in client.get(f"/calendar/post/{post_id}?profile=solved&back=https://elsewhere.example/").text
+    assert "Back to the day" not in client.get(f"/calendar/post/{post_id}?profile=solved").text
+
+
+def test_every_page_is_centred_in_the_space_beside_the_sidebar():
+    import pathlib
+
+    css = (pathlib.Path(__file__).resolve().parent.parent / "villomillo" / "web" / "static" / "app.css").read_text()
+    rule = next(line for line in css.splitlines() if line.startswith(".content {"))
+    assert "margin: 0 auto" in rule and "max-width" in rule

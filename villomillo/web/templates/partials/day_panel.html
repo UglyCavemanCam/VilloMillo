@@ -1,0 +1,12 @@
+{% from "_ui.html" import icon %}
+<div class="drawer-head"><h2>{{ d.title }}</h2><span class="chip">{{ d.posts|length }} post{{ '' if d.posts|length == 1 else 's' }}</span>
+  <button type="button" class="icon-btn" data-close aria-label="Close">{{ icon('x') }}</button></div>
+<div class="drawer-body">
+  {% for x in d.posts %}
+  <button type="button" class="day-row {{ x.state.css }}" data-panel="{{ x.panel }}">
+    <span class="num label">{{ x.time }}</span><b>{{ x.mark }}</b>
+    <span class="ellipsis" style="font-weight:500">{{ x.short }}</span>
+    <span class="badge {{ x.state.kind }}">{{ x.state.text }}</span>
+  </button>
+  {% else %}<p class="muted">Nothing is planned for this day.</p>{% endfor %}
+</div>

@@ -36,7 +36,7 @@
     <div class="cell {{ '' if c.in_month else 'out' }} {{ 'today' if c.is_today }}">
       <div class="num"><span class="n">{{ c.date.day }}</span>{% if c.month_label or loop.first %}<small>{{ c.date.strftime('%b') }}</small>{% endif %}</div>
       {% for p in c.posts %}{{ chip(p) }}{% endfor %}
-      {% if c.more %}<span class="more">+{{ c.more }} more</span>{% endif %}
+      {% if c.more %}<button type="button" class="more" data-panel="{{ c.day_panel }}" aria-label="Show all {{ c.posts|length + c.more }} posts on {{ c.date.strftime('%B') }} {{ c.date.day }}">+{{ c.more }} more</button>{% endif %}
     </div>
     {% endfor %}
   </div>

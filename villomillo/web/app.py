@@ -579,13 +579,22 @@ def create_app(sv: Services) -> FastAPI:
             ref = None
         return render("calendar.html", p, "/calendar", "calendar", "Calendar", d=pages.calendar_page(sv, p, view, ref))
 
+    @app.get("/calendar/day/{day}", response_class=HTMLResponse)
+    def day_panel(day: str, profile: str):
+        p = profile_or_404(profile)
+        try:
+            when = date_fromiso(day)
+        except ValueError:
+            raise HTTPException(404, "no such day") from None
+        return fragment("partials/day_panel.html", p=p, d=pages.day_panel(sv, p, when))
+
     @app.get("/calendar/post/{post_id}", response_class=HTMLResponse)
-    def post_panel(post_id: int, profile: str):
+    def post_panel(post_id: int, profile: str, back: str = ""):
         p = profile_or_404(profile)
         data = pages.post_panel(sv, p, post_id)
         if data is None:
             raise HTTPException(404, "no such post")
-        return fragment("partials/post_panel.html", p=p, d=data)
+        return fragment("partials/post_panel.html", p=p, d=data, back=back if back.startswith("/calendar/day/") else "")
 
 
     @app.get("/insights", response_class=HTMLResponse)

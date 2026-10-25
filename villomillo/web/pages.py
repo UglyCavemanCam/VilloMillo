@@ -375,7 +375,8 @@ def calendar_page(sv: Services, p: Profile, view: str, ref: date | None) -> dict
     if view == "month":
         days = timefmt.month_grid(ref.year, ref.month)
         out["cells"] = [{"date": d, "in_month": d.month == ref.month, "is_today": d == today, "posts": by_day.get(d, [])[:3],
-                         "more": max(0, len(by_day.get(d, [])) - 3), "month_label": d.strftime("%b") if d.day == 1 else ""} for d in days]
+                         "more": max(0, len(by_day.get(d, [])) - 3), "month_label": d.strftime("%b") if d.day == 1 else "",
+                         "day_panel": f"/calendar/day/{d}?profile={p.id}"} for d in days]
         prev, nxt = (ref.replace(day=1) - timedelta(days=1)).replace(day=1), (ref.replace(day=28) + timedelta(days=4)).replace(day=1)
         out.update(period=f"{ref:%B %Y}", prev=f"{q}&view=month&date={prev}", next=f"{q}&view=month&date={nxt}")
     elif view == "week":
@@ -388,6 +389,14 @@ def calendar_page(sv: Services, p: Profile, view: str, ref: date | None) -> dict
         out.update(period="All posts", prev=None, next=None)
     out["today_link"] = f"{q}&view={view}"
     return out
+
+
+def day_panel(sv: Services, p: Profile, day: date) -> dict:
+    """Every post planned or sent on one Eastern Time day, earliest first: what a month cell has no room to show."""
+    posts = [_post_view(r) for r in rows(sv.db, "SELECT po.* FROM posts po WHERE po.profile_id=? AND po.status!='cancelled' ORDER BY po.scheduled_at", p.id)]
+    mine = sorted((x for x in posts if x["date"] == day), key=lambda x: x["scheduled_at"])
+    back = f"/calendar/day/{day}?profile={p.id}"
+    return {"day": day, "title": f"{day:%A}, {day:%B} {day.day}", "posts": [{**x, "panel": f"{x['panel']}&back={quote(back, safe='')}"} for x in mine]}
 
 
 def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
