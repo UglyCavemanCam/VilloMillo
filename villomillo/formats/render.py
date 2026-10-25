@@ -27,6 +27,13 @@ BLACK, BOLD = "ariblk.ttf", "segoeuib.ttf"
 INK, AMBER, BONE = (23, 18, 14), (255, 176, 0), (244, 235, 221)   # the brand palette until real colours are chosen
 LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000"
 
+# YouTube compresses every upload again, and a clip that was already squeezed hard has little left to give: its text edges and
+# faces turn mushy. So the file is made with plenty of detail (CRF 14, a low number is more detail) and told which colour standard
+# it uses (BT.709, what every player and YouTube assume for HD), because raw frames carry no colour tag of their own.
+VIDEO_ARGS = ["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
+              "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-maxrate", "40M", "-bufsize", "80M",
+              "-profile:v", "high", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
+
 
 class RenderError(RuntimeError):
     pass
@@ -355,7 +362,7 @@ def _render(job: Job, cap: cv2.VideoCapture) -> pathlib.Path:
     cmd = [ffmpeg, "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", f"{fps}",
            "-i", "pipe:0", "-ss", f"{job.start:.3f}", "-t", f"{total:.3f}", "-i", str(job.source),
            "-map", "0:v", "-map", "1:a:0?", "-af", LOUDNESS,
-           "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+           *VIDEO_ARGS,
            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-shortest", str(job.out)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     try:

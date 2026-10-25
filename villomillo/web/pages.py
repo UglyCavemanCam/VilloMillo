@@ -34,6 +34,7 @@ from .. import (
     store,
     studio,
     timefmt,
+    validate,
 )
 from ..config import ROOT, Profile
 from ..db import Database
@@ -323,6 +324,9 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
     if "caption_text" in grade:
         checks.append({"name": "Subtitles", "value": "on the whole clip" if grade["caption_text"].strip() else "none",
                        "ok": bool(grade["caption_text"].strip())})
+    if facts.get("bitrate_mbps") is not None:
+        checks.append({"name": "Picture detail", "value": f"{facts['bitrate_mbps']:.1f} Mbps",
+                       "ok": facts["bitrate_mbps"] >= validate.LOW_BITRATE_MBPS})
     if facts.get("lufs") is not None:
         checks.append({"name": "Loudness", "value": f"{facts['lufs']:.1f} LUFS", "ok": not any("loudness" in x for x in problems)})
     post = one(sv.db, "SELECT po.*, cp.title AS chosen_title FROM posts po LEFT JOIN copy_options cp ON cp.post_id=po.id AND cp.chosen=1 "
