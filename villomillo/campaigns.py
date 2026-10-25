@@ -16,7 +16,7 @@ import json
 import re
 from datetime import timedelta
 
-from . import activity, channels, contentrewards, links, store
+from . import activity, channels, claims, contentrewards, links, store
 from .config import Campaign, Posting, Scoring
 from .db import Database
 
@@ -282,7 +282,7 @@ def scan(db: Database, rules: Scoring, client=None) -> list[str]:
 
 def _queued(db: Database, cid: str) -> int:
     with db.conn() as c:
-        return c.execute("SELECT COUNT(*) AS n FROM campaign_queue WHERE campaign_id=? AND run_id IS NULL", (cid,)).fetchone()["n"]
+        return c.execute("SELECT COUNT(*) AS n FROM campaign_queue WHERE campaign_id=? AND run_id IS NULL AND skipped_reason IS NULL", (cid,)).fetchone()["n"]
 
 
 def fill_queue(db: Database, c: dict, yt) -> list[str]:
@@ -304,6 +304,9 @@ def fill_queue(db: Database, c: dict, yt) -> list[str]:
         for video_id, url, title in found:
             if room <= 0:
                 break
+            owner = claims.holder(db, video_id)
+            if owner or claims.reserved_by(db, video_id):  # another way in has this video: do not take a slot for it
+                continue
             with db.conn() as conn:
                 made = conn.execute("INSERT OR IGNORE INTO campaign_queue (campaign_id, video_id, url, title, created_at) VALUES (?,?,?,?,?)",
                                     (c["id"], video_id, url, title, store.iso())).rowcount
@@ -327,18 +330,20 @@ def active_runs(db: Database) -> int:
 
 
 def start_next(sv, client=None) -> list[str]:
-    """Start the next queued video of a joined campaign, if none is being worked on. One at a time keeps spending steady."""
+    """Start the next queued video of a joined campaign, if none is being worked on. One at a time keeps spending steady.
+    A video another way in already has (you pasted it, Research took it) is skipped with the reason, and the next one is tried."""
     from . import runs
 
     db, rules = sv.db, sv.app.scoring
     if active_runs(db):
         return ["Waiting: a campaign video is being clipped. The next one starts when it is done."]
+    lines = []
     for c in all_campaigns(db):
         if c["state"] != "joined":
             continue
         with db.conn() as conn:
-            item = conn.execute("SELECT * FROM campaign_queue WHERE campaign_id=? AND run_id IS NULL ORDER BY id LIMIT 1", (c["id"],)).fetchone()
-        if item is None:
+            items = conn.execute("SELECT * FROM campaign_queue WHERE campaign_id=? AND run_id IS NULL AND skipped_reason IS NULL ORDER BY id", (c["id"],)).fetchall()
+        if not items:
             continue
         try:  # the budget is checked again right before each video
             c = refresh_detail(db, c["id"], rules, client)
@@ -348,11 +353,18 @@ def start_next(sv, client=None) -> list[str]:
         if not ok:
             continue
         channel = channels.for_category(sv.profiles, c["category"]) or next(iter(sv.profiles.values()))
-        run_id = runs.create(sv, channel.id, item["url"], source="campaign", campaign_id=c["id"])
-        with db.conn() as conn:
-            conn.execute("UPDATE campaign_queue SET run_id=? WHERE id=?", (run_id, item["id"]))
-        return [f"{c['title']}: started {item['title'] or item['video_id']}"]
-    return []
+        for item in items:
+            try:
+                run_id = runs.create(sv, channel.id, item["url"], source="campaign", campaign_id=c["id"])
+            except runs.Claimed as e:
+                with db.conn() as conn:
+                    conn.execute("UPDATE campaign_queue SET skipped_reason=? WHERE id=?", (f"Skipped: {e.why}.", item["id"]))
+                lines.append(f"{c['title']}: skipped {item['title'] or item['video_id']}: {e.why}.")
+                continue
+            with db.conn() as conn:
+                conn.execute("UPDATE campaign_queue SET run_id=? WHERE id=?", (run_id, item["id"]))
+            return [*lines, f"{c['title']}: started {item['title'] or item['video_id']}"]
+    return lines
 
 
 def work(sv, client=None) -> list[str]:

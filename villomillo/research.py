@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from . import activity, campaigns, channels, links, store
+from . import activity, campaigns, channels, claims, links, store
 from .config import Research, Scoring
 from .db import Database
 from .quota import QuotaExceeded
@@ -159,8 +159,9 @@ def _learn(db: Database, v: dict) -> None:
 
 def _seen(db: Database, video_id: str) -> bool:
     with db.conn() as c:
-        return bool(c.execute("SELECT 1 FROM research_candidates WHERE video_id=?", (video_id,)).fetchone()
-                    or c.execute("SELECT 1 FROM runs WHERE video_id=?", (video_id,)).fetchone())
+        known = bool(c.execute("SELECT 1 FROM research_candidates WHERE video_id=?", (video_id,)).fetchone()
+                     or c.execute("SELECT 1 FROM runs WHERE video_id=?", (video_id,)).fetchone())
+    return known or claims.reserved_by(db, video_id) is not None  # a campaign has queued it: leave it to the campaign
 
 
 def _record(db: Database, v: dict, *, state: str, reason: str | None, via: str, topic: str | None = None, rank: float = 0.0) -> None:
@@ -444,8 +445,9 @@ def start_next(sv, feed=None) -> list[str]:
     with db.conn() as c:
         waiting = [dict(r) for r in c.execute("SELECT * FROM research_candidates WHERE state='queued' ORDER BY (via='watch') DESC, rank DESC, found_at")]
     for cand in waiting:
-        if _seen_by_a_run(db, cand["video_id"]):
-            _skip(db, cand["video_id"], "Skipped: it was already looked at.")
+        owner = claims.holder(db, cand["video_id"])
+        if owner:  # you pasted it, a campaign has it, or it was already clipped: one video, one owner
+            _skip(db, cand["video_id"], f"Skipped: {claims.phrase(db, owner)}.")
             continue
         if cand["platform"] != "youtube":  # Twitch and Kick list no length, so ask now, before the engine downloads anything
             ready = feed.readiness(cand["url"], min_seconds=cfg.min_minutes * 60)
@@ -462,15 +464,13 @@ def start_next(sv, feed=None) -> list[str]:
         except links.LinkError as e:
             _skip(db, cand["video_id"], f"Skipped: {e}.")
             continue
+        except runs.Claimed as e:
+            _skip(db, cand["video_id"], f"Skipped: {e.why}.")
+            continue
         with db.conn() as c:
             c.execute("UPDATE research_candidates SET state='started', run_id=? WHERE video_id=?", (run_id, cand["video_id"]))
         return [f"started {cand['title'] or cand['video_id']}"]
     return []
-
-
-def _seen_by_a_run(db: Database, video_id: str) -> bool:
-    with db.conn() as c:
-        return bool(c.execute("SELECT 1 FROM runs WHERE video_id=?", (video_id,)).fetchone())
 
 
 def work(sv, *, yt=None, feed=None, twitch=None, kick_get=None) -> list[str]:

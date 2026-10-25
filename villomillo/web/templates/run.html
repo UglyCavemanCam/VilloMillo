@@ -6,6 +6,7 @@
   <span class="right"><span class="badge {{ d.row.state.kind }}">{{ d.row.state.text }}</span><a class="btn btn-sm" href="/?profile={{ shell.current.id }}">Home</a></span></div>
 
 {% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
+{% if d.info %}<div class="notice">{{ icon('info') }}<div>{{ d.info }}</div></div>{% endif %}
 
 <section class="card run-head">
   {% if d.thumb %}<img class="run-thumb big" src="{{ d.thumb }}" alt="">{% else %}<span class="run-thumb big"></span>{% endif %}

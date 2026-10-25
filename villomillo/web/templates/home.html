@@ -10,7 +10,10 @@
     <input class="field" id="link" name="link" type="text" placeholder="Paste a YouTube, Twitch or Kick link" autocomplete="off" required>
     <button class="btn btn-primary" type="submit">Analyse</button>
   </form>
-  {% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>
+  {% if d.problem and d.again %}<div class="notice warn" role="alert">{{ icon('alert') }}<div>{{ d.problem }} Clip it again?
+    <form method="post" action="/paste" style="display:inline"><input type="hidden" name="profile" value="{{ shell.current.id }}"><input type="hidden" name="link" value="{{ d.again }}"><input type="hidden" name="redo" value="1">
+      <button class="btn btn-sm" type="submit">Clip it again</button></form></div></div>
+  {% elif d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>
   {% else %}<span class="muted">You then see each clip's score and press Start. Clips that clear the floors post by themselves.</span>{% endif %}
 </section>
 

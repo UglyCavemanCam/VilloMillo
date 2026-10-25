@@ -86,7 +86,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
 -- The videos queued for a campaign. The run that handles each one carries the rest of the story.
 CREATE TABLE IF NOT EXISTS campaign_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT, campaign_id TEXT NOT NULL, video_id TEXT NOT NULL, url TEXT NOT NULL, title TEXT,
-    run_id INTEGER, created_at TEXT NOT NULL, UNIQUE (campaign_id, video_id)
+    run_id INTEGER, created_at TEXT NOT NULL,
+    skipped_reason TEXT,       -- why this video was not clipped for the campaign (another way in has it)
+    UNIQUE (campaign_id, video_id)
 );
 
 -- A posted clip's link, handed in to the campaign by you (Content Rewards has no way for us to do it).
@@ -209,6 +211,8 @@ class Database:
             for column in ("category", "campaign_id", "removed_from", "removed_at"):
                 if column not in clip_cols:
                     setup.execute(f"ALTER TABLE clips_ready ADD COLUMN {column} TEXT")  # a database made before channels or campaigns
+            if "skipped_reason" not in {r[1] for r in setup.execute("PRAGMA table_info(campaign_queue)")}:
+                setup.execute("ALTER TABLE campaign_queue ADD COLUMN skipped_reason TEXT")
             if "campaign_id" not in {r[1] for r in setup.execute("PRAGMA table_info(runs)")}:
                 setup.execute("ALTER TABLE runs ADD COLUMN campaign_id TEXT")
             setup.execute(

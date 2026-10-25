@@ -635,7 +635,10 @@ def campaign_page(sv: Services, cid: str) -> dict | None:
     rules = c["rules"] or {}
     queue = []
     for q in campaigns.queue_of(sv.db, c["id"]):
-        state = RUN_STATE.get(q["run_state"]) if q["run_state"] else badge("Waiting", "")
+        if q["skipped_reason"]:
+            state, q = badge("Skipped", ""), {**q, "run_note": q["skipped_reason"]}
+        else:
+            state = RUN_STATE.get(q["run_state"]) if q["run_state"] else badge("Waiting", "")
         queue.append({**q, "state": state, "title": q["title"] or q["video_id"]})
     how = [("Rules", (f"{rules['min_s']:g} to {rules['max_s']:g} seconds" + (f" · a face in the first {rules['face_window_s']:g} seconds" if rules.get("face_window_s") else "")
                       + (" · captions on the whole clip" if rules.get("require_captions") else "") + (" · no ad reads" if rules.get("no_ad_reads") else ""))

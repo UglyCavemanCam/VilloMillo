@@ -26,7 +26,7 @@ STAGES = {0: "Waiting for the engine to start on it", 1: "Downloading the video"
 
 def log(db: Database, kind: str, message: str, *, run_id: int | None = None, step: str | None = None, level: str = "info") -> None:
     """Write one line, unless it says exactly what the previous line of the same video (or the same kind of pass) said."""
-    with db.conn() as c:
+    with db.conn(immediate=True) as c:  # read then write: take the write lock first, or a writer in between makes the upgrade fail
         last = c.execute("SELECT message FROM activity WHERE kind=? AND run_id IS ? ORDER BY id DESC LIMIT 1", (kind, run_id)).fetchone()
         if last and last["message"] == message:
             return

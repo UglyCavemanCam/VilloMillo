@@ -146,9 +146,9 @@ def create_app(sv: Services) -> FastAPI:
         return {"ok": True}
 
     @app.get("/", response_class=HTMLResponse)
-    def home(profile: str | None = None, problem: str = ""):
+    def home(profile: str | None = None, problem: str = "", again: str = ""):
         p = profile_or_404(profile)
-        return render("home.html", p, "/", "home", "Home", d={**pages.home_page(sv, p), "problem": problem})
+        return render("home.html", p, "/", "home", "Home", d={**pages.home_page(sv, p), "problem": problem, "again": again})
 
     # ---- channels ----------------------------------------------------------------------------------------------
 
@@ -389,23 +389,31 @@ def create_app(sv: Services) -> FastAPI:
     # ---- pasted links --------------------------------------------------------------------------------------------
 
     @app.post("/paste")
-    def paste(request: Request, link: str = Form(""), profile: str = Form("")):
+    def paste(request: Request, link: str = Form(""), profile: str = Form(""), redo: str = Form("")):
         _only_local(request, "changes")
         p = profile_or_404(profile or None)
         try:
-            run_id = runs.create(sv, p.id, link)
+            run_id = runs.create(sv, p.id, link, redo=redo == "1")
         except links.LinkError as e:
             return RedirectResponse(f"/?profile={p.id}&problem={quote(str(e))}", status_code=303)
+        except runs.AlreadyClipped as e:  # ask before clipping it a second time
+            return RedirectResponse(f"/?profile={p.id}&problem={quote(e.why + '.')}&again={quote(link)}", status_code=303)
+        run = runs.get(sv.db, run_id)
+        if run["source"] != "paste":  # it was already being worked on by Research or a campaign: you are shown that video
+            from .. import claims as _claims
+
+            info = _claims.phrase(sv.db, run)
+            return RedirectResponse(f"/runs/{run_id}?profile={p.id}&info={quote(info[0].upper() + info[1:] + '. Here it is.')}", status_code=303)
         return RedirectResponse(f"/runs/{run_id}?profile={p.id}", status_code=303)
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
-    def run_detail(run_id: int, profile: str | None = None, problem: str = ""):
+    def run_detail(run_id: int, profile: str | None = None, problem: str = "", info: str = ""):
         try:
             d = pages.run_page(sv, run_id)
         except LookupError:
             raise HTTPException(404, "no such video run") from None
         p = profile_or_404(profile)
-        return render("run.html", p, "/", "home", d["row"]["title"][:60], d={**d, "problem": problem})
+        return render("run.html", p, "/", "home", d["row"]["title"][:60], d={**d, "problem": problem, "info": info})
 
     def run_action(run_id: int, request: Request, action):
         _only_local(request, "changes")

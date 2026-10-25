@@ -20,6 +20,7 @@ from . import (
     activity,
     campaigns,
     channels,
+    claims,
     clipper,
     links,
     research,
@@ -41,6 +42,22 @@ ACTIVE = ("analysing", "planned", "making")
 
 class RunError(ValueError):
     """Something about this run is wrong. The message is safe to show."""
+
+
+class Claimed(RunError):
+    """An automatic way in wanted a video that another run has. `why` ends the sentence "Skipped: ..."; `run` is the run that has it."""
+
+    def __init__(self, run: dict, why: str):
+        super().__init__(why)
+        self.run, self.why = run, why
+
+
+class AlreadyClipped(RunError):
+    """You pasted a video that was already clipped. Paste it again with redo=True to clip it again."""
+
+    def __init__(self, run: dict, why: str):
+        super().__init__(why)
+        self.run, self.why = run, why
 
 
 def _run(db, run_id: int) -> dict:
@@ -105,18 +122,32 @@ def _later(sv: Services, kind: str, run_id: int, seconds: float = POLL_S) -> Non
                   run_after=now + timedelta(seconds=seconds))
 
 
-def create(sv: Services, owner_id: str, text: str, *, source: str = "paste", campaign_id: str | None = None) -> int:
-    """Start a run for a pasted link. Raises links.LinkError for a link that is not a video we can clip. A video
-    that is already being worked on returns its existing run."""
+def create(sv: Services, owner_id: str, text: str, *, source: str = "paste", campaign_id: str | None = None, redo: bool = False) -> int:
+    """Start a run for a link, if nobody else has the video (one video, one owner: see claims.py).
+
+    Raises links.LinkError for a link that is not a video we can clip. A pasted link for a video that is being worked on returns that run;
+    for one that was already clipped it raises AlreadyClipped unless `redo`. Research and Campaigns raise Claimed instead of taking a video
+    that another run owns. The check and the claim are one database step, so two ways in cannot both start the same video."""
     link = links.parse(text)
-    with sv.db.conn() as c:
-        live = c.execute(f"SELECT id FROM runs WHERE video_id=? AND state IN ({','.join('?' * len(ACTIVE))}) ORDER BY id DESC",
-                         (link.video_id, *ACTIVE)).fetchone()
-        if live:
+    held = None
+    with sv.db.conn(immediate=True) as c:
+        live = c.execute(f"SELECT * FROM runs WHERE video_id=? AND state IN ({','.join('?' * len(ACTIVE))}) ORDER BY id DESC", (link.video_id, *ACTIVE)).fetchone()
+        if live and source == "paste":
             return live["id"]
-        c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at, campaign_id) VALUES (?,?,?,?,?,?,?,?,?)",
-                  (source, link.url, link.platform, link.video_id, owner_id, "analysing", store.iso(), store.iso(), campaign_id))
-        run_id = c.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+        if live:
+            held = dict(live)
+        else:
+            marks = ",".join("?" * len(claims.OWNING_FOR_AUTOMATIC))
+            done = c.execute(f"SELECT * FROM runs WHERE video_id=? AND state IN ({marks}) ORDER BY id DESC LIMIT 1", (link.video_id, *claims.OWNING_FOR_AUTOMATIC)).fetchone()
+            if done and (source != "paste" or (done["state"] == "finished" and not redo)):
+                held = dict(done)
+        if held is None:
+            c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at, campaign_id) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (source, link.url, link.platform, link.video_id, owner_id, "analysing", store.iso(), store.iso(), campaign_id))
+            run_id = c.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+    if held is not None:  # raised once the step has ended: describing the owner reads other tables
+        why = claims.phrase(sv.db, held)
+        raise AlreadyClipped(held, why[0].upper() + why[1:]) if source == "paste" else Claimed(held, why)
     tasks.enqueue(sv.db, "paste_analyse", {"run": run_id}, dedupe_key=f"paste_analyse:{run_id}:first")
     note(sv, {"id": run_id, "source": source}, f"Link accepted ({link.name}). Waiting for the engine to start on it.", "look")
     return run_id
