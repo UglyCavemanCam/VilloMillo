@@ -29,6 +29,7 @@ from .db import Database
 PROFILE_DIR = ROOT / "data" / "villomillo" / "rewards-browser"
 SHOTS_DIR = ROOT / "data" / "villomillo" / "rewards-shots"
 SIGN_IN_PAGE = f"{contentrewards.BASE}/discover"
+SITE_HOST = "contentrewards.com"
 GAP_S = (20, 60)  # a random pause between two submissions, so they do not arrive in a burst
 RETRY_AFTER = timedelta(minutes=10)
 MAX_ATTEMPTS = 3
@@ -190,6 +191,20 @@ class BrowserDriver:
                 return False
         return True
 
+    def seems_signed_in(self) -> bool:
+        """Look at the page you are on, without opening another: True only on a Content Rewards page that offers no Sign in button.
+        Used while you sign in, so the window is never pulled away from the sign-in pages (Whop's included)."""
+        from urllib.parse import urlparse
+
+        try:
+            host = urlparse(self.page.url).hostname or ""
+            if not (host == SITE_HOST or host.endswith("." + SITE_HOST)):
+                return False
+            names = re.compile(r"^\s*(sign in|log in|login|continue with whop)\s*$", re.I)
+            return not any(self.page.get_by_role(role, name=names).count() for role in ("button", "link"))
+        except Exception:  # the page is changing under us: look again next time
+            return False
+
     def text(self) -> str:
         try:
             return self.page.inner_text("body")
@@ -263,7 +278,7 @@ def login(db: Database, *, driver_factory=BrowserDriver, wait_s: int = LOGIN_WAI
             driver.goto(SIGN_IN_PAGE)
             waited = 0.0
             while waited < wait_s:
-                if driver.signed_in():
+                if driver.seems_signed_in() and driver.signed_in():  # look in place first; open a page only to confirm
                     set_signed_in(db, True)
                     LOGIN.update(state="done", message="Signed in.")
                     activity.log(db, "campaign", "Signed in to Content Rewards: clips can be handed in automatically.")

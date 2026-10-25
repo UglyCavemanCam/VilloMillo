@@ -305,9 +305,12 @@ def test_signing_in_waits_for_the_page_to_stop_asking_and_gives_up_after_the_wai
         def goto(self, url):
             pass
 
-        def signed_in(self, url=None):
+        def seems_signed_in(self):
             self.n += 1
             return self.n > self.after
+
+        def signed_in(self, url=None):
+            return True
 
     assert rewards.login(sv.db, driver_factory=lambda **k: Waiting(2), wait_s=30, poll_s=3, sleep=lambda s: None) is True
     assert rewards.settings(sv.db)["signed_in"] is True and rewards.LOGIN["state"] == "done"
@@ -442,3 +445,18 @@ def test_the_real_browser_says_when_the_campaign_has_not_been_joined(driver, sit
         d.goto(f"{site}/signin")
         out = d.submit(f"{site}/campaign/1", "https://youtube.com/shorts/abc", dry_run=False)
     assert out.status == "not_joined"
+
+
+def test_while_you_sign_in_the_window_is_never_sent_back_to_another_page(driver, site, monkeypatch):
+    """The bug: looking for the sign-in each few seconds reloaded the main page and pulled you out of the login."""
+    monkeypatch.setattr(rewards, "SITE_HOST", "127.0.0.1")
+    with driver as d:
+        d.goto(f"{site}/somewhere-else")
+        before = d.page.url
+        assert d.seems_signed_in() is False and d.page.url == before  # signed out: it looks, it does not navigate
+        d.goto(f"{site}/signin")
+        d.goto(f"{site}/campaign/1")
+        before = d.page.url
+        assert d.seems_signed_in() is True and d.page.url == before
+        d.page.goto("about:blank")
+        assert d.seems_signed_in() is False  # a page that is not Content Rewards (a sign-in page elsewhere) is left alone
