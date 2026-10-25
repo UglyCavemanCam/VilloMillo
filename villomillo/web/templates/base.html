@@ -38,7 +38,7 @@
   {% endfor %}
   <div class="foot">
     <a class="nav" href="/settings?profile={{ shell.current.id }}" {% if page.active == 'settings' %}aria-current="page"{% endif %} title="Settings">{{ icon('sliders') }}<span>Settings</span></a>
-    <div class="engine" title="{{ shell.engine.title }}"><span class="dot-s {{ shell.engine.kind }}"></span><span>{{ shell.engine.text }}</span></div>
+    <a class="engine" href="{{ shell.engine.href }}" title="{{ shell.engine.title }}"><span class="dot-s {{ shell.engine.kind }}"></span><span>{{ shell.engine.text }}</span></a>
   </div>
 </aside>
 

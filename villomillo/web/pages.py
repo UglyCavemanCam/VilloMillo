@@ -8,12 +8,10 @@ from __future__ import annotations
 
 import json
 import pathlib
-import time
 from collections import defaultdict
 from datetime import date, timedelta
 from urllib.parse import quote
 
-import httpx
 import keyring
 
 from .. import (
@@ -21,6 +19,8 @@ from .. import (
     campaigns,
     channels,
     clipper,
+    engine_manager,
+    health,
     posting,
     research,
     routing,
@@ -86,20 +86,19 @@ def post_state(status: str, route: str) -> dict:
 
 # --- the shell: side panel, top bar, bell ------------------------------------------------------------------------
 
-_engine_seen: tuple[float, bool] = (0.0, False)
-
-
 def engine_up() -> bool:
-    """Whether the clipping engine answers. Remembered for a few seconds so pages stay quick."""
-    global _engine_seen
-    if time.monotonic() - _engine_seen[0] < 5:
-        return _engine_seen[1]
-    try:
-        up = httpx.get(f"{clipper.ENGINE_URL}/jobs", params={"limit": 1}, timeout=0.6).status_code == 200
-    except httpx.HTTPError:
-        up = False
-    _engine_seen = (time.monotonic(), up)
-    return up
+    """Whether the clipping engine answers (two failed checks in a row are needed before it counts as off)."""
+    return engine_manager.up()
+
+
+def engine_card() -> dict:
+    """The Clip engine panel on Settings: state, uptime, last error and which buttons make sense."""
+    st = engine_manager.status()
+    up = st["uptime_s"]
+    st["uptime_text"] = (f"{up // 3600}h {up % 3600 // 60}m" if up >= 3600 else f"{up // 60}m {up % 60}s") if up is not None else ""
+    st["can_start"] = st["managed"] and st["state"] in ("off", "error")
+    st["can_restart"] = st["managed"] and st["state"] != "off"
+    return st
 
 
 def channel_name(p: Profile) -> str:
@@ -200,7 +199,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
     waiting = one(sv.db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state='review'", p.id)["n"]
     paused = any(r["status"] == "paused" for r in accounts.overview(sv.db, sv.profiles))
     q = f"?profile={p.id}"
-    up = engine_up()
+    eng = engine_manager.status()
     br = sv.app.spend_breaker
     claude_s, jev_s = spend.since_approval(sv.db, "claude"), spend.since_approval(sv.db, "jev")
     pause = spend.current(sv.db, br)
@@ -221,8 +220,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
                 {"key": "calendar", "label": "Calendar", "href": f"/calendar{q}", "icon": "calendar"}]},
             {"label": "Learn", "links": [{"key": "insights", "label": "Insights", "href": f"/insights{q}", "icon": "chart"}]},
         ],
-        "engine": {"kind": "good" if up else "", "text": "Clip engine is on" if up else "Clip engine is off",
-                   "title": f"The clipping engine at {clipper.ENGINE_URL} {'answers' if up else 'is not running'}"},
+        "engine": {"kind": eng["kind"], "text": eng["text"], "title": eng["title"], "href": f"/settings{q}#engine"},
         "budget": {"text": f"Claude {money(claude_s)} of {money(br.claude_usd)} · Jev {money(jev_s)} of {money(br.jev_usd)}",
                    "title": "Spent since your last approval. Everything pauses at these amounts and waits for you to approve more."},
         "alerts": [a for a in to_do if a["kind"] != "neutral"], "needs": to_do,
@@ -630,7 +628,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
             {"name": "Whop API key", "present": has_secret(secrets.WHOP)},
             {"name": "YouTube sign-in client file", "present": posting.YOUTUBE_CLIENT.exists()}]
     s = sv.app.schedule
-    return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine_up": engine_up(), "engine_url": clipper.ENGINE_URL,
+    return {"channels": channels, "key_list": keys, "budgets": sv.app.budgets, "breaker": sv.app.spend_breaker, "engine": engine_card(), "engine_url": clipper.ENGINE_URL, "health": (items := health.checks(sv)), "health_summary": health.summary(items),
             "zone": f"Eastern Time ({timefmt.zone_label()})", "dashboard": f"{sv.app.dashboard.host}:{sv.app.dashboard.port}",
             "schedule": [("Send due posts", s.post_every_minutes)],
             "database": str(sv.db.path)}

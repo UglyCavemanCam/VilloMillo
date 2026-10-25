@@ -408,16 +408,39 @@ def cmd_serve(args) -> None:
 
 
 def cmd_run(args) -> None:
+    from . import engine_manager
+
     sv = _services()
     stop = threading.Event()
     worker = threading.Thread(target=runner.loop, args=(sv, stop), name="worker", daemon=True)
     worker.start()
+    print(engine_manager.manager.enable())
+    keeper = threading.Thread(target=engine_manager.manager.run_forever, args=(stop,), name="engine", daemon=True)
+    keeper.start()
     print(f"Working in the background. Dashboard: http://{sv.app.dashboard.host}:{sv.app.dashboard.port}  (Ctrl+C to stop)")
+    print(f"The clip engine's output is saved in {engine_manager.manager.log_path}")
     try:
         _serve(sv)
     finally:
         stop.set()
+        engine_manager.manager.stop()
         worker.join(timeout=10)
+
+
+def cmd_doctor(args) -> None:
+    """Check that everything VilloMillo needs is working, and say what to do about anything that is not."""
+    from . import health
+
+    sv = _services(with_apis=False)
+    items = health.checks(sv)
+    mark = {"ok": "OK  ", "warn": "WARN", "bad": "FIX "}
+    for i in items:
+        print(f"[{mark[i['state']]}] {i['name']}: {i['detail']}")
+        if i["fix"] and i["state"] != "ok":
+            print(f"        -> {i['fix']}")
+    print(f"\n{health.summary(items)}")
+    if any(i["state"] == "bad" for i in items):
+        raise SystemExit(1)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -495,6 +518,7 @@ def main(argv: list[str] | None = None) -> None:
     research = sub.add_parser("research", help="run one Research pass now (it must be switched on), or switch it on or off")
     research.add_argument("switch", nargs="?", choices=["on", "off"])
     research.set_defaults(fn=cmd_research)
+    sub.add_parser("doctor", help="check the engine, worker, keys, YouTube sign-ins and posting settings").set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="open the dashboard only").set_defaults(fn=cmd_serve)
     sub.add_parser("run", help="work in the background and serve the dashboard").set_defaults(fn=cmd_run)
     args = parser.parse_args(argv)

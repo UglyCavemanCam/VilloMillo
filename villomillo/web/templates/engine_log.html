@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="page-head"><h1>Clip engine log</h1><span class="sub">The last lines the engine wrote. It is saved in <code>{{ d.path }}</code>.</span>
+  <span class="right"><a class="btn btn-sm" href="/settings?profile={{ shell.current.id }}#engine">Back to Settings</a></span></div>
+{% if d.text %}<pre class="card" style="overflow:auto;max-height:70vh;font-size:12px;line-height:1.5;white-space:pre-wrap">{{ d.text }}</pre>
+{% else %}<div class="notice">{{ icon('info') }}<div>Nothing has been written yet. The log fills when VilloMillo starts the engine.</div></div>{% endif %}
+{% endblock %}

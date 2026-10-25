@@ -28,6 +28,7 @@ from .. import (
     channels,
     clipper,
     copywriter,
+    engine_manager,
     links,
     posting,
     research,
@@ -480,9 +481,23 @@ def create_app(sv: Services) -> FastAPI:
         return render("insights.html", p, "/insights", "insights", "Insights", d=pages.insights_page(sv, p))
 
     @app.get("/settings", response_class=HTMLResponse)
-    def settings(profile: str | None = None):
+    def settings(profile: str | None = None, engine_message: str = ""):
         p = profile_or_404(profile)
-        return render("settings.html", p, "/settings", "settings", "Settings", d=pages.settings_page(sv, p))
+        return render("settings.html", p, "/settings", "settings", "Settings", d={**pages.settings_page(sv, p), "engine_message": engine_message})
+
+    @app.post("/api/engine/{action}")
+    def engine_action(action: str, request: Request):
+        _only_local(request, "changes")
+        if action not in ("start", "restart"):
+            raise HTTPException(404, "no such action")
+        message = getattr(engine_manager.manager, action)()
+        return RedirectResponse(f"/settings?engine_message={quote(message)}#engine", status_code=303)
+
+    @app.get("/engine/log", response_class=HTMLResponse)
+    def engine_log(profile: str | None = None):
+        path = engine_manager.manager.log_path
+        return render("engine_log.html", profile_or_404(profile), "/settings", "settings", "Clip engine log",
+                      d={"text": engine_manager.tail(path), "path": str(path)})
 
     @app.get("/api/search")
     def search(profile: str, q: str = ""):

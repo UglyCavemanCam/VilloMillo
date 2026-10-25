@@ -25,16 +25,43 @@
     <div class="stack" style="gap:10px">{% for k in d.key_list %}<div class="cluster" style="justify-content:space-between"><span class="cluster">{{ icon('key', 'icon-sm') }}{{ k.name }}</span>{% if k.present %}<span class="badge good">Stored</span>{% else %}<span class="badge warn">Missing</span>{% endif %}</div>{% endfor %}</div>
     <p class="muted" style="margin-top:14px;font-size:13px">Keys live in Windows Credential Manager. This page only shows whether each one is there, never the value.</p>
   </section>
-  <section class="card" aria-labelledby="eng-h">
-    <h2 id="eng-h" style="margin-bottom:12px">Clip engine and time</h2>
+  <section class="card" id="engine" aria-labelledby="eng-h">
+    <h2 id="eng-h" style="margin-bottom:12px">Clip engine</h2>
+    {% set e = d.engine %}
     <dl class="kv" style="grid-template-columns:120px 1fr">
-      <dt>Clip engine</dt><dd><span class="cluster"><span class="dot-s {{ 'good' if d.engine_up else '' }}"></span>{{ 'On' if d.engine_up else 'Off' }} <span class="muted">{{ d.engine_url }}</span></span>{% if not d.engine_up %}<div class="muted" style="font-size:13px;margin-top:4px">Close the app and open it again with <code>run-app.bat</code>, which starts the engine. By hand: <code>python main.py serve --port 8765</code></div>{% endif %}</dd>
-      <dt>Time zone</dt><dd>{{ d.zone }}</dd>
-      <dt>Dashboard</dt><dd><code>{{ d.dashboard }}</code> (this computer only)</dd>
-      <dt>Database</dt><dd><code style="word-break:break-all">{{ d.database }}</code></dd>
+      <dt>State</dt><dd><span class="cluster"><span class="dot-s {{ e.kind }}"></span><b>{{ {'on': 'On', 'starting': 'Starting', 'not_responding': 'Not responding', 'error': 'Stopped with an error', 'off': 'Off'}[e.state] }}</b></span>
+        <div class="muted" style="font-size:13px;margin-top:4px">{{ e.title }}</div></dd>
+      {% if e.uptime_text %}<dt>Up for</dt><dd>{{ e.uptime_text }}</dd>{% endif %}
+      {% if e.restarts %}<dt>Restarted</dt><dd>{{ e.restarts }} time{{ '' if e.restarts == 1 else 's' }} by VilloMillo</dd>{% endif %}
+      {% if e.last_error and e.state != 'on' %}<dt>Last error</dt><dd><code style="word-break:break-all">{{ e.last_error }}</code></dd>{% endif %}
+      <dt>Address</dt><dd><code>{{ e.url }}</code></dd>
     </dl>
+    <div class="cluster" style="margin-top:12px">
+      <form method="post" action="/api/engine/start"><button class="btn {{ 'btn-primary' if e.can_start else '' }}" type="submit" {{ '' if e.can_start else 'disabled' }}>Start</button></form>
+      <form method="post" action="/api/engine/restart"><button class="btn" type="submit" {{ '' if e.can_restart else 'disabled' }}>Restart</button></form>
+      <a class="btn btn-ghost" href="/engine/log?profile={{ shell.current.id }}" target="_blank" rel="noopener">Open log</a>
+    </div>
+    {% if d.engine_message %}<div class="notice" style="margin-top:12px">{{ icon('info') }}<div>{{ d.engine_message }}</div></div>{% endif %}
+    {% if not e.managed %}<p class="muted" style="margin:12px 0 0;font-size:13px">Start and Restart work when the app was opened with <code>run-app.bat</code>, which keeps the engine running for you. Right now this page is watching only.</p>{% endif %}
   </section>
 </div>
+
+<section class="card" aria-labelledby="health-h" style="margin-bottom:16px">
+  <h2 id="health-h" style="margin-bottom:4px">Health</h2>
+  <p class="muted" style="margin:0 0 12px">{{ d.health_summary }} The same checks run with <code>python -m villomillo doctor</code>.</p>
+  <div class="stack" style="gap:8px">{% for h in d.health %}
+    <div class="cluster" style="justify-content:space-between;align-items:flex-start"><span><b>{{ h.name }}</b><br><span class="muted" style="font-size:13px">{{ h.detail }}{% if h.fix and h.state != 'ok' %} · {{ h.fix }}{% endif %}</span></span>
+      <span class="badge {{ {'ok': 'good', 'warn': 'warn', 'bad': 'bad'}[h.state] }}">{{ {'ok': 'OK', 'warn': 'Look', 'bad': 'Fix'}[h.state] }}</span></div>
+  {% endfor %}</div>
+</section>
+
+<section class="card" aria-label="Time and storage" style="margin-bottom:16px">
+  <dl class="kv" style="grid-template-columns:120px 1fr">
+    <dt>Time zone</dt><dd>{{ d.zone }}</dd>
+    <dt>Dashboard</dt><dd><code>{{ d.dashboard }}</code> (this computer only)</dd>
+    <dt>Database</dt><dd><code style="word-break:break-all">{{ d.database }}</code></dd>
+  </dl>
+</section>
 
 <div class="grid two">
   <section class="card" aria-labelledby="bud-h">

@@ -9,6 +9,8 @@ YOUTUBE = "youtube_api_key"
 JEV = "typesafe_api_key"
 CLAUDE = "anthropic_api_key"
 WHOP = "whop_api_key"
+TWITCH_ID = "twitch_client_id"
+TWITCH_SECRET = "twitch_client_secret"
 
 # What `python -m villomillo key <name>` can store, by the short name you type.
 KEYS = {"whop": WHOP, "youtube": YOUTUBE, "jev": JEV, "claude": CLAUDE}

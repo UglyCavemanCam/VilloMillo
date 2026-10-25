@@ -7,7 +7,7 @@ import threading
 import traceback
 from datetime import timedelta
 
-from . import runs, safety, spend, store, tasks
+from . import health, runs, safety, spend, store, tasks
 from .services import Services
 
 
@@ -136,6 +136,7 @@ def run_one(sv: Services, worker: str = "worker-1") -> bool:
     task = tasks.claim(sv.db, worker)
     if not task:
         return False
+    health.beat(sv.db, task["kind"])
     try:
         HANDLERS[task["kind"]](sv, json.loads(task["payload_json"]))
     except Exception as e:  # a bad task must not stop the worker; it is retried, then given up on
@@ -149,6 +150,8 @@ def run_one(sv: Services, worker: str = "worker-1") -> bool:
                     trace=traceback.format_exc()[-800:])
     else:
         tasks.complete(sv.db, task["id"])
+    finally:
+        health.beat(sv.db)
     return True
 
 
@@ -156,6 +159,7 @@ def loop(sv: Services, stop: threading.Event, *, idle_seconds: float = 5.0) -> N
     tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
     store.event(sv.db, "info", "runner", "Worker started")
     while not stop.is_set():
+        health.beat(sv.db)
         tasks.tick_schedules(sv.db)
         if not run_one(sv):
             stop.wait(idle_seconds)
