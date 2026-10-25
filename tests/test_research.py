@@ -78,6 +78,8 @@ TWITCH_URL = "https://www.twitch.tv/videos/123456789"
 
 def make_sv(tmp_path, monkeypatch, yt=None, jev=None, app=None):
     database = Database(tmp_path / "research.db")
+    with database.conn() as c:  # the "every clip to one channel" switch is on by default; this test file is about category channels
+        c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('catch_all', '{\"on\": false}')")
     monkeypatch.setattr(clipper, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setattr(clipper.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
     return Services(app or config.AppConfig(), channels.load(database), database, Quota(database, general_cap=9, search_cap=9), yt, jev or FakeJev())

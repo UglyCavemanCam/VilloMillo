@@ -91,6 +91,8 @@ class FakeEngine:
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     db = Database(tmp_path / "runs.db")
+    with db.conn() as c:  # the "every clip to one channel" switch is on by default; this test file is about category channels
+        c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('catch_all', '{\"on\": false}')")
     monkeypatch.setattr(clipper, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setattr(clipper.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
     sv = Services(config.AppConfig(), channels.load(db), db, Quota(db, general_cap=9, search_cap=9), None, FakeJev())
