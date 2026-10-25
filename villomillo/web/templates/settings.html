@@ -28,7 +28,7 @@
   <section class="card" aria-labelledby="eng-h">
     <h2 id="eng-h" style="margin-bottom:12px">Clip engine and time</h2>
     <dl class="kv" style="grid-template-columns:120px 1fr">
-      <dt>Clip engine</dt><dd><span class="cluster"><span class="dot-s {{ 'good' if d.engine_up else '' }}"></span>{{ 'On' if d.engine_up else 'Off' }} <span class="muted">{{ d.engine_url }}</span></span>{% if not d.engine_up %}<div class="muted" style="font-size:13px;margin-top:4px">Start it with <code>python main.py serve --port 8765</code></div>{% endif %}</dd>
+      <dt>Clip engine</dt><dd><span class="cluster"><span class="dot-s {{ 'good' if d.engine_up else '' }}"></span>{{ 'On' if d.engine_up else 'Off' }} <span class="muted">{{ d.engine_url }}</span></span>{% if not d.engine_up %}<div class="muted" style="font-size:13px;margin-top:4px">Close the app and open it again with <code>run-app.bat</code>, which starts the engine. By hand: <code>python main.py serve --port 8765</code></div>{% endif %}</dd>
       <dt>Time zone</dt><dd>{{ d.zone }}</dd>
       <dt>Dashboard</dt><dd><code>{{ d.dashboard }}</code> (this computer only)</dd>
       <dt>Database</dt><dd><code style="word-break:break-all">{{ d.database }}</code></dd>

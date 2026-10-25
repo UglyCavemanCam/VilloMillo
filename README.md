@@ -50,7 +50,7 @@ The engine's own dependencies are in [`requirements.txt`](requirements.txt); sta
 **Keys.** The YouTube, Jev and Claude keys are kept in your operating system's keychain, never in a file in this folder.
 Settings in the dashboard shows which are stored, never their values; store one with `python -m villomillo key whop` (or `youtube`, `jev`, `claude`); it asks for the key with hidden typing and never prints it.
 
-**The clipping engine** is a separate local program on `127.0.0.1:8765`. Start it with `python main.py serve` (its
+**The clipping engine** is a separate local program on `127.0.0.1:8765`. `run-app.bat` starts it for you (in a window titled "Clip engine"), together with the worker and the dashboard, and stops it when you close the app. To run it by hand: `python main.py serve` (its
 dependencies are in [`requirements.txt`](requirements.txt)). Without it, review and posting still work, and clipping
 says plainly that the engine is not running.
 
