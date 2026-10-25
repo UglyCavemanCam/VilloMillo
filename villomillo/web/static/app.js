@@ -25,6 +25,10 @@
   /* ---- drawer ---- */
   var SKELETON = '<div class="drawer-head"><div class="skel" style="width:40%;height:20px"></div><button type="button" class="icon-btn" data-close aria-label="Close">\u00d7</button></div>' +
     '<div class="drawer-body" aria-busy="true"><div class="skel" style="aspect-ratio:9/16;max-height:46vh"></div><div class="skel" style="height:16px"></div><div class="skel" style="height:16px;width:70%"></div><div class="skel" style="height:64px"></div></div>';
+  /* A hidden or replaced panel must not keep playing: pause its videos and let go of the file. */
+  function stopMedia() {
+    $$("video, audio", drawer).forEach(function (m) { try { m.pause(); m.removeAttribute("src"); m.load(); } catch (e) { /* already gone */ } });
+  }
   function openPanel(url) {
     lastFocus = lastFocus && drawer.classList.contains("open") ? lastFocus : document.activeElement;
     currentPanel = url;
@@ -38,11 +42,13 @@
       return r.text();
     }).then(function (html) {
       if (currentPanel !== url) return;  /* a newer click replaced this one */
+      stopMedia();
       drawer.innerHTML = html;
       var focusTarget = $("[data-close]", drawer); if (focusTarget) focusTarget.focus();
     }).catch(function (e) { closePanel(); toast(e.message, "bad"); });
   }
   function closePanel() {
+    stopMedia();
     drawer.classList.remove("open"); backdrop.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true"); currentPanel = null;
     $$(".clip-card.is-open").forEach(function (c) { c.classList.remove("is-open"); });
