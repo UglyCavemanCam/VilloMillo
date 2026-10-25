@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from . import accounts, posting, store
-from .channels import for_category
+from .channels import catch_all_target, for_category
 from .config import Profile
 from .db import Database
 
@@ -62,6 +62,12 @@ def route_clip(db: Database, jev, profiles: dict[str, Profile], clip_id: int, *,
         clip = c.execute("SELECT * FROM clips_ready WHERE id=?", (clip_id,)).fetchone()
     if clip is None:
         raise LookupError("no such clip")
+    target = catch_all_target(db, profiles)
+    if target is not None:  # the switch is on: every clip goes to the one channel, whatever its category
+        allowed, refused = candidates(db, {target.id: target}, {**dict(clip), "category": None}, now)
+        if not allowed:
+            return Decision(None, f"the channel every clip goes to cannot post it: {refused.get(target.id, 'it has no posting settings')}")
+        return Decision(target.id, f"every clip goes to {target.display_name} (the switch on the Channels page is on)")
     if clip["category"] and for_category(profiles, clip["category"]) is None:
         return Decision(None, f"{NO_CHANNEL} {clip['category']}")
     allowed, refused = candidates(db, profiles, clip, now)

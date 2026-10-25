@@ -44,6 +44,8 @@ def no_ai():
 @pytest.fixture
 def db(tmp_path):
     database = Database(tmp_path / "routing.db")
+    with database.conn() as c:  # the "every clip to one channel" switch is on by default; these tests are about category routing
+        c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('catch_all', '{\"on\": false}')")
     with database.conn() as c:
         c.execute("INSERT INTO videos (profile_id, video_id, found_by, channel_id, channel_title, title, description, "
                   "tags_json, duration_s, published_at, first_seen_at, last_seen_at) VALUES "

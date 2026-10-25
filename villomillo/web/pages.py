@@ -569,7 +569,11 @@ def _account_rows(sv: Services, c: Profile) -> list[dict]:
 
 def channels_page(sv: Services, p: Profile) -> dict:
     cards = [_channel_card(sv, c) for c in sv.profiles.values()]
-    return {"channels": cards, "held": routing.held_categories(sv.db)}
+    state = channels.catch_all(sv.db, sv.profiles)
+    for card in cards:
+        card["everything"] = state["on"] and card["id"] == state["channel"]
+    return {"channels": cards, "held": [] if state["on"] else routing.held_categories(sv.db), "catch_all": {**state, "name": channel_name(sv.profiles[state["channel"]]) if state["channel"] else ""},
+            "options": [{"id": c.id, "name": channel_name(c)} for c in sv.profiles.values()]}
 
 
 def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: str | None = None) -> dict:
@@ -603,8 +607,9 @@ def _campaign_view(sv: Services, c: dict) -> dict:
     rate = f"${c['rate_cents'] / 100:.2f}" if c["rate_cents"] is not None else "-"
     left = f"${c['budget_left_cents'] / 100:,.0f}" if c["budget_left_cents"] is not None else "-"
     category = c["category"] or "-"
-    waiting = bool(c["category"]) and channels.for_category(sv.profiles, c["category"]) is None
-    channel = channels.for_category(sv.profiles, c["category"]) if c["category"] else None
+    everything = channels.catch_all_target(sv.db, sv.profiles)
+    waiting = bool(c["category"]) and everything is None and channels.for_category(sv.profiles, c["category"]) is None
+    channel = everything or (channels.for_category(sv.profiles, c["category"]) if c["category"] else None)
     goes_to = (channel_name(channel) if channel else (f"No channel for {c['category']}" if c["category"] else "-"))
     status = ("Paused: " + c["reason"].removeprefix("Paused: ")) if c["state"] == "joined" and c["reason"] else {
         "joined": "Joined by you", "recommended": "Worth joining", "dropped": "You stopped clipping for it", "skipped": c["reason"] or "Skipped"}[c["state"]]

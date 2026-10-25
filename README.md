@@ -107,6 +107,7 @@ and `run-app.bat` (which starts the worker). The **Emergency stop** button pause
 ## Settings
 
 - [`config/villomillo/app.yaml`](config/villomillo/app.yaml): YouTube allowances, spend breaker, schedule, dashboard port, database path.
+- The switch at the top of **Channels** (on by default) sends every clip to one chosen channel, whatever its category, for the time before each category has its own YouTube channel. Turn it off and each clip goes to its category's channel; clips for a category with no channel are held. Turning it on again plans any held clips on the chosen channel.
 - Channels are added and edited on the dashboard's **Channels** page and stored in the database. [`config/villomillo/channels/`](config/villomillo/channels/) only holds the starting channel (Podcasts), read once into an empty database.
 - [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml): the format recipes.
 

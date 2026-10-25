@@ -17,9 +17,16 @@ from villomillo.web.app import create_app
 NOW = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
 
 
+def switch_off(database):
+    """These tests are about each category's own channel; the "every clip to one channel" switch is on by default."""
+    with database.conn() as c:
+        c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("catch_all", '{"on": false}'))
+    return database
+
+
 @pytest.fixture
 def db(tmp_path):
-    return Database(tmp_path / "channels.db")
+    return switch_off(Database(tmp_path / "channels.db"))
 
 
 @pytest.fixture
@@ -263,3 +270,57 @@ def test_a_channel_saved_with_campaign_rules_still_loads_now_that_campaigns_hold
     with db.conn() as c:
         c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(old),))
     assert "campaign" not in channels.load(db)["solved"].model_dump()
+
+
+# ---- the "every clip to one channel" switch -----------------------------------------------------------------------
+
+
+def test_the_switch_is_on_by_default_and_points_at_the_starting_channel(tmp_path):
+    fresh = Database(tmp_path / "fresh.db")
+    profs = channels.load(fresh)
+    assert channels.catch_all(fresh, profs) == {"on": True, "channel": "solved"}
+    assert channels.catch_all_target(fresh, profs).id == "solved"
+
+
+def test_with_the_switch_on_a_clip_goes_to_the_one_channel_whatever_its_category(tmp_path):
+    fresh = Database(tmp_path / "fresh.db")
+    profs = channels.load(fresh)
+    for category in ("Outdoors", "Gaming", None):
+        decision = routing.route_clip(fresh, no_ai, profs, clip(fresh, category), now=NOW)
+        assert decision.profile_id == "solved", category
+    assert routing.held_categories(fresh) == []
+
+
+def test_turning_the_switch_off_sends_clips_to_their_category_and_holds_the_rest(db, profiles):
+    channels.set_catch_all(db, profiles, on=True)
+    assert routing.route_clip(db, no_ai, profiles, clip(db, "Outdoors"), now=NOW).profile_id == "solved"
+    channels.set_catch_all(db, profiles, on=False)
+    assert channels.catch_all_target(db, profiles) is None
+    assert routing.route_clip(db, no_ai, profiles, clip(db, "Podcasts"), now=NOW).profile_id == "solved"
+    held = routing.route_clip(db, no_ai, profiles, clip(db, "Outdoors"), now=NOW)
+    assert held.profile_id is None and routing.NO_CHANNEL in held.reason
+
+
+def test_the_switch_follows_the_chosen_channel_and_refuses_an_unknown_one(db, profiles):
+    channels.create(db, profiles, name="Outdoors", category="Outdoors", about="Hiking")
+    channels.set_catch_all(db, profiles, on=True, channel="outdoors")
+    assert channels.catch_all_target(db, profiles).id == "outdoors"
+    with pytest.raises(channels.ChannelError):
+        channels.set_catch_all(db, profiles, on=True, channel="nope")
+    channels.delete(db, profiles, "outdoors")
+    assert channels.catch_all(db, profiles)["channel"] == "solved"  # the chosen channel is gone: back to the starting one
+
+
+def test_turning_the_switch_on_releases_clips_held_for_a_missing_channel(web):
+    client, sv = web
+    held = clip(sv.db, "Outdoors")
+    routing.assign_and_plan(sv.db, no_ai, sv.profiles, "solved", held, now=NOW)
+    assert routing.held_categories(sv.db)[0]["category"] == "Outdoors"
+    r = client.post("/channels/catch-all", data={"on": "1", "channel": "solved"}, follow_redirects=False)
+    assert r.status_code == 303 and "released=1" in r.headers["location"]
+    assert routing.held_categories(sv.db) == []
+    page = client.get("/channels").text
+    assert "Send every clip to one channel" in page and "gets every clip" in page
+    assert client.post("/channels/catch-all", data={"on": "0", "channel": "solved"}, follow_redirects=False).status_code == 303
+    assert channels.catch_all_target(sv.db, sv.profiles) is None
+    assert client.post("/channels/catch-all", data={"on": "1", "channel": "nope"}).status_code == 400

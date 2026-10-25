@@ -52,7 +52,7 @@ Only the way a video arrives is different. The scoring, clipping and posting are
 4. **Make the clips.** Only the clips that scored well are made, in the right look for that kind of video.
 5. **Check them.** Length, sound, picture, the campaign's rules, and the score again on the finished clip. A clip that falls
    short is not posted.
-6. **Pick the channel.** The kind of video decides the category, and the category decides the channel. No channel for it? The clip is held.
+6. **Pick the channel.** The kind of video decides the category, and the category decides the channel. No channel for it? The clip is held. (Until every category has its own YouTube channel, the switch at the top of Channels, on by default, sends every clip to one chosen channel instead, so nothing is held. Turn it off to go back to one channel per category.)
 7. **Post it.** A title and caption are written and the clip is posted to the channel's YouTube, inside its
    daily limit. A campaign clip's link is then submitted to the campaign.
 8. **Learn.** Real views and payouts come back and make the next scores more accurate.

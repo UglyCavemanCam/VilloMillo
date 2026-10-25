@@ -240,16 +240,17 @@ def make_plan(sv: Services, run_id: int, preview: dict) -> dict:
     bar = research.bar(sv.db, rules, sv.app.research) if run["source"] == "research" else None
     result = scoring.score_video(sv.db, sv.jev, rules, preview, source=run["source"], campaign_cpm=pays, research_bar=bar, breaker=breaker)
     kind = result.kind
-    channel = channels.for_category(sv.profiles, kind.category)
+    target = channels.catch_all_target(sv.db, sv.profiles)  # while the switch is on, one channel gets everything: no category match, no fit check
+    channel = target or channels.for_category(sv.profiles, kind.category)
     fit = fit_why = None
-    if channel is not None:
+    if channel is not None and target is None:
         excerpts = [m.get("text", "") for m in preview["moments"] if m.get("text")]
         fit, fit_why = scoring.channel_fit(sv.db, sv.jev, channel, excerpts, breaker=breaker)
     moments = [asdict(m) for m in result.moments]
     make = [m["id"] for m in moments if m["make"]]
     return {"kind": asdict(kind), "category": kind.category, "look": kind.look,
             "channel": {"id": channel.id, "name": channel.display_name} if channel else None,
-            "fit": fit, "fit_why": fit_why, "fit_ok": fit is None or fit >= scoring.FIT_MIN,
+            "fit": fit, "fit_why": fit_why, "fit_ok": fit is None or fit >= scoring.FIT_MIN, "catch_all": target is not None,
             "owner": channel.id if channel else run["profile_id"],
             "moments": moments, "make_ids": sorted(make),
             "expected_total": round(sum(m["revenue"] for m in moments if m["make"]), 2)}

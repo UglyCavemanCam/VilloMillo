@@ -507,6 +507,8 @@ def note_category(db: Database, run_id: int, category: str) -> None:
 
 def missing_channels(db: Database, profiles: dict, days: int = 7) -> list[dict]:
     """Categories of videos Research found good but could not use, because there is no channel for them yet."""
+    if channels.catch_all_target(db, profiles) is not None:
+        return []  # every clip goes to the one channel: no category lacks a channel
     since = store.iso(store.now() - timedelta(days=days))
     with db.conn() as c:
         rows = c.execute("SELECT category, COUNT(*) AS n FROM research_candidates rc JOIN runs r ON r.id=rc.run_id "

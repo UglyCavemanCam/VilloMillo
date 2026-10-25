@@ -73,6 +73,36 @@ def save(db: Database, profile: Profile) -> None:
         )
 
 
+CATCH_ALL = "catch_all"
+
+
+def catch_all(db: Database, profiles: dict[str, Profile]) -> dict:
+    """The "send every clip to one channel" switch: {"on", "channel"}. On by default, for the time before every category has its own
+    YouTube channel. `channel` is the one chosen, or the starting channel (the first one) when none was or the chosen one is gone."""
+    with db.conn() as c:
+        row = c.execute("SELECT value FROM meta WHERE key=?", (CATCH_ALL,)).fetchone()
+    saved = json.loads(row["value"]) if row else {}
+    chosen = saved.get("channel")
+    channel = chosen if chosen in profiles else next(iter(profiles), None)
+    return {"on": bool(saved.get("on", True)) and channel is not None, "channel": channel}
+
+
+def catch_all_target(db: Database, profiles: dict[str, Profile]) -> Profile | None:
+    """The channel every clip goes to while the switch is on, else None (clips go to their category's channel)."""
+    state = catch_all(db, profiles)
+    return profiles[state["channel"]] if state["on"] else None
+
+
+def set_catch_all(db: Database, profiles: dict[str, Profile], *, on: bool, channel: str | None = None) -> None:
+    state = catch_all(db, profiles)
+    if channel is not None and channel not in profiles:
+        raise ChannelError("choose one of your channels")
+    with db.conn() as c:
+        c.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  (CATCH_ALL, json.dumps({"on": bool(on), "channel": channel or state["channel"]})))
+    store.event(db, "info", "channels", "Every clip goes to " + (profiles[channel or state["channel"]].display_name if on else "its own category's channel"))
+
+
 def for_category(profiles: dict[str, Profile], category: str) -> Profile | None:
     return next((p for p in profiles.values() if p.category and _same(p.category, category)), None)
 

@@ -170,6 +170,22 @@ def create_app(sv: Services) -> FastAPI:
         p = profile_or_404(profile)
         return render("channels.html", p, "/channels", "channels", "Channels", d=pages.channels_page(sv, p))
 
+    @app.post("/channels/catch-all")
+    def channels_catch_all(on: str = Form("0"), channel: str = Form("")):
+        """The switch at the top of Channels: on sends every clip to one channel; off sends each to its own category's channel."""
+        turn_on = on == "1"
+        try:
+            channels.set_catch_all(sv.db, sv.profiles, on=turn_on, channel=channel or None)
+        except channels.ChannelError as e:
+            raise HTTPException(400, str(e))
+        released = 0
+        if turn_on:  # clips held for a missing category channel now have somewhere to go
+            for h in routing.held_categories(sv.db):
+                released += finish_channel_change(h["category"])
+        else:
+            tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+        return RedirectResponse(f"/channels?released={released}", status_code=303)
+
     @app.get("/channels/new", response_class=HTMLResponse)
     def channel_new(profile: str | None = None, category: str = ""):
         p = profile_or_404(profile)
