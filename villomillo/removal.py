@@ -66,6 +66,21 @@ def remove(db: Database, profile_id: str, clip_ids: list[int]) -> dict:
     return {"removed": len(clips), "cancelled": cancelled, "live": live}
 
 
+def delete_post(db: Database, profile_id: str, post_id: int) -> dict:
+    """Delete a post that has not gone out. The clip stays as it is (approved), so it can be posted again from the Clips page.
+    A post already on YouTube cannot be deleted from here: nothing can safely delete a YouTube video, so that is done in YouTube Studio."""
+    with db.conn() as c:
+        post = c.execute("SELECT id, clip_id, status, url FROM posts WHERE profile_id=? AND id=?", (profile_id, post_id)).fetchone()
+        if post is None:
+            raise LookupError("no such post")
+        if post["status"] in OUT:
+            raise RemovalError("this post is already on YouTube: delete the video in YouTube Studio")
+        c.execute("DELETE FROM copy_options WHERE post_id=?", (post_id,))
+        c.execute("DELETE FROM posts WHERE id=?", (post_id,))
+    store.event(db, "info", "posts", f"post {post_id} deleted; its clip {post['clip_id']} is unchanged")
+    return {"clip_id": post["clip_id"]}
+
+
 def restore(db: Database, profile_id: str, clip_ids: list[int]) -> int:
     """Put removed clips back. An approved clip returns to Waiting for you; one the rules stopped goes back to being stopped."""
     restored = 0

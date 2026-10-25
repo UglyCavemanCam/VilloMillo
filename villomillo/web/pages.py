@@ -396,7 +396,19 @@ def day_panel(sv: Services, p: Profile, day: date) -> dict:
     posts = [_post_view(r) for r in rows(sv.db, "SELECT po.* FROM posts po WHERE po.profile_id=? AND po.status!='cancelled' ORDER BY po.scheduled_at", p.id)]
     mine = sorted((x for x in posts if x["date"] == day), key=lambda x: x["scheduled_at"])
     back = f"/calendar/day/{day}?profile={p.id}"
-    return {"day": day, "title": f"{day:%A}, {day:%B} {day.day}", "posts": [{**x, "panel": f"{x['panel']}&back={quote(back, safe='')}"} for x in mine]}
+    clips = {r["id"]: r for r in rows(sv.db, "SELECT * FROM clips_ready WHERE id IN (SELECT clip_id FROM posts WHERE profile_id=?)", p.id)}
+    out = []
+    for x in mine:
+        clip = clips.get(x["clip_id"])
+        card = _clip_card(p, clip, x) if clip else None
+        out.append({**x, "panel": f"{x['panel']}&back={quote(back, safe='')}", "clip": card,
+                    "goes": "By hand" if x["route"] == "manual" else "Automatic",
+                    "note": (x["error"] or "")[:110] if x["status"] in ("failed", "blocked") else ""})
+    summary = [{"text": text, "n": n, "kind": kind} for text, n, kind in (
+        ("uploaded", sum(1 for x in out if x["status"] in ("uploaded", "posted")), "good"),
+        ("waiting", sum(1 for x in out if x["status"] in ("queued", "manual_ready", "dry_run")), ""),
+        ("need attention", sum(1 for x in out if x["status"] in ("failed", "blocked")), "bad")) if n]
+    return {"day": day, "title": f"{day:%A}, {day:%B} {day.day}", "posts": out, "summary": summary}
 
 
 def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
@@ -412,6 +424,7 @@ def post_panel(sv: Services, p: Profile, post_id: int) -> dict | None:
     return {"post": view, "tags": json.loads(r["tags_json"] or "[]"), "options": options, "route": route, "route_why": why, "paused": paused,
             "clip": _clip_card(p, clip, r) if clip else None, "privacy": p.posting.privacy if p.posting else "", "can_edit": r["status"] not in ("uploaded", "posted"),
             "can_resend": r["status"] in ("queued", "manual_ready", "dry_run") and bool(clip) and clip["state"] == "approved",
+            "can_delete": r["status"] in removal.NOT_OUT,
             "is_hand": r["status"] in ("manual_ready", "queued") and r["route"] == "manual",
             "file_url": f"/clips/{r['clip_id']}/file?profile={p.id}"}
 

@@ -2,11 +2,19 @@
 <div class="drawer-head"><h2>{{ d.title }}</h2><span class="chip">{{ d.posts|length }} post{{ '' if d.posts|length == 1 else 's' }}</span>
   <button type="button" class="icon-btn" data-close aria-label="Close">{{ icon('x') }}</button></div>
 <div class="drawer-body">
+  {% if d.summary %}<div class="cluster" style="gap:8px">{% for s in d.summary %}<span class="chip {{ s.kind }}"><b>{{ s.n }}</b> {{ s.text }}</span>{% endfor %}</div>{% endif %}
   {% for x in d.posts %}
-  <button type="button" class="day-row {{ x.state.css }}" data-panel="{{ x.panel }}">
-    <span class="num label">{{ x.time }}</span><b>{{ x.mark }}</b>
-    <span class="ellipsis" style="font-weight:500">{{ x.short }}</span>
-    <span class="badge {{ x.state.kind }}">{{ x.state.text }}</span>
+  <button type="button" class="day-card {{ x.state.css }}" data-panel="{{ x.panel }}" aria-label="{{ x.short }}, {{ x.time }}, {{ x.state.text }}">
+    <span class="dc-thumb">{% if x.clip %}<img src="{{ x.clip.thumb }}" alt="" loading="lazy">{% endif %}</span>
+    <span class="dc-body">
+      <span class="dc-top"><span class="dc-time num">{{ x.time }}</span><span class="badge {{ x.state.kind }}">{{ x.state.text }}</span></span>
+      <span class="dc-title">{{ x.title or x.caption.split('\n')[0] or (x.clip.title if x.clip else 'Clip') }}</span>
+      <span class="dc-meta">
+        {% if x.clip %}<span class="chip" title="The clip's score"><span class="grade" style="font-size:13px">{{ x.clip.grade }}</span> score</span><span class="chip">{{ x.clip.duration }}</span>{% endif %}
+        <span class="chip">{{ x.mark }} · {{ x.goes }}</span>
+      </span>
+      {% if x.note %}<span class="dc-note">{{ x.note }}</span>{% endif %}
+    </span>
   </button>
   {% else %}<p class="muted">Nothing is planned for this day.</p>{% endfor %}
 </div>

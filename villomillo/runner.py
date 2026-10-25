@@ -54,8 +54,11 @@ def do_copy(sv: Services, payload: dict) -> None:
     from . import copywriter
 
     p = _profile(sv, payload)
-    status = copywriter.generate_with_keys(sv.db, p, payload["post_id"], jev=sv.jev,
-                                           breaker=sv.app.spend_breaker)
+    try:
+        status = copywriter.generate_with_keys(sv.db, p, payload["post_id"], jev=sv.jev,
+                                               breaker=sv.app.spend_breaker)
+    except LookupError:  # the post was deleted before its titles were written
+        status = "skipped: the post was deleted"
     store.event(sv.db, "info", "copy", f"post {payload['post_id']}: {status}")
 
 

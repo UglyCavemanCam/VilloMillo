@@ -286,3 +286,40 @@ def test_every_page_is_centred_in_the_space_beside_the_sidebar():
     css = (pathlib.Path(__file__).resolve().parent.parent / "villomillo" / "web" / "static" / "app.css").read_text()
     rule = next(line for line in css.splitlines() if line.startswith(".content {"))
     assert "margin: 0 auto" in rule and "max-width" in rule
+
+
+def test_a_post_that_has_not_gone_out_can_be_deleted_and_its_clip_can_be_posted_again(db):
+    client, sv = web(db)
+    one = post(db, "queued")
+    with db.conn() as c:
+        clip_id = c.execute("SELECT clip_id FROM posts WHERE id=?", (one,)).fetchone()["clip_id"]
+        c.execute("INSERT INTO copy_options (post_id, title, caption, tags_json, stop_score, misleading, chosen, source, created_at) "
+                  "VALUES (?, 't', 'c', '[]', 4, 0.0, 1, 'test', ?)", (one, store.iso()))
+    assert "Delete post" in client.get(f"/calendar/post/{one}?profile=solved").text
+    assert client.post("/api/post-delete", data={"profile": "solved", "post_id": one}).status_code == 200
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE id=?", (one,)).fetchone()["n"] == 0
+        assert c.execute("SELECT COUNT(*) AS n FROM copy_options WHERE post_id=?", (one,)).fetchone()["n"] == 0
+        assert c.execute("SELECT state FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["state"] == "approved"
+    assert "Post clip" in client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert client.post("/api/post-delete", data={"profile": "solved", "post_id": one}).status_code == 404
+
+
+def test_a_post_already_on_youtube_cannot_be_deleted(db):
+    client, _ = web(db)
+    out = post(db, "uploaded")
+    assert "Delete post" not in client.get(f"/calendar/post/{out}?profile=solved").text
+    r = client.post("/api/post-delete", data={"profile": "solved", "post_id": out})
+    assert r.status_code == 422 and "YouTube Studio" in r.json()["detail"]
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM posts WHERE id=?", (out,)).fetchone()["n"] == 1
+
+
+def test_the_day_list_shows_each_post_with_its_score_length_and_how_it_goes_out(db):
+    client, _ = web(db)
+    day = _busy_day(db, 2)
+    with db.conn() as c:
+        c.execute("UPDATE posts SET status='failed', error='YouTube refused the upload: quota' WHERE title='Hook number 1'")
+    panel = client.get(f"/calendar/day/{day}?profile=solved").text
+    assert "day-card" in panel and "Hook number 0" in panel and "score" in panel and "Automatic" in panel
+    assert "<b>1</b> waiting" in panel and "<b>1</b> need attention" in panel and "quota" in panel

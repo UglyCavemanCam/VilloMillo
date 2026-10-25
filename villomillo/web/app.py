@@ -792,6 +792,18 @@ def create_app(sv: Services) -> FastAPI:
             tasks.enqueue(sv.db, "post", {"profile": profile}, dedupe_key=f"post-now:{profile}:{store.now():%Y%m%d%H%M}", priority=10)  # the schedule would pick them up too; this is sooner
         return JSONResponse({"ok": True, "queued": n})
 
+    @app.post("/api/post-delete")
+    def post_delete(request: Request, profile: str = Form(...), post_id: int = Form(...)):
+        _only_local(request, "posts")
+        in_profile(profile)
+        try:
+            removal.delete_post(sv.db, profile, post_id)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from None
+        except removal.RemovalError as e:
+            raise HTTPException(422, str(e)) from None
+        return JSONResponse({"ok": True})
+
     @app.post("/api/post-done")
     def post_done(request: Request, profile: str = Form(...), post_id: int = Form(...), url: str = Form(...)):
         _only_local(request, "posts")

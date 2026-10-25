@@ -37,6 +37,11 @@
   {% endif %}
 </div>
 <div class="drawer-foot" style="flex-direction:column;align-items:stretch">
+  {% if d.can_delete %}
+  <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">Not on YouTube yet. Deleting removes this post from the calendar.</div>
+    <button type="button" class="btn btn-sm btn-danger" data-act="/api/post-delete" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-ok="Post deleted"
+      data-confirm-title="Delete this post?" data-confirm="It is taken off the calendar and never sent. The clip stays approved, and you can post it again from the Clips page.">Delete post</button></div>
+  {% endif %}
   {% if d.can_resend %}
   <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">Not sent yet. Sends to YouTube straight away.</div>
     <button type="button" class="btn btn-primary btn-sm" data-act="/api/post-send-now" data-fields='{{ {"post_id": po.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Sending. This takes a minute." data-confirm-title="Send this clip to YouTube now?" data-confirm="It goes out now, without waiting for its slot.">Send now</button></div>
@@ -49,5 +54,5 @@
   {% elif po.url %}
   <div style="display:flex;align-items:center;gap:12px"><div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ ('Uploaded as ' ~ d.privacy ~ '. Change who can watch it in YouTube Studio.') if po.status == 'uploaded' and d.privacy != 'public' else ('Uploaded.' if po.status == 'uploaded' else 'Posted.') }}</div>
     <a class="btn btn-sm" href="{{ po.url }}" target="_blank" rel="noopener noreferrer">Open post {{ icon('external', 'icon-sm') }}</a></div>
-  {% elif not d.can_resend %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
+  {% elif not d.can_resend and not d.can_delete %}<div class="muted" style="font-size:13px">Nothing to do here.</div>{% endif %}
 </div>
