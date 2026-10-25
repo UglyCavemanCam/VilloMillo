@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<div class="page-head"><h1>Scoring and safety rules</h1><span class="sub">One formula for all three ways in. Nothing waits for approval: these rules decide.</span>
+  <span class="right"><a class="btn btn-sm" href="/settings?profile={{ shell.current.id }}">Settings</a></span></div>
+
+<section class="card stack" aria-labelledby="f-h"><h2 id="f-h">The formula</h2>
+  <p style="margin:0;line-height:1.6"><b>Viral score</b> (0 to 100): {{ d.engine_weight }}% the moment's own score and {{ 100 - d.engine_weight }}% Jev's reading of the clip (hook, payoff, stands alone). A clip needs <b>{{ d.viral_min }}</b> or more.</p>
+  <p style="margin:0;line-height:1.6"><b>Estimated CPM</b> = ${{ '%.2f'|format(d.cpm_base) }} x category factor x (viral score / {{ d.viral_min }}) until real results exist. Campaigns use their stated pay.</p>
+  <p style="margin:0;line-height:1.6"><b>Expected revenue</b> = predicted views ({{ '{:,}'.format(d.predicted_views) }}, a rough guess) x CPM / 1,000. When clips are waiting, the highest goes first.</p>
+</section>
+
+<section class="card tight" style="overflow-x:auto" aria-label="When a clip is made"><table class="tbl plan-tbl" style="min-width:640px"><thead><tr><th>Source</th><th>A clip is made and posted if</th><th>Otherwise</th></tr></thead><tbody>
+  <tr><td><b>Paste</b></td><td>viral {{ d.viral_min }} or more and estimated CPM at least ${{ '%.2f'|format(d.cpm_floor) }}, and you pressed Start</td><td>Not made; "Remove video" if none qualify</td></tr>
+  <tr><td><b>Research</b></td><td>viral {{ d.viral_min }} or more and estimated CPM at least the rising bar (now ${{ '%.2f'|format(d.bar) }}, never above ${{ '%.2f'|format(d.bar_max) }})</td><td>Skipped, and logged with the reason</td></tr>
+  <tr><td><b>Campaigns</b></td><td>it pays ${{ '%.2f'|format(d.cpm_floor) }} or more per 1,000 views, at least ${{ '{:,.0f}'.format(d.min_budget) }} of budget is left, the campaign's own rules are met, and viral {{ d.viral_min }} or more</td><td>Campaign skipped or dropped; budget checked before each video</td></tr>
+  <tr><td><b>All</b></td><td>the video's type is {{ d.certainty }}% certain or more (else the safe look), the channel fit is {{ d.fit_min }} of 5 or more, and the technical checks pass</td><td>No channel fits: held, and Home offers Add channel</td></tr>
+</tbody></table></section>
+
+<section class="card stack" aria-labelledby="s-h"><h2 id="s-h">Safety</h2>
+  <dl class="kv" style="grid-template-columns:170px 1fr">
+    <dt>Spend breaker</dt><dd>Pauses everything at ${{ '%.0f'|format(d.claude_usd) }} of Claude or ${{ '%.0f'|format(d.jev_usd) }} of Jev since your last approval, then asks to continue.</dd>
+    <dt>Empty funds</dt><dd>A provider error that means no balance pauses work and names the account to top up.</dd>
+    <dt>Emergency stop</dt><dd>Pauses every automatic step on every channel until you resume.</dd>
+    <dt>Rising bar</dt><dd>Only goes up when real results beat the predictions; never below ${{ '%.2f'|format(d.cpm_floor) }}.</dd>
+  </dl>
+</section>
+
+<section class="card stack" aria-labelledby="p-h"><h2 id="p-h">Platform limits</h2>
+  <dl class="kv" style="grid-template-columns:170px 1fr">
+    {% for name, cap in d.caps %}<dt>{{ name }} on YouTube</dt><dd>{{ cap }} posts a day (set by you; YouTube allows up to 100). When a channel reaches it, its clips wait for the next day, highest expected revenue first.</dd>{% endfor %}
+    <dt>Before public posting</dt><dd>YouTube's audit must be passed; until then uploads are private or wait for you.</dd>
+  </dl>
+</section>
+{% endblock %}

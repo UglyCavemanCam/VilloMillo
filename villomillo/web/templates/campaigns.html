@@ -16,6 +16,11 @@
 </section>
 {% endif %}
 
+<section class="card stack" aria-label="Connection"><h2 style="margin:0">Connection</h2>
+  <dl class="kv"><dt>Content Rewards</dt><dd>Public campaign list: {{ d.connection.count }} campaign{{ '' if d.connection.count == 1 else 's' }} read, last {{ d.connection.last }}</dd>
+    <dt>Joining and links</dt><dd>By hand on Content Rewards: it has no way for a program to do either. Everything else is prepared for you.</dd></dl>
+</section>
+
 <section class="card stack" aria-labelledby="add-h"><h2 id="add-h">Add a campaign by link</h2>
   <form class="linkbar" method="post" action="/campaigns/add" style="max-width:none">
     <label class="sr-only" for="clink">Campaign link</label>
@@ -25,14 +30,19 @@
   <form method="post" action="/campaigns/look-again"><button class="btn btn-sm btn-ghost" type="submit">Read the public list again now</button></form>
 </section>
 
+<section class="card stack" aria-labelledby="act-h"><h2 id="act-h">Latest activity</h2>
+  <p class="muted" style="margin:0">{{ d.pass_line }}</p>
+  <div id="feed" data-live-url="/campaigns/feed">{% set feed = d.feed %}{% include "partials/feed.html" %}</div>
+</section>
+
 {% if d.campaigns %}
-<section class="card tight" style="overflow-x:auto" aria-label="Campaigns"><table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Campaign</th><th>YouTube pays</th><th>Budget left</th><th>Category</th><th>Verdict</th></tr></thead><tbody>
+<section class="card tight" style="overflow-x:auto" aria-label="Campaigns"><table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Campaign</th><th>Per 1,000 views</th><th>Budget left</th><th>Goes to channel</th><th>Status</th></tr></thead><tbody>
   {% for c in d.campaigns %}
   <tr class="{{ 'muted-row' if c.state in ('skipped', 'dropped') else '' }}">
     <td><a href="/campaigns/{{ c.id }}?profile={{ shell.current.id }}"><b>{{ c.title }}</b></a><br><span class="muted">{{ c.brand }} · allows {{ c.platform_text }}</span></td>
     <td><b>{{ c.rate }}</b><br><span class="muted">per 1,000 views</span></td><td>{{ c.left }}</td>
-    <td>{{ c.category_text }}{% if c.no_channel and c.state in ('recommended', 'joined') %}<br><span style="color:var(--warn)">No channel yet</span>{% endif %}</td>
-    <td><span class="badge {{ c.badge.kind }}">{{ 'Paused' if c.paused else c.badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.reason or '' }}</span></td></tr>
+    <td>{{ c.goes_to }}{% if c.no_channel and c.state in ('recommended', 'joined') %}<br><a href="/channels/new?profile={{ shell.current.id }}&category={{ c.category|urlencode }}" style="color:var(--warn)">Add the channel</a>{% endif %}</td>
+    <td><span class="badge {{ c.badge.kind }}">{{ 'Paused' if c.paused else c.badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.status_text }}</span></td></tr>
   {% endfor %}</tbody></table></section>
 {% else %}{{ empty('search', 'No campaigns read yet', 'The worker reads the public list every hour. Press "Read the public list again now", or add a campaign by its link.') }}{% endif %}
 {% endblock %}

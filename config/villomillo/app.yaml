@@ -40,6 +40,9 @@ research:
   max_age_days: 14           # older ones are skipped
   min_views: 1000            # a searched YouTube video needs at least this many views
   bar_max: 3.00              # the rising CPM bar never goes above this
+  discover_per_pass: 1       # topics looked up on Twitch and Kick per pass, to find channels to watch
+  twitch_min_viewers: 300    # a live Twitch channel needs this many viewers to be added to the watch list
+  kick_per_topic: 3          # channels taken from each Kick search
 
 # How often each job runs.
 schedule:

@@ -26,6 +26,9 @@
 </section>
 
 {% if c.state == 'joined' %}
+<section class="card stack" aria-labelledby="how-h"><h2 id="how-h" style="margin:0">How it will clip</h2>
+  <dl class="kv" style="grid-template-columns:150px 1fr">{% for k, v in d.how %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+</section>
 {% if d.ready %}
 <section class="card stack" aria-labelledby="sub-h"><h2 id="sub-h">Links to hand in</h2>
   <p class="muted" style="margin:0">Open each link's campaign page on Content Rewards, submit the link, then press "Handed in".</p>

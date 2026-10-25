@@ -15,10 +15,24 @@ import json
 from dataclasses import asdict
 from datetime import timedelta
 
-from . import campaigns, channels, clipper, links, research, routing, scoring, store, tasks
+from . import (
+    activity,
+    campaigns,
+    channels,
+    clipper,
+    links,
+    research,
+    routing,
+    scoring,
+    store,
+    studio,
+    tasks,
+    timefmt,
+)
 from .services import Services
 
 POLL_S = 20  # how often a waiting engine job is looked at
+ENGINE_WAIT_S = 1800  # a video waits this long, with no progress, for an engine that is not answering before it is marked failed
 ACTIVE = ("analysing", "planned", "making")
 
 
@@ -47,6 +61,36 @@ def _set(db, run_id: int, **fields) -> None:
         c.execute(f"UPDATE runs SET {', '.join(f'{k}=?' for k in fields)} WHERE id=?", (*fields.values(), run_id))
 
 
+def note(sv: Services, run: dict, message: str, step: str, level: str = "info") -> None:
+    """One line of this video's timeline (paste, Research and Campaign videos all write the same way)."""
+    activity.log(sv.db, run["source"], message, run_id=run["id"], step=step, level=level)
+
+
+def _engine_down(sv: Services, run_id: int, kind: str, step: str, error: Exception) -> None:
+    """The engine is not answering. Wait for it (it is started again automatically) rather than failing the video at once."""
+    run = _run(sv.db, run_id)
+    waited = activity.age_s(run["updated_at"]) or 0
+    if waited > ENGINE_WAIT_S:
+        return fail(sv, run_id, f"the clip engine was not answering for {ENGINE_WAIT_S // 60} minutes: {error}")
+    note(sv, run, "Waiting: the clip engine is not answering. This video carries on when it is back.", step, "warn")
+    _later(sv, kind, run_id)
+
+
+def _stage_line(engine, job_id) -> str:
+    """What the engine says it is doing for this job, in plain words (read from the wording its log reliably prints)."""
+    log = engine.log(job_id) if hasattr(engine, "log") else None
+    if not log:
+        return STAGES_WAITING
+    progress = studio.read_log(log)
+    line = activity.STAGES[progress["stage"]]
+    if progress["candidates"]:
+        line += f" ({progress['candidates']} candidate moments so far)"
+    return line
+
+
+STAGES_WAITING = activity.STAGES[0]
+
+
 def _later(sv: Services, kind: str, run_id: int, seconds: float = POLL_S) -> None:
     now = store.now()
     tasks.enqueue(sv.db, kind, {"run": run_id}, dedupe_key=f"{kind}:{run_id}:{int(now.timestamp() // max(seconds, 1))}",
@@ -66,10 +110,13 @@ def create(sv: Services, owner_id: str, text: str, *, source: str = "paste", cam
                   (source, link.url, link.platform, link.video_id, owner_id, "analysing", store.iso(), store.iso(), campaign_id))
         run_id = c.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
     tasks.enqueue(sv.db, "paste_analyse", {"run": run_id}, dedupe_key=f"paste_analyse:{run_id}:first")
+    note(sv, {"id": run_id, "source": source}, f"Link accepted ({link.name}). Waiting for the engine to start on it.", "look")
     return run_id
 
 
 def fail(sv: Services, run_id: int, message: str) -> None:
+    run = _run(sv.db, run_id)
+    note(sv, run, f"Failed: {message[:200]}", "look" if run["state"] == "analysing" else "make", "bad")
     _set(sv.db, run_id, state="failed", error=message[:300])
     store.event(sv.db, "error", "run", f"run {run_id} failed: {message[:200]}")
 
@@ -84,26 +131,41 @@ def analyse(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
         return
     engine = engine or clipper.Engine()
     link = links.parse(run["url"])
-    if run["preview_job_id"] is None:
-        job_id = clipper.start_preview(engine, link, focus="")
-        _set(sv.db, run_id, preview_job_id=job_id)
-        return _later(sv, "paste_analyse", run_id)
-    job = engine.job(run["preview_job_id"])
-    if job["status"] in ("queued", "running"):
-        return _later(sv, "paste_analyse", run_id)
-    if job["status"] != "done":
-        return fail(sv, run_id, f"the engine could not look at this video: {job.get('error') or job['status']}")
-    preview = engine.preview(link.video_id)
+    try:
+        if run["preview_job_id"] is None:
+            job_id = clipper.start_preview(engine, link, focus="")
+            _set(sv.db, run_id, preview_job_id=job_id)
+            note(sv, run, f"Asked the engine to look at the video (its job {job_id}).", "look")
+            return _later(sv, "paste_analyse", run_id)
+        job = engine.job(run["preview_job_id"])
+        if job["status"] in ("queued", "running"):
+            line = "Waiting in the engine's queue behind other work" if job["status"] == "queued" else _stage_line(engine, run["preview_job_id"])
+            note(sv, run, line, "look")
+            return _later(sv, "paste_analyse", run_id)
+        if job["status"] != "done":
+            return fail(sv, run_id, f"the engine could not look at this video: {job.get('error') or job['status']}")
+        preview = engine.preview(link.video_id)
+    except clipper.EngineUnavailable as e:
+        return _engine_down(sv, run_id, "paste_analyse", "look", e)
     video = preview.get("video") or {}
     _set(sv.db, run_id, title=video.get("title") or run["title"], channel=video.get("channel"), duration=video.get("duration"))
     if not preview["moments"]:
+        note(sv, run, "The engine found no moment worth clipping in this video.", "look")
         return _set(sv.db, run_id, state="nothing", note="No moments worth clipping were found in this video.", plan_json=None)
+    note(sv, run, f"The engine found {len(preview['moments'])} possible clips.", "look")
+    note(sv, run, f"Scoring the {len(preview['moments'])} moments: Jev reads each clip, then the video's kind and channel fit are worked out.", "score")
     plan = make_plan(sv, run_id, preview)
     state = "planned" if plan["make_ids"] else "nothing"
-    note = None if plan["make_ids"] else "No clip here is likely to earn enough."
-    _set(sv.db, run_id, state=state, note=note, plan_json=json.dumps(plan), profile_id=plan["owner"])
+    why = None if plan["make_ids"] else "No clip here is likely to earn enough."
+    _set(sv.db, run_id, state=state, note=why, plan_json=json.dumps(plan), profile_id=plan["owner"])
+    where = f"goes to the {plan['channel']['name']} channel" if plan["channel"] else f"has no {plan['category']} channel yet"
+    note(sv, run, f"Scored: {len(plan['make_ids'])} of {len(plan['moments'])} clips clear the floors. It is {plan['kind']['label']} "
+                  f"({round(plan['kind']['certainty'] * 100)}% sure) and {where}.", "score")
+    note(sv, run, (f"Plan ready: {len(plan['make_ids'])} clips would be made." if state == "planned" else "Plan: nothing here is worth making."), "plan")
     if state == "planned" and run["source"] != "paste":
         _go_on_its_own(sv, run_id, run, engine)
+    elif state == "planned":
+        note(sv, run, "Waiting for you to press Start.", "plan")
 
 
 def _go_on_its_own(sv: Services, run_id: int, run: dict, engine: clipper.Engine) -> None:
@@ -114,12 +176,15 @@ def _go_on_its_own(sv: Services, run_id: int, run: dict, engine: clipper.Engine)
         research.note_category(sv.db, run_id, plan["category"])
         ok, why = research.gate(sv, plan)
         if not ok:
+            note(sv, run, why, "plan", "warn")
             return _set(sv.db, run_id, state="nothing", note=why)
     if run["campaign_id"]:
         c = campaigns.get(sv.db, run["campaign_id"])
         ok, why = campaigns.clippable(c, sv.app.scoring) if c and c["state"] == "joined" else (False, "the campaign is no longer being clipped for")
         if not ok:
+            note(sv, run, why, "plan", "warn")
             return _set(sv.db, run_id, state="nothing", note=why)
+    note(sv, run, "Going ahead without a Start press: this video came from " + ("a campaign." if run["campaign_id"] else "Research."), "plan")
     start(sv, run_id, engine)
 
 
@@ -169,6 +234,7 @@ def start(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> No
         c.execute("INSERT INTO clip_jobs (profile_id, video_id, engine_job_id, status, created_at, updated_at) VALUES (?,?,?,?,?,?)",
                   (owner.id, run["video_id"], job_id, "submitted", store.iso(), store.iso()))
     _set(sv.db, run_id, state="making", render_job_id=job_id, profile_id=owner.id, error=None)
+    note(sv, run, f"Asked the engine to make {len(plan['make_ids'])} clips (its job {job_id}).", "make")
     _later(sv, "paste_collect", run_id)
 
 
@@ -178,6 +244,7 @@ def remove(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> N
     if run["state"] not in ("planned", "nothing", "failed"):
         raise RunError(f"this video is {run['state']} and cannot be removed now")
     (engine or clipper.Engine()).discard(run["video_id"])
+    note(sv, run, "Removed by you.", "plan")
     _set(sv.db, run_id, state="removed", plan_json=None, note="Removed.")
 
 
@@ -207,12 +274,18 @@ def collect(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
     if job is None:
         return fail(sv, run_id, "the clip job went missing")
     formatter = formats.formatter_for(sv.db, owner, jev=sv.jev, breaker=sv.app.spend_breaker, recipe=plan["look"])
-    outcome = clipper.collect(sv.db, engine, sv.jev, owner, dict(job), formatter, category=plan["category"],
-                              campaign_id=run["campaign_id"], campaign_rules=campaigns.rules_for(campaign))
+    try:
+        outcome = clipper.collect(sv.db, engine, sv.jev, owner, dict(job), formatter, category=plan["category"],
+                                  campaign_id=run["campaign_id"], campaign_rules=campaigns.rules_for(campaign),
+                                  note=lambda message, level="info": note(sv, run, message, "check", level))
+    except clipper.EngineUnavailable as e:
+        return _engine_down(sv, run_id, "paste_collect", "make", e)
     if outcome == "waiting":
+        note(sv, run, _stage_line(engine, job["engine_job_id"]) if job["engine_job_id"] else "Waiting for the engine", "make")
         return _later(sv, "paste_collect", run_id)
     if outcome.startswith("failed"):
         return fail(sv, run_id, outcome)
+    note(sv, run, f"The engine finished: {outcome}.", "check")
     finish(sv, run_id, outcome)
 
 
@@ -233,9 +306,12 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
         post = routing.assign_and_plan(sv.db, lambda: sv.jev, sv.profiles, run["profile_id"], clip["id"])
         if post is None:
             held += 1
+            note(sv, run, f"Clip {clip['id']} approved but held: there is no {plan['category']} channel yet.", "post", "warn")
         else:
             approved += 1
             for each in post["posts"]:
+                channel = sv.profiles[each["profile"]].display_name
+                note(sv, run, f"Clip {clip['id']} planned on {channel}, due {timefmt.full(each['scheduled_at'])} ({each['status']}).", "post")
                 if each["status"] == "queued":
                     tasks.enqueue(sv.db, "copy", {"profile": each["profile"], "post_id": each["id"]}, dedupe_key=f"copy:{each['id']}")
     waiting = len(ready) if not plan["fit_ok"] else 0
@@ -246,6 +322,7 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
         parts.append(f"{held} held: there is no {plan['category']} channel yet.")
     if waiting:
         parts.append(f"{waiting} waiting for your review: the video fits the channel only {plan['fit']} of 5.")
+    note(sv, run, "Done. " + " ".join(parts[1:]) if len(parts) > 1 else "Done.", "post")
     _set(sv.db, run_id, state="finished", note=" ".join(parts))
     store.event(sv.db, "info", "run", f"run {run_id}: {' '.join(parts)}")
 

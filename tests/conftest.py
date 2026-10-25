@@ -192,3 +192,11 @@ class PluginSource:
 @pytest.fixture
 def plugin_source(tmp_path):
     return PluginSource(tmp_path / "sources")
+
+
+@pytest.fixture(autouse=True)
+def _no_kick_network(monkeypatch):
+    """Research looks Kick up through the website; no test may reach it. A test that wants an answer passes its own."""
+    from sources import channel_feed
+
+    monkeypatch.setattr(channel_feed, "_get_json", lambda url: {})

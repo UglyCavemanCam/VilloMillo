@@ -16,7 +16,7 @@ import json
 import re
 from datetime import timedelta
 
-from . import channels, contentrewards, links, store
+from . import activity, channels, contentrewards, links, store
 from .config import Campaign, Posting, Scoring
 from .db import Database
 
@@ -332,7 +332,7 @@ def start_next(sv, client=None) -> list[str]:
 
     db, rules = sv.db, sv.app.scoring
     if active_runs(db):
-        return []
+        return ["Waiting: a campaign video is being clipped. The next one starts when it is done."]
     for c in all_campaigns(db):
         if c["state"] != "joined":
             continue
@@ -371,6 +371,10 @@ def work(sv, client=None) -> list[str]:
             except Exception as e:  # a bad channel name or a YouTube hiccup stops this campaign's top-up, not the pass
                 lines.append(f"{c['title']}: could not look for videos ({type(e).__name__}: {str(e)[:120]})")
     lines += start_next(sv, client)
+    if not any(c["state"] == "joined" for c in all_campaigns(db)):
+        lines.append("No campaign is joined yet: join one on Content Rewards, then press I've joined.")
+    for line in lines:
+        activity.log(db, "campaign", line, level="warn" if "could not" in line or "Could not" in line else "info")
     return lines
 
 

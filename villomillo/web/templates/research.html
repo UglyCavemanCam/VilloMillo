@@ -9,21 +9,28 @@
 {% if d.on and not d.has_channel %}<div class="notice warn">{{ icon('alert') }}<div>Add a channel first: clips need somewhere to post.</div></div>{% endif %}
 
 <section class="card stack" aria-labelledby="sw-h"><h2 id="sw-h">Run Research</h2>
-  <p class="muted" style="margin:0;line-height:1.5">When it is on, the worker looks for a video every half hour. YouTube videos must be <b>Creative Commons</b>, and each clip's caption credits the creator.
-    Twitch and Kick videos come only from channels you list below. A video is looked at, every clip is scored, and clips are made and posted
-    with nobody pressing Start only if one scores at least {{ d.viral_min }} and its estimated CPM clears the <b>bar (now ${{ '%.2f'|format(d.bar) }}</b>), and a channel fits the video.
-    The bar starts at ${{ '%.2f'|format(d.floor) }} and rises only when real results beat what was predicted. Nothing is made for a kind of video you have no channel for.</p>
+  <p class="muted" style="margin:0;line-height:1.5">Searches for videos with the best expected CPM, and clips any that clear the bar, with no one pressing anything. YouTube videos must be <b>Creative Commons</b>
+    and each clip's caption credits the creator. A clip is made only if it scores at least {{ d.viral_min }}, its estimated CPM clears the bar, and a channel fits the video. Nothing is made for a kind of video you have no channel for.</p>
   <div class="cluster">
     <form method="post" action="/research/settings"><input type="hidden" name="on" value="{{ '0' if d.on else '1' }}">
       <button class="btn {{ '' if d.on else 'btn-primary' }}" type="submit">{{ 'Switch Research off' if d.on else 'Switch Research on' }}</button></form>
     <form method="post" action="/research/look-now"><button class="btn btn-ghost" type="submit">Look for videos now</button></form>
   </div>
-  <dl class="kv">
-    <dt>Started in the last 24 hours</dt><dd>{{ d.used_today }} of {{ d.per_day }}</dd>
-    <dt>Waiting</dt><dd>{{ d.waiting }} video{{ '' if d.waiting == 1 else 's' }}</dd>
-    <dt>YouTube searches today</dt><dd>{{ d.searches[0] }} of {{ d.searches[1] }}</dd>
-  </dl>
   {% if not d.has_key %}<div class="notice warn">{{ icon('alert') }}<div>YouTube search and licence checks need your YouTube key: <code>python -m villomillo key youtube</code>. Watched Twitch and Kick channels work without it.</div></div>{% endif %}
+</section>
+
+<section class="grid stats" aria-label="At a glance">
+  <div class="card stat"><div class="k">The bar right now</div><div class="v">${{ '%.2f'|format(d.bar) }}</div><div class="s">Starts at ${{ '%.2f'|format(d.floor) }} and rises in small steps when real results beat the predictions. Never below ${{ '%.2f'|format(d.floor) }}. Ceiling you set: ${{ '%.2f'|format(d.bar_max) }}.</div></div>
+  <div class="card stat"><div class="k">Today</div><div class="v">{{ d.looked }} <span class="muted" style="font-size:14px">looked at</span></div><div class="s">{{ d.clipped }} clipped · {{ d.under_bar }} under the bar · {{ d.not_cc }} not Creative Commons · {{ d.used_today }} of {{ d.per_day }} started in 24 hours</div></div>
+  <div class="card stat"><div class="k">YouTube search allowance</div><div class="v">{{ d.searches[0] }} <span class="muted" style="font-size:14px">of {{ d.searches[1] }}</span></div><div class="s">Cheap discovery (watched channels) is used first so search lasts. {{ d.waiting }} video{{ '' if d.waiting == 1 else 's' }} waiting.</div></div>
+</section>
+
+<section class="card stack" aria-labelledby="where-h"><h2 id="where-h">Where it looks</h2>
+  <dl class="kv" style="grid-template-columns:110px 1fr">
+    <dt>YouTube</dt><dd>Creative Commons videos only, from the channels it watches and from searches. A credit line goes in the caption: "Original: [title] by [creator], Creative Commons (CC BY)."</dd>
+    <dt>Twitch</dt><dd>Finds the most watched live channels in each topic's category{% if d.has_twitch %}, adds them to the watch list and clips their finished broadcasts{% else %} <span style="color:var(--warn)">once your Twitch key is stored: <code>python -m villomillo key twitch</code></span>{% endif %}. Channels you list below are always used.</dd>
+    <dt>Kick</dt><dd>Searches Kick for channels in each topic (Kick has no official search, so this can stop working) and clips their finished broadcasts. Channels you list are always used.</dd>
+  </dl>
 </section>
 
 <form class="stack" method="post" action="/research/settings">
@@ -53,15 +60,20 @@
   </form>
 </section>
 
+<section class="card stack" aria-labelledby="act-h"><h2 id="act-h">Latest activity</h2>
+  <p class="muted" style="margin:0">{{ d.pass_line }}</p>
+  <div id="feed" data-live-url="/research/feed">{% set feed = d.feed %}{% include "partials/feed.html" %}</div>
+</section>
+
 {% if d.candidates %}
 <section class="card tight" style="overflow-x:auto" aria-label="What it looked at"><h2 style="padding:12px 12px 8px">What it looked at</h2>
-  <table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Video</th><th>Found by</th><th>Length</th><th>Verdict</th></tr></thead><tbody>
+  <table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Video</th><th>Source</th><th>Est. CPM</th><th>Result</th></tr></thead><tbody>
   {% for c in d.candidates %}
   <tr class="{{ 'muted-row' if c.state == 'skipped' else '' }}">
     <td>{% if c.run_id %}<a href="/runs/{{ c.run_id }}?profile={{ shell.current.id }}"><b>{{ c.title or c.video_id }}</b></a>{% else %}<b>{{ c.title or c.video_id }}</b>{% endif %}<br><span class="muted">{{ c.channel or '' }}{% if c.views_text %} · {{ c.views_text }}{% endif %}</span></td>
-    <td>{{ c.platform_text }}<br><span class="muted">{{ c.via_text }}</span></td>
-    <td>{{ (c.minutes ~ ' min') if c.minutes else '-' }}</td>
-    <td><span class="badge {{ c.state_badge.kind }}">{{ c.state_badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.why }}</span></td></tr>
+    <td>{{ c.platform_text }}<br><span class="muted">{{ c.via_text }}{% if c.minutes %} · {{ c.minutes }} min{% endif %}</span></td>
+    <td>{{ c.cpm_text }}</td>
+    <td><span class="badge {{ c.state_badge.kind }}">{{ c.state_badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.result }}</span></td></tr>
   {% endfor %}</tbody></table></section>
 {% else %}{{ empty('search', 'Nothing looked at yet', 'Switch Research on, add a channel to watch, or press "Look for videos now".') }}{% endif %}
 {% endblock %}

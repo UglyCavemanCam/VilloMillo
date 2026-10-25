@@ -110,6 +110,15 @@ CREATE TABLE IF NOT EXISTS research_candidates (
 CREATE INDEX IF NOT EXISTS research_candidates_state ON research_candidates (state, found_at);
 CREATE TABLE IF NOT EXISTS research_searches (topic TEXT PRIMARY KEY, searched_at TEXT NOT NULL);
 
+-- What the system is doing, one line at a time: every step of a video, Research and Campaigns writes here so you can watch it work.
+CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL,
+    kind TEXT NOT NULL,        -- paste | research | campaign | system
+    run_id INTEGER, step TEXT, level TEXT NOT NULL DEFAULT 'info', message TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS activity_run ON activity (run_id, id);
+CREATE INDEX IF NOT EXISTS activity_kind ON activity (kind, id);
+
 -- What Jev said about a piece of text, kept so the same text always gets the same scores and is never paid for twice.
 CREATE TABLE IF NOT EXISTS readings (
     key TEXT PRIMARY KEY, kind TEXT NOT NULL, answers_json TEXT NOT NULL, model TEXT, created_at TEXT NOT NULL

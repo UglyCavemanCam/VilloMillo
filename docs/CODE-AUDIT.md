@@ -30,6 +30,10 @@ What each part of `villomillo/` is for in the new plan (`docs/AUTOPILOT-PLAN.md`
 | `scoring.py` | Viral score, estimated CPM, expected revenue, and the video's kind | **Keep** (new, Phase 4) |
 | `clipper.py`, `links.py` | Talks to the clipping engine (preview, make chosen moments), checks finished clips; recognises YouTube, Twitch and Kick links | **Keep.** Phase 3 added "preview" and "make chosen moments" |
 | `validate.py`, `campaign.py` (per-campaign clip rules) | Technical checks and campaign rule checks on a finished clip | **Keep.** Phase 7 feeds `campaign.py` from the rules saved on each campaign |
+| `engine_manager.py`, `health.py` | Keeps the clip engine running under `run`, honest engine status; worker heartbeat, the health checks behind Settings and `doctor` | **Keep** (new) |
+| `activity.py` | The live activity log and each video's timeline | **Keep** (new) |
+| `removal.py` | Remove and restore clips, cancel unposted posts, purge old files | **Keep** (new) |
+| `twitch.py` | Twitch lookups for Research (category search, live channels) | **Keep** (new) |
 | `research.py` | The Run Research switch: watches channels, searches Creative Commons YouTube, queues and starts videos, gates them, credits the creator | **Keep** (new, Phase 8) |
 | `contentrewards.py`, `campaigns.py` | Reads the public Content Rewards list and campaign pages; vets, queues and tracks campaigns and the links to hand in | **Keep** (new, Phase 7) |
 | `formats/` | The on-screen look recipes (blueprints, text, render) | **Keep** |

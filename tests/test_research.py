@@ -271,12 +271,12 @@ def test_the_best_video_starts_as_a_research_run_one_at_a_time_and_campaigns_go_
         run = dict(c.execute("SELECT * FROM runs").fetchone())
         assert run["source"] == "research" and run["video_id"] == "cc000000002" and run["campaign_id"] is None
         assert c.execute("SELECT run_id, state FROM research_candidates WHERE video_id='cc000000002'").fetchone()["state"] == "started"
-    assert research.start_next(sv, FakeFeed()) == []  # one at a time
+    assert research.start_next(sv, FakeFeed()) == ["Waiting: another Research video is being clipped."]  # one at a time
     with sv.db.conn() as c:
         c.execute("UPDATE runs SET state='finished'")
         c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at, campaign_id) "
                   "VALUES ('campaign','https://www.youtube.com/watch?v=xxxxxxxxxxx','youtube','xxxxxxxxxxx','solved','making',?,?,'cid')", (store.iso(), store.iso()))
-    assert research.start_next(sv, FakeFeed()) == []  # a campaign video is being clipped
+    assert research.start_next(sv, FakeFeed()) == ["Waiting: a campaign video is being clipped first."]
 
 
 def test_the_daily_limit_holds(sv):
@@ -286,7 +286,7 @@ def test_the_daily_limit_holds(sv):
     assert research.start_next(sv, FakeFeed())
     with sv.db.conn() as c:
         c.execute("UPDATE runs SET state='finished'")
-    assert research.start_next(sv, FakeFeed()) == [] and research.started_recently(sv.db) == 1
+    assert research.start_next(sv, FakeFeed())[0].startswith("Daily limit reached (1 video in 24 hours)") and research.started_recently(sv.db) == 1
     with sv.db.conn() as c:
         c.execute("UPDATE runs SET created_at=?", (store.iso(store.now().replace(year=2020)),))
     assert research.start_next(sv, FakeFeed())  # a day later it may go on
@@ -397,12 +397,12 @@ def test_the_research_job_is_scheduled_once_for_everything_and_logs_what_it_does
     assert row["kind"] == "research" and row["profile_id"] is None and row["interval_s"] == 30 * 60
     runner.HANDLERS["research"](sv, {"profile": None})  # off: does nothing
     with sv.db.conn() as c:
-        assert c.execute("SELECT COUNT(*) AS n FROM events WHERE component='research'").fetchone()["n"] == 0
+        assert c.execute("SELECT COUNT(*) AS n FROM activity WHERE kind='research'").fetchone()["n"] == 0
     switch_on(sv)
     sv.yt = None  # no key and no channel: it says so
     runner.HANDLERS["research"](sv, {"profile": None})
     with sv.db.conn() as c:
-        assert c.execute("SELECT COUNT(*) AS n FROM events WHERE component='research' AND message LIKE '%nothing to look in%'").fetchone()["n"] == 1
+        assert c.execute("SELECT COUNT(*) AS n FROM activity WHERE kind='research' AND message LIKE '%nothing to look in%'").fetchone()["n"] == 1
 
 
 @pytest.fixture

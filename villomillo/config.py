@@ -68,6 +68,9 @@ class Research(_Strict):
     max_age_days: int = Field(14, ge=1)  # older videos are skipped
     min_views: int = Field(1000, ge=0)  # a searched YouTube video needs at least this many views
     bar_max: float = Field(3.0, ge=1)  # the rising bar never goes above this CPM
+    discover_per_pass: int = Field(1, ge=0)  # topics looked up on Twitch and on Kick per pass, to find channels to watch
+    twitch_min_viewers: int = Field(300, ge=0)  # a live Twitch channel needs at least this many viewers to be added to the watch list
+    kick_per_topic: int = Field(3, ge=1)  # channels taken from each Kick search
 
 
 class Schedule(_Strict):

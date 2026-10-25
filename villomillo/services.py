@@ -9,6 +9,7 @@ from .config import AppConfig, Profile, load_app
 from .db import Database
 from .jev import Jev
 from .quota import Quota
+from .twitch import Twitch
 from .youtube import YouTube
 
 
@@ -20,6 +21,7 @@ class Services:
     quota: Quota
     yt: YouTube | None = None
     jev: Jev | None = None
+    twitch: Twitch | None = None
 
 
 def build(*, with_apis: bool = True) -> Services:
@@ -35,4 +37,6 @@ def build(*, with_apis: bool = True) -> Services:
     if with_apis:
         services.yt = YouTube(secrets.get(secrets.YOUTUBE), quota)
         services.jev = Jev(secrets.get(secrets.JEV))
+        if secrets.is_stored(secrets.TWITCH_ID) and secrets.is_stored(secrets.TWITCH_SECRET):
+            services.twitch = Twitch(secrets.get(secrets.TWITCH_ID), secrets.get(secrets.TWITCH_SECRET))
     return services

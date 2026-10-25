@@ -61,9 +61,10 @@ def do_copy(sv: Services, payload: dict) -> None:
 
 def do_post(sv: Services, payload: dict) -> None:
     """Send the channel's posts that are due. Dry-run channels only write the payload to the outbox."""
-    from . import posting, removal
+    from . import activity, posting, removal
 
     removal.purge_old(sv.db)  # files of clips removed more than 30 days ago
+    activity.prune(sv.db)
     p = _profile(sv, payload)
     if p.posting is None:
         return
@@ -87,16 +88,14 @@ def do_campaigns(sv: Services, payload: dict) -> None:
     """Read Content Rewards, keep each joined campaign's queue full, and start the next video."""
     from . import campaigns
 
-    for line in campaigns.work(sv):
-        store.event(sv.db, "info", "campaigns", line)
+    campaigns.work(sv)  # writes what it does to the activity log
 
 
 def do_research(sv: Services, payload: dict) -> None:
     """When Research is on, look for videos worth clipping and start the next one."""
     from . import research
 
-    for line in research.work(sv):
-        store.event(sv.db, "info", "research", line)
+    research.work(sv)  # writes what it does to the activity log
 
 
 def _paste_step(step, kind: str):
@@ -106,6 +105,8 @@ def _paste_step(step, kind: str):
         try:
             step(sv, payload["run"])
         except spend.SpendPaused:
+            runs.note(sv, runs._run(sv.db, payload["run"]), "Paused: spending reached its limit. This video carries on after you approve more.",
+                      "score" if kind == "paste_analyse" else "check", "warn")
             runs._later(sv, kind, payload["run"], 60)
 
     return handler

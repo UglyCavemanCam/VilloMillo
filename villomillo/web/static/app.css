@@ -398,3 +398,27 @@ tr.why td { padding-top: 0; border-top: 0; }
 .select-bar span { margin-right: auto; font-weight: 500; }
 body.selecting .clip-card { cursor: pointer; }
 .clip-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* ---- live timeline and activity feed ---- */
+.now-line { font-size: 15px; line-height: 1.5; }
+.road { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; list-style: none; margin: 0; padding: 0; }
+.road li { border: 1px solid var(--border); border-radius: var(--r); padding: 9px 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.road li b { font-size: 13px; font-weight: 500; }
+.road li.done { color: var(--text); border-color: var(--good); }
+.road li.now { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
+.road li.stopped { color: var(--text); border-color: var(--warn); }
+.road li.skipped { opacity: .55; }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 360px; overflow: auto; }
+.feed li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; line-height: 1.45; }
+.feed li:first-child { border-top: 0; }
+.feed time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.feed li.warn span { color: var(--warn); }
+.feed li.bad span { color: var(--bad); }
+@media (max-width: 900px) { .road { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- home: the three ways in ---- */
+.ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.way { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; text-decoration: none; color: inherit; }
+.way:hover { border-color: var(--border-strong); }
+.way .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 900px) { .ways { grid-template-columns: 1fr; } }

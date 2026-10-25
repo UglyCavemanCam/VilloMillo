@@ -1,0 +1,5 @@
+{% if feed %}
+<ul class="feed">
+  {% for l in feed %}<li class="{{ l.kind }}"><time>{{ l.time }}</time><span>{{ l.message }}{% if l.run_id %} <a href="/runs/{{ l.run_id }}">Open video</a>{% endif %}</span></li>{% endfor %}
+</ul>
+{% else %}<p class="muted" style="margin:0">Nothing yet. Lines appear here as soon as something happens.</p>{% endif %}

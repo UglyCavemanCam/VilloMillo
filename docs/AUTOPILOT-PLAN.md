@@ -213,8 +213,7 @@ to 4 hours long, under 14 days old, and (when searched) have 1,000 views. Twitch
 before the engine downloads anything. The best waiting video starts when nothing else is being clipped (campaigns go first) and becomes a run like a pasted link with no Start
 press: it is made only if a clip clears the viral floor (75) and the rising CPM bar (it starts at $1.00 and never leaves $1.00 to your ceiling; Phase 9 moves it) and the
 video's kind has a channel that fits it 4 of 5. A video with no channel for its kind is not made, and Home says "Create a channel for ...". Every clip's caption credits the
-creator and, for YouTube, the Creative Commons licence. The page lists what it looked at and why it said yes or no. Not built: finding Twitch or Kick videos by search (they
-come only from channels you list). Try it: `python -m villomillo research on`, then `python -m villomillo research`.
+creator and, for YouTube, the Creative Commons licence. The page lists what it looked at and why it said yes or no. **Twitch and Kick channels are now found as well as listed:** each pass looks up one topic on Twitch (the most watched live channels in its category, with your free Twitch Client ID and Secret: `python -m villomillo key twitch`) and on Kick (its website search, which is unofficial and can stop working) and adds what it finds to the watch list marked "added by Research" (up to 30; remove any). Try it: `python -m villomillo research on`, then `python -m villomillo research`.
 
 ### Phase 9: Learning from real results (medium)
 **In plain words:** Real views and campaign payouts come back and are compared with the predictions. The estimates for each
@@ -227,6 +226,12 @@ category are corrected, and the Research bar is raised when results justify it.
 on Home (engine, worker, funds, last post).
 **After this:** you can leave it running for days.
 **Done when:** it keeps working after a reboot and after the engine is killed on purpose.
+
+### Added after Phase 8 (your requests)
+- **Engine:** `villomillo run` (what `run-app.bat` launches) starts the clip engine if nothing answers, saves its output to `data/villomillo/engine.log`, starts it again if it exits and stops retrying after 3 exits in 10 minutes. The sidebar light shows On, Starting, Not responding, Stopped or Off and needs two failed 3-second checks to change. Settings has a Clip engine panel (Start, Restart, Open log), a Health panel, and `python -m villomillo doctor` runs the same checks.
+- **Remove clips:** a Remove button on each clip, a Select mode on the grid, "Remove all clips" on a video, and a Removed tab with Restore (files are deleted after 30 days). Posts that have not gone out are cancelled; posts already on YouTube are left alone, and the confirm step says so.
+- **Seeing what it does:** every step writes to an activity log. A video's page shows its road (look, score, plan, make, check, post) with times and a Now line, and warns when there is no news or the engine is down. Research and Campaigns have a Latest activity feed and a next-pass time; Home has a Now panel and a worker heartbeat. A video now waits for an engine that is not answering instead of failing at once (it fails only after 30 minutes with no progress).
+- **Screens matched to the wireframes:** Home's three ways-in cards, source labels and live lines on videos; the plan header (how it arrived, how long it took, the look); Campaigns (Connection card, Goes to channel, plain status, How it will clip); Research (bar card, Today, search allowance, Where it looks, Est. CPM and Result columns); Channels (posted today, look, tags, Pause; the 3-step stepper); a Results page (under Learn) and a Rules page (linked from Settings). The Campaigns and Research boards were updated where we chose a different behaviour (join by hand; Twitch and Kick found and listed).
 
 ---
 

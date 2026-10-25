@@ -18,10 +18,14 @@
       <span class="badge {{ 'bad' if c.paused else ('good' if c.ready else 'warn') }}">{{ 'Paused' if c.paused else ('Ready' if c.ready else 'Set up') }}</span>
     </div>
     <dl class="kv">
-      <dt>YouTube</dt><dd>{% if c.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}</dd>
+      <dt>YouTube</dt><dd>{% if c.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}{% if c.cap %} <span class="muted">{{ c.today }} of {{ c.cap }} posted today</span>{% endif %}</dd>
+      <dt>Look</dt><dd>{{ c.look }}</dd>
+      <dt>Caption tags</dt><dd>{{ c.tags }}</dd>
     </dl>
     <div class="stats-row"><span class="muted">Clips<b>{{ c.clips }}</b></span><span class="muted">Waiting<b>{{ c.waiting }}</b></span><span class="muted">Posted<b>{{ c.posted }}</b></span>{% if c.held %}<span class="muted">Held<b>{{ c.held }}</b></span>{% endif %}</div>
-    <div class="cluster" style="margin-top:auto"><a class="btn btn-sm" href="/channels/{{ c.id }}?profile={{ c.id }}">Open</a></div>
+    <div class="cluster" style="margin-top:auto"><a class="btn btn-sm" href="/channels/{{ c.id }}?profile={{ c.id }}">Open</a>
+      {% if c.paused %}<button type="button" class="btn btn-sm btn-primary" data-act="/api/account-state" data-fields='{{ {"profile": c.id, "platform": "youtube_shorts", "action": "resume"}|tojson }}' data-ok="Resumed">Resume this channel</button>
+      {% else %}<button type="button" class="btn btn-sm btn-ghost" data-act="/api/account-state" data-fields='{{ {"profile": c.id, "platform": "youtube_shorts", "action": "pause"}|tojson }}' data-ok="Paused" data-confirm-title="Pause this channel?" data-confirm="No post is sent for this channel until you resume it. Posts stay planned and wait.">Pause this channel</button>{% endif %}</div>
   </section>
   {% endfor %}
 </div>

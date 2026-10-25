@@ -1,0 +1,3 @@
+{% for i in (rows if rows is defined else d.rows) %}
+<a class="row" href="{{ i.href }}"><span class="dot-s {{ i.kind }}" {% if i.kind == 'accent' %}style="background:var(--accent)"{% endif %}></span><span class="grow"><b>{{ i.label }}</b><small>{{ i.text }}</small></span></a>
+{% endfor %}

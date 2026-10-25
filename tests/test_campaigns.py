@@ -315,7 +315,7 @@ def test_the_next_video_starts_for_a_joined_campaign_one_at_a_time(sv):
         run = dict(c.execute("SELECT * FROM runs").fetchone())
         assert run["source"] == "campaign" and run["campaign_id"] == SOLVED and run["profile_id"] == "solved"
         assert c.execute("SELECT run_id FROM campaign_queue WHERE video_id=?", (run["video_id"],)).fetchone()["run_id"] == run["id"]
-    assert campaigns.start_next(sv, site.client()) == []  # one at a time
+    assert campaigns.start_next(sv, site.client()) == ["Waiting: a campaign video is being clipped. The next one starts when it is done."]  # one at a time
 
 
 def test_nothing_starts_for_a_campaign_that_cannot_be_clipped_for(sv):

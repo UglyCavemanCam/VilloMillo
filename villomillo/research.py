@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from . import campaigns, channels, links, store
+from . import activity, campaigns, channels, links, store
 from .config import Research, Scoring
 from .db import Database
 from .quota import QuotaExceeded
@@ -137,15 +137,21 @@ def remove_source(db: Database, source_id: int) -> None:
         c.execute("DELETE FROM research_sources WHERE id=?", (source_id,))
 
 
+def _learn_channel(db: Database, platform: str, key: str, name: str) -> bool:
+    """Add a channel Research found to its watch list (marked "added by Research"). False when it is already there or the list is full."""
+    with db.conn() as c:
+        if c.execute("SELECT 1 FROM research_sources WHERE platform=? AND channel_key=?", (platform, key)).fetchone():
+            return False
+        if c.execute("SELECT COUNT(*) AS n FROM research_sources WHERE learned=1").fetchone()["n"] >= LEARNED_MAX:
+            return False
+        c.execute("INSERT INTO research_sources (platform, channel_key, name, learned, added_at) VALUES (?,?,?,1,?)", (platform, key, name, store.iso()))
+    return True
+
+
 def _learn(db: Database, v: dict) -> None:
     """A Creative Commons video that was worth looking at: watch its channel too, which is much cheaper than searching."""
-    if not v.get("channel_id"):
-        return
-    with db.conn() as c:
-        if c.execute("SELECT COUNT(*) AS n FROM research_sources WHERE learned=1").fetchone()["n"] >= LEARNED_MAX:
-            return
-        c.execute("INSERT OR IGNORE INTO research_sources (platform, channel_key, name, learned, added_at) VALUES ('youtube',?,?,1,?)",
-                  (v["channel_id"], v.get("channel_title") or v["channel_id"], store.iso()))
+    if v.get("channel_id"):
+        _learn_channel(db, "youtube", v["channel_id"], v.get("channel_title") or v["channel_id"])
 
 
 # ---- candidates ----------------------------------------------------------------------------------------------------------
@@ -223,6 +229,8 @@ def _watch(sv, yt, feed, now, room: int) -> tuple[list[str], int]:
         with db.conn() as c:
             c.execute("UPDATE research_sources SET checked_at=? WHERE id=?", (store.iso(now), src["id"]))
         fresh = [f for f in found if f.video_id and not f.short and not _seen(db, f.video_id)][:NEWEST_PER_CHANNEL]
+        if found:
+            lines.append(f"Read {src['name']}: {len(found)} recent videos, {len(fresh)} not seen before.")
         if not fresh:
             continue
         if src["platform"] == "youtube":
@@ -282,6 +290,7 @@ def _search(sv, yt, now, room: int) -> tuple[list[str], int]:
             c.execute("INSERT INTO research_searches (topic, searched_at) VALUES (?,?) ON CONFLICT(topic) DO UPDATE SET searched_at=excluded.searched_at",
                       (topic, store.iso(now)))
         new = [i for i in ids if not _seen(db, i)]
+        lines.append(f"Searched YouTube for \"{topic}\" (Creative Commons): {len(ids)} results, {len(new)} not seen before.")
         if not new:
             continue
         try:
@@ -302,8 +311,82 @@ def _search(sv, yt, now, room: int) -> tuple[list[str], int]:
     return lines, room
 
 
-def discover(sv, *, yt=None, feed=None, now=None) -> list[str]:
-    """Top up the queue: watched channels first, then a few searches."""
+def _kick_search(topic: str, get_json) -> list[dict]:
+    """Channels Kick's own search returns for a topic: [{slug, name}]. Kick has no official search, so this reads the website's and
+    can stop working without warning; anything unexpected is an empty answer, not an error."""
+    from urllib.parse import quote
+
+    data = get_json(f"https://kick.com/api/search?searched_word={quote(topic)}")
+    items = data.get("channels") if isinstance(data, dict) else None
+    out = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        inner = item.get("channel") if isinstance(item.get("channel"), dict) else item
+        slug = inner.get("slug")
+        if isinstance(slug, str) and slug:
+            user = inner.get("user") if isinstance(inner.get("user"), dict) else {}
+            out.append({"slug": slug.lower(), "name": inner.get("username") or user.get("username") or slug})
+    return out
+
+
+def _discover_channels(sv, twitch, kick_get, now) -> list[str]:
+    """Find channels worth watching on Twitch (the most watched live channels in a topic's category) and on Kick (its search), one topic
+    each per pass, the topic looked up longest ago first. Whatever it finds joins the watch list, marked as added by Research."""
+    db, cfg, lines = sv.db, sv.app.research, []
+    if cfg.discover_per_pass <= 0:
+        return lines
+    wanted = topics(db, cfg, sv.profiles)
+    with db.conn() as c:
+        last = {r["topic"]: r["searched_at"] for r in c.execute("SELECT topic, searched_at FROM research_searches")}
+
+    def stamp(key: str) -> None:
+        with db.conn() as c:
+            c.execute("INSERT INTO research_searches (topic, searched_at) VALUES (?,?) ON CONFLICT(topic) DO UPDATE SET searched_at=excluded.searched_at",
+                      (key, store.iso(now)))
+
+    if twitch is not None:
+        from .twitch import TwitchError
+
+        for topic in sorted(wanted, key=lambda t: last.get(f"twitch:{t}", ""))[:cfg.discover_per_pass]:
+            try:
+                found = []
+                for category in twitch.categories(topic, first=2):
+                    found += twitch.top_streams(category["id"], first=10)
+                if not found:
+                    found = twitch.search_channels(topic, first=10)
+            except TwitchError as e:
+                lines.append(f"Twitch lookup for \"{topic}\" failed: {e}")
+                continue
+            stamp(f"twitch:{topic}")
+            big = [s for s in found if s["viewers"] >= cfg.twitch_min_viewers or not s["viewers"]]  # a search gives no viewer count: keep those
+            added = 0
+            for s in sorted(big, key=lambda s: -s["viewers"]):
+                if _learn_channel(db, "twitch", s["login"], s["name"]):
+                    added += 1
+                    lines.append(f"Added {s['name']} (Twitch, {s['viewers']:,} watching) to the watch list.")
+            lines.append(f"Looked up \"{topic}\" on Twitch: {len(found)} live channels, {added} added to the watch list.")
+    from sources import channel_feed
+
+    get_json = kick_get or channel_feed._get_json
+    for topic in sorted(wanted, key=lambda t: last.get(f"kick:{t}", ""))[:cfg.discover_per_pass]:
+        try:
+            found = _kick_search(topic, get_json)
+        except Exception as e:  # Kick's site is unofficial: say so and carry on
+            lines.append(f"Kick search for \"{topic}\" did not answer ({_short(e)}). Kick has no official search, so this can stop working.")
+            continue
+        stamp(f"kick:{topic}")
+        added = 0
+        for ch in found[:cfg.kick_per_topic]:
+            if _learn_channel(db, "kick", ch["slug"], ch["name"]):
+                added += 1
+                lines.append(f"Added {ch['name']} (Kick) to the watch list.")
+        lines.append(f"Looked up \"{topic}\" on Kick: {len(found)} channels, {added} added to the watch list.")
+    return lines
+
+
+def discover(sv, *, yt=None, feed=None, now=None, twitch=None, kick_get=None) -> list[str]:
+    """Top up the queue: watched channels first, then a few searches, then look for more channels to watch."""
     from sources import channel_feed
 
     feed, now, db = feed or channel_feed, now or store.now(), sv.db
@@ -316,8 +399,9 @@ def discover(sv, *, yt=None, feed=None, now=None) -> list[str]:
     if yt is not None:
         more, room = _search(sv, yt, now, room)
         lines += more
-    elif not sources(db):
+    elif not sources(db) and twitch is None:
         lines.append("add a channel to watch or store a YouTube key: there is nothing to look in yet")
+    lines += _discover_channels(sv, twitch, kick_get, now)
     return lines
 
 
@@ -348,8 +432,14 @@ def start_next(sv, feed=None) -> list[str]:
 
     db, cfg = sv.db, sv.app.research
     s = settings(db, cfg)
-    if not s["on"] or active_runs(db) or campaigns.active_runs(db) or started_recently(db) >= s["videos_per_day"] or not sv.profiles:
+    if not s["on"] or not sv.profiles:
         return []
+    if active_runs(db):
+        return ["Waiting: another Research video is being clipped."] if queued(db) else []
+    if campaigns.active_runs(db):
+        return ["Waiting: a campaign video is being clipped first."] if queued(db) else []
+    if started_recently(db) >= s["videos_per_day"]:
+        return [f"Daily limit reached ({s['videos_per_day']} video{'s' if s['videos_per_day'] != 1 else ''} in 24 hours): the next one starts when the oldest of those is a day old."] if queued(db) else []
     feed = feed or channel_feed
     with db.conn() as c:
         waiting = [dict(r) for r in c.execute("SELECT * FROM research_candidates WHERE state='queued' ORDER BY (via='watch') DESC, rank DESC, found_at")]
@@ -383,12 +473,17 @@ def _seen_by_a_run(db: Database, video_id: str) -> bool:
         return bool(c.execute("SELECT 1 FROM runs WHERE video_id=?", (video_id,)).fetchone())
 
 
-def work(sv, *, yt=None, feed=None) -> list[str]:
+def work(sv, *, yt=None, feed=None, twitch=None, kick_get=None) -> list[str]:
     """One pass: when Research is on, top up the candidates and start the next video."""
     if not is_on(sv.db):
         return []
-    lines = discover(sv, yt=yt if yt is not None else sv.yt, feed=feed)
-    return lines + start_next(sv, feed)
+    lines = discover(sv, yt=yt if yt is not None else sv.yt, feed=feed, twitch=twitch if twitch is not None else sv.twitch, kick_get=kick_get)
+    lines += start_next(sv, feed)
+    left = queued(sv.db)
+    lines.append(f"Pass finished: {left} video{'s' if left != 1 else ''} waiting." if left else "Pass finished: nothing waiting.")
+    for line in lines:
+        activity.log(sv.db, "research", line, level="warn" if "could not" in line or "allowance" in line else "info")
+    return lines
 
 
 # ---- the decision on a video that was looked at ----------------------------------------------------------------------------
@@ -434,6 +529,9 @@ def credit_for(db: Database, video_id: str) -> str:
 def candidates(db: Database, limit: int = 40) -> list[dict]:
     """What Research looked at, newest first, with how the run that handled each one stands."""
     with db.conn() as c:
-        rows = c.execute("SELECT rc.*, r.state AS run_state, r.note AS run_note FROM research_candidates rc LEFT JOIN runs r ON r.id=rc.run_id "
-                         "ORDER BY rc.found_at DESC, rc.rowid DESC LIMIT ?", (limit,)).fetchall()
+        rows = c.execute(
+            "SELECT rc.*, r.state AS run_state, r.note AS run_note, r.plan_json AS run_plan, "
+            "(SELECT COUNT(*) FROM posts p JOIN clips_ready cr ON cr.id=p.clip_id WHERE cr.video_id=rc.video_id AND p.status IN ('uploaded','posted')) AS posted, "
+            "(SELECT COUNT(*) FROM posts p JOIN clips_ready cr ON cr.id=p.clip_id WHERE cr.video_id=rc.video_id AND p.status NOT IN ('uploaded','posted','cancelled')) AS planned "
+            "FROM research_candidates rc LEFT JOIN runs r ON r.id=rc.run_id ORDER BY rc.found_at DESC, rc.rowid DESC LIMIT ?", (limit,)).fetchall()
     return [dict(r) for r in rows]

@@ -16,6 +16,7 @@ import keyring
 
 from .. import (
     accounts,
+    activity,
     campaigns,
     channels,
     clipper,
@@ -29,6 +30,7 @@ from .. import (
     safety,
     secrets,
     spend,
+    store,
     studio,
     timefmt,
 )
@@ -83,6 +85,9 @@ def post_state(status: str, route: str) -> dict:
     else:
         text, kind, css = table.get(status, (status, "", "s-plan"))
     return {"text": text, "kind": kind, "css": css, "key": status if status != "queued" else f"queued-{route}"}
+
+
+health_checks = health  # home_page has a list of its own called health
 
 
 # --- the shell: side panel, top bar, bell ------------------------------------------------------------------------
@@ -219,7 +224,8 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
                 {"key": "channels", "label": "Channels", "href": f"/channels{q}", "icon": "plug",
                  "dot": "An account is paused" if paused else None},
                 {"key": "calendar", "label": "Calendar", "href": f"/calendar{q}", "icon": "calendar"}]},
-            {"label": "Learn", "links": [{"key": "insights", "label": "Insights", "href": f"/insights{q}", "icon": "chart"}]},
+            {"label": "Learn", "links": [{"key": "results", "label": "Results", "href": f"/results{q}", "icon": "trend"},
+                                       {"key": "insights", "label": "Insights", "href": f"/insights{q}", "icon": "chart"}]},
         ],
         "engine": {"kind": eng["kind"], "text": eng["text"], "title": eng["title"], "href": f"/settings{q}#engine"},
         "budget": {"text": f"Claude {money(claude_s)} of {money(br.claude_usd)} · Jev {money(jev_s)} of {money(br.jev_usd)}",
@@ -383,11 +389,65 @@ def _thumb(run: dict) -> str | None:
     return f"https://i.ytimg.com/vi/{run['video_id']}/mqdefault.jpg" if run["platform"] == "youtube" else None
 
 
-def _run_row(r: dict) -> dict:
+SOURCE_LABEL = {"paste": "Paste", "research": "Research", "campaign": "Campaign"}
+
+
+def _run_row(r: dict, latest: str | None = None) -> dict:
     sub = {"analysing": "Looking at the video and scoring its clips", "planned": "Scored, waiting for your Start",
            "making": "Making and checking the clips"}.get(r["state"], r["note"] or r["error"] or "")
-    return {"id": r["id"], "title": r["title"] or r["url"], "platform": {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick"}.get(r["platform"], r["platform"].title()), "state": RUN_STATE[r["state"]], "sub": sub,
-            "thumb": _thumb(r)}
+    if latest and r["state"] in ("analysing", "making"):
+        sub = latest  # what it is doing right now
+    plan = json.loads(r["plan_json"]) if r.get("plan_json") else None
+    parts = [SOURCE_LABEL.get(r["source"], r["source"].title())]
+    if plan:
+        parts.append(plan["category"])
+    return {"id": r["id"], "title": r["title"] or r["url"], "platform": {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick"}.get(r["platform"], r["platform"].title()),
+            "state": RUN_STATE[r["state"]], "sub": sub, "source": SOURCE_LABEL.get(r["source"], r["source"].title()), "origin": " · ".join(parts), "thumb": _thumb(r)}
+
+
+LOOK_LABEL = {"podcast_talk": "Clean frame", "generic_safe": "Plain frame"}
+
+
+def _analysed_in(sv: Services, run: dict) -> str:
+    """How long the looking and scoring took, from the first line to the plan line, e.g. '6 min 20 s'."""
+    with sv.db.conn() as c:
+        row = c.execute("SELECT MIN(ts) AS at FROM activity WHERE run_id=? AND step='plan'", (run["id"],)).fetchone()
+    if not row or not row["at"]:
+        return ""
+    seconds = int((store.parse_time(row["at"]) - store.parse_time(run["created_at"])).total_seconds())
+    return f"{seconds // 60} min {seconds % 60} s" if seconds >= 60 else f"{max(seconds, 0)} s"
+
+
+def _run_rows(db) -> list[dict]:
+    recent_runs = runs.recent(db, 6)
+    latest = activity.latest_by_run(db, [r["id"] for r in recent_runs])
+    return [_run_row(r, latest.get(r["id"])) for r in recent_runs]
+
+
+def ways_view(sv: Services) -> list[dict]:
+    """Home's three cards, one for each way a video arrives: Paste, Research, Campaigns, each with where it stands."""
+    db = sv.db
+    since = store.iso(store.now() - timedelta(hours=24))
+    active = rows(db, "SELECT source, state, COUNT(*) AS n FROM runs WHERE state IN ('analysing','making','planned') GROUP BY source, state")
+    count = {(r["source"], r["state"]): r["n"] for r in active}
+    paste_working = count.get(("paste", "analysing"), 0) + count.get(("paste", "making"), 0)
+    paste_wait = count.get(("paste", "planned"), 0)
+    cfg = sv.app.research
+    on = research.is_on(db)
+    looked = one(db, "SELECT COUNT(*) AS n FROM research_candidates WHERE state IN ('started','skipped') AND found_at>=?", since)["n"]
+    clipped = one(db, "SELECT COUNT(*) AS n FROM runs WHERE source='research' AND state='finished' AND created_at>=?", since)["n"]
+    every = campaigns.all_campaigns(db)
+    joined = [c for c in every if c["state"] == "joined"]
+    worth = [c for c in every if c["state"] == "recommended"]
+    best = max((c["rate_cents"] or 0 for c in joined + worth), default=0)
+    return [
+        {"key": "paste", "name": "Paste", "href": "/", "badge": badge("You start it", ""),
+         "text": f"{paste_working} analysing · {paste_wait} waiting for your Start" if (paste_working or paste_wait) else "Nothing pasted right now"},
+        {"key": "research", "name": "Research", "href": "/research", "badge": badge("On", "good") if on else badge("Off", ""),
+         "text": (f"Bar {money(research.bar(db, sv.app.scoring, cfg))} · {looked} videos looked at today · {clipped} clipped") if on else "Switched off. Turn it on to find videos by itself"},
+        {"key": "campaigns", "name": "Campaigns", "href": "/campaigns", "badge": badge("Runs by itself", "good") if joined else badge("Join one", ""),
+         "text": (f"{len(joined)} joined · {len(worth)} worth joining" + (f" · best {money(best / 100)} per 1,000 views" if best else ""))},
+    ]
 
 
 def run_page(sv: Services, run_id: int) -> dict:
@@ -401,7 +461,9 @@ def run_page(sv: Services, run_id: int) -> dict:
             "makes": sum(1 for m in moments if m["make"]), "total_text": money(plan["expected_total"]) if plan else "",
             "clips": [{**c, "when": f"{mmss(c['start_s'])} to {mmss(c['end_s'])}"} for c in runs.clips_of(sv.db, run)],
             "active": run["state"] in ("analysing", "making"), "viral_min": sv.app.scoring.viral_min, "cpm_floor": sv.app.scoring.cpm_floor,
-            "duration": mmss(run["duration"]) if run["duration"] else ""}
+            "duration": mmss(run["duration"]) if run["duration"] else "", "tl": timeline_view(sv, run),
+            "origin": {"paste": "Pasted link", "research": "Found by Research", "campaign": "Campaign video"}.get(run["source"], "Video"),
+            "analysed_in": _analysed_in(sv, run), "look_label": LOOK_LABEL.get(plan["look"], plan["look"].replace("_", " ").capitalize()) if plan else ""}
 
 
 def home_page(sv: Services, p: Profile) -> dict:
@@ -440,7 +502,10 @@ def home_page(sv: Services, p: Profile) -> dict:
         week.append({"date": d, "is_today": i == 0, "hand": sum(1 for x in day_posts if x["state"]["css"] == "s-hand"),
                      "done": sum(1 for x in day_posts if x["state"]["css"] == "s-done"),
                      "other": sum(1 for x in day_posts if x["state"]["css"] not in ("s-hand", "s-done")), "total": len(day_posts)})
-    health = [{"kind": "good" if engine_up() else "", "label": "Clip engine", "value": "On" if engine_up() else "Off"}]
+    w = health_checks.worker(db)
+    health = [{"kind": "good" if engine_up() else "", "label": "Clip engine", "value": "On" if engine_up() else "Off"},
+              {"kind": {"running": "good", "stuck": "warn", "off": "bad"}[w["state"]], "label": "Worker",
+               "value": {"running": "On", "stuck": "Not responding", "off": "Off: start the app with run-app.bat"}[w["state"]]}]
     if p.posting:
         health.append({"kind": "good" if youtube_connected(p) else "warn", "label": "YouTube",
                        "value": f"Connected as {channel_name(p)} ({p.brand.handle})" if youtube_connected(p) else "Not connected yet"})
@@ -453,9 +518,11 @@ def home_page(sv: Services, p: Profile) -> dict:
     health.append({"kind": "bad" if paused else "good", "label": "Safety stops", "value": f"{len(paused)} paused" if paused else "No account is paused"})
     near = max(claude_s / br.claude_usd, jev_s / br.jev_usd) >= 0.8
     health.append({"kind": "warn" if near else "good", "label": "Spend breaker", "value": "Close to the limit" if near else "Well inside the limits"})
+    last = health_checks.last_post(db)
+    health.append({"kind": "good" if last else "", "label": "Last post", "value": last or "Nothing posted yet"})
     events = [{"when": timefmt.short(e["ts"]), "level": e["level"], "text": f"{e['component']}: {e['message']}"}
               for e in rows(db, "SELECT * FROM events ORDER BY id DESC LIMIT 8")]
-    return {"runs": [_run_row(r) for r in runs.recent(db, 6)], "stats": stats, "pipeline": pipeline, "recent": recent, "week": week, "health": health, "events": events,
+    return {"now": now_view(sv, p), "runs": _run_rows(db), "ways": ways_view(sv), "stats": stats, "pipeline": pipeline, "recent": recent, "week": week, "health": health, "events": events,
             "has_week_items": any(d["total"] for d in week), "needs": needs(sv, p)}
 
 
@@ -483,7 +550,10 @@ def _channel_card(sv: Services, c: Profile) -> dict:
     return {"id": c.id, "name": channel_name(c), "category": c.category or "No category yet", "about": c.niche.definition,
             "youtube": youtube_connected(c), "clips": clips, "posted": posted, "waiting": waiting,
             "held": held, "ready": bool(c.category and youtube_connected(c)),
-            "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c}))}
+            "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c})),
+            "today": posting.posted_today(db, c.id, "youtube_shorts") if c.posting else 0, "cap": c.posting.daily_cap if c.posting else 0,
+            "look": LOOK_LABEL.get(c.format, (c.format or "Engine's own look").replace("_", " ").capitalize()),
+            "tags": (c.posting.tags.get("youtube_shorts", "") if c.posting else "") or "None"}
 
 
 def _account_rows(sv: Services, c: Profile) -> list[dict]:
@@ -533,14 +603,29 @@ def _campaign_view(sv: Services, c: dict) -> dict:
     left = f"${c['budget_left_cents'] / 100:,.0f}" if c["budget_left_cents"] is not None else "-"
     category = c["category"] or "-"
     waiting = bool(c["category"]) and channels.for_category(sv.profiles, c["category"]) is None
+    channel = channels.for_category(sv.profiles, c["category"]) if c["category"] else None
+    goes_to = (channel_name(channel) if channel else (f"No channel for {c['category']}" if c["category"] else "-"))
+    status = ("Paused: " + c["reason"].removeprefix("Paused: ")) if c["state"] == "joined" and c["reason"] else {
+        "joined": "Joined by you", "recommended": "Worth joining", "dropped": "You stopped clipping for it", "skipped": c["reason"] or "Skipped"}[c["state"]]
+    if waiting and c["state"] in ("joined", "recommended"):
+        status += ": add the channel"
     return {**c, "rate": rate, "left": left, "category_text": category, "no_channel": waiting, "badge": CAMPAIGN_BADGE[c["state"]],
+            "goes_to": goes_to, "status_text": status,
             "platform_text": ", ".join(PLATFORM_LABEL.get(p, p.title()) for p in c["platforms"]) or "-",
             "paused": c["state"] == "joined" and bool(c["reason"])}
 
 
+def _connection(sv: Services) -> dict:
+    every = campaigns.all_campaigns(sv.db)
+    last = max((c["fetched_at"] for c in every), default=None)
+    return {"count": len(every), "last": _ago(activity.age_s(last)) if last else "never"}
+
+
 def campaigns_page(sv: Services, p: Profile) -> dict:
     return {"campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)],
-            "ready": campaigns.ready_to_submit(sv.db), "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd}
+            "ready": campaigns.ready_to_submit(sv.db), "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd,
+            "feed": feed_lines(activity.recent(sv.db, "campaign", 25)), "connection": _connection(sv),
+            "pass_line": pass_line(sv, "campaigns", "read", (activity.recent(sv.db, "campaign", 1) or [None])[0])}
 
 
 def campaign_page(sv: Services, cid: str) -> dict | None:
@@ -552,12 +637,85 @@ def campaign_page(sv: Services, cid: str) -> dict | None:
     for q in campaigns.queue_of(sv.db, c["id"]):
         state = RUN_STATE.get(q["run_state"]) if q["run_state"] else badge("Waiting", "")
         queue.append({**q, "state": state, "title": q["title"] or q["video_id"]})
-    return {"c": _campaign_view(sv, c), "form": {"sources": c["sources"], "tags": c["tags"], "use_rules": bool(rules),
+    how = [("Rules", (f"{rules['min_s']:g} to {rules['max_s']:g} seconds" + (f" · a face in the first {rules['face_window_s']:g} seconds" if rules.get("face_window_s") else "")
+                      + (" · captions on the whole clip" if rules.get("require_captions") else "") + (" · no ad reads" if rules.get("no_ad_reads") else ""))
+                     if rules else "No rules entered yet: add the ones from the campaign's brief below"),
+           ("Required tags", c["tags"] or "None entered yet"),
+           ("Source", ", ".join(x.strip() for x in c["sources"].splitlines() if x.strip()) or "None entered yet"),
+           ("Before each clip", "its budget is read again; clipping stops when the money runs out")]
+    return {"how": how, "c": _campaign_view(sv, c), "form": {"sources": c["sources"], "tags": c["tags"], "use_rules": bool(rules),
                                                  "min_s": rules.get("min_s", 20), "max_s": rules.get("max_s", 60),
                                                  "face_window_s": rules.get("face_window_s", 5),
                                                  "require_captions": rules.get("require_captions", True), "no_ad_reads": rules.get("no_ad_reads", True)},
             "queue": queue, "ready": [r for r in campaigns.ready_to_submit(sv.db) if r["campaign_id"] == c["id"]],
             "keys": has_secret(secrets.YOUTUBE), "sends": any((not ch.posting.dry_run) for ch in sv.profiles.values() if ch.posting)}
+
+
+# --- activity: what the system is doing right now ----------------------------------------------------------------
+
+LEVEL_KIND = {"info": "", "warn": "warn", "bad": "bad"}
+
+
+def _stamp(ts: str) -> str:
+    m = timefmt.to_et(ts)
+    return f"{m.hour % 12 or 12}:{m:%M:%S} {'AM' if m.hour < 12 else 'PM'}" if m else ""
+
+
+def _ago(seconds: int | None) -> str:
+    if seconds is None:
+        return ""
+    if seconds < 5:
+        return "just now"
+    if seconds < 90:
+        return f"{seconds} seconds ago"
+    if seconds < 5400:
+        return f"{round(seconds / 60)} minutes ago"
+    return f"{round(seconds / 3600)} hours ago"
+
+
+def feed_lines(lines: list[dict]) -> list[dict]:
+    return [{"time": _stamp(x["ts"]), "message": x["message"], "kind": LEVEL_KIND.get(x["level"], ""), "run_id": x["run_id"]} for x in lines]
+
+
+def timeline_view(sv: Services, run: dict) -> dict:
+    tl = activity.timeline(sv.db, run, engine_manager.status()["state"])
+    steps = [{**s, "time": _stamp(s["at"]) if s["at"] else ""} for s in tl["steps"]]
+    return {"steps": steps, "lines": feed_lines(list(reversed(tl["lines"]))[:60]), "now": tl["now"], "updated": _ago(tl["age_s"]),
+            "stalled": tl["stalled"], "active": tl["active"], "state": run["state"]}
+
+
+def pass_line(sv: Services, name: str, label: str, latest: dict | None) -> str:
+    """'Next pass in 14 min · last pass 3 minutes ago' for a scheduled kind of work."""
+    minutes = activity.next_pass(sv.db, name)
+    nxt = "not scheduled" if minutes is None else ("due now" if minutes <= 0 else f"in {minutes} min")
+    last = f" · last activity {_ago(activity.age_s(latest['ts']))}" if latest else ""
+    return f"Next {label} {nxt}{last}"
+
+
+def now_view(sv: Services, p: Profile) -> dict:
+    """Home's Now panel: engine, worker, the videos being worked on, and what Research and Campaigns last did."""
+    items = []
+    eng = engine_manager.status()
+    items.append({"label": "Clip engine", "text": {"on": "On", "starting": "Starting: its first start can take minutes", "not_responding": "Not responding", "error": "Stopped with an error: " + (eng["last_error"] or "see the log"), "off": "Off: open Settings and press Start"}[eng["state"]], "kind": eng["kind"], "href": f"/settings?profile={p.id}#engine"})
+    w = health.worker(sv.db)
+    items.append({"label": "Worker", "kind": {"running": "good", "stuck": "warn", "off": "bad"}[w["state"]], "href": f"/settings?profile={p.id}#health-h",
+                  "text": {"running": "Working" + (f" on {w['task']}" if w["task"] else ", waiting for the next job"),
+                           "stuck": f"No sign of life for {w['age_s']} seconds",
+                           "off": "Not running: start the app with run-app.bat so links get looked at"}[w["state"]]})
+    for r in runs.recent(sv.db, 20):
+        if r["state"] in ("analysing", "making", "planned"):
+            tl = activity.timeline(sv.db, r, eng["state"])
+            items.append({"label": f"{r['source'].title()} video", "kind": "warn" if tl["stalled"] else "accent", "href": f"/runs/{r['id']}?profile={p.id}",
+                          "text": f"{(r['title'] or r['url'])[:50]}: {tl['now']}" + (f" ({_ago(tl['age_s'])})" if tl["age_s"] is not None and tl["active"] else "")})
+    on = research.is_on(sv.db)
+    latest = (activity.recent(sv.db, "research", 1) or [None])[0]
+    items.append({"label": "Research", "kind": "good" if on else "", "href": f"/research?profile={p.id}",
+                  "text": ("On. " + pass_line(sv, "research", "pass", latest)) if on else "Off"})
+    joined = [c for c in campaigns.all_campaigns(sv.db) if c["state"] == "joined"]
+    latest = (activity.recent(sv.db, "campaign", 1) or [None])[0]
+    items.append({"label": "Campaigns", "kind": "good" if joined else "", "href": f"/campaigns?profile={p.id}",
+                  "text": (f"{len(joined)} joined. " if joined else "None joined yet. ") + pass_line(sv, "campaigns", "read", latest)})
+    return {"rows": items}
 
 
 # --- research --------------------------------------------------------------------------------------------------
@@ -574,8 +732,17 @@ def _candidate_view(c: dict) -> dict:
         state, why = RUN_STATE.get(c["run_state"], badge("Started", "accent")), c["run_note"] or ""
     via = "watched channel" if c["via"] == "watch" else f"search: {c['topic']}"
     views = f"{c['views']:,} views" if c["views"] else ""
+    plan = json.loads(c["run_plan"]) if c.get("run_plan") else None
+    cpm = max((m["cpm"] for m in plan["moments"] if m["make"]), default=max((m["cpm"] for m in plan["moments"]), default=None)) if plan else None
+    made = (c.get("posted") or 0) + (c.get("planned") or 0)
+    if c["state"] == "skipped" or c["run_state"] in ("nothing", "failed", "removed"):
+        result = why
+    elif c["run_state"] == "finished":
+        result = f"Clipped: {c['posted']} posted" + (f", {c['planned']} planned" if c["planned"] else "") + (", credited" if c["platform"] == "youtube" and made else "") if made else why
+    else:
+        result = why
     return {**c, "state_badge": state, "why": why, "via_text": via, "platform_text": SOURCE_NAMES.get(c["platform"], c["platform"].title()),
-            "minutes": round((c["duration_s"] or 0) / 60), "views_text": views}
+            "minutes": round((c["duration_s"] or 0) / 60), "views_text": views, "cpm_text": money(cpm) if cpm is not None else "-", "result": result}
 
 
 def research_page(sv: Services, p: Profile) -> dict:
@@ -587,7 +754,61 @@ def research_page(sv: Services, p: Profile) -> dict:
             "searches": (sv.quota.used("search"), sv.quota.caps["search"]), "has_key": has_secret(secrets.YOUTUBE),
             "has_channel": bool(sv.profiles), "viral_min": sv.app.scoring.viral_min,
             "sources": [{**r, "platform_text": SOURCE_NAMES.get(r["platform"], r["platform"])} for r in research.sources(db)],
-            "candidates": [_candidate_view(c) for c in research.candidates(db)]}
+            "candidates": [_candidate_view(c) for c in research.candidates(db)],
+            "feed": feed_lines(activity.recent(db, "research", 25)), "has_twitch": sv.twitch is not None,
+            "looked": one(db, "SELECT COUNT(*) AS n FROM research_candidates WHERE state IN ('started','skipped') AND found_at>=?", store.iso(store.now() - timedelta(hours=24)))["n"],
+            "clipped": one(db, "SELECT COUNT(*) AS n FROM runs WHERE source='research' AND state='finished' AND created_at>=?", store.iso(store.now() - timedelta(hours=24)))["n"],
+            "under_bar": one(db, "SELECT COUNT(*) AS n FROM runs WHERE source='research' AND state='nothing' AND created_at>=? AND note LIKE 'No clip here%'", store.iso(store.now() - timedelta(hours=24)))["n"],
+            "not_cc": one(db, "SELECT COUNT(*) AS n FROM research_candidates WHERE state='skipped' AND reason LIKE '%not Creative Commons%' AND found_at>=?", store.iso(store.now() - timedelta(hours=24)))["n"],
+            "pass_line": pass_line(sv, "research", "pass", (activity.recent(db, "research", 1) or [None])[0])}
+
+
+# --- results and rules ------------------------------------------------------------------------------------------
+
+
+def results_page(sv: Services, p: Profile) -> dict:
+    """Everything that was made: where each clip came from, where it went, and how its real views compare with the guess."""
+    db, expected = sv.db, sv.app.scoring.predicted_views
+    today = timefmt.today_et()
+    posted_today = sum(1 for r in rows(db, "SELECT posted_at FROM posts WHERE status IN ('uploaded','posted') AND posted_at IS NOT NULL") if timefmt.local_date(r["posted_at"]) == today)
+    held = sum(h["clips"] for h in routing.held_categories(db))
+    skipped_moments = []
+    for r in rows(db, "SELECT id, source, title, plan_json FROM runs WHERE plan_json IS NOT NULL ORDER BY id DESC LIMIT 30"):
+        for m in json.loads(r["plan_json"])["moments"]:
+            if not m["make"]:
+                skipped_moments.append({"run_id": r["id"], "source": SOURCE_LABEL.get(r["source"], r["source"]), "title": (m["hook"] or f"Moment {m['id']}")[:70], "video": r["title"] or "",
+                                        "viral": m["viral"], "why": m["explain"][3].replace("Will not be made: ", "Skipped: ")})
+    views = one(db, "SELECT COALESCE(SUM(v), 0) AS n FROM (SELECT (SELECT views FROM post_stats s WHERE s.post_id=po.id ORDER BY taken_at DESC LIMIT 1) AS v FROM posts po WHERE po.status IN ('uploaded','posted'))")["n"]
+    clips = []
+    for r in rows(db, """
+        SELECT cr.id, cr.hook, cr.engine_score, cr.state, cr.reason, cr.start_s, cr.end_s, cr.campaign_id, po.id AS post_id, po.profile_id AS post_profile, po.status AS post_status, po.url,
+          (SELECT views FROM post_stats s WHERE s.post_id=po.id ORDER BY taken_at DESC LIMIT 1) AS views,
+          (SELECT source FROM runs r WHERE r.video_id=cr.video_id ORDER BY r.id DESC LIMIT 1) AS source,
+          (SELECT 1 FROM campaign_submissions cs WHERE cs.post_id=po.id) AS handed_in
+        FROM clips_ready cr LEFT JOIN posts po ON po.clip_id=cr.id AND po.status!='cancelled'
+        WHERE cr.state NOT IN ('superseded','removed') ORDER BY cr.id DESC LIMIT 40"""):
+        live = r["post_status"] in ("uploaded", "posted")
+        if live:
+            where = "YouTube" + (" · link ready to submit" if r["campaign_id"] and r["url"] and not r["handed_in"] else "")
+        elif r["post_status"]:
+            where = post_state(r["post_status"], "manual")["text"]
+        elif (r["reason"] or "").startswith(routing.HELD):
+            where = "Held: no channel yet"
+        else:
+            where = CLIP_STATE.get(r["state"], badge(r["state"]))["text"]
+        channel = sv.profiles.get(r["post_profile"]) if r["post_profile"] else None
+        clips.append({"id": r["id"], "title": (r["hook"] or f"Clip {r['id']}")[:70], "when": f"{mmss(r['end_s'] - r['start_s'])} long", "source": SOURCE_LABEL.get(r["source"], "Paste"),
+                      "channel": channel_name(channel) if channel else "-", "score": r["engine_score"], "where": where, "held": where.startswith("Held"),
+                      "views": f"{r['views']:,} of {expected:,}" if live and r["views"] is not None else (f"- of {expected:,}" if live else "-"),
+                      "panel": f"/clips?profile={p.id}&panel=/clips/{r['id']}/panel"})
+    return {"posted_today": posted_today, "held": held, "skipped": len(skipped_moments), "views": views, "clips": clips, "skipped_rows": skipped_moments[:10]}
+
+
+def rules_page(sv: Services, p: Profile) -> dict:
+    s, cfg, br = sv.app.scoring, sv.app.research, sv.app.spend_breaker
+    return {"viral_min": s.viral_min, "cpm_floor": s.cpm_floor, "cpm_base": s.cpm_base, "predicted_views": s.predicted_views, "certainty": round(s.type_certainty_min * 100),
+            "bar": research.bar(sv.db, s, cfg), "bar_max": research.settings(sv.db, cfg)["bar_max"], "min_budget": s.campaign_min_budget_usd, "claude_usd": br.claude_usd, "jev_usd": br.jev_usd,
+            "engine_weight": round(s.engine_weight * 100), "caps": [(channel_name(c), c.posting.daily_cap) for c in sv.profiles.values() if c.posting], "fit_min": 4}
 
 
 # --- insights --------------------------------------------------------------------------------------------------

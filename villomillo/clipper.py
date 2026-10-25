@@ -189,7 +189,7 @@ def grade_clip(db: Database, jev: Jev, profile: Profile, clip_id: int, text: str
 
 
 def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict, formatter=None, *,
-            category: str | None = None, campaign_id: str | None = None, campaign_rules=None) -> str:
+            category: str | None = None, campaign_id: str | None = None, campaign_rules=None, note=None) -> str:
     """Look at a submitted job. Returns 'waiting', 'done' or 'failed', with a short status.
 
     `formatter(clip, job, out_path)` gives each clip the channel's look from the source video. If it fails, the clip
@@ -256,6 +256,8 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
             )
         saved += 1
         checked += verdict["ok"]
+        if note:
+            note(f"Clip {clip['id']}: " + ("passed every check." if state == "review" else f"stopped: {reason}"), "info" if state == "review" else "warn")
     with db.conn() as c:
         c.execute("UPDATE clip_jobs SET status='done', updated_at=? WHERE id=?", (store.iso(), job["id"]))
     return f"{saved} clips made, {checked} passed the checks"

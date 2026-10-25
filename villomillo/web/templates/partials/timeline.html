@@ -1,0 +1,14 @@
+{% from "_ui.html" import icon %}
+{% set t = d.tl %}
+<div class="now-line"><b>Now:</b> {{ t.now }}{% if t.updated and t.active %} <span class="muted">· updated {{ t.updated }}</span>{% endif %}</div>
+{% if t.stalled %}<div class="notice warn">{{ icon('alert') }}<div>{{ t.stalled }}</div></div>{% endif %}
+<ol class="road">
+  {% for s in t.steps %}
+  <li class="{{ s.status }}"><b>{{ s.name }}</b><span>{{ {'done': 'Done', 'now': 'Working', 'waiting': 'Waiting', 'skipped': 'Skipped', 'stopped': 'Stopped here'}[s.status] }}{% if s.time and s.status in ('done', 'now', 'stopped') %} · {{ s.time }}{% endif %}</span></li>
+  {% endfor %}
+</ol>
+{% if t.lines %}
+<ul class="feed">
+  {% for l in t.lines %}<li class="{{ l.kind }}"><time>{{ l.time }}</time><span>{{ l.message }}</span></li>{% endfor %}
+</ul>
+{% endif %}

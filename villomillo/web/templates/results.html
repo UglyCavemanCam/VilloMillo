@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, empty %}
+{% block content %}
+<div class="page-head"><h1>Results</h1><span class="sub">Every clip: where it came from, where it went, and how its real views compare with the guess</span></div>
+
+<section class="grid stats" aria-label="At a glance">
+  <div class="card stat"><div class="k">Posted today</div><div class="v num">{{ d.posted_today }}</div><div class="s">across every channel</div></div>
+  <div class="card stat"><div class="k">Held (no channel)</div><div class="v num">{{ d.held }}</div><div class="s">{{ 'they post when you add the channel' if d.held else 'nothing is waiting for a channel' }}</div></div>
+  <div class="card stat"><div class="k">Skipped by the floors</div><div class="v num">{{ d.skipped }}</div><div class="s">moments that scored too low to make</div></div>
+  <div class="card stat"><div class="k">Real views so far</div><div class="v num">{{ '{:,}'.format(d.views) }}</div><div class="s">from YouTube, read every 6 hours</div></div>
+</section>
+
+{% if d.clips or d.skipped_rows %}
+<section class="card tight" style="overflow-x:auto" aria-label="Clips"><h2 style="padding:12px 12px 8px">Clips</h2>
+  <table class="tbl plan-tbl" style="min-width:820px"><thead><tr><th>Clip</th><th>Source</th><th>Channel</th><th>Score</th><th>Posted to</th><th>Views, expected</th></tr></thead><tbody>
+  {% for c in d.clips %}
+  <tr><td><a href="{{ c.panel }}"><b>{{ c.title }}</b></a><br><span class="muted">{{ c.when }}</span></td><td>{{ c.source }}</td><td>{{ c.channel }}</td><td><b>{{ c.score }}</b></td>
+    <td><span style="{{ 'color:var(--warn)' if c.held }}">{{ c.where }}</span></td><td>{{ c.views }}</td></tr>
+  {% endfor %}
+  {% for m in d.skipped_rows %}
+  <tr class="muted-row"><td><a href="/runs/{{ m.run_id }}?profile={{ shell.current.id }}"><b>{{ m.title }}</b></a><br><span class="muted">Not made{% if m.video %} · {{ m.video[:40] }}{% endif %}</span></td><td>{{ m.source }}</td><td>-</td><td>{{ m.viral }}</td><td>{{ m.why }}</td><td>-</td></tr>
+  {% endfor %}</tbody></table></section>
+{% else %}{{ empty('chart', 'No clips yet', 'Paste a link, switch Research on, or join a campaign. Every clip and its result shows up here.', 'Paste a link', '/?profile=' ~ shell.current.id) }}{% endif %}
+
+<section class="card stack" aria-labelledby="needs-h"><h2 id="needs-h">Needs you: the only four kinds</h2>
+  <ol style="margin:0;padding-left:20px;line-height:1.7"><li>A category has no channel (Add channel).</li><li>The spend breaker, or an account with no money (Approve or top up).</li><li>A campaign to join or hand links in to, by hand.</li><li>A platform that is paused, disconnected or waiting for an audit.</li></ol>
+  <p class="muted" style="margin:0"><a href="/?profile={{ shell.current.id }}">Home</a> lists them as they happen.</p>
+</section>
+{% endblock %}

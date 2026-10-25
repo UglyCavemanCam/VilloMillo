@@ -9,22 +9,15 @@
 
 <section class="card run-head">
   {% if d.thumb %}<img class="run-thumb big" src="{{ d.thumb }}" alt="">{% else %}<span class="run-thumb big"></span>{% endif %}
-  <div class="grow"><span class="muted" style="font-size:12px">Pasted link · {{ d.row.platform }}</span>
+  <div class="grow"><span class="muted" style="font-size:12px">{{ d.origin }} · {{ d.row.platform }}{% if d.analysed_in %} · analysed in {{ d.analysed_in }}{% endif %}</span>
     <h2 style="margin:2px 0 4px">{{ d.row.title }}</h2>
     <span class="muted">{% if d.plan %}{{ d.moments|length }} candidate clips found{% else %}{{ d.row.sub }}{% endif %}</span></div>
 </section>
 
-{% if r.state == 'analysing' or r.state == 'making' %}
-<section class="card stack" aria-label="Progress" data-auto-refresh="5000">
-  <ol class="checklist" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-    <li class="done"><b>1. Look</b>{{ 'Done' if r.state == 'making' else 'Working' }}</li>
-    <li class="{{ 'done' if r.state == 'making' else '' }}"><b>2. Score</b>{{ 'Done' if r.state == 'making' else 'Next' }}</li>
-    <li class="{{ 'done' if r.state == 'making' and d.clips else '' }}"><b>3. Make</b>{{ 'Working' if r.state == 'making' else 'Waiting for your Start' }}</li>
-    <li><b>4. Check and post</b>After the clips are made</li>
-  </ol>
-  <p class="muted" style="margin:0">{% if r.state == 'analysing' %}The engine is downloading, reading and scoring the video. This takes a few minutes for a long video. You can leave this page.{% else %}The engine is making only the clips that cleared the floors. Each is checked, then posted on its channel.{% endif %}</p>
+<section class="card stack" aria-label="Timeline" id="timeline" {% if d.active %}data-live-url="/runs/{{ r.id }}/live?profile={{ shell.current.id }}" data-state="{{ r.state }}"{% endif %}>
+  <h2 style="margin:0">{{ 'What is happening' if d.active else 'What happened' }}</h2>
+  <div class="live-body">{% include "partials/timeline.html" %}</div>
 </section>
-{% endif %}
 
 {% if r.state == 'planned' or r.state == 'nothing' %}
 {% if d.plan %}
@@ -44,7 +37,7 @@
 </section>
 <aside class="card stack" style="flex:2 1 320px;min-width:0">
   <h2 style="margin:0">What happens next</h2>
-  <div><b>Type: {{ d.plan.kind.label }}, {{ (d.plan.kind.certainty * 100)|round|int }}% sure</b><br><span class="muted">{{ d.plan.kind.explain }}</span></div>
+  <div><b>Type: {{ d.plan.kind.label }}, {{ (d.plan.kind.certainty * 100)|round|int }}% sure</b><br><span class="muted">{{ d.plan.kind.explain }} Look: {{ d.look_label }}.</span></div>
   <div><b>Category: {{ d.plan.category }}{% if d.plan.fit %}, fit {{ d.plan.fit }} of 5{% endif %}</b><br>
     <span class="muted">{% if d.plan.channel %}Goes to the {{ d.plan.channel.name }} channel. {{ d.plan.fit_why or '' }}{% else %}There is no channel for this category yet.{% endif %}</span></div>
   {% if not d.plan.channel %}<div class="notice warn">{{ icon('alert') }}<div>The clips will be held, and Home will offer <b>Add channel</b> for {{ d.plan.category }}. When you add it, the held clips post.</div></div>{% endif %}
@@ -81,5 +74,5 @@
   <form method="post" action="/runs/{{ r.id }}/remove"><button class="btn" type="submit">Remove video</button></form></div></section>
 {% endif %}
 
-{% if d.active %}<script>setTimeout(function () { location.reload(); }, 5000);</script>{% endif %}
+
 {% endblock %}

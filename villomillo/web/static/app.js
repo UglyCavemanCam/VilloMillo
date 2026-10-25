@@ -125,6 +125,23 @@
     if (ev.key === "Escape" && drawer.classList.contains("open")) closePanel();
   });
 
+  /* ---- live panels: anything with data-live-url is refreshed in place while the page is open ---- */
+  $$("[data-live-url]").forEach(function (el) {
+    var busy = false, body = el.querySelector(".live-body") || el;
+    var timer = setInterval(function () {
+      if (busy || document.hidden) return;
+      busy = true;
+      fetch(el.dataset.liveUrl, { headers: { "X-Requested-With": "panel" } }).then(function (r) {
+        var state = r.headers.get("X-State");
+        return r.text().then(function (html) {
+          if (state && el.dataset.state && state !== el.dataset.state) { location.reload(); return; }  // the video moved on: show the new page
+          if (r.ok) body.innerHTML = html;
+        });
+      }).catch(function () { /* the next tick tries again */ }).then(function () { busy = false; });
+    }, 4000);
+    window.addEventListener("pagehide", function () { clearInterval(timer); });
+  });
+
   /* ---- select clips: remove or restore several at once ---- */
   var bar = $("#select-bar"), toggle = $("#select-toggle");
   function chosen() { return $$(".clip-card.is-selected").map(function (c) { return c.dataset.clipId; }); }

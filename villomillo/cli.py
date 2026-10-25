@@ -350,6 +350,16 @@ def cmd_key(args) -> None:
     if args.name is None:
         for short, name in secrets.KEYS.items():
             print(f"{short:8} {'stored' if secrets.is_stored(name) else 'not stored'}")
+        both = secrets.is_stored(secrets.TWITCH_ID) and secrets.is_stored(secrets.TWITCH_SECRET)
+        print(f"{'twitch':8} {'stored' if both else 'not stored'}")
+        return
+    if args.name == "twitch":  # two values: the app's Client ID and Client Secret from dev.twitch.tv
+        try:
+            secrets.store(secrets.TWITCH_ID, getpass.getpass("Paste the Twitch Client ID (typing is hidden), then press Enter: "))
+            secrets.store(secrets.TWITCH_SECRET, getpass.getpass("Paste the Twitch Client Secret (typing is hidden), then press Enter: "))
+        except ValueError as e:
+            sys.exit(f"Nothing stored: {e}.")
+        print("Stored the Twitch Client ID and Secret in the credential store. Neither was printed or saved anywhere else.")
         return
     value = getpass.getpass(f"Paste the {args.name} key (typing is hidden), then press Enter: ")
     try:
@@ -472,7 +482,7 @@ def main(argv: list[str] | None = None) -> None:
     from . import secrets as _secrets
 
     key = sub.add_parser("key", help="store an API key safely (no name: show which keys are stored)")
-    key.add_argument("name", nargs="?", choices=sorted(_secrets.KEYS))
+    key.add_argument("name", nargs="?", choices=sorted([*_secrets.KEYS, "twitch"]))
     key.set_defaults(fn=cmd_key)
     yt_connect = sub.add_parser("youtube-connect", help="sign in to YouTube once so clips can be uploaded")
     yt_connect.add_argument("--profile")

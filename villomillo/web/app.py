@@ -24,6 +24,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .. import (
     accounts,
+    activity,
     campaigns,
     channels,
     clipper,
@@ -248,6 +249,37 @@ def create_app(sv: Services) -> FastAPI:
         return JSONResponse({"ok": True})
 
     # ---- research ------------------------------------------------------------------------------------------------
+
+    @app.get("/runs/{run_id}/live", response_class=HTMLResponse)
+    def run_live(run_id: int, profile: str | None = None):
+        try:
+            d = pages.run_page(sv, run_id)
+        except LookupError:
+            raise HTTPException(404, "no such video run") from None
+        html = env.get_template("partials/timeline.html").render(d=d)
+        return HTMLResponse(html, headers={"X-State": d["run"]["state"]})
+
+    @app.get("/now", response_class=HTMLResponse)
+    def now_panel(profile: str | None = None):
+        return fragment("partials/now.html", d=pages.now_view(sv, profile_or_404(profile)))
+
+    @app.get("/research/feed", response_class=HTMLResponse)
+    def research_feed():
+        return fragment("partials/feed.html", feed=pages.feed_lines(activity.recent(sv.db, "research", 25)))
+
+    @app.get("/campaigns/feed", response_class=HTMLResponse)
+    def campaigns_feed():
+        return fragment("partials/feed.html", feed=pages.feed_lines(activity.recent(sv.db, "campaign", 25)))
+
+    @app.get("/results", response_class=HTMLResponse)
+    def results(profile: str | None = None):
+        p = profile_or_404(profile)
+        return render("results.html", p, "/results", "results", "Results", d=pages.results_page(sv, p))
+
+    @app.get("/rules", response_class=HTMLResponse)
+    def rules(profile: str | None = None):
+        p = profile_or_404(profile)
+        return render("rules.html", p, "/rules", "settings", "Scoring and safety rules", d=pages.rules_page(sv, p))
 
     @app.get("/research", response_class=HTMLResponse)
     def research_page(profile: str | None = None, problem: str = "", saved: int = 0):
