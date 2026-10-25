@@ -512,3 +512,56 @@ def test_the_recheck_command_only_touches_the_campaigns_own_clips(sv, monkeypatc
 def test_released_held_clips_still_work_after_the_change(sv):
     # routing.release_held plans each held clip's posts: nothing about campaigns breaks that
     assert routing.held_categories(sv.db) == [] and posting is not None
+
+
+def test_a_playlist_or_show_link_is_a_source_and_other_lines_still_refused():
+    show = "https://www.youtube.com/show/VLPLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW?sbp=KgtPRUtMdFA0ZmoxSUAB"
+    expected = ("playlist", "PLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW")
+    assert campaigns.parse_sources(show) == [expected]
+    assert campaigns.parse_sources("https://www.youtube.com/playlist?list=PLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW") == [expected]
+    assert campaigns.parse_sources("https://www.youtube.com/playlist?si=abc&list=PLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW") == [expected]
+    assert campaigns.parse_sources("PLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW") == [expected]
+    assert campaigns.parse_sources("https://www.youtube.com/watch?v=aB3dEfGhIjK&list=PLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW")[0][0] == "video"
+    assert campaigns.parse_sources("@show")[0][0] == "channel"
+    with pytest.raises(campaigns.CampaignError, match="playlist"):
+        campaigns.parse_sources("@show\nhttps://example.com/nothing")
+
+
+def test_a_playlist_source_queues_its_full_episodes(db):
+    c = joined(db, sources="https://www.youtube.com/show/VLPLkkA1LPpvlkjbuctKTaViIeIiZljzbqxW?sbp=x")
+    yt = FakeYT([vid(1, minutes=2), *[vid(n) for n in range(2, 5)]])
+    lines = campaigns.fill_queue(db, c, yt)
+    assert [q["video_id"] for q in campaigns.queue_of(db, SOLVED)][::-1] == ["vid00000002", "vid00000003", "vid00000004"] and len(lines) == 3
+
+
+def test_a_channel_with_many_short_videos_between_its_episodes_is_searched_deep_enough(db):
+    c = joined(db)
+    shorts = [vid(n, minutes=1) for n in range(1, 41)]  # the 40 newest uploads are all Shorts
+    yt = FakeYT([*shorts, vid(100), vid(101)])
+    campaigns.fill_queue(db, c, yt)
+    assert {q["video_id"] for q in campaigns.queue_of(db, SOLVED)} == {"vid00000100", "vid00000101"}
+
+
+def test_a_source_that_gives_nothing_new_says_why(db):
+    c = joined(db)
+    yt = FakeYT([vid(1, minutes=1), vid(2, minutes=2)])
+    lines = campaigns.fill_queue(db, c, yt)
+    assert len(lines) == 1 and "looked through 2 videos" in lines[0] and "under 10 minutes" in lines[0]
+    assert "YouTube key" in campaigns.fill_queue(db, c, None)[0]
+
+
+def test_saving_a_campaigns_sources_looks_for_videos_straight_away(db, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from villomillo import channels, config
+    from villomillo.quota import Quota
+    from villomillo.services import Services
+    from villomillo.web.app import create_app
+
+    campaigns.seed_solved(db, RULES)
+    sv = Services(config.AppConfig(), channels.load(db), db, Quota(db, general_cap=9, search_cap=9))
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    r = client.post(f"/campaigns/{SOLVED}/setup", data={"sources": "@show", "tags": ""}, follow_redirects=False)
+    assert r.status_code == 303
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='campaigns' AND status='queued'").fetchone()["n"] >= 1

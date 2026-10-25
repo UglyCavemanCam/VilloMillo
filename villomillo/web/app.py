@@ -403,6 +403,7 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(404, "no such campaign") from None
         except campaigns.CampaignError as e:
             return RedirectResponse(f"/campaigns/{campaign_id}?problem={quote(str(e))}", status_code=303)
+        tasks.enqueue(sv.db, "campaigns", {"profile": None}, dedupe_key=f"campaigns:saved:{int(store.now().timestamp() // 60)}", priority=10)  # fill the queue now, not within the hour
         return RedirectResponse(f"/campaigns/{campaign_id}?saved=1", status_code=303)
 
     @app.post("/api/campaign-submitted")

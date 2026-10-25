@@ -25,6 +25,8 @@ SOLVED_RULES = {"min_s": 20, "max_s": 60, "face_window_s": 5, "require_captions"
 SOLVED_TAGS = "@solvedclips @iammarkmanson"
 MIN_EPISODE_S = 600  # from a channel, only videos at least this long are queued: full episodes, not Shorts or trailers
 QUEUE_AHEAD = 5  # videos kept waiting per campaign
+CHANNEL_SCAN = 150  # a channel's newest uploads looked through for full episodes (a busy channel posts many Shorts between episodes)
+PLAYLIST_SCAN = 200  # videos read from a playlist, in the playlist's own order
 DETAIL_FRESH_H = 6
 DETAIL_PER_SCAN = 15
 STATES = ("recommended", "skipped", "joined", "dropped")
@@ -145,12 +147,25 @@ def clippable(c: dict, rules: Scoring) -> tuple[bool, str]:
 # ---- what you set on a campaign --------------------------------------------------------------------------------------
 
 
+def playlist_id(line: str) -> str | None:
+    """The playlist a line points at, or None: a /playlist?list= link, a /show/VLPL... page (YouTube's show pages are playlists with a
+    VL prefix), or a bare PL... id. A watch link that happens to carry a list is still a single video."""
+    m = re.search(r"youtube\.com/show/VL(P[LU][\w-]{10,})", line) or re.search(r"youtube\.com/playlist\?(?:[^#]*&)?list=(P[LU][\w-]{10,})", line)
+    m = m or re.fullmatch(r"(PL[\w-]{10,})", line)
+    return m.group(1) if m else None
+
+
 def parse_sources(text: str) -> list[tuple[str, object]]:
-    """Each line is a video link (YouTube, Twitch, Kick) or a YouTube channel (@name, a /@name or /channel/UC... link, or a UC id)."""
+    """Each line is a video link (YouTube, Twitch, Kick), a YouTube channel (@name, a /@name or /channel/UC... link, or a UC id) or a
+    YouTube playlist (a /playlist?list= link, a YouTube show page /show/VLPL..., or a PL... id)."""
     out = []
     for n, line in enumerate((text or "").splitlines(), 1):
         line = line.strip()
         if not line:
+            continue
+        playlist = playlist_id(line)
+        if playlist:
+            out.append(("playlist", playlist))
             continue
         m = (re.search(r"youtube\.com/(@[\w.-]+)", line) or re.fullmatch(r"(@[\w.-]+)", line))
         if m:
@@ -163,7 +178,7 @@ def parse_sources(text: str) -> list[tuple[str, object]]:
         try:
             out.append(("video", links.parse(line)))
         except links.LinkError:
-            raise CampaignError(f"line {n} is not a video link or a YouTube channel (such as @name): {line[:60]}") from None
+            raise CampaignError(f"line {n} is not a video link, a YouTube channel (such as @name) or a playlist link: {line[:60]}") from None
     return out
 
 
@@ -286,33 +301,52 @@ def _queued(db: Database, cid: str) -> int:
 
 
 def fill_queue(db: Database, c: dict, yt) -> list[str]:
-    """Top up the campaign's queue from the sources you gave it: video links as they are, channels by their newest full episodes."""
+    """Top up the campaign's queue from the sources you gave it: video links as they are, channels by their newest full episodes,
+    playlists in their own order. A source that gives nothing says why in the activity feed."""
     lines = []
     room = QUEUE_AHEAD - _queued(db, c["id"])
     for kind, value in parse_sources(c["sources"]):
         if room <= 0:
             break
         found: list[tuple[str, str, str]] = []  # (video id, url, title)
+        looked = short = 0
+        label = {"channel": "the channel", "playlist": "the playlist"}.get(kind, "the video")
         if kind == "video":
             found.append((value.video_id, value.url, ""))
-        elif yt is not None:
-            channel = yt.channel(**value)
-            ids = yt.recent_upload_ids(channel["uploads_playlist"], limit=15)
+        elif yt is None:
+            lines.append(f"{c['title']}: {label} cannot be read until your YouTube key is stored (video links work without it).")
+            continue
+        else:
+            if kind == "playlist":
+                ids = yt.recent_upload_ids(value, limit=PLAYLIST_SCAN)  # the playlist's own order: the curator put the best first
+            else:
+                ids = yt.recent_upload_ids(yt.channel(**value)["uploads_playlist"], limit=CHANNEL_SCAN)
             for v in yt.videos(ids):
+                looked += 1
                 if v.get("duration_s", 0) >= MIN_EPISODE_S and (v.get("live_status") or "none") == "none":
                     found.append((v["video_id"], f"https://www.youtube.com/watch?v={v['video_id']}", v.get("title", "")))
+                else:
+                    short += 1
+        queued = used = 0
         for video_id, url, title in found:
             if room <= 0:
                 break
             owner = claims.holder(db, video_id)
             if owner or claims.reserved_by(db, video_id):  # another way in has this video: do not take a slot for it
+                used += 1
                 continue
             with db.conn() as conn:
                 made = conn.execute("INSERT OR IGNORE INTO campaign_queue (campaign_id, video_id, url, title, created_at) VALUES (?,?,?,?,?)",
                                     (c["id"], video_id, url, title, store.iso())).rowcount
             if made:
                 room -= 1
+                queued += 1
                 lines.append(f"{c['title']}: queued {title or video_id}")
+            else:
+                used += 1  # it is already in this campaign's list
+        if kind != "video" and not queued and room > 0:
+            lines.append(f"{c['title']}: looked through {looked} videos from {label} and found nothing new to queue "
+                         f"({short} were under {MIN_EPISODE_S // 60} minutes or live, {used} were already used).")
     return lines
 
 

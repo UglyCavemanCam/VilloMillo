@@ -43,8 +43,8 @@
 <form class="stack" method="post" action="/campaigns/{{ c.id }}/setup">
   <section class="card" aria-labelledby="src-h"><h2 id="src-h" style="margin-bottom:12px">Where its videos are</h2>
     <div class="form">
-      <label>Source videos<small>One per line: a YouTube channel (such as @solvedpodcast, or its channel link) to clip its newest full episodes, or links to particular videos (YouTube, Twitch, Kick). A campaign's own source links are shown to members only, so copy them from its page.</small>
-        <textarea class="field" name="sources" rows="4" placeholder="@channelname">{{ d.form.sources }}</textarea></label>
+      <label>Source videos<small>One per line: a YouTube channel (such as @solvedpodcast, or its channel link) to clip its newest full episodes, a YouTube playlist or show link to clip its videos in the playlist's order, or links to particular videos (YouTube, Twitch, Kick). A campaign's own source links are shown to members only, so copy them from its page.</small>
+        <textarea class="field" name="sources" rows="4" placeholder="@channelname, a playlist link, or video links">{{ d.form.sources }}</textarea></label>
       {% if not d.keys %}<div class="notice warn">{{ icon('alert') }}<div>A channel is read through your YouTube key. Store it with <code>.\.venv\Scripts\python.exe -m villomillo key youtube</code>. Video links work without it.</div></div>{% endif %}
     </div>
   </section>
