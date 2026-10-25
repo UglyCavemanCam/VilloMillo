@@ -708,6 +708,42 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(502, f"could not write options: {type(e).__name__}: {str(e)[:160]}") from None
         return JSONResponse({"ok": True, "status": status})
 
+    @app.post("/api/clip-post")
+    def clip_post(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
+        """Post clip: plan the approved clip's post if it has none yet, then send it now."""
+        _only_local(request, "posts")
+        in_profile(profile)
+        with sv.db.conn() as c:
+            clip = c.execute("SELECT id, state, profile_id FROM clips_ready WHERE id=? AND (profile_id=? OR id IN "
+                             "(SELECT clip_id FROM posts WHERE profile_id=?))", (clip_id, profile, profile)).fetchone()
+        if clip is None:
+            raise HTTPException(404, "no such clip")
+        if clip["state"] != "approved":
+            raise HTTPException(422, "only an approved clip can be posted")
+
+        def current():
+            with sv.db.conn() as c:
+                return c.execute("SELECT * FROM posts WHERE clip_id=? AND status!='cancelled' ORDER BY id LIMIT 1", (clip_id,)).fetchone()
+
+        post = current()
+        if post is None:
+            routing.assign_and_plan(sv.db, jev_factory, sv.profiles, clip["profile_id"], clip_id)
+            post = current()
+            if post is None:
+                with sv.db.conn() as c:
+                    why = c.execute("SELECT reason FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["reason"] or "no channel can post it"
+                raise HTTPException(422, why)
+        if post["status"] in ("uploaded", "posted"):
+            raise HTTPException(422, "this clip is already on YouTube")
+        if post["status"] == "blocked":
+            raise HTTPException(422, "its post is blocked: " + (post["error"] or "see the post's page"))
+        poster = sv.profiles.get(post["profile_id"])
+        if poster is None or (why := posting.why_not_sending(sv.db, poster, post["platform"])):
+            raise HTTPException(422, why if poster else "its channel no longer exists")
+        tasks.enqueue(sv.db, "send_post", {"profile": post["profile_id"], "post_id": post["id"]},
+                      dedupe_key=f"send_post:{post['id']}:{store.now():%Y%m%d%H%M}", priority=10)
+        return JSONResponse({"ok": True})
+
     @app.post("/api/post-send-now")
     def post_send_now(request: Request, profile: str = Form(...), post_id: int = Form(...)):
         _only_local(request, "posts")

@@ -173,7 +173,7 @@ def test_the_clip_panel_has_post_clip_for_an_approved_clip_with_a_waiting_post(d
     with db.conn() as c:
         clip_id = c.execute("SELECT clip_id FROM posts WHERE id=?", (waiting,)).fetchone()["clip_id"]
     panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
-    assert "Post clip" in panel and "/api/post-send-now" in panel
+    assert "Post clip" in panel and "/api/clip-post" in panel
     out = post(db, "uploaded")
     with db.conn() as c:
         done = c.execute("SELECT clip_id FROM posts WHERE id=?", (out,)).fetchone()["clip_id"]
@@ -193,3 +193,33 @@ def test_post_clip_writes_the_titles_first_when_they_are_missing(db, monkeypatch
     assert posting_tasks.post("/api/post-send-now", data={"profile": "solved", "post_id": one}).status_code == 200
     runner.run_one(sv)
     assert wrote == [one] and status_of(db, one)["status"] == "uploaded"
+
+
+def test_post_clip_plans_an_approved_clip_that_has_no_post_then_sends_it(db, monkeypatch):
+    client, sv = web(db)
+    monkeypatch.setattr(posting, "default_adapters", lambda profile: {"youtube_shorts": FakeYouTube()})
+    from villomillo import copywriter
+
+    monkeypatch.setattr(copywriter, "generate_with_keys", lambda *a, **k: "2 options written")
+    clip_id = scored(db, 99)  # approved, and no post was ever planned for it
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Post clip" in panel and "/api/clip-post" in panel
+    assert client.post("/api/clip-post", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    runner.run_one(sv)
+    with db.conn() as c:
+        row = c.execute("SELECT status, url FROM posts WHERE clip_id=?", (clip_id,)).fetchone()
+    assert row["status"] == "uploaded" and row["url"].endswith("/abc")
+    assert client.post("/api/clip-post", data={"profile": "solved", "clip_id": clip_id}).status_code == 422  # already out
+
+
+def test_post_clip_says_why_when_no_channel_can_take_the_clip(db):
+    client, sv = web(db)
+    channels.set_catch_all(sv.db, sv.profiles, on=False)
+    clip_id = scored(db, 90)
+    with db.conn() as c:
+        c.execute("UPDATE clips_ready SET category='Outdoors' WHERE id=?", (clip_id,))
+    r = client.post("/api/clip-post", data={"profile": "solved", "clip_id": clip_id})
+    assert r.status_code == 422 and "no channel" in r.json()["detail"]
+    assert "Why: approved, but not posted: no channel" in client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    rejected = scored(db, 80, state="rejected")
+    assert client.post("/api/clip-post", data={"profile": "solved", "clip_id": rejected}).status_code == 422

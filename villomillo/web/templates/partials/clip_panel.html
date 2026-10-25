@@ -19,7 +19,7 @@
     {% if d.post %}
     <div class="card" style="padding:14px"><div class="cluster" style="margin-bottom:6px"><span class="badge {{ d.post.state.kind }}">{{ d.post.state.text }}</span><span class="muted" style="font-size:13px">{{ d.post.platform_name }} · {{ d.post.when }}</span></div>
       <div style="font-weight:500;line-height:20px">{{ d.post.title or d.post.caption.split('\n')[0] }}</div></div>
-    {% else %}<p class="muted" style="line-height:1.5">{% if d.is_review %}Titles and captions are written when you approve: Claude writes four options, Jev checks each against what is said, and the best is chosen. You can pick another.{% else %}No post is planned for this clip.{% endif %}</p>{% endif %}
+    {% else %}<p class="muted" style="line-height:1.5">{% if d.is_review %}Titles and captions are written when you approve: Claude writes four options, Jev checks each against what is said, and the best is chosen. You can pick another.{% else %}No post is planned for this clip.{% if d.row.state == 'approved' and d.reason %} <span style="display:block;margin-top:6px">Why: {{ d.reason }}</span>{% endif %}{% endif %}</p>{% endif %}
   </div>
 </div>
 <div class="drawer-foot">
@@ -31,8 +31,8 @@
   {% if d.post and d.row.state != 'removed' %}<a class="btn btn-sm" href="/calendar?profile={{ p.id }}&view=list&panel=/calendar/post/{{ d.post.id }}">Open post</a>{% endif %}
   {% endif %}
   {% if d.can_post %}
-  <button type="button" class="btn btn-primary btn-pill" data-act="/api/post-send-now" data-fields='{{ {"post_id": d.post.id, "profile": d.post.profile_id}|tojson }}' data-after="panel" data-ok="Posting. Titles are written first, then it goes to YouTube; this takes a minute."
-    data-confirm-title="Post this clip now?" data-confirm="It goes to YouTube now on {{ d.post_to }}, without waiting for its slot. Its titles are written first if they are not yet.">Post clip</button>
+  <button type="button" class="btn btn-primary btn-pill" data-act="/api/clip-post" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Posting. Titles are written first, then it goes to YouTube; this takes a minute."
+    data-confirm-title="Post this clip now?" data-confirm="{{ 'It is planned on its channel first, then it' if not d.post else 'It' }} goes to YouTube now{{ ' on ' ~ d.post_to if d.post_to }}, without waiting for its slot. Its titles are written first if they are not yet.">Post clip</button>
   {% elif d.post and d.post.url %}
   <a class="btn btn-sm" href="{{ d.post.url }}" target="_blank" rel="noopener noreferrer">Open on YouTube {{ icon('external', 'icon-sm') }}</a>
   {% endif %}
