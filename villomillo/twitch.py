@@ -31,7 +31,7 @@ class Twitch:
         except httpx.HTTPError as e:
             raise TwitchError(f"could not reach Twitch ({type(e).__name__})") from None
         if r.status_code != 200:
-            raise TwitchError(f"Twitch refused the Client ID and Secret (HTTP {r.status_code}). Store them again with: python -m villomillo key twitch")
+            raise TwitchError(f"Twitch refused the Client ID and Secret (HTTP {r.status_code}). Store them again with: .\\.venv\\Scripts\\python.exe -m villomillo key twitch")
         data = r.json()
         self._token = data["access_token"]
         self._expires = self._clock() + max(60, int(data.get("expires_in", 3600)) - 300)

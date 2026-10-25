@@ -58,7 +58,7 @@ def checks(sv) -> list[dict]:
             stored = False
         short = {secrets.YOUTUBE: "youtube", secrets.JEV: "jev", secrets.CLAUDE: "claude", secrets.TWITCH_ID: "twitch", secrets.TWITCH_SECRET: "twitch"}[key]
         out.append(_check(f"key:{key}", name, "ok" if stored else ("bad" if need else "warn"), "Stored" if stored else "Missing",
-                          "" if stored else f"Run: python -m villomillo key {short}"
+                          "" if stored else f"Run: .\\.venv\\Scripts\\python.exe -m villomillo key {short}"
                           + ("" if need else " (only needed for Research to find Twitch channels)")))
     out.append(_check("ffmpeg", "ffmpeg", "ok" if shutil.which("ffmpeg") else "warn", "Found" if shutil.which("ffmpeg") else "Not on the PATH (the engine may bring its own)"))
     client = posting.YOUTUBE_CLIENT.exists()

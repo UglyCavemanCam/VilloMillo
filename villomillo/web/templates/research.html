@@ -16,7 +16,7 @@
       <button class="btn {{ '' if d.on else 'btn-primary' }}" type="submit">{{ 'Switch Research off' if d.on else 'Switch Research on' }}</button></form>
     <form method="post" action="/research/look-now"><button class="btn btn-ghost" type="submit">Look for videos now</button></form>
   </div>
-  {% if not d.has_key %}<div class="notice warn">{{ icon('alert') }}<div>YouTube search and licence checks need your YouTube key: <code>python -m villomillo key youtube</code>. Watched Twitch and Kick channels work without it.</div></div>{% endif %}
+  {% if not d.has_key %}<div class="notice warn">{{ icon('alert') }}<div>YouTube search and licence checks need your YouTube key: <code>.\.venv\Scripts\python.exe -m villomillo key youtube</code>. Watched Twitch and Kick channels work without it.</div></div>{% endif %}
 </section>
 
 <section class="grid stats" aria-label="At a glance">
@@ -28,7 +28,7 @@
 <section class="card stack" aria-labelledby="where-h"><h2 id="where-h">Where it looks</h2>
   <dl class="kv" style="grid-template-columns:110px 1fr">
     <dt>YouTube</dt><dd>Creative Commons videos only, from the channels it watches and from searches. A credit line goes in the caption: "Original: [title] by [creator], Creative Commons (CC BY)."</dd>
-    <dt>Twitch</dt><dd>Finds the most watched live channels in each topic's category{% if d.has_twitch %}, adds them to the watch list and clips their finished broadcasts{% else %} <span style="color:var(--warn)">once your Twitch key is stored: <code>python -m villomillo key twitch</code></span>{% endif %}. Channels you list below are always used.</dd>
+    <dt>Twitch</dt><dd>Finds the most watched live channels in each topic's category{% if d.has_twitch %}, adds them to the watch list and clips their finished broadcasts{% else %} <span style="color:var(--warn)">once your Twitch key is stored: <code>.\.venv\Scripts\python.exe -m villomillo key twitch</code></span>{% endif %}. Channels you list below are always used.</dd>
     <dt>Kick</dt><dd>Searches Kick for channels in each topic (Kick has no official search, so this can stop working) and clips their finished broadcasts. Channels you list are always used.</dd>
   </dl>
 </section>

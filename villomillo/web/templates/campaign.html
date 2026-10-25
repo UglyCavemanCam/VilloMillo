@@ -45,7 +45,7 @@
     <div class="form">
       <label>Source videos<small>One per line: a YouTube channel (such as @solvedpodcast, or its channel link) to clip its newest full episodes, or links to particular videos (YouTube, Twitch, Kick). A campaign's own source links are shown to members only, so copy them from its page.</small>
         <textarea class="field" name="sources" rows="4" placeholder="@channelname">{{ d.form.sources }}</textarea></label>
-      {% if not d.keys %}<div class="notice warn">{{ icon('alert') }}<div>A channel is read through your YouTube key. Store it with <code>python -m villomillo key youtube</code>. Video links work without it.</div></div>{% endif %}
+      {% if not d.keys %}<div class="notice warn">{{ icon('alert') }}<div>A channel is read through your YouTube key. Store it with <code>.\.venv\Scripts\python.exe -m villomillo key youtube</code>. Video links work without it.</div></div>{% endif %}
     </div>
   </section>
   <section class="card" aria-labelledby="rules-h"><h2 id="rules-h" style="margin-bottom:12px">Its rules and tags</h2>
