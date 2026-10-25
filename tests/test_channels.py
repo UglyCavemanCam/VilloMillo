@@ -350,3 +350,16 @@ def test_who_can_watch_is_changed_on_the_channel_page_and_a_bad_value_is_refused
     assert sv.profiles["solved"].posting.privacy == "unlisted"
     with pytest.raises(channels.ChannelError):
         channels.update(sv.db, sv.profiles, "solved", privacy="everyone")
+
+
+def test_the_public_private_switch_on_the_channels_page_changes_what_is_sent(web):
+    client, sv = web
+    page = client.get("/channels").text
+    assert "Posted as" in page and "/api/channel-privacy" in page
+    assert client.post("/api/channel-privacy", data={"profile": "solved", "privacy": "private"}).status_code == 200
+    assert sv.profiles["solved"].posting.privacy == "private"
+    assert channels.load(sv.db)["solved"].posting.privacy == "private"  # kept, not made public again by the one-time change
+    assert client.post("/api/channel-privacy", data={"profile": "solved", "privacy": "public"}).status_code == 200
+    assert sv.profiles["solved"].posting.privacy == "public"
+    assert client.post("/api/channel-privacy", data={"profile": "solved", "privacy": "friends"}).status_code == 422
+    assert client.post("/api/channel-privacy", data={"profile": "nope", "privacy": "public"}).status_code == 404

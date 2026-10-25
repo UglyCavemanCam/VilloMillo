@@ -578,6 +578,7 @@ def _channel_card(sv: Services, c: Profile) -> dict:
             "held": held, "ready": bool(c.category and youtube_connected(c)),
             "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c})),
             "today": posting.posted_today(db, c.id, "youtube_shorts") if c.posting else 0, "cap": c.posting.daily_cap if c.posting else 0,
+            "privacy": c.posting.privacy if c.posting else "private",
             "look": LOOK_LABEL.get(c.format, (c.format or "Engine's own look").replace("_", " ").capitalize()),
             "tags": (c.posting.tags.get("youtube_shorts", "") if c.posting else "") or "None"}
 

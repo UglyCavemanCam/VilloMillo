@@ -231,6 +231,18 @@ def create_app(sv: Services) -> FastAPI:
         released = finish_channel_change(updated.category if updated.category != before else None)
         return RedirectResponse(f"/channels/{channel_id}?profile={channel_id}&saved=1&released={released}", status_code=303)
 
+    @app.post("/api/channel-privacy")
+    def channel_privacy(request: Request, profile: str = Form(...), privacy: str = Form(...)):
+        """The Public / Private switch on a channel's card: who can watch the clips it posts from now on."""
+        _only_local(request, "changes")
+        in_profile(profile)
+        try:
+            channels.update(sv.db, sv.profiles, profile, privacy=privacy)
+        except channels.ChannelError as e:
+            raise HTTPException(422, str(e)) from None
+        store.event(sv.db, "info", "channels", f"{sv.profiles[profile].display_name}: new posts are {privacy}")
+        return JSONResponse({"ok": True})
+
     @app.post("/api/channel-youtube")
     def channel_youtube(request: Request, profile: str = Form(...)):
         _only_local(request, "changes")

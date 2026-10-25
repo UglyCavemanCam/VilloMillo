@@ -190,6 +190,8 @@ a.row:hover { background: rgba(39, 39, 42, .35); }
 .tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); flex-wrap: wrap; }
 .tab { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; font-weight: 500; color: var(--label); }
 .tab:hover { color: var(--text); }
+button.tab { background: transparent; cursor: pointer; }
+button.tab[aria-selected="true"] { background: rgba(255, 176, 0, .14); border-color: var(--accent); color: var(--text); cursor: default; }
 .tab[aria-selected="true"], .tab[aria-current="page"] { background: rgba(39, 39, 42, .7); border-color: var(--border); color: var(--text); }
 .tab small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tab[aria-selected="true"] small, .tab[aria-current="page"] small { color: var(--accent); }

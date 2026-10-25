@@ -31,6 +31,12 @@
     </div>
     <dl class="kv">
       <dt>YouTube</dt><dd>{% if c.youtube %}<span class="chip good"><span class="dot-s good"></span>Connected</span>{% else %}<span class="chip warn"><span class="dot-s warn"></span>Not connected</span>{% endif %}{% if c.cap %} <span class="muted">{{ c.today }} of {{ c.cap }} posted today</span>{% endif %}</dd>
+      <dt>Posted as</dt><dd>
+        <span class="tabs" role="group" aria-label="Who can watch this channel's posted clips">
+          {% for key, label in (("public", "Public"), ("private", "Private")) %}
+          <button type="button" class="tab" {% if c.privacy == key %}aria-selected="true" aria-pressed="true"{% else %}aria-pressed="false" data-act="/api/channel-privacy" data-fields='{{ {"profile": c.id, "privacy": key}|tojson }}' data-ok="New posts will be {{ key }}"{% if key == "public" %} data-confirm-title="Post clips publicly?" data-confirm="Anyone can watch the clips this channel posts from now on. Clips already on YouTube keep the setting they were posted with."{% endif %}{% endif %}>{{ label }}</button>
+          {% endfor %}</span>
+        {% if c.privacy == 'unlisted' %}<span class="muted" style="font-size:13px">Unlisted now (change it on the channel's page)</span>{% endif %}</dd>
       <dt>Look</dt><dd>{{ c.look }}</dd>
       <dt>Caption tags</dt><dd>{{ c.tags }}</dd>
     </dl>
