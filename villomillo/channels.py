@@ -42,9 +42,10 @@ def _seed(db: Database) -> None:
         c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (SEEDED,))
 
 
-def _without_tiktok(data: dict) -> dict:
-    """A channel saved while TikTok was part of VilloMillo: drop what belonged to it so the channel still loads."""
+def _without_retired(data: dict) -> dict:
+    """A channel saved by an older version: drop settings that have since moved (campaign rules to Campaigns) or gone (TikTok)."""
     data.pop("tiktok_handle", None)
+    data.pop("campaign", None)
     posting = data.get("posting")
     if posting:
         posting["platforms"] = {k: v for k, v in posting.get("platforms", {}).items() if k != "tiktok"}
@@ -60,7 +61,7 @@ def load(db: Database) -> dict[str, Profile]:
     _seed(db)
     with db.conn() as c:
         rows = c.execute("SELECT id, data_json FROM channels ORDER BY created_at, id").fetchall()
-    return {r["id"]: Profile(**_without_tiktok(json.loads(r["data_json"]))) for r in rows}
+    return {r["id"]: Profile(**_without_retired(json.loads(r["data_json"]))) for r in rows}
 
 
 def save(db: Database, profile: Profile) -> None:

@@ -253,3 +253,13 @@ def test_a_channel_saved_while_tiktok_was_part_of_the_app_still_loads_without_it
     again = channels.load(db)["solved"]
     assert list(again.posting.platforms) == ["youtube_shorts"] and again.posting.daily_cap == 60
     assert "tiktok" not in again.model_dump_json().lower()
+
+
+def test_a_channel_saved_with_campaign_rules_still_loads_now_that_campaigns_hold_them(db):
+    profiles = channels.load(db)
+    old = profiles["solved"].model_dump()
+    old["campaign"] = {"name": "Clipfarm x Solved", "min_s": 20, "max_s": 60, "face_window_s": 5,
+                       "require_captions": True, "no_ad_reads": True}
+    with db.conn() as c:
+        c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(old),))
+    assert "campaign" not in channels.load(db)["solved"].model_dump()
