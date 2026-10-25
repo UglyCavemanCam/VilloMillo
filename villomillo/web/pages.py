@@ -340,6 +340,8 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
+            "can_repost": r["state"] == "approved" and bool(post) and post["status"] in posting.RESENT,
+            "handed_in": one(sv.db, "SELECT COUNT(*) AS n FROM campaign_submissions WHERE post_id=?", post["id"])["n"] if post else 0,
             "can_post": r["state"] == "approved" and (post is None or post["status"] in (*posting.RESENDABLE, "queued", "failed")),
             "post_to": (channel_name(sv.profiles[post["profile_id"]]) if post["profile_id"] in sv.profiles else post["profile_id"]) if post else ""}
 

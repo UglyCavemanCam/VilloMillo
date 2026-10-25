@@ -33,6 +33,10 @@
   {% if d.can_post %}
   <button type="button" class="btn btn-primary btn-pill" data-act="/api/clip-post" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Posting. Titles are written first, then it goes to YouTube; this takes a minute."
     data-confirm-title="Post this clip now?" data-confirm="{{ 'It is planned on its channel first, then it' if not d.post else 'It' }} goes to YouTube now{{ ' on ' ~ d.post_to if d.post_to }}, without waiting for its slot. Its titles are written first if they are not yet.">Post clip</button>
+  {% elif d.can_repost %}
+  <button type="button" class="btn btn-primary btn-pill" data-act="/api/clip-repost" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Posting again. It goes to YouTube in a minute."
+    data-confirm-title="Post this clip again?" data-confirm="It is sent to YouTube again now with the same title and caption. If the first video is still on YouTube it stays there, and you will have two, so delete the old one in YouTube Studio first if you do not want that.{{ ' Its old link was already handed in to a campaign: the new video has a new link.' if d.handed_in }}">Post again</button>
+  {% if d.post and d.post.url %}<a class="btn btn-sm" href="{{ d.post.url }}" target="_blank" rel="noopener noreferrer">Open on YouTube {{ icon('external', 'icon-sm') }}</a>{% endif %}
   {% elif d.post and d.post.url %}
   <a class="btn btn-sm" href="{{ d.post.url }}" target="_blank" rel="noopener noreferrer">Open on YouTube {{ icon('external', 'icon-sm') }}</a>
   {% endif %}

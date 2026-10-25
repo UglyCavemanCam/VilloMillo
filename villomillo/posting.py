@@ -243,6 +243,7 @@ def send_now(db: Database, profile: Profile, post_id: int, adapters: dict) -> st
     return f"post {post_id} ({post['platform']}): {status}" + (f", {error}" if error else f", {url}")
 
 
+RESENT = ("uploaded", "posted")  # already out: posting again is a separate, deliberate step
 RESENDABLE = ("manual_ready", "dry_run")  # planned before the channel could post for real: nothing sends these again by itself
 
 
@@ -276,6 +277,27 @@ def resend_waiting(db: Database, profile: Profile, platform: str, *, now: dateti
         with db.conn() as c:
             c.execute("UPDATE posts SET status='queued', route='api', error=NULL, scheduled_at=? WHERE id=?", (store.iso(when), row["id"]))
     return len(waiting)
+
+
+def repost(db: Database, profile: Profile, post_id: int, *, now: datetime | None = None) -> str:
+    """Put a post that already went out back in the queue so it goes out again (its video was deleted from YouTube, say). It keeps
+    its title and caption. The link and the numbers of the earlier video are cleared. Refuses with the reason when the channel
+    cannot send for real. Returns the platform, so the caller can name it."""
+    with db.conn() as c:
+        post = c.execute("SELECT platform, status FROM posts WHERE profile_id=? AND id=?", (profile.id, post_id)).fetchone()
+    if post is None:
+        raise LookupError("no such post")
+    if post["status"] not in RESENT:
+        raise ValueError("only a post that already went out can be posted again")
+    if (why := why_not_sending(db, profile, post["platform"])):
+        raise ValueError(why)
+    with db.conn() as c:
+        c.execute("UPDATE posts SET status='queued', route='api', url=NULL, remote_id=NULL, posted_at=NULL, error=NULL, scheduled_at=? WHERE id=?",
+                  (store.iso(now or store.now()), post_id))
+        c.execute("DELETE FROM post_stats WHERE post_id=?", (post_id,))  # those were the old video's numbers
+        c.execute("DELETE FROM campaign_submissions WHERE post_id=?", (post_id,))  # the old link is dead: the new one can be handed in
+    store.event(db, "info", "post", f"post {post_id} put back in the queue to go out again")
+    return post["platform"]
 
 
 def send_post_now(db: Database, profile: Profile, post_id: int) -> str:

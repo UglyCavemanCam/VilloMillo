@@ -765,6 +765,28 @@ def create_app(sv: Services) -> FastAPI:
                       dedupe_key=f"send_post:{post['id']}:{store.now():%Y%m%d%H%M}", priority=10)
         return JSONResponse({"ok": True})
 
+    @app.post("/api/clip-repost")
+    def clip_repost(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
+        """Post again: a clip whose post already went out (its video was deleted from YouTube, say) goes out once more."""
+        _only_local(request, "posts")
+        in_profile(profile)
+        with sv.db.conn() as c:
+            post = c.execute("SELECT po.id, po.profile_id FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id WHERE po.clip_id=? "
+                             "AND po.status IN ('uploaded','posted') AND cl.state='approved' AND (cl.profile_id=? OR po.profile_id=?) "
+                             "ORDER BY po.id LIMIT 1", (clip_id, profile, profile)).fetchone()
+        if post is None:
+            raise HTTPException(404, "this clip has no post that went out")
+        poster = sv.profiles.get(post["profile_id"])
+        if poster is None:
+            raise HTTPException(422, "its channel no longer exists")
+        try:
+            posting.repost(sv.db, poster, post["id"])
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        tasks.enqueue(sv.db, "send_post", {"profile": post["profile_id"], "post_id": post["id"]},
+                      dedupe_key=f"send_post:{post['id']}:{store.now():%Y%m%d%H%M}", priority=10)
+        return JSONResponse({"ok": True})
+
     @app.post("/api/post-send-now")
     def post_send_now(request: Request, profile: str = Form(...), post_id: int = Form(...)):
         _only_local(request, "posts")

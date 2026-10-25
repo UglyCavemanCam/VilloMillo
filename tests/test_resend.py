@@ -323,3 +323,50 @@ def test_the_day_list_shows_each_post_with_its_score_length_and_how_it_goes_out(
     panel = client.get(f"/calendar/day/{day}?profile=solved").text
     assert "day-card" in panel and "Hook number 0" in panel and "score" in panel and "Automatic" in panel
     assert "<b>1</b> waiting" in panel and "<b>1</b> need attention" in panel and "quota" in panel
+
+
+# ---- posting again a clip whose post already went out -------------------------------------------------------------
+
+
+def _out_post(db):
+    one = post(db, "uploaded")
+    with db.conn() as c:
+        c.execute("UPDATE posts SET url='https://youtube.com/shorts/old', remote_id='old', posted_at=? WHERE id=?", (store.iso(NOW), one))
+        c.execute("INSERT INTO post_stats (post_id, taken_at, views, likes, comments, shares) VALUES (?, ?, 5, 1, 0, 0)", (one, store.iso(NOW)))
+        clip_id = c.execute("SELECT clip_id FROM posts WHERE id=?", (one,)).fetchone()["clip_id"]
+    return one, clip_id
+
+
+def test_post_again_sends_a_clip_whose_post_already_went_out(db, monkeypatch):
+    client, sv = web(db)
+    monkeypatch.setattr(posting, "default_adapters", lambda profile: {"youtube_shorts": FakeYouTube()})
+    from villomillo import copywriter
+
+    monkeypatch.setattr(copywriter, "generate_with_keys", lambda *a, **k: "ok")
+    one, clip_id = _out_post(db)
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Post again" in panel and "/api/clip-repost" in panel and "Post clip" not in panel
+    assert client.post("/api/clip-repost", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
+    row = status_of(db, one)
+    assert row["status"] == "queued"
+    with db.conn() as c:
+        assert c.execute("SELECT url FROM posts WHERE id=?", (one,)).fetchone()["url"] is None
+        assert c.execute("SELECT COUNT(*) AS n FROM post_stats WHERE post_id=?", (one,)).fetchone()["n"] == 0
+    runner.run_one(sv)
+    with db.conn() as c:
+        done = c.execute("SELECT status, url, remote_id FROM posts WHERE id=?", (one,)).fetchone()
+    assert (done["status"], done["url"], done["remote_id"]) == ("uploaded", "https://youtube.com/shorts/abc", "abc")
+
+
+def test_post_again_is_only_for_a_post_that_went_out_and_says_why_when_the_channel_cannot_send(db):
+    client, sv = web(db)
+    waiting = post(db, "queued")
+    with db.conn() as c:
+        waiting_clip = c.execute("SELECT clip_id FROM posts WHERE id=?", (waiting,)).fetchone()["clip_id"]
+    assert client.post("/api/clip-repost", data={"profile": "solved", "clip_id": waiting_clip}).status_code == 404
+    assert "Post again" not in client.get(f"/clips/{waiting_clip}/panel?profile=solved").text
+    one, clip_id = _out_post(db)
+    sv.profiles["solved"] = sv.profiles["solved"].model_copy(update={"posting": sv.profiles["solved"].posting.model_copy(update={"dry_run": True})})
+    r = client.post("/api/clip-repost", data={"profile": "solved", "clip_id": clip_id})
+    assert r.status_code == 422 and "Dry run" in r.json()["detail"]
+    assert status_of(db, one)["status"] == "uploaded"  # nothing changed
