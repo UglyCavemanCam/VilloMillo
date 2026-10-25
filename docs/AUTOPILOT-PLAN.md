@@ -205,6 +205,16 @@ only, with credit given), Twitch and Kick, and runs any that clear the rising ba
 so it uses cheaper ways of finding videos first. The old research code is replaced here.
 **After this:** it finds, clips and posts videos by itself, and the Research page shows what it looked at and why it said yes or no.
 **Done when:** it finds and posts a video with nobody touching anything.
+**Status: built and tested with stand-ins for YouTube, the channel feeds, the engine and Jev; not yet run live.** The Research page has the "Run Research" switch
+(off until you turn it on), a daily limit (6 videos in 24 hours), the highest the bar may rise to ($3.00), and the topics searched. Every 30 minutes the worker reads the
+newest videos of the channels it watches (yours, plus YouTube channels it learned from a Creative Commons hit; this uses public feeds and a cheap licence lookup) and then
+spends up to 2 rationed YouTube searches for Creative Commons videos, the topic searched longest ago first. A YouTube video must be Creative Commons, not live, 10 minutes
+to 4 hours long, under 14 days old, and (when searched) have 1,000 views. Twitch and Kick videos come only from channels you add; they are checked for being finished
+before the engine downloads anything. The best waiting video starts when nothing else is being clipped (campaigns go first) and becomes a run like a pasted link with no Start
+press: it is made only if a clip clears the viral floor (75) and the rising CPM bar (it starts at $1.00 and never leaves $1.00 to your ceiling; Phase 9 moves it) and the
+video's kind has a channel that fits it 4 of 5. A video with no channel for its kind is not made, and Home says "Create a channel for ...". Every clip's caption credits the
+creator and, for YouTube, the Creative Commons licence. The page lists what it looked at and why it said yes or no. Not built: finding Twitch or Kick videos by search (they
+come only from channels you list). Try it: `python -m villomillo research on`, then `python -m villomillo research`.
 
 ### Phase 9: Learning from real results (medium)
 **In plain words:** Real views and campaign payouts come back and are compared with the predictions. The estimates for each

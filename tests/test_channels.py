@@ -238,7 +238,7 @@ def test_the_post_job_is_scheduled_for_every_channel(db, profiles):
     channels.create(db, profiles, name="Outdoors", category="Outdoors", about="Hiking")
     tasks.ensure_schedules(db, config.AppConfig(), profiles, at=NOW)
     with db.conn() as c:
-        assert {r["name"] for r in c.execute("SELECT name FROM schedules")} == {"post:solved", "post:outdoors", "stats:solved", "stats:outdoors", "campaigns"}
+        assert {r["name"] for r in c.execute("SELECT name FROM schedules")} == {"post:solved", "post:outdoors", "stats:solved", "stats:outdoors", "campaigns", "research"}
 
 
 def test_a_channel_saved_while_tiktok_was_part_of_the_app_still_loads_without_it(db):

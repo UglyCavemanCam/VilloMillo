@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, empty %}
+{% block content %}
+<div class="page-head"><h1>Research</h1><span class="sub">Finds videos worth clipping on its own, then clips and posts them like a pasted link.</span>
+  <span class="right"><span class="badge {{ 'good' if d.on else '' }}">{{ 'On' if d.on else 'Off' }}</span></span></div>
+
+{% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
+{% if d.saved %}<div class="notice">{{ icon('check') }}<div>Saved.</div></div>{% endif %}
+{% if d.on and not d.has_channel %}<div class="notice warn">{{ icon('alert') }}<div>Add a channel first: clips need somewhere to post.</div></div>{% endif %}
+
+<section class="card stack" aria-labelledby="sw-h"><h2 id="sw-h">Run Research</h2>
+  <p class="muted" style="margin:0;line-height:1.5">When it is on, the worker looks for a video every half hour. YouTube videos must be <b>Creative Commons</b>, and each clip's caption credits the creator.
+    Twitch and Kick videos come only from channels you list below. A video is looked at, every clip is scored, and clips are made and posted
+    with nobody pressing Start only if one scores at least {{ d.viral_min }} and its estimated CPM clears the <b>bar (now ${{ '%.2f'|format(d.bar) }}</b>), and a channel fits the video.
+    The bar starts at ${{ '%.2f'|format(d.floor) }} and rises only when real results beat what was predicted. Nothing is made for a kind of video you have no channel for.</p>
+  <div class="cluster">
+    <form method="post" action="/research/settings"><input type="hidden" name="on" value="{{ '0' if d.on else '1' }}">
+      <button class="btn {{ '' if d.on else 'btn-primary' }}" type="submit">{{ 'Switch Research off' if d.on else 'Switch Research on' }}</button></form>
+    <form method="post" action="/research/look-now"><button class="btn btn-ghost" type="submit">Look for videos now</button></form>
+  </div>
+  <dl class="kv">
+    <dt>Started in the last 24 hours</dt><dd>{{ d.used_today }} of {{ d.per_day }}</dd>
+    <dt>Waiting</dt><dd>{{ d.waiting }} video{{ '' if d.waiting == 1 else 's' }}</dd>
+    <dt>YouTube searches today</dt><dd>{{ d.searches[0] }} of {{ d.searches[1] }}</dd>
+  </dl>
+  {% if not d.has_key %}<div class="notice warn">{{ icon('alert') }}<div>YouTube search and licence checks need your YouTube key: <code>python -m villomillo key youtube</code>. Watched Twitch and Kick channels work without it.</div></div>{% endif %}
+</section>
+
+<form class="stack" method="post" action="/research/settings">
+  <section class="card" aria-labelledby="set-h"><h2 id="set-h" style="margin-bottom:12px">Limits and topics</h2>
+    <div class="form">
+      <label>Videos it may start in 24 hours<small>Each one costs download time and AI spend, even when the answer is "not worth making".</small>
+        <input class="field" name="videos_per_day" type="number" min="1" max="100" value="{{ d.per_day }}"></label>
+      <label>Highest the bar may rise to (CPM, $)<small>You set the ceiling; it never goes under ${{ '%.2f'|format(d.floor) }}.</small>
+        <input class="field" name="bar_max" type="number" min="{{ d.floor }}" step="0.25" value="{{ '%.2f'|format(d.bar_max) }}"></label>
+      <label>What to search YouTube for<small>One per line. {% if d.own_topics %}Your own list.{% else %}Empty means the category of each channel, as shown.{% endif %} Searches are rationed, so each pass uses only a few, the one searched longest ago first.</small>
+        <textarea class="field" name="topics" rows="3" placeholder="podcast interview">{{ d.topics }}</textarea></label>
+    </div>
+  </section>
+  <div class="cluster"><button class="btn btn-primary" type="submit">Save</button></div>
+</form>
+
+<section class="card stack" aria-labelledby="src-h"><h2 id="src-h">Channels it watches</h2>
+  <p class="muted" style="margin:0;line-height:1.5">Reading a channel's newest videos is much cheaper than searching. YouTube channels it finds Creative Commons videos on are added here by itself. A Twitch or Kick channel is used only if you add it.</p>
+  {% for s in d.sources %}
+  <div class="row"><span class="grow"><b>{{ s.name }}</b><small>{{ s.platform_text }}{{ ' · added by Research' if s.learned else '' }}</small></span>
+    <form method="post" action="/research/sources/{{ s.id }}/remove"><button class="btn btn-sm btn-ghost" type="submit">Remove</button></form></div>
+  {% else %}<p class="muted" style="margin:0">No channels yet.</p>{% endfor %}
+  <form class="linkbar" method="post" action="/research/sources/add" style="max-width:none">
+    <select class="field" name="platform" aria-label="Platform" style="max-width:130px"><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="kick">Kick</option></select>
+    <input class="field" name="channel" type="text" placeholder="A channel link or name" autocomplete="off" required aria-label="Channel link or name">
+    <button class="btn" type="submit">Watch</button>
+  </form>
+</section>
+
+{% if d.candidates %}
+<section class="card tight" style="overflow-x:auto" aria-label="What it looked at"><h2 style="padding:12px 12px 8px">What it looked at</h2>
+  <table class="tbl plan-tbl" style="min-width:760px"><thead><tr><th>Video</th><th>Found by</th><th>Length</th><th>Verdict</th></tr></thead><tbody>
+  {% for c in d.candidates %}
+  <tr class="{{ 'muted-row' if c.state == 'skipped' else '' }}">
+    <td>{% if c.run_id %}<a href="/runs/{{ c.run_id }}?profile={{ shell.current.id }}"><b>{{ c.title or c.video_id }}</b></a>{% else %}<b>{{ c.title or c.video_id }}</b>{% endif %}<br><span class="muted">{{ c.channel or '' }}{% if c.views_text %} · {{ c.views_text }}{% endif %}</span></td>
+    <td>{{ c.platform_text }}<br><span class="muted">{{ c.via_text }}</span></td>
+    <td>{{ (c.minutes ~ ' min') if c.minutes else '-' }}</td>
+    <td><span class="badge {{ c.state_badge.kind }}">{{ c.state_badge.text }}</span><br><span class="muted" style="font-size:12px">{{ c.why }}</span></td></tr>
+  {% endfor %}</tbody></table></section>
+{% else %}{{ empty('search', 'Nothing looked at yet', 'Switch Research on, add a channel to watch, or press "Look for videos now".') }}{% endif %}
+{% endblock %}

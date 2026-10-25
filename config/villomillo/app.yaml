@@ -30,8 +30,20 @@ scoring:
     Podcasts: 1.0
     Stream clips: 1.0
 
+# Research (the switch is on the Research page). YouTube videos must be Creative Commons; Twitch and Kick come from the channels you list there.
+research:
+  videos_per_day: 6          # videos it starts looking at in 24 hours
+  queue_ahead: 5             # candidates kept waiting
+  searches_per_pass: 2       # YouTube searches per pass (rationed; watched channels cost far less)
+  min_minutes: 10            # shorter videos are skipped
+  max_hours: 4               # longer ones are skipped
+  max_age_days: 14           # older ones are skipped
+  min_views: 1000            # a searched YouTube video needs at least this many views
+  bar_max: 3.00              # the rising CPM bar never goes above this
+
 # How often each job runs.
 schedule:
   post_every_minutes: 15         # send approved clips that are due (dry-run unless a channel turns it off)
   stats_every_minutes: 360       # read the real views of recent posts
   campaigns_every_minutes: 60    # read Content Rewards and keep each joined campaign's queue full
+  research_every_minutes: 30     # look for videos worth clipping, when Research is on

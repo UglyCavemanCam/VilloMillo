@@ -94,6 +94,22 @@ CREATE TABLE IF NOT EXISTS campaign_submissions (
     post_id INTEGER PRIMARY KEY, campaign_id TEXT NOT NULL, submitted_at TEXT NOT NULL
 );
 
+-- Research: channels it watches (yours, and ones it learned from a Creative Commons hit), and every video it looked at.
+CREATE TABLE IF NOT EXISTS research_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, channel_key TEXT NOT NULL, name TEXT NOT NULL,
+    learned INTEGER NOT NULL DEFAULT 0,   -- 1 when Research added it itself after a Creative Commons video from it
+    added_at TEXT NOT NULL, checked_at TEXT, UNIQUE (platform, channel_key)
+);
+CREATE TABLE IF NOT EXISTS research_candidates (
+    video_id TEXT PRIMARY KEY, platform TEXT NOT NULL, url TEXT NOT NULL, title TEXT, channel TEXT, duration_s INTEGER, views INTEGER,
+    published_at TEXT, via TEXT NOT NULL,     -- watch | search
+    topic TEXT, rank REAL NOT NULL DEFAULT 0,
+    state TEXT NOT NULL,                      -- queued | started | skipped
+    reason TEXT, category TEXT, run_id INTEGER, found_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS research_candidates_state ON research_candidates (state, found_at);
+CREATE TABLE IF NOT EXISTS research_searches (topic TEXT PRIMARY KEY, searched_at TEXT NOT NULL);
+
 -- What Jev said about a piece of text, kept so the same text always gets the same scores and is never paid for twice.
 CREATE TABLE IF NOT EXISTS readings (
     key TEXT PRIMARY KEY, kind TEXT NOT NULL, answers_json TEXT NOT NULL, model TEXT, created_at TEXT NOT NULL

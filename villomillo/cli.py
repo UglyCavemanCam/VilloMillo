@@ -325,6 +325,22 @@ def cmd_campaigns(args) -> None:
         print(f"[{c['state']:11}] {pays:>6}  {c['title'][:50]}  {c['reason'] or ''}")
 
 
+def cmd_research(args) -> None:
+    """Switch Research on or off, or run one pass now, and show what it has looked at."""
+    from . import research
+
+    sv = _services()
+    if args.switch:
+        research.save_settings(sv.db, sv.app.research, sv.app.scoring, on=args.switch == "on")
+    state = "on" if research.is_on(sv.db) else "off"
+    print(f"Research is {state}. The bar is ${research.bar(sv.db, sv.app.scoring, sv.app.research):.2f}.")
+    if args.switch is None:
+        for line in research.work(sv):
+            print(line)
+    for c in research.candidates(sv.db, 15):
+        print(f"[{c['state']:8}] {c['platform']:7} {(c['title'] or c['video_id'])[:55]}  {c['reason'] or c['run_note'] or ''}")
+
+
 def cmd_key(args) -> None:
     """Store an API key in the credential store, or say which keys are stored. The key is never printed or saved to a file."""
     import getpass
@@ -476,6 +492,9 @@ def main(argv: list[str] | None = None) -> None:
     recheck.add_argument("--campaign", required=True, help="the campaign's id")
     recheck.set_defaults(fn=cmd_recheck)
     sub.add_parser("campaigns", help="read Content Rewards now and list every campaign with its verdict").set_defaults(fn=cmd_campaigns)
+    research = sub.add_parser("research", help="run one Research pass now (it must be switched on), or switch it on or off")
+    research.add_argument("switch", nargs="?", choices=["on", "off"])
+    research.set_defaults(fn=cmd_research)
     sub.add_parser("serve", help="open the dashboard only").set_defaults(fn=cmd_serve)
     sub.add_parser("run", help="work in the background and serve the dashboard").set_defaults(fn=cmd_run)
     args = parser.parse_args(argv)

@@ -57,10 +57,24 @@ class Scoring(_Strict):
     default_factor: float = Field(1.0, gt=0)
 
 
+class Research(_Strict):
+    """How Research looks for videos. The switch itself, the daily limit and the highest bar are also set on the Research page."""
+
+    videos_per_day: int = Field(6, ge=1)  # videos it starts looking at in 24 hours: each costs download time and AI spend
+    queue_ahead: int = Field(5, ge=1)  # candidates kept waiting
+    searches_per_pass: int = Field(2, ge=0)  # YouTube searches each pass may use (they are rationed; watched channels cost far less)
+    min_minutes: int = Field(10, ge=1)  # shorter videos are skipped
+    max_hours: float = Field(4.0, gt=0)  # longer ones are skipped: they take too long to read
+    max_age_days: int = Field(14, ge=1)  # older videos are skipped
+    min_views: int = Field(1000, ge=0)  # a searched YouTube video needs at least this many views
+    bar_max: float = Field(3.0, ge=1)  # the rising bar never goes above this CPM
+
+
 class Schedule(_Strict):
     post_every_minutes: int = Field(15, ge=1)  # send posts that are due
     stats_every_minutes: int = Field(360, ge=30)  # read the real views of recent posts
     campaigns_every_minutes: int = Field(60, ge=15)  # read Content Rewards and keep campaign queues full
+    research_every_minutes: int = Field(30, ge=5)  # look for videos worth clipping, when Research is switched on
 
 
 class AppConfig(_Strict):
@@ -69,6 +83,7 @@ class AppConfig(_Strict):
     budgets: Budgets = Budgets()
     spend_breaker: SpendBreaker = SpendBreaker()
     scoring: Scoring = Scoring()
+    research: Research = Research()
     schedule: Schedule = Schedule()
 
     def database_path(self) -> pathlib.Path:

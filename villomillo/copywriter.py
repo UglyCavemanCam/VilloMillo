@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import campaigns, claude, secrets, spend, store
+from . import campaigns, claude, research, secrets, spend, store
 from .config import Posting, Profile, SpendBreaker
 from .db import Database
 
@@ -65,8 +65,8 @@ def option_problems(option: dict, platform: str) -> list[str]:
     return problems
 
 
-def assemble(posting: Posting, platform: str, episode: str, option: dict) -> dict:
-    """The final title, caption and tags for one option. The campaign's required tags are always added here."""
+def assemble(posting: Posting, platform: str, episode: str, option: dict, credit: str = "") -> dict:
+    """The final title, caption and tags for one option. The campaign's required tags and any credit are always added here."""
     required = posting.tags.get(platform, "")
     seen, hashtags = set(), []
     for tag in (["#Shorts"] if platform == "youtube_shorts" else []) + option["hashtags"]:
@@ -75,7 +75,7 @@ def assemble(posting: Posting, platform: str, episode: str, option: dict) -> dic
             hashtags.append(tag)
     hashtag_line = " ".join(hashtags[:5])
     if platform == "youtube_shorts":
-        lines = [option["idea"], option["question"], "", f"Clip from: {episode}", required, "", hashtag_line]
+        lines = [option["idea"], option["question"], "", f"Clip from: {episode}", *([credit] if credit else []), required, "", hashtag_line]
         keywords, size = [], 0
         for keyword in option["keywords"][:8]:
             if keyword and len(keyword) <= 30 and size + len(keyword) <= 400 and keyword not in keywords:
@@ -175,7 +175,8 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
         return "kept the basic copy: " + "; ".join(rejected[:3] or ["no options came back"])
 
     survivors.sort(key=lambda o: (-o["stop"], o["misleading"]))
-    built = [{**assemble(posting_cfg, platform, episode, o), "stop": o["stop"], "misleading": o["misleading"]}
+    credit = research.credit_for(db, clip["video_id"])  # a Research video is credited to its creator
+    built = [{**assemble(posting_cfg, platform, episode, o, credit), "stop": o["stop"], "misleading": o["misleading"]}
              for o in survivors]
     with db.conn() as c:
         if force:

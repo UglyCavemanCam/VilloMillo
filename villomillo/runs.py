@@ -15,7 +15,7 @@ import json
 from dataclasses import asdict
 from datetime import timedelta
 
-from . import campaigns, channels, clipper, links, routing, scoring, store, tasks
+from . import campaigns, channels, clipper, links, research, routing, scoring, store, tasks
 from .services import Services
 
 POLL_S = 20  # how often a waiting engine job is looked at
@@ -107,7 +107,14 @@ def analyse(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
 
 
 def _go_on_its_own(sv: Services, run_id: int, run: dict, engine: clipper.Engine) -> None:
-    """A video that came from a campaign (or research) needs no Start: it goes ahead if the campaign can still be clipped for."""
+    """A video that came from a campaign or from Research needs no Start: it goes ahead if the campaign can still be clipped for,
+    or if Research is still on and the video has a channel it fits."""
+    if run["source"] == "research":
+        plan = get(sv.db, run_id)["plan"]
+        research.note_category(sv.db, run_id, plan["category"])
+        ok, why = research.gate(sv, plan)
+        if not ok:
+            return _set(sv.db, run_id, state="nothing", note=why)
     if run["campaign_id"]:
         c = campaigns.get(sv.db, run["campaign_id"])
         ok, why = campaigns.clippable(c, sv.app.scoring) if c and c["state"] == "joined" else (False, "the campaign is no longer being clipped for")
@@ -122,7 +129,8 @@ def make_plan(sv: Services, run_id: int, preview: dict) -> dict:
     rules, breaker = sv.app.scoring, sv.app.spend_breaker
     campaign = campaigns.get(sv.db, run["campaign_id"]) if run["campaign_id"] else None
     pays = campaign["rate_cents"] / 100 if campaign and campaign["rate_cents"] else None
-    result = scoring.score_video(sv.db, sv.jev, rules, preview, source=run["source"], campaign_cpm=pays, breaker=breaker)
+    bar = research.bar(sv.db, rules, sv.app.research) if run["source"] == "research" else None
+    result = scoring.score_video(sv.db, sv.jev, rules, preview, source=run["source"], campaign_cpm=pays, research_bar=bar, breaker=breaker)
     kind = result.kind
     channel = channels.for_category(sv.profiles, kind.category)
     fit = fit_why = None

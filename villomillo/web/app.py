@@ -30,6 +30,7 @@ from .. import (
     copywriter,
     links,
     posting,
+    research,
     routing,
     runs,
     safety,
@@ -243,6 +244,45 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(422, str(e)) from None
         tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
         return JSONResponse({"ok": True})
+
+    # ---- research ------------------------------------------------------------------------------------------------
+
+    @app.get("/research", response_class=HTMLResponse)
+    def research_page(profile: str | None = None, problem: str = "", saved: int = 0):
+        p = profile_or_404(profile)
+        return render("research.html", p, "/research", "research", "Research", d={**pages.research_page(sv, p), "problem": problem, "saved": bool(saved)})
+
+    @app.post("/research/settings")
+    async def research_settings(request: Request):
+        _only_local(request, "changes")
+        form = await request.form()
+        try:
+            research.save_settings(sv.db, sv.app.research, sv.app.scoring, on=form.get("on") == "1" if "on" in form else None,
+                                   videos_per_day=form.get("videos_per_day"), bar_max=form.get("bar_max"), topics=form.get("topics"))
+        except research.ResearchError as e:
+            return RedirectResponse(f"/research?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse("/research?saved=1", status_code=303)
+
+    @app.post("/research/sources/add")
+    def research_source_add(request: Request, platform: str = Form(...), channel: str = Form("")):
+        _only_local(request, "changes")
+        try:
+            research.add_source(sv.db, platform, channel)
+        except research.ResearchError as e:
+            return RedirectResponse(f"/research?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse("/research?saved=1", status_code=303)
+
+    @app.post("/research/sources/{source_id}/remove")
+    def research_source_remove(source_id: int, request: Request):
+        _only_local(request, "changes")
+        research.remove_source(sv.db, source_id)
+        return RedirectResponse("/research", status_code=303)
+
+    @app.post("/research/look-now")
+    def research_look_now(request: Request):
+        _only_local(request, "changes")
+        tasks.enqueue(sv.db, "research", {"profile": None}, dedupe_key=f"research:now:{int(store.now().timestamp() // 60)}", priority=10)
+        return RedirectResponse("/research", status_code=303)
 
     # ---- campaigns -----------------------------------------------------------------------------------------------
 

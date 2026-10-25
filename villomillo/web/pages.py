@@ -22,6 +22,7 @@ from .. import (
     channels,
     clipper,
     posting,
+    research,
     routing,
     runs,
     safety,
@@ -142,6 +143,11 @@ def needs(sv: Services, p: Profile) -> list[dict]:
         if c["state"] == "joined" and not c["sources"].strip():
             out.append({"title": f"Tell VilloMillo where \"{c['title'][:50]}\" videos are", "sub": "Add the show's channel or video links so it can start clipping",
                         "btn": "Open", "kind": "accent", "primary": False, "href": f"/campaigns/{c['id']}?profile={p.id}"})
+    for miss in research.missing_channels(db, sv.profiles):
+        n = miss["videos"]
+        out.append({"title": f"Create a channel for \"{miss['category']}\"", "sub": f"Research found {n} good video{'s' if n != 1 else ''} it could not use without one",
+                    "btn": "Add channel", "kind": "neutral", "primary": False,
+                    "href": f"/channels/new?profile={p.id}&category={quote(miss['category'])}"})
     worth = [c for c in every if c["state"] == "recommended"]
     if worth:
         out.append({"title": f"{len(worth)} campaign{'s' if len(worth) != 1 else ''} worth joining", "sub": f"Best pays ${max(c['rate_cents'] for c in worth) / 100:.2f} per 1,000 views on YouTube. Joining is done by hand on Content Rewards",
@@ -205,6 +211,7 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
         "channels": [{"id": c.id, "name": channel_name(c), "sub": c.display_name if c.brand.name else ""} for c in sv.profiles.values()],
         "nav": [
             {"label": "Find", "links": [{"key": "home", "label": "Home", "href": f"/{q}", "icon": "home"},
+                                         {"key": "research", "label": "Research", "href": f"/research{q}", "icon": "trend"},
                                          {"key": "campaigns", "label": "Campaigns", "href": f"/campaigns{q}", "icon": "search"}]},
             {"label": "Make", "links": [
                 {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
@@ -552,6 +559,36 @@ def campaign_page(sv: Services, cid: str) -> dict | None:
                                                  "require_captions": rules.get("require_captions", True), "no_ad_reads": rules.get("no_ad_reads", True)},
             "queue": queue, "ready": [r for r in campaigns.ready_to_submit(sv.db) if r["campaign_id"] == c["id"]],
             "keys": has_secret(secrets.YOUTUBE), "sends": any((not ch.posting.dry_run) for ch in sv.profiles.values() if ch.posting)}
+
+
+# --- research --------------------------------------------------------------------------------------------------
+
+SOURCE_NAMES = {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick"}
+
+
+def _candidate_view(c: dict) -> dict:
+    if c["state"] == "skipped":
+        state, why = badge("Skipped", ""), c["reason"] or ""
+    elif c["state"] == "queued":
+        state, why = badge("Waiting", ""), "Next in line when nothing else is being clipped."
+    else:
+        state, why = RUN_STATE.get(c["run_state"], badge("Started", "accent")), c["run_note"] or ""
+    via = "watched channel" if c["via"] == "watch" else f"search: {c['topic']}"
+    views = f"{c['views']:,} views" if c["views"] else ""
+    return {**c, "state_badge": state, "why": why, "via_text": via, "platform_text": SOURCE_NAMES.get(c["platform"], c["platform"].title()),
+            "minutes": round((c["duration_s"] or 0) / 60), "views_text": views}
+
+
+def research_page(sv: Services, p: Profile) -> dict:
+    cfg, db = sv.app.research, sv.db
+    s = research.settings(db, cfg)
+    return {"on": s["on"], "per_day": s["videos_per_day"], "bar_max": s["bar_max"], "bar": research.bar(db, sv.app.scoring, cfg),
+            "floor": sv.app.scoring.cpm_floor, "topics": "\n".join(research.topics(db, cfg, sv.profiles)), "own_topics": bool(s["topics"]),
+            "used_today": research.started_recently(db), "waiting": research.queued(db),
+            "searches": (sv.quota.used("search"), sv.quota.caps["search"]), "has_key": has_secret(secrets.YOUTUBE),
+            "has_channel": bool(sv.profiles), "viral_min": sv.app.scoring.viral_min,
+            "sources": [{**r, "platform_text": SOURCE_NAMES.get(r["platform"], r["platform"])} for r in research.sources(db)],
+            "candidates": [_candidate_view(c) for c in research.candidates(db)]}
 
 
 # --- insights --------------------------------------------------------------------------------------------------

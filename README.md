@@ -77,6 +77,8 @@ own key and your own allowance; VilloMillo charges nothing and holds no shared k
 
 ## Commands
 
+`python -m villomillo research on` (or `off`) switches Research, and `python -m villomillo research` runs one pass and lists what it looked at.
+
 `python -m villomillo campaigns` reads the Content Rewards list and prints each verdict; `recheck --campaign ID` re-checks one campaign's clips.
 
 `python -m villomillo --help` lists them all. The common ones:

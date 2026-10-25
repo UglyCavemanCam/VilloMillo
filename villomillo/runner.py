@@ -90,6 +90,14 @@ def do_campaigns(sv: Services, payload: dict) -> None:
         store.event(sv.db, "info", "campaigns", line)
 
 
+def do_research(sv: Services, payload: dict) -> None:
+    """When Research is on, look for videos worth clipping and start the next one."""
+    from . import research
+
+    for line in research.work(sv):
+        store.event(sv.db, "info", "research", line)
+
+
 def _paste_step(step, kind: str):
     """A step of a pasted link's run. If spending hits the breaker part-way, look again in a minute without counting a failure."""
 
@@ -113,6 +121,7 @@ HANDLERS = {
     "post": do_post,
     "stats": do_stats,
     "campaigns": do_campaigns,
+    "research": do_research,
     "clip": do_clip,
     "collect": do_collect,
 }

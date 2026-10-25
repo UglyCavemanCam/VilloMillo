@@ -16,7 +16,7 @@ import re
 from collections import Counter
 from datetime import datetime, timedelta
 
-from . import accounts, campaigns, store, timefmt
+from . import accounts, campaigns, research, store, timefmt
 from .config import ROOT, Posting, Profile
 from .db import Database
 
@@ -48,13 +48,13 @@ def pick_platform(posting: Posting, text: str) -> str | None:
     return best
 
 
-def build_copy(posting: Posting, clip: dict, episode: str, platform: str) -> dict:
+def build_copy(posting: Posting, clip: dict, episode: str, platform: str, credit: str = "") -> dict:
     """Title and caption for one platform, built from the clip's own hook. Nothing is invented about the guest."""
     hook = (clip.get("hook") or "").strip() or episode
     tag = posting.tags.get(platform, "")
     if platform == "youtube_shorts":
         title = f"{_fit(hook, YT_TITLE_MAX - 10)} #Shorts"
-        description = f"{hook}\n\nClip from: {episode}\n{tag}\n\n#Shorts"
+        description = f"{hook}\n\nClip from: {episode}\n{credit}\n{tag}\n\n#Shorts" if credit else f"{hook}\n\nClip from: {episode}\n{tag}\n\n#Shorts"
         return {"title": title, "caption": _fit(description, YT_DESCRIPTION_MAX), "tags": ["Shorts"]}
     raise ValueError(f"no copy rules for {platform}")
 
@@ -133,7 +133,7 @@ def plan(db: Database, profile: Profile, clip_id: int, *, now: datetime | None =
         posting = campaigns.posting_for(db, posting, platform, clip["campaign_id"])  # a campaign's clips carry its required tags
     if platform is None:
         raise ValueError("this channel has no posting platforms set")
-    copy = build_copy(posting, dict(clip), episode, platform)
+    copy = build_copy(posting, dict(clip), episode, platform, research.credit_for(db, clip["video_id"]))
     problems = copy_problems(copy, platform, posting.tags.get(platform, ""))
     campaign_rules = grade.get("campaign")
     if campaign_rules and not campaign_rules["ok"]:
