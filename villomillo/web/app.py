@@ -218,7 +218,7 @@ def create_app(sv: Services) -> FastAPI:
         _only_local(request, "changes")
         c = in_profile(channel_id)
         form = {k: str(v) for k, v in (await request.form()).items()}
-        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "privacy", "upload_size", "format"}
+        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "privacy", "upload_size", "min_gap_minutes", "max_gap_minutes", "auto_post_min_score", "format"}
         before = c.category
         try:
             updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})
@@ -229,6 +229,8 @@ def create_app(sv: Services) -> FastAPI:
             r.status_code = 422
             return r
         released = finish_channel_change(updated.category if updated.category != before else None)
+        if (updated.posting.min_gap_minutes, updated.posting.max_gap_minutes) != (c.posting.min_gap_minutes, c.posting.max_gap_minutes):
+            posting.respace_queued(sv.db, updated)  # the posts already waiting follow the new gap too
         return RedirectResponse(f"/channels/{channel_id}?profile={channel_id}&saved=1&released={released}", status_code=303)
 
     @app.post("/api/channel-privacy")

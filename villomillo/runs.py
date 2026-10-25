@@ -79,6 +79,10 @@ def _set(db, run_id: int, **fields) -> None:
     fields["updated_at"] = store.iso()
     with db.conn() as c:
         c.execute(f"UPDATE runs SET {', '.join(f'{k}=?' for k in fields)} WHERE id=?", (*fields.values(), run_id))
+        ended = fields.get("state") in ("finished", "nothing", "failed") and c.execute(
+            "SELECT 1 FROM runs WHERE id=? AND source='campaign'", (run_id,)).fetchone()
+    if ended:  # the next queued campaign video starts now, not at the next hourly pass
+        tasks.enqueue(db, "campaigns", {"profile": None}, dedupe_key=f"campaigns:next:{int(store.now().timestamp() // 30)}", priority=10)
 
 
 def note(sv: Services, run: dict, message: str, step: str, level: str = "info") -> None:
@@ -340,12 +344,20 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
     plan = run["plan"]
     with sv.db.conn() as c:
         ready = [dict(r) for r in c.execute(
-            "SELECT id FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
+            "SELECT id, engine_score FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
             (run["profile_id"], run["video_id"]))]
-    approved = held = 0
+    owner = sv.profiles.get(run["profile_id"])
+    needed = owner.posting.auto_post_min_score if owner and owner.posting else 0  # the score a clip needs to post by itself
+    approved = held = low = 0
     for clip in ready:
         if not plan["fit_ok"]:
             continue  # stays in the review queue, with the reason on the plan
+        if (clip["engine_score"] or 0) < needed:  # waits for you: the checks passed, the score is not high enough to post unseen
+            low += 1
+            with sv.db.conn() as c:
+                c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (f"score {clip['engine_score'] or 0} is under the {needed} needed to post by itself; waiting for your decision", clip["id"]))
+            note(sv, run, f"Clip {clip['id']} scored {clip['engine_score'] or 0}, under the {needed} needed to post by itself: waiting for your decision.", "post")
+            continue
         clipper.decide(sv.db, run["profile_id"], clip["id"], "approve")
         post = routing.assign_and_plan(sv.db, lambda: sv.jev, sv.profiles, run["profile_id"], clip["id"])
         if post is None:
@@ -359,6 +371,8 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
                 if each["status"] == "queued":
                     tasks.enqueue(sv.db, "copy", {"profile": each["profile"], "post_id": each["id"]}, dedupe_key=f"copy:{each['id']}")
     waiting = len(ready) if not plan["fit_ok"] else 0
+    if low:
+        parts_low = f"{low} scored under {needed}, so they wait for your decision."
     parts = [outcome + "."]
     if approved:
         parts.append(f"{approved} planned for posting.")
@@ -366,6 +380,8 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
         parts.append(f"{held} held: there is no {plan['category']} channel yet.")
     if waiting:
         parts.append(f"{waiting} waiting for your review: the video fits the channel only {plan['fit']} of 5.")
+    if low:
+        parts.append(parts_low)
     note(sv, run, "Done. " + " ".join(parts[1:]) if len(parts) > 1 else "Done.", "post")
     _set(sv.db, run_id, state="finished", note=" ".join(parts))
     store.event(sv.db, "info", "run", f"run {run_id}: {' '.join(parts)}")

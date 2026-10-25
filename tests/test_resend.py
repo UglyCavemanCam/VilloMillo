@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -24,7 +25,7 @@ def db(tmp_path):
 def channel(db, *, route="api", dry_run=False, audit=True):
     profiles = channels.load(db)
     p = profiles["solved"]
-    p = p.model_copy(update={"posting": p.posting.model_copy(update={"platforms": {"youtube_shorts": route}, "dry_run": dry_run, "min_gap_minutes": 0})})
+    p = p.model_copy(update={"posting": p.posting.model_copy(update={"platforms": {"youtube_shorts": route}, "dry_run": dry_run, "min_gap_minutes": 0, "max_gap_minutes": 0})})
     profiles["solved"] = p
     accounts.set_audit(db, "solved", "youtube_shorts", audit, "test")
     return profiles, p
@@ -370,3 +371,91 @@ def test_post_again_is_only_for_a_post_that_went_out_and_says_why_when_the_chann
     r = client.post("/api/clip-repost", data={"profile": "solved", "clip_id": clip_id})
     assert r.status_code == 422 and "Dry run" in r.json()["detail"]
     assert status_of(db, one)["status"] == "uploaded"  # nothing changed
+
+
+# ---- the random wait between posts ----------------------------------------------------------------------------------
+
+
+def _with_gaps(db, lo, hi):
+    profiles, p = channel(db)
+    p = p.model_copy(update={"posting": p.posting.model_copy(update={"min_gap_minutes": lo, "max_gap_minutes": hi})})
+    profiles["solved"] = p
+    return profiles, p
+
+
+def test_each_clips_wait_is_random_between_the_shortest_and_the_longest(db):
+    import random
+    from datetime import timedelta
+
+    profiles, p = _with_gaps(db, 10, 20)
+    post(db, "queued")  # the last post is at NOW
+    gaps = []
+    for seed in range(40):
+        slot = posting.next_slot(db, p.posting, "solved", "youtube_shorts", NOW, random.Random(seed))
+        gaps.append((slot - NOW) / timedelta(minutes=1))
+    assert all(10 <= g <= 20 for g in gaps) and len({round(g, 3) for g in gaps}) > 30  # never the same twice
+    fixed = _with_gaps(db, 15, None)[1]
+    assert {round((posting.next_slot(db, fixed.posting, "solved", "youtube_shorts", NOW, random.Random(s)) - NOW) / timedelta(minutes=1), 3) for s in range(5)} == {15.0}
+
+
+def test_posts_already_waiting_are_re_spaced_to_the_new_gap_in_their_order(db):
+    from datetime import timedelta
+
+    profiles, p = _with_gaps(db, 10, 20)
+    ids = [post(db, "queued") for _ in range(4)]
+    with db.conn() as c:  # planned hours apart under the old setting
+        for i, post_id in enumerate(ids):
+            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(NOW + timedelta(hours=3 * (i + 1))), post_id))
+    done = post(db, "uploaded")
+    with db.conn() as c:
+        c.execute("UPDATE posts SET posted_at=? WHERE id=?", (store.iso(NOW - timedelta(hours=1)), done))
+    assert posting.respace_queued(db, p, now=NOW) == 4
+    times = [store.parse_time(status_of(db, i)["scheduled_at"]) for i in ids]
+    assert times == sorted(times) and times[0] >= NOW
+    assert all(timedelta(minutes=10) <= b - a <= timedelta(minutes=20) for a, b in zip(times, times[1:]))
+    assert times[-1] - NOW < timedelta(hours=1, minutes=20)  # hours became minutes
+    assert status_of(db, done)["status"] == "uploaded"
+
+
+def test_saved_channels_get_the_new_gap_once_and_their_waiting_posts_are_re_spaced_once(tmp_path):
+    from villomillo import channels as ch
+
+    old = Database(tmp_path / "old.db")
+    first = ch.load(old)
+    assert (first["solved"].posting.min_gap_minutes, first["solved"].posting.max_gap_minutes) == (10, 20)
+    with old.conn() as c:  # what an older version stored: one fixed gap of three hours
+        data = json.loads(c.execute("SELECT data_json FROM channels WHERE id='solved'").fetchone()["data_json"])
+        data["posting"]["min_gap_minutes"], data["posting"]["max_gap_minutes"] = 180, None
+        c.execute("UPDATE channels SET data_json=? WHERE id='solved'", (json.dumps(data),))
+        c.execute("DELETE FROM meta WHERE key='gap_10_20_v1'")
+    profs = ch.load(old)
+    assert (profs["solved"].posting.min_gap_minutes, profs["solved"].posting.max_gap_minutes) == (10, 20)
+    ch.update(old, profs, "solved", min_gap_minutes="30", max_gap_minutes="45")
+    assert (ch.load(old)["solved"].posting.min_gap_minutes, ch.load(old)["solved"].posting.max_gap_minutes) == (30, 45)  # a later choice is kept
+    with pytest.raises(ch.ChannelError):
+        ch.update(old, profs, "solved", min_gap_minutes="50", max_gap_minutes="20")
+    queued = [post(old, "queued") for _ in range(3)]
+    with old.conn() as c:
+        c.execute("UPDATE posts SET scheduled_at=?", (store.iso(NOW),))
+    assert posting.respace_once(old, ch.load(old)) == 3
+    assert posting.respace_once(old, ch.load(old)) == 0 and len(queued) == 3
+
+
+def test_the_channel_page_saves_the_gap_and_the_score_and_respaces_the_queue(db):
+    from datetime import timedelta
+
+    client, sv = web(db)
+    ids = [post(db, "queued") for _ in range(3)]
+    with db.conn() as c:
+        for i, post_id in enumerate(ids):
+            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(store.now() + timedelta(hours=5 * (i + 1))), post_id))
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+            "youtube_route": "api", "dry_run": "0", "privacy": "public", "upload_size": "1080",
+            "min_gap_minutes": "10", "max_gap_minutes": "20", "auto_post_min_score": "85"}
+    assert "Score a clip needs to post by itself" in client.get("/channels/solved?profile=solved").text
+    assert client.post("/channels/solved/save", data=form, follow_redirects=False).status_code == 303
+    p = sv.profiles["solved"].posting
+    assert (p.min_gap_minutes, p.max_gap_minutes, p.auto_post_min_score) == (10, 20, 85)
+    last = store.parse_time(status_of(db, ids[-1])["scheduled_at"])
+    assert last - store.now() < timedelta(hours=1)
+    assert client.post("/channels/solved/save", data={**form, "min_gap_minutes": "30", "max_gap_minutes": "5"}, follow_redirects=False).status_code == 422

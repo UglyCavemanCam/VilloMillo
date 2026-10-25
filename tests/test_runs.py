@@ -217,6 +217,39 @@ def test_finished_clips_are_approved_routed_to_their_channel_and_planned_for_pos
     assert len(runs.clips_of(db, run)) == 2
 
 
+def test_a_clip_scoring_under_the_channels_minimum_waits_for_you_instead_of_posting(env):
+    sv, db = env
+    assert sv.profiles["solved"].posting.auto_post_min_score == 80
+    sv.profiles["solved"] = sv.profiles["solved"].model_copy(update={"posting": sv.profiles["solved"].posting.model_copy(update={"auto_post_min_score": 89})})
+    run_id, engine = to_plan(sv)
+    runs.start(sv, run_id, engine)
+    runs.collect(sv, run_id, engine)  # the engine scores the two clips 89 and 88
+    run = runs.get(db, run_id)
+    assert run["state"] == "finished" and "1 planned for posting" in run["note"] and "1 scored under 89" in run["note"]
+    with db.conn() as c:
+        rows = {r["engine_score"]: dict(r) for r in c.execute("SELECT engine_score, state, reason FROM clips_ready")}
+        assert rows[89]["state"] == "approved" and rows[88]["state"] == "review"
+        assert "88 is under the 89 needed to post by itself" in rows[88]["reason"]
+        assert c.execute("SELECT COUNT(*) AS n FROM posts").fetchone()["n"] == 1
+
+
+def test_a_finished_campaign_video_starts_the_next_one_at_once(env):
+    sv, db = env
+    with db.conn() as c:
+        c.execute("INSERT INTO runs (source, url, platform, video_id, profile_id, state, created_at, updated_at, campaign_id) "
+                  "VALUES ('campaign', ?, 'youtube', ?, 'solved', 'making', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'c1')", (LINK, VIDEO))
+        run_id = c.execute("SELECT MAX(id) AS id FROM runs").fetchone()["id"]
+    runs._set(db, run_id, state="finished")
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='campaigns' AND status='queued'").fetchone()["n"] == 1
+    other = runs.create(sv, "solved", "https://www.youtube.com/watch?v=zZ9yXwVuTsR")  # a pasted video ending does not trigger a campaign pass
+    with db.conn() as c:
+        c.execute("DELETE FROM tasks WHERE kind='campaigns'")
+    runs._set(db, other, state="nothing")
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='campaigns'").fetchone()["n"] == 0
+
+
 def test_the_look_the_kind_decides_is_what_the_clips_are_made_in(env, monkeypatch):
     sv, db = env
     seen = {}

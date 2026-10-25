@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import random
 import re
 import subprocess
 import time
@@ -70,7 +71,7 @@ def copy_problems(copy: dict, platform: str, tag: str) -> list[str]:
     return problems
 
 
-def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, now: datetime) -> datetime:
+def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, now: datetime, rng: random.Random | None = None) -> datetime:
     """The next time this platform can take a post: spaced from the last one, and under the daily cap.
 
     A day is an Eastern Time calendar day, so "two a day" means two between midnight and midnight on the East Coast.
@@ -82,10 +83,56 @@ def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, no
     taken = Counter(timefmt.local_date(t) for t in times)
     candidate = now
     if times:
-        candidate = max(now, store.parse_time(max(times)) + timedelta(minutes=posting.min_gap_minutes))
+        top = posting.max_gap_minutes if posting.max_gap_minutes is not None else posting.min_gap_minutes
+        wait = (rng or random).uniform(posting.min_gap_minutes, top)  # a different wait for every clip, so the gaps are never the same
+        candidate = max(now, store.parse_time(max(times)) + timedelta(minutes=wait))
     while taken[timefmt.local_date(candidate)] >= posting.daily_cap:
         candidate = timefmt.start_of_day_utc(timefmt.local_date(candidate) + timedelta(days=1))
     return candidate
+
+
+def respace_queued(db: Database, profile: Profile, *, now: datetime | None = None, rng: random.Random | None = None) -> int:
+    """Give every post still waiting its time again under the channel's current gap, in its current order, starting now.
+    Posts already sent, or waiting to be posted by hand, are not touched. Returns how many were moved."""
+    posting = profile.posting
+    if posting is None:
+        return 0
+    now = now or store.now()
+    with db.conn() as c:
+        waiting = [dict(r) for r in c.execute("SELECT id, platform FROM posts WHERE profile_id=? AND status='queued' ORDER BY scheduled_at, id", (profile.id,))]
+        last = {r["platform"]: store.parse_time(r["m"]) for r in c.execute(
+            "SELECT platform, MAX(COALESCE(posted_at, scheduled_at)) AS m FROM posts WHERE profile_id=? AND status IN ('uploaded','posted') GROUP BY platform",
+            (profile.id,))}
+    top = posting.max_gap_minutes if posting.max_gap_minutes is not None else posting.min_gap_minutes
+    for row in waiting:
+        platform = row["platform"]
+        wait = timedelta(minutes=(rng or random).uniform(posting.min_gap_minutes, top))
+        when = max(now, last[platform] + wait) if platform in last else now
+        with db.conn() as c:
+            taken = Counter(timefmt.local_date(r["scheduled_at"]) for r in c.execute(
+                "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status NOT IN ('blocked','cancelled') AND id!=?",
+                (profile.id, platform, row["id"])))
+        while taken[timefmt.local_date(store.iso(when))] >= posting.daily_cap:
+            when = timefmt.start_of_day_utc(timefmt.local_date(store.iso(when)) + timedelta(days=1))
+        with db.conn() as c:
+            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(when), row["id"]))
+        last[platform] = when
+    return len(waiting)
+
+
+GAP_RESPACED = "queue_respaced_gap_v1"
+
+
+def respace_once(db: Database, profiles: dict[str, Profile]) -> int:
+    """After the channels got their new 10 to 20 minute gap, space the posts already waiting the same way, once."""
+    with db.conn(immediate=True) as c:
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (GAP_RESPACED,)).fetchone():
+            return 0
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (GAP_RESPACED,))
+    moved = sum(respace_queued(db, p) for p in profiles.values())
+    if moved:
+        store.event(db, "info", "post", f"{moved} waiting post(s) re-spaced to the channel's new gap")
+    return moved
 
 
 def posted_today(db: Database, profile_id: str, platform: str, *, now: datetime | None = None) -> int:

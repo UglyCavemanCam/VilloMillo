@@ -191,7 +191,10 @@ def run_one(sv: Services, worker: str = "worker-1") -> bool:
 
 
 def loop(sv: Services, stop: threading.Event, *, idle_seconds: float = 5.0) -> None:
+    from . import posting
+
     tasks.ensure_schedules(sv.db, sv.app, sv.profiles)
+    posting.respace_once(sv.db, sv.profiles)
     store.event(sv.db, "info", "runner", "Worker started")
     while not stop.is_set():
         health.beat(sv.db)

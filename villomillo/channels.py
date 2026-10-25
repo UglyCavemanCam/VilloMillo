@@ -74,9 +74,27 @@ def _make_public_once(db: Database) -> None:
         c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (PUBLIC_ONCE,))
 
 
+GAP_ONCE = "gap_10_20_v1"
+
+
+def _new_gaps_once(db: Database) -> None:
+    """Channels saved before the random wait existed had one fixed gap (often hours): give them 10 to 20 minutes, once. A change made
+    on the channel's page afterwards is left alone."""
+    with db.conn(immediate=True) as c:
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (GAP_ONCE,)).fetchone():
+            return
+        for r in c.execute("SELECT id, data_json FROM channels").fetchall():
+            data = json.loads(r["data_json"])
+            if data.get("posting"):
+                data["posting"]["min_gap_minutes"], data["posting"]["max_gap_minutes"] = 10, 20
+                c.execute("UPDATE channels SET data_json=?, updated_at=? WHERE id=?", (json.dumps(data), store.iso(), r["id"]))
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (GAP_ONCE,))
+
+
 def load(db: Database) -> dict[str, Profile]:
     _seed(db)
     _make_public_once(db)
+    _new_gaps_once(db)
     with db.conn() as c:
         rows = c.execute("SELECT id, data_json FROM channels ORDER BY created_at, id").fetchall()
     return {r["id"]: Profile(**_without_retired(json.loads(r["data_json"]))) for r in rows}
@@ -149,7 +167,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
     profile = Profile(
         id=cid, display_name=name, category=category, niche=Niche(definition=about),
         posting=Posting(dry_run=True, platforms={"youtube_shorts": "manual"}, privacy="public",
-                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=0),
+                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=10, max_gap_minutes=20),
         brand=Brand(name=name),
     )
     save(db, profile)
@@ -158,7 +176,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
 
 
 def update(db: Database, profiles: dict[str, Profile], channel_id: str, **changes) -> Profile:
-    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, privacy, upload_size, format."""
+    """Change a channel. Accepted: name, category, about, brand_handle, youtube_tags, youtube_daily_cap, youtube_route, dry_run, privacy, upload_size, min_gap_minutes, max_gap_minutes, auto_post_min_score, format."""
     p = profiles[channel_id]
     data = p.model_dump()
     if "name" in changes:
@@ -186,6 +204,23 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         if changes["upload_size"] not in ("1080", "1440"):
             raise ChannelError("upload size: normal (1080) or larger (1440)")
         data["posting"]["upload_size"] = changes["upload_size"]
+    if "min_gap_minutes" in changes or "max_gap_minutes" in changes:
+        try:
+            lo = int(changes.get("min_gap_minutes", data["posting"]["min_gap_minutes"]))
+            hi = int(changes.get("max_gap_minutes", data["posting"]["max_gap_minutes"] if data["posting"]["max_gap_minutes"] is not None else lo))
+        except (TypeError, ValueError):
+            raise ChannelError("the waits between posts must be whole numbers of minutes") from None
+        if not 0 <= lo <= hi <= 24 * 60:
+            raise ChannelError("the longest wait between posts cannot be shorter than the shortest, and neither can pass 24 hours")
+        data["posting"]["min_gap_minutes"], data["posting"]["max_gap_minutes"] = lo, hi
+    if "auto_post_min_score" in changes:
+        try:
+            score = int(changes["auto_post_min_score"])
+        except (TypeError, ValueError):
+            raise ChannelError("the score for posting by itself must be a whole number") from None
+        if not 0 <= score <= 100:
+            raise ChannelError("the score for posting by itself is between 0 and 100")
+        data["posting"]["auto_post_min_score"] = score
     if "privacy" in changes:
         if changes["privacy"] not in ("public", "unlisted", "private"):
             raise ChannelError("who can watch the videos: public, unlisted or private")

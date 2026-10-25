@@ -124,10 +124,18 @@ class Posting(_Strict):
     platforms: dict[str, Literal["api", "manual"]] = {}  # platform -> how it goes out
     privacy: Literal["private", "unlisted", "public"] = "private"
     upload_size: Literal["1080", "1440"] = "1080"  # 1440: the finished clip is enlarged to 1440x2560 for the upload only
-    min_gap_minutes: int = Field(180, ge=0)
+    min_gap_minutes: int = Field(180, ge=0)  # the shortest wait after the last post on this platform
+    max_gap_minutes: int | None = Field(None, ge=0)  # the longest: each clip waits a random time between the two; None means exactly the shortest
+    auto_post_min_score: int = Field(80, ge=0, le=100)  # a clip scoring under this waits for you instead of posting by itself
     daily_cap: int = Field(2, ge=1)  # per platform, per day (YouTube's own limit for a channel is 100)
     topics: dict[str, list[str]] = {}  # platform -> words that send a clip there
     tags: dict[str, str] = {}  # platform -> the campaign's required @mentions, as written
+
+    @model_validator(mode="after")
+    def _gap_ordered(self):
+        if self.max_gap_minutes is not None and self.max_gap_minutes < self.min_gap_minutes:
+            raise ValueError("the longest wait between posts cannot be shorter than the shortest")
+        return self
 
 
 class Brand(_Strict):

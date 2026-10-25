@@ -11,7 +11,7 @@
     <dl class="kv">
       <dt>Niche</dt><dd style="line-height:1.5">{{ c.niche }}</dd>
       {% if c.posting %}<dt>Posting</dt><dd>{% for platform, route in c.posting.platforms.items() %}<span class="chip" style="margin-right:6px">{{ platform|replace('_', ' ') }}: {{ route }}</span>{% endfor %}
-        <div class="muted" style="font-size:13px;margin-top:6px">At most {{ c.posting.daily_cap }} a day per platform, at least {{ c.posting.min_gap_minutes }} minutes apart, privacy {{ c.posting.privacy }}. Dry run is {{ 'on: nothing is sent for the API route' if c.posting.dry_run else 'off' }}.</div></dd>{% endif %}
+        <div class="muted" style="font-size:13px;margin-top:6px">At most {{ c.posting.daily_cap }} a day per platform, {{ c.posting.min_gap_minutes }} to {{ c.posting.max_gap_minutes if c.posting.max_gap_minutes is not None else c.posting.min_gap_minutes }} minutes apart, privacy {{ c.posting.privacy }}. Dry run is {{ 'on: nothing is sent for the API route' if c.posting.dry_run else 'off' }}.</div></dd>{% endif %}
       {% if c.recipe %}<dt>Format</dt><dd>Recipe <b style="font-weight:600">{{ c.format }}</b>
         {% for layer in c.recipe %}<div class="cluster" style="margin-top:6px"><span class="muted" style="width:64px;font-size:13px">{{ layer.layer }}</span>{% for i in layer['items'] %}<span class="chip">{{ i|replace('_', ' ') }}</span>{% endfor %}</div>{% endfor %}</dd>{% endif %}
     </dl>
