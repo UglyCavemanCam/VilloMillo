@@ -8,7 +8,15 @@
   <nav class="tabs" aria-label="Clip status">
     {% for t in d.tabs %}<a class="tab" href="/clips?profile={{ shell.current.id }}&tab={{ t.key }}" {% if t.key == d.tab %}aria-current="page"{% endif %}>{{ t.label }}<small>{{ t.count }}</small></a>{% endfor %}
   </nav>
+  {% if d.cards %}<button type="button" class="btn btn-sm" id="select-toggle">Select</button>{% endif %}
 </div>
+{% if d.cards %}
+<div class="select-bar" id="select-bar" hidden><span id="select-count">0 selected</span>
+  <button type="button" class="btn btn-sm" id="select-all">Select all</button>
+  {% if d.tab == 'removed' %}<button type="button" class="btn btn-sm btn-primary" id="select-act" data-do="restore">Restore selected</button>
+  {% else %}<button type="button" class="btn btn-sm btn-danger" id="select-act" data-do="remove">Remove selected</button>{% endif %}
+  <button type="button" class="btn btn-sm btn-ghost" id="select-cancel">Cancel</button></div>
+{% endif %}
 
 {% if d.tab == 'progress' %}
   {% set s = d.studio %}
@@ -30,7 +38,7 @@
 {% elif d.cards %}
   <div class="clip-grid">
     {% for c in d.cards %}
-    <button type="button" class="clip-card" data-panel="{{ c.panel }}" aria-label="Open clip {{ c.engine_id }}, {{ c.state.text }}">
+    <button type="button" class="clip-card" data-clip-id="{{ c.id }}" data-panel="{{ c.panel }}" aria-label="Open clip {{ c.engine_id }}, {{ c.state.text }}">
       <div class="thumb"><img src="{{ c.thumb }}" alt="" loading="lazy"><span class="tl badge {{ c.state.kind }}">{{ c.state.text }}</span><span class="br">{{ c.duration }}</span></div>
       <div class="clip-meta"><span class="grade">{{ c.grade }}</span><span class="t">{{ c.title }}</span></div>
       <div class="clip-tags"><span class="chip">{{ c.look }}</span><span class="chip {{ c.rules.kind }}"><span class="dot-s {{ c.rules.kind }}"></span>{{ c.rules.text }}</span></div>
@@ -41,6 +49,7 @@
   {% set copy = {
     'review': ('Nothing is waiting for you', 'New clips that pass every check land here for your decision.'),
     'approved': ('No approved clips yet', 'Approve a clip and its post is planned on the calendar by itself.'),
+    'removed': ('Nothing removed', 'Clips you remove wait here for 30 days, and Restore brings one back.'),
     'rejected': ('Nothing rejected', 'Clips you reject, and clips the campaign rules stop, show up here.'),
     'all': ('No clips yet', 'Clips appear here as soon as the engine has made them from a video that passed the gate.')} %}
   {{ empty('clips', copy[d.tab][0], copy[d.tab][1], 'Paste a link', '/?profile=' ~ shell.current.id) }}

@@ -132,6 +132,8 @@ def generate(db: Database, claude_client, jev, profile: Profile, post_id: int, *
         return "skipped: this post is already out"
     if post["status"] == "blocked":
         return "skipped: this post is blocked"
+    if post["status"] == "cancelled":
+        return "skipped: this post was cancelled"
     if has_options and not force:
         return "skipped: options are already written"
     if (pause := spend.current(db, breaker or SpendBreaker())):

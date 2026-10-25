@@ -265,6 +265,6 @@ def clips_of(db, run: dict) -> list[dict]:
         rows = c.execute(
             "SELECT cr.id, cr.engine_score, cr.hook, cr.state, cr.reason, cr.start_s, cr.end_s, "
             "(SELECT group_concat(p.platform || ':' || p.status) FROM posts p WHERE p.clip_id=cr.id) AS posts "
-            "FROM clips_ready cr WHERE cr.profile_id=? AND cr.video_id=? AND cr.state!='superseded' ORDER BY cr.id",
+            "FROM clips_ready cr WHERE cr.profile_id=? AND cr.video_id=? AND cr.state NOT IN ('superseded','removed') ORDER BY cr.id",
             (run["profile_id"], run["video_id"])).fetchall()
     return [dict(r) for r in rows]

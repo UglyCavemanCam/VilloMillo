@@ -27,7 +27,14 @@
   <button type="button" class="btn btn-danger btn-pill" data-act="/api/clip-decision" data-fields='{{ {"clip_id": d.row.id, "decision": "reject", "profile": p.id}|tojson }}' data-ok="Rejected">Reject</button>
   <button type="button" class="btn btn-primary btn-pill" data-act="/api/clip-decision" data-fields='{{ {"clip_id": d.row.id, "decision": "approve", "profile": p.id}|tojson }}' data-ok="Approved. A post is planned and its titles are being written.">Approve</button>
   {% else %}
-  <div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Approved by you.' if d.row.state == 'approved' else 'Rejected by you.' if d.row.state == 'rejected' else 'Stopped by the checks before it reached you.' }}</div>
-  {% if d.post %}<a class="btn btn-sm" href="/calendar?profile={{ p.id }}&view=list&panel=/calendar/post/{{ d.post.id }}">Open post</a>{% endif %}
+  <div class="muted" style="flex:1;font-size:13px;line-height:19px">{{ 'Approved by you.' if d.row.state == 'approved' else 'Rejected by you.' if d.row.state == 'rejected' else 'Removed by you. It can be restored for 30 days.' if d.row.state == 'removed' else 'Stopped by the checks before it reached you.' }}</div>
+  {% if d.post and d.row.state != 'removed' %}<a class="btn btn-sm" href="/calendar?profile={{ p.id }}&view=list&panel=/calendar/post/{{ d.post.id }}">Open post</a>{% endif %}
+  {% endif %}
+  {% if d.row.state == 'removed' %}
+  <button type="button" class="btn btn-primary btn-pill" data-act="/api/clips/restore" data-fields='{{ {"clip_ids": d.row.id|string, "profile": p.id}|tojson }}' data-ok="Restored. It is waiting for your decision." data-after="/clips?profile={{ p.id }}&tab=review">Restore</button>
+  {% else %}
+  {% set i = d.impact %}
+  <button type="button" class="btn btn-ghost btn-pill" data-act="/api/clips/remove" data-fields='{{ {"clip_ids": d.row.id|string, "profile": p.id}|tojson }}' data-ok="Removed" data-after="/clips?profile={{ p.id }}"
+    data-confirm-title="Remove this clip?" data-confirm="It moves to the Removed tab, and you can restore it for 30 days.{{ ' Its planned post is cancelled.' if i.cancel }}{{ ' It is already on YouTube: removing it here does not delete the video, so delete it in YouTube Studio too.' if i.live }}{{ ' Its link was already handed in to a campaign.' if i.handed_in }}">Remove</button>
   {% endif %}
 </div>

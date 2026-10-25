@@ -61,8 +61,9 @@ def do_copy(sv: Services, payload: dict) -> None:
 
 def do_post(sv: Services, payload: dict) -> None:
     """Send the channel's posts that are due. Dry-run channels only write the payload to the outbox."""
-    from . import posting
+    from . import posting, removal
 
+    removal.purge_old(sv.db)  # files of clips removed more than 30 days ago
     p = _profile(sv, payload)
     if p.posting is None:
         return

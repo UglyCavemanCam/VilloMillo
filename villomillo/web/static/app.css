@@ -391,3 +391,10 @@ tr.muted-row td { opacity: .65; }
 tr.why td { padding-top: 0; border-top: 0; }
 .plan-tbl th, .plan-tbl td { padding-left: 10px; padding-right: 10px; }
 .plan-tbl td { vertical-align: top; }
+
+/* ---- select clips ---- */
+.select-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 14px; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r-xl); }
+.select-bar[hidden] { display: none; }
+.select-bar span { margin-right: auto; font-weight: 500; }
+body.selecting .clip-card { cursor: pointer; }
+.clip-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }

@@ -31,6 +31,7 @@ from .. import (
     engine_manager,
     links,
     posting,
+    removal,
     research,
     routing,
     runs,
@@ -391,6 +392,49 @@ def create_app(sv: Services) -> FastAPI:
     @app.post("/runs/{run_id}/retry")
     def run_retry(run_id: int, request: Request):
         return run_action(run_id, request, runs.retry)
+
+    def _ids(text: str) -> list[int]:
+        try:
+            return [int(x) for x in text.split(",") if x.strip()][:200]
+        except ValueError:
+            raise HTTPException(422, "clip_ids must be numbers separated by commas") from None
+
+    @app.get("/api/clips/impact")
+    def clips_impact(profile: str, clip_ids: str = ""):
+        in_profile(profile)
+        return JSONResponse(removal.impact(sv.db, profile, _ids(clip_ids)))
+
+    @app.post("/api/clips/remove")
+    def clips_remove(request: Request, profile: str = Form(...), clip_ids: str = Form("")):
+        _only_local(request, "changes")
+        in_profile(profile)
+        try:
+            return JSONResponse({"ok": True, **removal.remove(sv.db, profile, _ids(clip_ids))})
+        except removal.RemovalError as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.post("/api/clips/restore")
+    def clips_restore(request: Request, profile: str = Form(...), clip_ids: str = Form("")):
+        _only_local(request, "changes")
+        in_profile(profile)
+        try:
+            return JSONResponse({"ok": True, "restored": removal.restore(sv.db, profile, _ids(clip_ids))})
+        except removal.RemovalError as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.post("/runs/{run_id}/remove-clips")
+    def run_remove_clips(run_id: int, request: Request):
+        _only_local(request, "changes")
+        try:
+            run = runs.get(sv.db, run_id)
+        except LookupError:
+            raise HTTPException(404, "no such video run") from None
+        ids = [c["id"] for c in runs.clips_of(sv.db, run)]
+        try:
+            removal.remove(sv.db, run["profile_id"], ids)
+        except removal.RemovalError as e:
+            return RedirectResponse(f"/runs/{run_id}?problem={quote(str(e))}", status_code=303)
+        return RedirectResponse(f"/runs/{run_id}", status_code=303)
 
     @app.post("/runs/{run_id}/remove")
     def run_remove(run_id: int, request: Request):

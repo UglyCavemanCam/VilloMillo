@@ -134,10 +134,12 @@ CREATE TABLE IF NOT EXISTS clips_ready (
     id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, engine_clip_id INTEGER NOT NULL,
     video_id TEXT NOT NULL, start_s REAL NOT NULL, end_s REAL NOT NULL, engine_score INTEGER,
     hook TEXT, file_path TEXT, validation_json TEXT NOT NULL, grade_json TEXT NOT NULL,
-    state TEXT NOT NULL,        -- review | rejected_auto | failed_validation | approved | rejected
+    state TEXT NOT NULL,        -- review | rejected_auto | failed_validation | approved | rejected | removed
     reason TEXT, created_at TEXT NOT NULL, decided_at TEXT,
     category TEXT,              -- what kind of clip this is; it can only post on the channel for that category
     campaign_id TEXT,           -- the campaign this clip was made for (its rules, tags and link submission)
+    removed_from TEXT,          -- the state it was in when you removed it (so Restore knows where it goes back)
+    removed_at TEXT,
     UNIQUE (profile_id, engine_clip_id)
 );
 
@@ -145,7 +147,7 @@ CREATE TABLE IF NOT EXISTS clips_ready (
 CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, clip_id INTEGER NOT NULL,
     platform TEXT NOT NULL, route TEXT NOT NULL,    -- api | manual
-    status TEXT NOT NULL,       -- queued | blocked | dry_run | manual_ready | uploaded | failed | posted
+    status TEXT NOT NULL,       -- queued | blocked | dry_run | manual_ready | uploaded | failed | posted | cancelled
     title TEXT NOT NULL, caption TEXT NOT NULL, tags_json TEXT NOT NULL,
     scheduled_at TEXT NOT NULL, posted_at TEXT, url TEXT, error TEXT, created_at TEXT NOT NULL,
     remote_id TEXT,             -- the platform's id for the live video, used to read its numbers
@@ -195,7 +197,7 @@ class Database:
             if "remote_id" not in post_cols:
                 setup.execute("ALTER TABLE posts ADD COLUMN remote_id TEXT")
             clip_cols = {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}
-            for column in ("category", "campaign_id"):
+            for column in ("category", "campaign_id", "removed_from", "removed_at"):
                 if column not in clip_cols:
                     setup.execute(f"ALTER TABLE clips_ready ADD COLUMN {column} TEXT")  # a database made before channels or campaigns
             if "campaign_id" not in {r[1] for r in setup.execute("PRAGMA table_info(runs)")}:

@@ -71,6 +71,7 @@
     <span class="grow"><b>{{ c.hook or 'Clip ' ~ c.id }}</b><small>{{ c.when }} · {{ c.reason }}{% if c.posts %} · {{ c.posts.replace('youtube_shorts', 'YouTube').replace(':', ' ') }}{% endif %}</small></span>
     <a class="btn btn-sm" href="/clips?profile={{ shell.current.id }}&panel=/clips/{{ c.id }}/panel">Open</a></div>
   {% else %}<p class="muted">No clips were kept.</p>{% endfor %}
+  {% if d.clips %}<form method="post" action="/runs/{{ r.id }}/remove-clips" onsubmit="return confirm('Remove all {{ d.clips|length }} clips from this video? They move to the Removed tab, and you can restore them for 30 days. Posts that have not gone out are cancelled. Anything already on YouTube stays there.');"><button class="btn btn-ghost" type="submit">Remove all clips</button></form>{% endif %}
 </section>
 {% endif %}
 

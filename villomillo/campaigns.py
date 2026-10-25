@@ -383,7 +383,7 @@ def ready_to_submit(db: Database) -> list[dict]:
         rows = c.execute(
             "SELECT p.id AS post_id, p.url, p.platform, p.posted_at, cr.hook, cr.campaign_id, cm.title AS campaign_title, cm.url AS campaign_url "
             "FROM posts p JOIN clips_ready cr ON cr.id=p.clip_id JOIN campaigns cm ON cm.id=cr.campaign_id "
-            "WHERE p.status IN ('uploaded','posted') AND p.url IS NOT NULL AND p.id NOT IN (SELECT post_id FROM campaign_submissions) "
+            "WHERE p.status IN ('uploaded','posted') AND cr.state!='removed' AND p.url IS NOT NULL AND p.id NOT IN (SELECT post_id FROM campaign_submissions) "
             "ORDER BY p.id DESC").fetchall()
     return [dict(r) for r in rows]
 

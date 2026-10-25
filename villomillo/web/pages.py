@@ -22,6 +22,7 @@ from .. import (
     engine_manager,
     health,
     posting,
+    removal,
     research,
     routing,
     runs,
@@ -66,7 +67,7 @@ def mmss(seconds: float | None) -> str:
 CLIP_STATE = {
     "review": badge("Waiting", "accent"), "approved": badge("Approved", "good"), "rejected": badge("Rejected", "bad"),
     "rejected_auto": badge("Stopped by rules", "bad"), "failed_validation": badge("Failed checks", "bad"),
-    "superseded": badge("Replaced", ""),
+    "superseded": badge("Replaced", ""), "removed": badge("Removed", ""),
 }
 
 
@@ -75,7 +76,7 @@ def post_state(status: str, route: str) -> dict:
     table = {
         "uploaded": ("Uploaded", "good", "s-done"), "posted": ("Posted", "good", "s-done"),
         "manual_ready": ("To post by hand", "warn", "s-hand"), "failed": ("Failed", "bad", "s-fail"),
-        "blocked": ("Blocked", "bad", "s-fail"), "dry_run": ("Dry run", "", "s-plan"),
+        "blocked": ("Blocked", "bad", "s-fail"), "dry_run": ("Dry run", "", "s-plan"), "cancelled": ("Cancelled", "", "s-plan"),
     }
     if status == "queued":
         text, kind, css = ("Planned, by hand", "warn", "s-hand") if route == "manual" else ("Planned", "", "s-plan")
@@ -253,18 +254,18 @@ def _clip_card(p: Profile, r: dict, post: dict | None) -> dict:
 
 def clips_page(sv: Services, p: Profile, tab: str) -> dict:
     db = sv.db
-    found = rows(db, "SELECT * FROM clips_ready WHERE profile_id=? AND state!='superseded' ORDER BY id DESC", p.id)
+    found = rows(db, "SELECT * FROM clips_ready WHERE profile_id=? AND state!='superseded' ORDER BY id DESC", p.id)  # removed ones show only in their tab
     posts = {r["clip_id"]: r for r in rows(db, "SELECT * FROM posts WHERE profile_id=? ORDER BY id", p.id)}
     cards = [_clip_card(p, r, posts.get(r["id"])) for r in found]
     jobs_active = one(db, "SELECT COUNT(*) AS n FROM clip_jobs WHERE profile_id=? AND status IN ('submitted','running','queued')", p.id)["n"]
     groups = {
-        "all": lambda c: True, "review": lambda c: c["key"] == "review", "approved": lambda c: c["key"] == "approved",
-        "rejected": lambda c: c["key"] in ("rejected", "rejected_auto", "failed_validation"),
+        "all": lambda c: c["key"] != "removed", "review": lambda c: c["key"] == "review", "approved": lambda c: c["key"] == "approved",
+        "rejected": lambda c: c["key"] in ("rejected", "rejected_auto", "failed_validation"), "removed": lambda c: c["key"] == "removed",
     }
     counts = {k: sum(1 for c in cards if f(c)) for k, f in groups.items()}
     counts["progress"] = jobs_active
     tabs = [{"key": k, "label": label, "count": counts[k]} for k, label in
-            (("all", "All"), ("review", "Waiting for you"), ("approved", "Approved"), ("rejected", "Rejected"), ("progress", "In progress"))]
+            (("all", "All"), ("review", "Waiting for you"), ("approved", "Approved"), ("rejected", "Rejected"), ("removed", "Removed"), ("progress", "In progress"))]
     tab = tab if tab in counts else "all"
     studio_data = studio.build(db, clipper.Engine().log, p.id) if tab == "progress" else None
     return {"tab": tab, "tabs": tabs, "cards": [c for c in cards if groups.get(tab, lambda _: False)(c)],
@@ -305,7 +306,7 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
                                               "when": timefmt.full(post["scheduled_at"])} if post else None),
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
-            "decided": r["state"] != "review", "reason": r["reason"]}
+            "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]])}
 
 
 # --- calendar --------------------------------------------------------------------------------------------------
@@ -324,7 +325,7 @@ def _post_view(r: dict) -> dict:
 def calendar_page(sv: Services, p: Profile, view: str, ref: date | None) -> dict:
     today = timefmt.today_et()
     ref = ref or today
-    posts = [_post_view(r) for r in rows(sv.db, "SELECT po.* FROM posts po WHERE po.profile_id=? ORDER BY po.scheduled_at", p.id)]
+    posts = [_post_view(r) for r in rows(sv.db, "SELECT po.* FROM posts po WHERE po.profile_id=? AND po.status!='cancelled' ORDER BY po.scheduled_at", p.id)]
     by_day: dict[date, list[dict]] = defaultdict(list)
     for post in posts:
         by_day[post["date"]].append(post)
@@ -406,9 +407,9 @@ def run_page(sv: Services, run_id: int) -> dict:
 def home_page(sv: Services, p: Profile) -> dict:
     db = sv.db
     by_state = {r["state"]: r["n"] for r in rows(db, "SELECT state, COUNT(*) AS n FROM clips_ready WHERE profile_id=? GROUP BY state", p.id)}
-    made = sum(n for s, n in by_state.items() if s != "superseded")
+    made = sum(n for s, n in by_state.items() if s not in ("superseded", "removed"))
     passed = made - by_state.get("failed_validation", 0) - by_state.get("rejected_auto", 0)
-    posts = rows(db, "SELECT status, route FROM posts WHERE profile_id=?", p.id)
+    posts = rows(db, "SELECT status, route FROM posts WHERE profile_id=? AND status!='cancelled'", p.id)
     hand = sum(1 for x in posts if x["route"] == "manual" and x["status"] in ("queued", "manual_ready"))
     posted = sum(1 for x in posts if x["status"] in ("uploaded", "posted"))
     listed = one(db, "SELECT COUNT(*) AS n FROM videos WHERE profile_id=?", p.id)["n"]
@@ -429,9 +430,9 @@ def home_page(sv: Services, p: Profile) -> dict:
         ("Clips made", made, made), ("Passed every check", passed, made), ("Approved by you", by_state.get("approved", 0), made),
         ("Posted", posted, made)]
     pipeline = [{"label": a, "count": n, "width": max(2 if n else 0, round(100 * n / top)) if top else 0} for a, n, top in funnel]
-    recent = [_clip_card(p, r, None) for r in rows(db, "SELECT * FROM clips_ready WHERE profile_id=? AND state!='superseded' ORDER BY id DESC LIMIT 5", p.id)]
+    recent = [_clip_card(p, r, None) for r in rows(db, "SELECT * FROM clips_ready WHERE profile_id=? AND state NOT IN ('superseded','removed') ORDER BY id DESC LIMIT 5", p.id)]
     today = timefmt.today_et()
-    mine = [_post_view(r) for r in rows(db, "SELECT * FROM posts WHERE profile_id=?", p.id)]
+    mine = [_post_view(r) for r in rows(db, "SELECT * FROM posts WHERE profile_id=? AND status!='cancelled'", p.id)]
     week = []
     for i in range(7):
         d = today + timedelta(days=i)
@@ -475,7 +476,7 @@ def blueprints_summary(recipe: str) -> list[dict]:
 
 def _channel_card(sv: Services, c: Profile) -> dict:
     db = sv.db
-    clips = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state!='superseded'", c.id)["n"]
+    clips = one(db, "SELECT COUNT(*) AS n FROM clips_ready WHERE profile_id=? AND state NOT IN ('superseded','removed')", c.id)["n"]
     posted = one(db, "SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND status IN ('uploaded','posted')", c.id)["n"]
     waiting = one(db, "SELECT COUNT(*) AS n FROM posts WHERE profile_id=? AND status IN ('queued','manual_ready','dry_run')", c.id)["n"]
     held = sum(h["clips"] for h in routing.held_categories(db) if c.category and h["category"].lower() == c.category.lower())
@@ -639,7 +640,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
 def search(sv: Services, p: Profile, text: str) -> list[dict]:
     like = f"%{text.strip()}%"
     out = []
-    for r in rows(sv.db, "SELECT cr.id, cr.engine_clip_id, cr.hook, cr.state FROM clips_ready cr WHERE cr.profile_id=? AND cr.state!='superseded' "
+    for r in rows(sv.db, "SELECT cr.id, cr.engine_clip_id, cr.hook, cr.state FROM clips_ready cr WHERE cr.profile_id=? AND cr.state NOT IN ('superseded','removed') "
                          "AND (cr.hook LIKE ? OR 'clip ' || cr.engine_clip_id LIKE ?) ORDER BY cr.id DESC LIMIT 5", p.id, like, like):
         out.append({"type": "Clips", "title": (r["hook"] or f"Clip {r['engine_clip_id']}")[:80], "sub": f"Clip {r['engine_clip_id']}",
                     "href": f"/clips?profile={p.id}&panel=/clips/{r['id']}/panel"})

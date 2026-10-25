@@ -87,6 +87,9 @@
   document.addEventListener("click", function (ev) {
     var t = ev.target;
     var panel = t.closest("[data-panel]");
+    if (panel && document.body.classList.contains("selecting") && panel.dataset.clipId) {
+      ev.preventDefault(); panel.classList.toggle("is-selected"); return updateBar();
+    }
     if (panel) {
       ev.preventDefault();
       $$(".clip-card.is-open").forEach(function (c) { c.classList.remove("is-open"); });
@@ -121,6 +124,44 @@
   document.addEventListener("keydown", function (ev) {
     if (ev.key === "Escape" && drawer.classList.contains("open")) closePanel();
   });
+
+  /* ---- select clips: remove or restore several at once ---- */
+  var bar = $("#select-bar"), toggle = $("#select-toggle");
+  function chosen() { return $$(".clip-card.is-selected").map(function (c) { return c.dataset.clipId; }); }
+  function updateBar() { var n = chosen().length; $("#select-count").textContent = n + " selected"; $("#select-act").disabled = !n; }
+  function selecting(on) {
+    document.body.classList.toggle("selecting", on);
+    bar.hidden = !on; toggle.hidden = on;
+    if (!on) $$(".clip-card.is-selected").forEach(function (c) { c.classList.remove("is-selected"); });
+    updateBar();
+  }
+  if (bar && toggle) {
+    toggle.addEventListener("click", function () { selecting(true); });
+    $("#select-cancel").addEventListener("click", function () { selecting(false); });
+    $("#select-all").addEventListener("click", function () { $$(".clip-card").forEach(function (c) { c.classList.add("is-selected"); }); updateBar(); });
+    $("#select-act").addEventListener("click", function () {
+      var ids = chosen().join(","), restore = this.dataset["do"] === "restore", btn = this;
+      if (!ids) return;
+      var go = function (text) {
+        var title = restore ? "Restore these clips?" : "Remove " + chosen().length + " clip" + (chosen().length === 1 ? "" : "s") + "?";
+        confirmFirst(title, text).then(function (yes) {
+          if (!yes) return;
+          btn.dataset.act = restore ? "/api/clips/restore" : "/api/clips/remove";
+          btn.dataset.ok = restore ? "Restored. They are waiting for your decision." : "Removed";
+          btn.dataset.fields = JSON.stringify({ clip_ids: ids });
+          send(btn);
+        });
+      };
+      if (restore) return go("They return to Waiting for you, and you decide on each again.");
+      fetch("/api/clips/impact?profile=" + encodeURIComponent(profile) + "&clip_ids=" + ids).then(function (r) { return r.json(); }).then(function (i) {
+        var t = "They move to the Removed tab, and you can restore them for 30 days.";
+        if (i.cancel) t += " " + i.cancel + " planned post" + (i.cancel === 1 ? " is" : "s are") + " cancelled.";
+        if (i.live.length) t += " " + i.live.length + " already on YouTube: removing here does not delete the video, so delete it in YouTube Studio too.";
+        if (i.handed_in) t += " " + i.handed_in + " link" + (i.handed_in === 1 ? " was" : "s were") + " already handed in to a campaign.";
+        go(t);
+      }).catch(function () { go("They move to the Removed tab, and you can restore them for 30 days."); });
+    });
+  }
 
   /* ---- search palette ---- */
   var palette = $("#palette"), input = $("#palette-input"), list = $("#palette-list"), timer = null, items = [], cursor = 0, searching = false;
