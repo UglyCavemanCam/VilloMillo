@@ -222,7 +222,8 @@ def shell(sv: Services, p: Profile, path: str, active: str) -> dict:
                                          {"key": "research", "label": "Research", "href": f"/research{q}", "icon": "trend"},
                                          {"key": "campaigns", "label": "Campaigns", "href": f"/campaigns{q}", "icon": "search"}]},
             {"label": "Make", "links": [
-                {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None}]},
+                {"key": "clips", "label": "Clips", "href": f"/clips{q}", "icon": "clips", "pill": waiting or None},
+                {"key": "formats", "label": "Formats", "href": f"/formats{q}", "icon": "sliders"}]},
             {"label": "Post", "links": [
                 {"key": "channels", "label": "Channels", "href": f"/channels{q}", "icon": "plug",
                  "dot": "An account is paused" if paused else None},
@@ -255,7 +256,7 @@ def _clip_card(p: Profile, r: dict, post: dict | None) -> dict:
         "id": r["id"], "engine_id": r["engine_clip_id"], "grade": r["engine_score"], "state": CLIP_STATE.get(r["state"], badge(r["state"])),
         "key": r["state"], "title": (title or r["hook"] or f"Clip {r['engine_clip_id']}").strip(" “”\"")[:90],
         "duration": mmss(val.get("facts", {}).get("duration_s") or (r["end_s"] - r["start_s"])),
-        "thumb": f"/clips/{r['id']}/thumb?profile={p.id}", "look": "A2 look" if (grade.get("look") or "").startswith("recipe") else "Engine look",
+        "thumb": f"/clips/{r['id']}/thumb?profile={p.id}", "look": "Formatted" if r["format_applied"] else "No format yet",
         "rules": badge("Rules failed" if failed else ("Rules passed" if rules else "Checked"), "bad" if failed else "good"),
         "panel": f"/clips/{r['id']}/panel?profile={p.id}",
         "score": r["engine_score"] or 0, "seconds": val.get("facts", {}).get("duration_s") or (r["end_s"] - r["start_s"]),
@@ -360,8 +361,10 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
-            "look_failed": bool(grade.get("look_failed")) or (grade.get("look") or "").startswith("look not applied"),
-            "look_why": (grade.get("look") or "").replace("look not applied:", "").strip(),
+            "look_failed": not r["format_applied"],
+            "effects": [{**e, "when": mmss(e["start"])} for e in grade.get("effects") or []],
+            "music": grade.get("music"),
+            "look_why": (grade.get("look") or "").replace("not formatted:", "").strip(),
             "rewards": _clip_rewards(sv, r, post),
             "can_repost": r["state"] == "approved" and bool(post) and post["status"] in posting.RESENT,
             "handed_in": one(sv.db, "SELECT COUNT(*) AS n FROM campaign_submissions WHERE post_id=?", post["id"])["n"] if post else 0,
@@ -482,7 +485,6 @@ def _run_row(r: dict, latest: str | None = None) -> dict:
             "state": RUN_STATE[r["state"]], "sub": sub, "source": SOURCE_LABEL.get(r["source"], r["source"].title()), "origin": " · ".join(parts), "thumb": _thumb(r)}
 
 
-LOOK_LABEL = {"podcast_talk": "Clean frame", "generic_safe": "Plain frame"}
 
 
 def _analysed_in(sv: Services, run: dict) -> str:
@@ -540,7 +542,7 @@ def run_page(sv: Services, run_id: int) -> dict:
             "active": run["state"] in ("analysing", "making"), "viral_min": sv.app.scoring.viral_min, "cpm_floor": sv.app.scoring.cpm_floor,
             "duration": mmss(run["duration"]) if run["duration"] else "", "tl": timeline_view(sv, run),
             "origin": {"paste": "Pasted link", "research": "Found by Research", "campaign": "Campaign video"}.get(run["source"], "Video"),
-            "analysed_in": _analysed_in(sv, run), "look_label": LOOK_LABEL.get(plan["look"], plan["look"].replace("_", " ").capitalize()) if plan else ""}
+            "analysed_in": _analysed_in(sv, run)}
 
 
 def home_page(sv: Services, p: Profile) -> dict:
@@ -603,20 +605,15 @@ def home_page(sv: Services, p: Profile) -> dict:
             "has_week_items": any(d["total"] for d in week), "needs": needs(sv, p)}
 
 
-def blueprints_summary(recipe: str) -> list[dict]:
-    """The layers of a format recipe, for the Settings page."""
-    from ..formats import blueprints
-
-    _, recipes = blueprints.load()
-    spec = recipes.get(recipe)
-    if not spec:
-        return []
-    out = [{"layer": "Framing", "items": [spec["framing"]]}]
-    out += [{"layer": layer.title(), "items": spec[layer]} for layer in ("text", "motion", "brand") if spec.get(layer)]
-    return out
-
-
 # --- channels --------------------------------------------------------------------------------------------------
+
+def _format_name(db, category: str | None) -> str:
+    """The name of the format a category uses, for the channel pages."""
+    from ..formats import templates
+
+    template = templates.for_category(db, category)
+    return template["name"] if template else "No format yet"
+
 
 def _channel_card(sv: Services, c: Profile) -> dict:
     db = sv.db
@@ -630,7 +627,7 @@ def _channel_card(sv: Services, c: Profile) -> dict:
             "paused": any(r["status"] == "paused" for r in accounts.overview(db, {c.id: c})),
             "today": posting.posted_today(db, c.id, "youtube_shorts") if c.posting else 0, "cap": c.posting.daily_cap if c.posting else 0,
             "privacy": c.posting.privacy if c.posting else "private",
-            "look": LOOK_LABEL.get(c.format, (c.format or "Engine's own look").replace("_", " ").capitalize()),
+            "format": _format_name(db, c.category),
             "tags": (c.posting.tags.get("youtube_shorts", "") if c.posting else "") or "None"}
 
 
@@ -654,18 +651,15 @@ def channels_page(sv: Services, p: Profile) -> dict:
 
 
 def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: str | None = None) -> dict:
-    from ..formats import blueprints
-
-    _, recipes = blueprints.load()
     tags = (c.posting.tags.get("youtube_shorts", "") if c.posting else "")
     steps = [
         {"n": 1, "title": "Name and category", "done": bool(c.category and c.niche.definition)},
         {"n": 2, "title": "YouTube", "done": youtube_connected(c)},
-        {"n": 3, "title": "Tags and look", "done": bool(tags or c.format)},
+        {"n": 3, "title": "Tags", "done": bool(tags)},
     ]
     values = {"name": channel_name(c), "category": c.category, "about": c.niche.definition, "brand_handle": c.brand.handle,
-              "youtube_tags": tags, "format": c.format or "",
-              "youtube_daily_cap": c.posting.daily_cap if c.posting else 100,
+              "youtube_tags": tags,
+              "youtube_daily_cap": c.posting.daily_cap if c.posting else 10,
               "youtube_route": c.posting.platforms.get("youtube_shorts", "manual") if c.posting else "manual",
               "dry_run": "1" if (c.posting.dry_run if c.posting else True) else "0",
               "privacy": c.posting.privacy if c.posting else "public",
@@ -673,7 +667,7 @@ def channel_page(sv: Services, c: Profile, *, form: dict | None = None, error: s
               "min_gap_minutes": c.posting.min_gap_minutes if c.posting else 10,
               "max_gap_minutes": (c.posting.max_gap_minutes if c.posting.max_gap_minutes is not None else c.posting.min_gap_minutes) if c.posting else 20,
               "auto_post_min_score": c.posting.auto_post_min_score if c.posting else 80, **(form or {})}
-    return {"c": c, "steps": steps, "form": values, "recipes": sorted(recipes), "error": error,
+    return {"c": c, "steps": steps, "form": values, "error": error,
             "youtube": youtube_connected(c), "card": _channel_card(sv, c), "accounts": _account_rows(sv, c),
             "client_file": posting.YOUTUBE_CLIENT.exists(), "client_path": str(posting.YOUTUBE_CLIENT)}
 
@@ -731,7 +725,7 @@ def campaigns_page(sv: Services, p: Profile) -> dict:
     for r in ready:
         st = rewards.state_of(sv.db, r["post_id"])
         r["rewards"] = {**st, "text": rewards.STATUS.get(st["status"], (st["status"], "", False))[0], "kind": rewards.STATUS.get(st["status"], ("", "", False))[1]} if st else None
-    return {"campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)], "rewards": _rewards_view(sv),
+    return {"on": campaigns.is_on(sv.db), "campaigns": [_campaign_view(sv, c) for c in campaigns.all_campaigns(sv.db)], "rewards": _rewards_view(sv),
             "ready": ready, "floor": sv.app.scoring.cpm_floor, "min_budget": sv.app.scoring.campaign_min_budget_usd,
             "feed": feed_lines(activity.recent(sv.db, "campaign", 25)), "connection": _connection(sv),
             "pass_line": pass_line(sv, "campaigns", "read", (activity.recent(sv.db, "campaign", 1) or [None])[0])}
@@ -954,8 +948,7 @@ def settings_page(sv: Services, p: Profile) -> dict:
     channels = []
     for c in sv.profiles.values():
         channels.append({"id": c.id, "name": channel_name(c), "display": c.display_name, "niche": c.niche.definition,
-                         "posting": c.posting, "format": c.format, "handle": c.brand.handle,
-                         "recipe": blueprints_summary(c.format) if c.format else None})
+                         "posting": c.posting, "format": _format_name(sv.db, c.category), "handle": c.brand.handle})
     keys = [{"name": "YouTube Data API key", "present": has_secret(secrets.YOUTUBE)},
             {"name": "Jev (TypeSafe) key", "present": has_secret(secrets.JEV)},
             {"name": "Claude (Anthropic) key", "present": has_secret(secrets.CLAUDE)},
@@ -986,3 +979,50 @@ def search(sv: Services, p: Profile, text: str) -> list[dict]:
     for r in rows(sv.db, "SELECT video_id, title FROM videos WHERE profile_id=? AND title LIKE ? ORDER BY published_at DESC LIMIT 6", p.id, like):
         out.append({"type": "Videos", "title": r["title"][:80], "sub": "YouTube", "href": f"https://www.youtube.com/watch?v={r['video_id']}", "external": True})
     return out
+
+
+def formats_page(sv: Services, p: Profile, clip_id: int | None = None) -> dict:
+    """What the Formats page shows: templates and where they are used, the quick presets, the caption styles and fonts, and
+    (when opened from a clip) the clip whose look is being edited."""
+    from .. import scoring
+    from ..formats import assets as format_assets
+    from ..formats import designs, fonts, preview
+    from ..formats import effects as format_effects
+    from ..formats import font_uploads as format_font_uploads
+    from ..formats import music as format_music
+    from ..formats import templates as format_templates
+    from ..formats.captions import STYLES
+
+    categories: list[str] = []
+    for name in [k["category"] for k in scoring.KINDS.values()] + [scoring.OTHER["category"]] + [c.category for c in sv.profiles.values()]:
+        if name and name.lower() not in {c.lower() for c in categories}:
+            categories.append(name)
+    format_font_uploads.refresh(sv.db)
+    assigned = format_templates.assignments(sv.db)
+    items = [{"id": t["id"], "name": t["name"], "design": t["settings"],
+              "categories": [c for c in categories if assigned.get(c.lower()) == t["id"]]} for t in format_templates.list_templates(sv.db)]
+    clip = None
+    if clip_id:
+        row = one(sv.db, "SELECT id, profile_id, state, category, template_id, grade_json FROM clips_ready WHERE id=?", clip_id)
+        if row:
+            grade = json.loads(row["grade_json"] or "{}")
+            own = next((t for t in items if t["id"] == row["template_id"]), None) or next(
+                (t for t in items if (row["category"] or "").lower() in [c.lower() for c in t["categories"]]), None)
+            clip = {"id": row["id"], "profile": row["profile_id"], "state": row["state"], "template_id": own["id"] if own else None,
+                    "design": grade.get("look_design") or (own["design"] if own else None)}
+    return {"templates": items, "categories": categories, "clip": clip,
+            "boot": {"templates": items, "categories": categories, "clip": clip, "defaults": designs.normalize({}),
+                     "presets": [{"id": x["id"], "name": x["name"], "blurb": x["blurb"], "design": x["design"]} for x in designs.presets(sv.db)],
+                     "styles": [{"id": s.id, "label": s.label, "blurb": s.blurb, "font": s.font, "size": s.size, "upper": s.upper,
+                                 "base": s.base, "accent": s.accent} for s in STYLES.values()],
+                     "fonts": [{"id": f.id, "label": f.label} for f in fonts.FONTS.values()],
+                     "videos": preview.sample_videos(sv.db), "profile": p.id,
+                     "logos": [{"id": a["id"], "name": a["name"]} for a in format_assets.logos(sv.db)],
+                     "font_uploads": [{"id": u["id"], "label": u["label"], "source": u["source"], "licence": u["licence"]}
+                                      for u in format_font_uploads.uploads(sv.db)],
+                     "music": {"tracks": [{k: v for k, v in t.items() if k not in ("sha", "licence", "original_name")} | {"licence": t["licence"]}
+                                          for t in format_music.tracks(sv.db)],
+                               "checklist": format_music.checklist(sv.db), "moods": list(format_music.MOODS),
+                               "categories": list(format_music.CATEGORIES), "downloads": str(format_music.DOWNLOADS),
+                               "source": format_music.shortlist()["source"], "licence": " ".join(format_music.shortlist()["licence"].split())},
+                     "effect_kinds": [{"id": k, "label": v["label"], "blurb": v["blurb"]} for k, v in format_effects.KINDS.items()]}}

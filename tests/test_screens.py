@@ -52,7 +52,7 @@ def test_the_plan_screen_names_the_look(sv, client):
     for _ in range(3):
         runs.analyse(sv, run_id, engine)
     page = client.get(f"/runs/{run_id}").text
-    assert "Look: Clean frame." in page and "Start clipping 2 clips" in page
+    assert "podcast or interview" in page and "Start clipping 2 clips" in page
 
 
 def test_campaigns_shows_the_connection_the_channel_each_goes_to_and_a_plain_status(sv, client):
@@ -98,13 +98,13 @@ def test_a_researched_video_that_found_nothing_shows_why_in_the_result(sv, clien
 
 def test_channel_cards_show_posts_today_the_look_the_tags_and_a_pause_button(sv, client):
     page = client.get("/channels").text
-    assert "0 of 100 posted today" in page and "Clean frame" in page and "Pause this channel" in page and "Caption tags" in page
+    assert "0 of 10 posted today" in page and "No format yet" in page and "Pause this channel" in page and "Caption tags" in page
     from villomillo import accounts
 
     accounts.pause(sv.db, "solved", "youtube_shorts", "paused by you")
     assert "Resume this channel" in client.get("/channels").text
     new = client.get("/channels/new").text
-    assert "1. Name and category" in new and "2. Connect YouTube" in new and "3. Caption tags and look" in new
+    assert "1. Name and category" in new and "2. Connect YouTube" in new and "3. Caption tags" in new
 
 
 def test_the_results_screen_has_the_cards_the_clips_and_the_skipped_moments(sv, client):
@@ -137,7 +137,7 @@ def test_the_rules_screen_shows_the_live_numbers_and_is_linked_from_settings(sv,
     research.set_bar(sv.db, 1.4)
     page = client.get("/rules").text
     assert "Scoring and safety rules" in page and "75</b> or more" in page and "now $1.40" in page and "$25 of Claude or $5 of Jev" in page
-    assert "100 posts a day" in page and "Emergency stop" in page and "4 of 5" in page
+    assert "10 posts a day" in page and "Emergency stop" in page and "4 of 5" in page
     assert 'href="/rules?profile=solved"' in client.get("/settings").text
 
 

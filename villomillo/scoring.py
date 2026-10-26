@@ -1,5 +1,5 @@
 """The scoring brain: every possible clip gets a viral score, an estimated CPM and an expected revenue, and the video
-gets a kind (which decides its category and its look). The formulas are in docs/AUTOPILOT-PLAN.md, section 6.
+gets a kind (which decides its category, and so its format). The formulas are in docs/AUTOPILOT-PLAN.md, section 6.
 
 Nothing here is random. Jev's answers are stored by the text they were about, so the same video always gives the same
 scores and the same text is never paid for twice. Every number comes with a plain sentence saying where it came from.
@@ -15,17 +15,16 @@ from . import spend, store
 from .config import Scoring, SpendBreaker
 from .db import Database
 
-# What a video can be. `category` is the channel category its clips belong to; `look` is a recipe in blueprints.yaml.
+# What a video can be. `category` is the channel category its clips belong to, and the format that category uses.
 KINDS = {
-    "podcast": {"label": "podcast or interview", "category": "Podcasts", "look": "podcast_talk",
+    "podcast": {"label": "podcast or interview", "category": "Podcasts",
                 "ask": "Is this mainly a conversation, interview or panel between people, such as a podcast or talk show?"},
-    "stream": {"label": "livestream", "category": "Stream clips", "look": "generic_safe",
+    "stream": {"label": "livestream", "category": "Stream clips",
                "ask": "Is this a recording of a livestream: a person playing a game, reacting, or chatting live with an audience?"},
-    "talk": {"label": "talk or lecture", "category": "Talks", "look": "podcast_talk",
+    "talk": {"label": "talk or lecture", "category": "Talks",
              "ask": "Is this mainly one person speaking to an audience, such as a lecture, speech, tutorial or presentation?"},
 }
-OTHER = {"label": "something else", "category": "Other", "look": "generic_safe"}
-SAFE_LOOK = "generic_safe"
+OTHER = {"label": "something else", "category": "Other"}
 SOURCES = ("paste", "research", "campaign")
 
 CLIP_CRITERIA = {
@@ -57,7 +56,6 @@ class KindReading:
     label: str
     category: str
     certainty: float  # 0 to 1
-    look: str  # the recipe that will be used (the safe one when unsure)
     unsure: bool
     explain: str
 
@@ -141,10 +139,11 @@ def detect_kind(db: Database, jev, rules: Scoring, *, title: str, channel: str, 
         info, kind, certainty = KINDS[top], top, weights[top] / sum(weights.values())
         why = f"Jev put {certainty:.0%} of the weight on {info['label']}."
     unsure = certainty < rules.type_certainty_min
-    look = SAFE_LOOK if unsure else info["look"]
-    note = (f" That is under the {rules.type_certainty_min:.0%} needed, so the plain look is used." if unsure
-            else f" That clears {rules.type_certainty_min:.0%}, so the {look} look is used.")
-    return KindReading(kind, info["label"], info["category"], round(certainty, 4), look, unsure, why + note)
+    if unsure:  # not sure enough of the kind to give it a format: it goes to Other, which has none, and waits for review
+        info, kind = OTHER, "other"
+    note = (f" That is under the {rules.type_certainty_min:.0%} needed, so it goes to {info['category']}, which waits for your review."
+            if unsure else f" That clears {rules.type_certainty_min:.0%}.")
+    return KindReading(kind, info["label"], info["category"], round(certainty, 4), unsure, why + note)
 
 
 FIT_MIN = 4  # of 5: a channel a video fits less well than this does not post it by itself

@@ -155,6 +155,12 @@ def test_bad_clips_say_what_is_wrong(tmp_path, kwargs, expect):
 
 
 @needs_ffmpeg
+def _format_applied(clip, job, out):
+    """Stands in for a category's format: the engine's render is copied as the formatted clip."""
+    shutil.copyfile(out.with_name(f"{clip['id']}.engine.mp4"), out)
+    return {"template": "talk-test"}
+
+
 def test_collected_clips_are_checked_graded_and_queued_for_review(db, tmp_path, monkeypatch):
     p = profile()
     store_video(db, p.id, "abcdefghijk")
@@ -177,7 +183,7 @@ def test_collected_clips_are_checked_graded_and_queued_for_review(db, tmp_path, 
             return "the whole story in one go"
 
     job = queue_job(db, p.id, "abcdefghijk")
-    assert clipper.collect(db, EngineStub(), FakeJev(), p, job) == "2 clips made, 1 passed the checks"
+    assert clipper.collect(db, EngineStub(), FakeJev(), p, job, _format_applied) == "2 clips made, 1 passed the checks"
     with db.conn() as c:
         states = {r["engine_clip_id"]: r["state"] for r in c.execute("SELECT * FROM clips_ready")}
     assert states == {1: "review", 2: "failed_validation"}

@@ -25,7 +25,7 @@ def db(tmp_path):
 def channel(db, *, route="api", dry_run=False, audit=True):
     profiles = channels.load(db)
     p = profiles["solved"]
-    p = p.model_copy(update={"posting": p.posting.model_copy(update={"platforms": {"youtube_shorts": route}, "dry_run": dry_run, "min_gap_minutes": 0, "max_gap_minutes": 0})})
+    p = p.model_copy(update={"posting": p.posting.model_copy(update={"platforms": {"youtube_shorts": route}, "dry_run": dry_run, "min_gap_minutes": 0, "max_gap_minutes": 0, "post_times": []})})
     profiles["solved"] = p
     accounts.set_audit(db, "solved", "youtube_shorts", audit, "test")
     return profiles, p
@@ -34,8 +34,8 @@ def channel(db, *, route="api", dry_run=False, audit=True):
 def post(db, status, *, score=80, clip_state="approved") -> int:
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, "
-                  "validation_json, grade_json, state, reason, created_at) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 "
-                  "FROM clips_ready), 'vid00000001', 0, 30, ?, 'a hook', 'f.mp4', '{}', '{}', ?, 'r', ?)", (score, clip_state, store.iso()))
+                  "validation_json, grade_json, state, reason, created_at, format_applied) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 "
+                  "FROM clips_ready), 'vid00000001', 0, 30, ?, 'a hook', 'f.mp4', '{}', '{}', ?, 'r', ?, 1)", (score, clip_state, store.iso()))
         clip_id = c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
         c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, created_at) "
                   "VALUES ('solved', ?, 'youtube_shorts', 'manual', ?, 't', 'c', '[]', ?, ?)", (clip_id, status, store.iso(NOW), store.iso(NOW)))
@@ -129,8 +129,8 @@ def web(db):
 def scored(db, score, *, video="vid00000001", state="approved", seconds=30) -> int:
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, "
-                  "validation_json, grade_json, state, reason, created_at) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 "
-                  "FROM clips_ready), ?, 0, ?, ?, ?, 'f.mp4', '{}', '{}', ?, 'r', ?)", (video, seconds, score, f"hook {score}", state, store.iso()))
+                  "validation_json, grade_json, state, reason, created_at, format_applied) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 "
+                  "FROM clips_ready), ?, 0, ?, ?, ?, 'f.mp4', '{}', '{}', ?, 'r', ?, 1)", (video, seconds, score, f"hook {score}", state, store.iso()))
         return c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
 
 
@@ -378,7 +378,7 @@ def test_post_again_is_only_for_a_post_that_went_out_and_says_why_when_the_chann
 
 def _with_gaps(db, lo, hi):
     profiles, p = channel(db)
-    p = p.model_copy(update={"posting": p.posting.model_copy(update={"min_gap_minutes": lo, "max_gap_minutes": hi})})
+    p = p.model_copy(update={"posting": p.posting.model_copy(update={"min_gap_minutes": lo, "max_gap_minutes": hi, "post_times": []})})
     profiles["solved"] = p
     return profiles, p
 
@@ -445,11 +445,12 @@ def test_the_channel_page_saves_the_gap_and_the_score_and_respaces_the_queue(db)
     from datetime import timedelta
 
     client, sv = web(db)
+    sv.profiles["solved"] = sv.profiles["solved"].model_copy(update={"posting": sv.profiles["solved"].posting.model_copy(update={"post_times": []})})
     ids = [post(db, "queued") for _ in range(3)]
     with db.conn() as c:
         for i, post_id in enumerate(ids):
             c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(store.now() + timedelta(hours=5 * (i + 1))), post_id))
-    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "10",
             "youtube_route": "api", "dry_run": "0", "privacy": "public", "upload_size": "1080",
             "min_gap_minutes": "10", "max_gap_minutes": "20", "auto_post_min_score": "85"}
     assert "Score a clip needs to post by itself" in client.get("/channels/solved?profile=solved").text

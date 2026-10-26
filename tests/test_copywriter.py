@@ -70,8 +70,8 @@ def db(tmp_path):
 def planned_post(db, solved, *, text=CLIP_TEXT, hook="Now, what's interesting is that earth luck"):
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                  "file_path, validation_json, grade_json, state, reason, created_at) "
-                  "VALUES ('solved', 1, 'vid00000001', 0, 30, 80, ?, 'f.mp4', '{}', ?, 'approved', 'r', ?)",
+                  "file_path, validation_json, grade_json, state, reason, created_at, format_applied) "
+                  "VALUES ('solved', 1, 'vid00000001', 0, 30, 80, ?, 'f.mp4', '{}', ?, 'approved', 'r', ?, 1)",
                   (hook, json.dumps({"caption_text": text}), store.iso()))
         clip_id = c.execute("SELECT id FROM clips_ready").fetchone()["id"]
     return posting.plan(db, solved, clip_id, now=NOW)["id"]

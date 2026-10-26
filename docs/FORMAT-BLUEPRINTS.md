@@ -1,6 +1,6 @@
 # Format blueprints: how every clip gets the right look, automatically
 
-Status: **F1 built and tested; F2-F4 designed, not built.** Written 2026-10-24 after the Option A / A2 previews (throwaway scripts, since removed;
+Status: **superseded in part (2026-10-25).** The recipes below (Clean frame, Plain frame) were removed; formats are now templates made on the Formats page and stored in the database (see `villomillo/formats/`). The research, layers idea and safe zones below still stand. Earlier status: **F1 built and tested; F2-F4 designed, not built.** Written 2026-10-24 after the Option A / A2 previews (throwaway scripts, since removed;
 they are in git history before the clean-up). Chosen base look: **A2 "Clean frame"**.
 
 ## 1. The problem

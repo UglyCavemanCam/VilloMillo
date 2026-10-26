@@ -39,8 +39,8 @@ def sv(tmp_path):
 def campaign_post(sv, *, campaign=SOLVED, status="uploaded", url="https://youtube.com/shorts/abc", n=1) -> int:
     with sv.db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, "
-                  "state, reason, created_at, campaign_id) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 FROM clips_ready), 'vid00000001', 0, 30, 90, 'h', "
-                  "'f.mp4', '{}', '{}', 'approved', 'r', ?, ?)", (store.iso(), campaign))
+                  "state, reason, created_at, campaign_id, format_applied) VALUES ('solved', (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 FROM clips_ready), 'vid00000001', 0, 30, 90, 'h', "
+                  "'f.mp4', '{}', '{}', 'approved', 'r', ?, ?, 1)", (store.iso(), campaign))
         clip_id = c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
         c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, url, posted_at, created_at) "
                   "VALUES ('solved', ?, 'youtube_shorts', 'api', ?, 't', 'c', '[]', ?, ?, ?, ?)", (clip_id, status, store.iso(NOW), url, store.iso(NOW), store.iso(NOW)))
@@ -96,6 +96,7 @@ def test_each_refusal_the_page_can_give_is_recognised(text, status):
 
 def test_nothing_is_recognised_in_a_clean_form_and_success_is_told_apart():
     assert rewards.classify("Paste your post link\nSubmit\nCancel") is None
+    assert rewards.classify("Submit clip link\nNot already submitted to any campaign\nPosted within the last 30 minutes\nSubmit clip") is None
     assert rewards.looks_submitted("Clip submitted. It is now under review.") and not rewards.looks_submitted("Paste your post link")
     assert "too old" in rewards.classify("Check your link.\nThis post is too old.\nTry another.").detail
 
@@ -209,7 +210,7 @@ def test_a_campaign_clip_is_queued_the_moment_it_is_posted_and_other_clips_are_n
     with sv.db.conn() as c:
         c.execute("DELETE FROM tasks")
     p = sv.profiles["solved"]
-    sv.profiles["solved"] = p.model_copy(update={"posting": p.posting.model_copy(update={"dry_run": False, "platforms": {"youtube_shorts": "api"}})})
+    sv.profiles["solved"] = p.model_copy(update={"posting": p.posting.model_copy(update={"dry_run": False, "platforms": {"youtube_shorts": "api"}, "post_times": []})})
     from villomillo import accounts
 
     accounts.set_audit(sv.db, "solved", "youtube_shorts", True, "t")
@@ -348,8 +349,14 @@ if (go) go.onclick = () => {{ dlg.style.display = 'none'; document.getElementByI
 </script></body></html>"""
 SIGNED_OUT = '<nav><a href="/login?next=%2Fc%2Fdiscover">Sign in</a></nav>'
 SIGNED_IN = '<nav><span>Creator menu</span></nav>'
+# The checkbox is built like Content Rewards' own: the real input is a 1px box for screen readers, and a drawn square sits on top of it,
+# so a browser tool that clicks the input itself is told "something intercepts pointer events" and times out. Only the row can be clicked.
 FORM = """<button id="open">Submit clip</button><div id="toast"></div>
-<div id="dlg" role="dialog" style="display:none"><input id="link" placeholder="Paste your post link"><p id="note"></p><button id="go">Submit</button><button>Cancel</button></div>"""
+<div id="dlg" role="dialog" style="display:none"><input id="link" placeholder="Paste your post link"><p id="note"></p>
+<ul><li>Posted from one of your linked accounts</li><li>Not already submitted to any campaign</li><li>Posted within the last 30 minutes</li></ul>
+<label style="display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer"><input id="accept" type="checkbox" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap"><span style="display:inline-block;width:15px;height:15px;background:#eee;border:1px solid #999"></span><span>I've read the requirements and accept that non-compliant clips may be auto-rejected.</span></label>
+<button id="go" disabled>Submit</button><button>Cancel</button></div>
+<script>document.getElementById('accept').onchange = (e) => document.getElementById('go').disabled = !e.target.checked;</script>"""
 
 
 class Site(BaseHTTPRequestHandler):
@@ -427,6 +434,7 @@ def test_the_real_browser_fills_the_form_and_in_trial_mode_stops_before_submit(d
     with driver as d:
         d.goto(f"{site}/signin")
         out = d.submit(f"{site}/campaign/1", "https://youtube.com/shorts/abc", dry_run=True)
+        assert d.page.is_checked("#accept")  # the requirements box is ticked even when nothing is sent
     assert out.status == "dry_run" and pathlib.Path(out.screenshot).exists() and Site.sent == []
 
 

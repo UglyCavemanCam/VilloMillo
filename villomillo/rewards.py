@@ -68,7 +68,8 @@ class Outcome:
 # ---- reading what the page says --------------------------------------------------------------------------------------
 
 _RULES = (  # (status, words that mean it): checked in order against the text the form shows
-    ("duplicate", r"already (been )?(submitted|added)|duplicate|you('ve| have) already"),
+    # "Not already submitted to any campaign" is a rule the form lists, not a refusal, so "not already" does not count
+    ("duplicate", r"(?<!not\s)already (been )?(submitted|added)|duplicate|you('ve| have) already"),
     ("post_age", r"too old|older than|posted (more than|over)|post age|no longer eligible|must be (posted|published) (within|in the last)"),
     ("not_linked", r"link (your|an?|the)( \w+){0,2} (account|channel)|not linked|unlinked|connect (your|an?)( \w+){0,2} (account|channel)|isn.t linked|oauth|verify (your|that you own)"),
     ("wrong_sound", r"required sound|sound requirement|must use the (required )?sound"),
@@ -89,6 +90,24 @@ def classify(text: str) -> Outcome | None:
 
 def looks_submitted(text: str) -> bool:
     return bool(_SUCCESS.search(text or ""))
+
+
+def _accept_requirements(scope) -> None:
+    """Tick the "I've read the requirements" box, the way you do by hand. If the page has no such box, nothing happens here: the
+    Submit button check decides what to do next.
+
+    The page hides the real input (a 1px box for screen readers) under a drawn square, so clicking the input itself is refused as
+    "intercepts pointer events". The row is clicked instead, as a person does, and the box is checked afterwards."""
+    words = re.compile(r"read the requirements", re.I)
+    box = scope.get_by_role("checkbox", name=words)
+    if box.count() and box.first.is_checked():
+        return
+    row = scope.locator("label").filter(has_text=words)
+    row = row if row.count() else scope.get_by_text(words)
+    if row.count():
+        row.first.click()
+    if box.count() and not box.first.is_checked():
+        box.first.check(force=True)  # the row did not toggle it: click where the box is, even with the square on top
 
 
 def _sentence(text: str, at: int) -> str:
@@ -251,6 +270,7 @@ class BrowserDriver:
         if (problem := classify(shown)):
             problem.screenshot = self.shot(problem.status)
             return problem
+        _accept_requirements(scope)  # the Submit button stays greyed out until this is ticked
         if dry_run:
             return Outcome("dry_run", "The form was filled in and stopped before Submit.", self.shot("dry-run"))
         send = scope.get_by_role("button", name=re.compile(r"^\s*(submit|send|confirm)\b", re.I))

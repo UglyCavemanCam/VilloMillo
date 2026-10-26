@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from .. import claude
+from . import effects
 from .render import ClipText
 
 TITLE_LINE_MAX = 30
@@ -37,7 +38,7 @@ def find_phrase(words: list[dict], phrase: str, start: float) -> float | None:
     return None
 
 
-def check(raw: dict, words: list[dict], start: float) -> ClipText:
+def check(raw: dict, words: list[dict], start: float, music_moods: tuple[str, ...] = ()) -> ClipText:
     """Turn Claude's reply into a ClipText, or say why it cannot be used."""
     lines = [str(x).strip() for x in (raw.get("title_lines") or []) if str(x).strip()][:2]
     if not lines:
@@ -57,7 +58,18 @@ def check(raw: dict, words: list[dict], start: float) -> ClipText:
     takeaway = str(raw.get("takeaway") or "").strip()
     if len(takeaway) > TAKEAWAY_MAX:
         takeaway = ""
-    return ClipText(lines, points, takeaway)
+    proposed = []
+    for e in [x for x in (raw.get("effects") or []) if isinstance(x, dict)][:effects.MAX_PROPOSED]:
+        kind, at, reason = str(e.get("kind") or "").strip(), str(e.get("at") or "").strip(), str(e.get("reason") or "").strip()
+        when = find_phrase(words, at, start) if at else None
+        if kind in effects.KINDS and when is not None and reason and len(reason) <= effects.REASON_MAX:
+            proposed.append((kind, when, reason))
+    music = None
+    if music_moods and isinstance(raw.get("music"), dict):
+        mood, why = str(raw["music"].get("mood") or "").strip().lower(), str(raw["music"].get("reason") or "").strip()
+        if mood in music_moods and why and len(why) <= effects.REASON_MAX:
+            music = (mood, why)
+    return ClipText(lines, points, takeaway, proposed, bool(raw.get("serious")), music)
 
 
 def screen(jev, clip_words: str, text: ClipText) -> tuple[dict[str, float], dict]:
@@ -76,18 +88,40 @@ def screen(jev, clip_words: str, text: ClipText) -> tuple[dict[str, float], dict
     return {name: float(result.answers[name]["noul"]) for name in questions}, usage
 
 
+SERIOUS_LIMIT = 0.5             # Jev's probability that the subject is loss, injury, violence or tragedy
+MOMENT_LIMIT = 0.5              # Jev's probability that a proposed effect really lands on an emphatic moment
+
+
+def screen_moments(jev, clip_words: str, text: ClipText) -> tuple[list[bool], float, dict]:
+    """Jev's answers on the proposed effects (is each one a real emphatic moment the speaker makes?) and on the subject
+    (is it serious?). Returns (keep flags for the effects, the serious probability, usage)."""
+    moments = {f"moment_{i}": f"{kind}: {why}" for i, (kind, _, why) in enumerate(text.proposed_effects)}
+    ask = {name: {"type": "noul", "instructions": (
+        f"Is this a real, emphatic moment (a strong claim, punchline or surprise) that the speaker actually makes at this point "
+        f"in the clip transcript? Answer no if it is flat, invented, or the description does not match what was said. Described as: '{why}'")}
+        for name, why in moments.items()}
+    ask["serious"] = {"type": "noul", "instructions": (
+        "Is the subject of this clip serious: loss, injury, illness, violence, a death or tragedy? Yes if so.")}
+    result = jev.ask({"clip_transcript": clip_words[:4000], "moments": moments}, ask)
+    keep = [float(result.answers[f"moment_{i}"]["noul"]) >= MOMENT_LIMIT for i in range(len(text.proposed_effects))]
+    usage = {"input_tokens": result.usage.get("input_tokens") or 0, "cost": result.cost_usd}
+    return keep, float(result.answers["serious"]["noul"]), usage
+
+
 def make(claude_client, jev, *, channel: str, niche: str, episode: str, words: list[dict],
-         start: float) -> tuple[ClipText, dict]:
+         start: float, music_moods: tuple[str, ...] = ()) -> tuple[ClipText, dict]:
     """The checked text for one clip, and what it cost: {"claude": usd, "jev": usd, "jev_tokens": n}.
     Raises TextProblem if no title can be trusted."""
     transcript = " ".join(w["text"] for w in words)
     facts = {"channel": channel, "niche": niche, "episode_title": episode, "transcript": transcript[:4000]}
+    if music_moods:
+        facts["music_moods"] = list(music_moods)
     cost, last = {"claude": 0.0, "jev": 0.0, "jev_tokens": 0}, "no reply"
     for _ in range(3):  # a title that fails is rewritten up to twice
         raw, spent = claude.clip_overlay_text(claude_client, facts)
         cost["claude"] += spent
         try:
-            text = check(raw, words, start)
+            text = check(raw, words, start, music_moods)
         except TextProblem as e:
             last = str(e)
             continue
@@ -100,5 +134,10 @@ def make(claude_client, jev, *, channel: str, niche: str, episode: str, words: l
         text.points = [p for i, p in enumerate(text.points) if odds.get(f"point_{i}", 0) < MISLEADING_LIMIT]
         if odds.get("takeaway", 0) >= MISLEADING_LIMIT:
             text.takeaway = ""
+        keep, serious_odds, moment_usage = screen_moments(jev, transcript, text)
+        cost["jev"] += moment_usage["cost"]
+        cost["jev_tokens"] += moment_usage["input_tokens"]
+        text.proposed_effects = [e for e, ok in zip(text.proposed_effects, keep) if ok]
+        text.serious = text.serious or serious_odds >= SERIOUS_LIMIT
         return text, cost
     raise TextProblem(last)

@@ -1,0 +1,64 @@
+# What the AI Generate button may choose for each kind of clip. The reasons are in docs/FORMAT-PLAYBOOKS.md.
+# The code refuses any option outside these lists, with the reason. Change a list here and the next generate follows it.
+
+min_headline_contrast: 4.5     # WCAG AA: the headline's words against its box
+
+# Your feel narrows the caption styles further: calm never gets words that jump or flash, high energy gets the bold ones.
+feel_styles:
+  calm: [dim, plate, underline, build, type]
+  balanced: [spotlight, underline, block, dim, plate, build, marker, pop]
+  high: [slam, burst, neon, pop, spotlight, block]
+
+kinds:
+  podcast:
+    label: Podcasts
+    caption_styles: [spotlight, underline, dim, plate, build, pop, block]
+    layouts: [face_fill, fit_blur]
+    positions: [lower, middle]
+    effects_max: balanced
+    effect_kinds: [punch_in, zoom_out, pop, freeze, blur]
+    music: when_helps
+    rules:
+      - The speaker's face is the picture. Keep the captions low and clear of the face.
+      - Open with a headline that makes a claim or asks a question in the first second.
+      - Restrained word emphasis: one highlighted word at a time.
+      - Effects only on a strong statement, never more than one every few seconds.
+
+  talk:
+    label: Talks
+    caption_styles: [underline, dim, plate, build, spotlight]
+    layouts: [face_fill, fit_blur]
+    positions: [lower, middle]
+    effects_max: subtle
+    effect_kinds: [punch_in, zoom_out, pop, freeze, blur]
+    music: when_helps
+    rules:
+      - A calm, clear talk. Captions read like a subtitle track, not a shout.
+      - The headline states the idea of the talk in plain words.
+      - Subtle effects only.
+
+  stream:
+    label: Stream clips
+    caption_styles: [slam, burst, neon, pop, spotlight, block]
+    layouts: [stacked_webcam, fit_blur]
+    positions: [lower]
+    effects_max: punchy
+    effect_kinds: [punch_in, zoom_out, shake, flash, glitch, pop, freeze, blur]
+    music: when_helps
+    rules:
+      - Stream clips are energetic. Bold captions are right, but never cover the game's own text or the webcam's face.
+      - The webcam sits in a band above the game; keep it to about 15 to 20 percent of the frame.
+      - The headline names the moment in the first second.
+      - Effects on the big moments only: a hit, a reveal, a fail.
+
+  other:
+    label: Other
+    caption_styles: [spotlight, underline, dim, plate, block, pop, build]
+    layouts: [face_fill, fit_blur]
+    positions: [lower, middle]
+    effects_max: balanced
+    effect_kinds: [punch_in, zoom_out, pop, freeze, blur]
+    music: when_helps
+    rules:
+      - Keep it readable first. The captions carry the clip.
+      - The headline is a clear hook in the first second.

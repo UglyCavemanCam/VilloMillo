@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import sys
 import threading
@@ -113,7 +114,7 @@ def cmd_score(args) -> None:
         result = scoring.score_video(sv.db, sv.jev, sv.app.scoring, preview, source=args.source, breaker=sv.app.spend_breaker)
     except spend.SpendPaused as e:
         sys.exit(str(e))
-    print(f"\nKind: {result.kind.explain}\nCategory: {result.kind.category}. Look: {result.kind.look}.\n")
+    print(f"\nKind: {result.kind.explain}\nCategory: {result.kind.category}.\n")
     for m in result.moments:
         print(f"moment {m.id}  {m.start:.0f}s - {m.end:.0f}s  {m.hook[:60]}")
         for line in m.explain:
@@ -212,35 +213,24 @@ def cmd_copy(args) -> None:
             sys.exit(str(e))
 
 
-def cmd_format_clip(args) -> None:
-    """Render a clip we already hold in a recipe, to a preview file. Nothing in the review queue changes."""
-    from . import claude, formats
-    from .config import ROOT
+def cmd_clean_slate(args) -> None:
+    """Preview, back up, or wipe the clips, posts and queues. Wipe needs the digest that preview printed."""
+    from . import cleanslate
 
-    sv = _services()
-    p = _pick(sv, args.profile)
-    if args.recipe:
-        p = p.model_copy(update={"format": args.recipe})
-    if not p.format:
-        sys.exit(f"{p.id} has no format recipe; name one with --recipe")
-    with sv.db.conn() as c:
-        row = c.execute("SELECT * FROM clips_ready WHERE profile_id=? AND engine_clip_id=?", (p.id, args.clip)).fetchone()
-        title = c.execute("SELECT title FROM videos WHERE profile_id=? AND video_id=?",
-                          (p.id, row["video_id"] if row else "")).fetchone()
-    if row is None:
-        sys.exit(f"{p.id} has no clip {args.clip}")
-    out = pathlib.Path(args.out) if args.out else ROOT / "data" / "villomillo" / "previews" / f"clip{args.clip}_{p.format}.mp4"
+    sv = _services(with_apis=False)
     try:
-        info = formats.format_clip(sv.db, p, claude_client=claude._client(), jev=sv.jev, video_id=row["video_id"],
-                                   start_s=row["start_s"], end_s=row["end_s"], out_path=out,
-                                   episode=title["title"] if title else "the episode",
-                                   breaker=sv.app.spend_breaker)
-    except formats.FormatError as e:
-        sys.exit(f"could not apply the look: {e}")
-    text = info["text"]
-    print(out)
-    print("recipe:", info["recipe"], "| left out:", ", ".join(f"{b} ({why})" for b, why in info["dropped"]) or "nothing")
-    print("title:", " / ".join(text.title_lines), "| points:", [label for label, _ in text.points], "| takeaway:", text.takeaway)
+        if args.action == "preview":
+            report = cleanslate.preview(sv.db)
+            print(json.dumps(report, indent=2))
+            print(f"\nTo wipe these exact numbers: run backup, then: python -m villomillo clean-slate wipe --digest {report['digest']}")
+        elif args.action == "backup":
+            print(f"Backup made and checked: {cleanslate.backup(sv.db)}")
+        else:
+            if not args.digest:
+                sys.exit("wipe needs --digest, the digest that preview printed")
+            print(json.dumps(cleanslate.wipe(sv.db, args.digest), indent=2))
+    except cleanslate.CleanSlateError as e:
+        sys.exit(str(e))
 
 
 def cmd_audit(args) -> None:
@@ -411,7 +401,7 @@ def cmd_clip(args) -> None:
     print(clipper.submit(sv.db, clipper.Engine(), p, args.video_id), flush=True)
     for _ in range(args.waits):
         time.sleep(args.interval)
-        formatter = formats.formatter_for(sv.db, p, jev=sv.jev, breaker=sv.app.spend_breaker)
+        formatter = formats.formatter_for(sv.db, p, category=p.category, jev=sv.jev, breaker=sv.app.spend_breaker)
         outcome = clipper.collect(sv.db, clipper.Engine(), sv.jev, p, _job(sv, p, args.video_id), formatter)
         print(outcome, flush=True)
         if not outcome.startswith("waiting"):
@@ -543,12 +533,10 @@ def main(argv: list[str] | None = None) -> None:
     route.add_argument("--clip", type=int, required=True, help="the engine's clip number")
     route.add_argument("--apply", action="store_true", help="also plan the post on that channel")
     route.set_defaults(fn=cmd_route)
-    fmt = sub.add_parser("format-clip", help="render a clip we hold in a format recipe, to a preview file")
-    fmt.add_argument("--profile")
-    fmt.add_argument("--clip", type=int, required=True, help="the engine's clip number")
-    fmt.add_argument("--recipe", help="a recipe from config/villomillo/blueprints.yaml (default: the channel's own)")
-    fmt.add_argument("--out", help="where to write the video")
-    fmt.set_defaults(fn=cmd_format_clip)
+    clean = sub.add_parser("clean-slate", help="clear clips, posts and queues so the app starts fresh: preview, then backup, then wipe")
+    clean.add_argument("action", choices=["preview", "backup", "wipe"])
+    clean.add_argument("--digest", help="the digest that preview printed; required for wipe")
+    clean.set_defaults(fn=cmd_clean_slate)
     copy = sub.add_parser("copy", help="write title and caption options for planned posts")
     copy.add_argument("--profile")
     copy.add_argument("--post-id", type=int)

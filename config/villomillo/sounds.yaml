@@ -1,0 +1,18 @@
+# Sound effects for effects like flashes and zooms. Every one is free to use: CC0, no credit needed, commercial use allowed.
+# Download each file into your Downloads folder, then press "Import from Downloads" on the Music tab.
+#
+#   file       the name the download has (Freesound and OpenGameArt keep their own names)
+#   kind       whoosh (for punch-in, zoom-out and shake) or pop (for a flash)
+#   source     where it came from, and the page that shows its licence
+
+sounds:
+  - {file: 831936__1bob__woosh.wav, kind: whoosh, name: Woosh, source: "Freesound, Woosh by 1bob, https://freesound.org/s/831936/ (CC0)"}
+  - {file: pop1.wav, kind: pop, name: Pop 1, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop2.wav, kind: pop, name: Pop 2, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop3.wav, kind: pop, name: Pop 3, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop4.wav, kind: pop, name: Pop 4, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop5.wav, kind: pop, name: Pop 5, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop6.wav, kind: pop, name: Pop 6, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop7.wav, kind: pop, name: Pop 7, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop8.wav, kind: pop, name: Pop 8, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}
+  - {file: pop9.wav, kind: pop, name: Pop 9, source: "OpenGameArt, Pop sounds by EZduzziteh, https://opengameart.org/content/pop-sounds-0 (CC0)"}

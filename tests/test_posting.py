@@ -43,8 +43,8 @@ def add_clip(db, *, hook="Values are a compass, not a rulebook", text="a long ta
         grade["campaign"] = campaign_rules
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                  "file_path, validation_json, grade_json, state, reason, created_at) "
-                  "VALUES ('solved', ?, 'vid00000001', 100, 130, 80, ?, ?, '{\"facts\": {\"duration_s\": 30}}', ?, ?, 'r', ?)",
+                  "file_path, validation_json, grade_json, state, reason, created_at, format_applied) "
+                  "VALUES ('solved', ?, 'vid00000001', 100, 130, 80, ?, ?, '{\"facts\": {\"duration_s\": 30}}', ?, ?, 'r', ?, 1)",
                   (clip_no, hook, f"/tmp/{clip_no}.mp4", json.dumps(grade), state, store.iso()))
         return c.execute("SELECT id FROM clips_ready ORDER BY id DESC LIMIT 1").fetchone()["id"]
 

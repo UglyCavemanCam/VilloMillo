@@ -11,11 +11,11 @@ import json
 import re
 
 from . import store
-from .config import CONFIG_DIR, Brand, Niche, Posting, Profile, load_profiles
+from .config import CONFIG_DIR, DEFAULT_POST_TIMES, SHORTS_PER_DAY, Brand, Niche, Posting, Profile, load_profiles
 from .db import Database
 
 SEEDED = "channels_seeded"
-DEFAULT_YOUTUBE_PER_DAY = 100  # YouTube's own limit for a channel, as you set it
+DEFAULT_YOUTUBE_PER_DAY = SHORTS_PER_DAY  # the most Shorts a day YouTube should get, all channels together
 
 
 class ChannelError(ValueError):
@@ -46,6 +46,8 @@ def _without_retired(data: dict) -> dict:
     """A channel saved by an older version: drop settings that have since moved (campaign rules to Campaigns) or gone (TikTok)."""
     data.pop("tiktok_handle", None)
     data.pop("campaign", None)
+    for key in ("format", "format_forbid", "format_params"):  # formats now belong to categories (Formats page), not channels
+        data.pop(key, None)
     posting = data.get("posting")
     if posting:
         posting["platforms"] = {k: v for k, v in posting.get("platforms", {}).items() if k != "tiktok"}
@@ -107,11 +109,30 @@ def _new_gaps_once(db: Database) -> None:
         c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (GAP_ONCE,))
 
 
+SLOTS_ONCE = "ten_a_day_times_v1"
+
+
+def _ten_a_day_once(db: Database) -> None:
+    """Channels saved before the daily limit and posting times existed posted every 10 to 20 minutes, up to 100 a day: give them the
+    ten daily times and a limit of ten, once. A change made on the channel's page afterwards is left alone."""
+    with db.conn(immediate=True) as c:
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (SLOTS_ONCE,)).fetchone():
+            return
+        for r in c.execute("SELECT id, data_json FROM channels").fetchall():
+            data = json.loads(r["data_json"])
+            if data.get("posting"):
+                data["posting"]["daily_cap"] = min(int(data["posting"].get("daily_cap", SHORTS_PER_DAY)), SHORTS_PER_DAY)
+                data["posting"]["post_times"] = list(DEFAULT_POST_TIMES)
+                c.execute("UPDATE channels SET data_json=?, updated_at=? WHERE id=?", (json.dumps(data), store.iso(), r["id"]))
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (SLOTS_ONCE,))
+
+
 def load(db: Database) -> dict[str, Profile]:
     _seed(db)
     _make_public_once(db)
     _new_gaps_once(db)
     _score_70_once(db)
+    _ten_a_day_once(db)
     with db.conn() as c:
         rows = c.execute("SELECT id, data_json FROM channels ORDER BY created_at, id").fetchall()
     return {r["id"]: Profile(**_without_retired(json.loads(r["data_json"]))) for r in rows}
@@ -184,7 +205,7 @@ def create(db: Database, profiles: dict[str, Profile], *, name: str, category: s
     profile = Profile(
         id=cid, display_name=name, category=category, niche=Niche(definition=about),
         posting=Posting(dry_run=True, platforms={"youtube_shorts": "manual"}, privacy="public",
-                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=10, max_gap_minutes=20),
+                        daily_cap=DEFAULT_YOUTUBE_PER_DAY, min_gap_minutes=10, max_gap_minutes=20, post_times=list(DEFAULT_POST_TIMES)),
         brand=Brand(name=name),
     )
     save(db, profile)
@@ -252,14 +273,6 @@ def update(db: Database, profiles: dict[str, Profile], channel_id: str, **change
         if not 1 <= cap <= DEFAULT_YOUTUBE_PER_DAY:
             raise ChannelError(f"posts per day must be between 1 and {DEFAULT_YOUTUBE_PER_DAY}")
         data["posting"]["daily_cap"] = cap
-    if "format" in changes:
-        recipe = changes["format"] or None
-        if recipe:
-            from .formats import blueprints
-
-            if recipe not in blueprints.load()[1]:
-                raise ChannelError(f"there is no look called {recipe}")
-        data["format"] = recipe
     updated = Profile(**data)
     save(db, updated)
     profiles[channel_id] = updated

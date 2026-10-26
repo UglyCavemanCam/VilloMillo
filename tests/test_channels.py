@@ -37,9 +37,9 @@ def profiles(db):
 def clip(db, category: str | None, *, state="approved", score=85, owner="solved") -> int:
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                  "file_path, validation_json, grade_json, state, reason, created_at, category) "
+                  "file_path, validation_json, grade_json, state, reason, created_at, category, format_applied) "
                   "VALUES (?, (SELECT COALESCE(MAX(engine_clip_id), 0) + 1 FROM clips_ready), 'vid00000001', 0, 30, ?, 'a hook', "
-                  "'f.mp4', '{}', ?, ?, 'r', ?, ?)",
+                  "'f.mp4', '{}', ?, ?, 'r', ?, ?, 1)",
                   (owner, score, json.dumps({"caption_text": "a clear point about hard work"}), state, store.iso(), category))
         return c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
 
@@ -82,7 +82,7 @@ def test_names_become_unique_ids_and_a_new_channel_starts_as_a_safe_dry_run(db, 
     a = channels.create(db, profiles, name="Stream clips", category="Stream clips", about="Gaming highlights")
     b = channels.create(db, profiles, name="Stream clips", category="Streams", about="More gaming")
     assert (a.id, b.id) == ("stream-clips", "stream-clips-2")
-    assert a.posting.dry_run and a.posting.privacy == "public" and a.posting.daily_cap == 100
+    assert a.posting.dry_run and a.posting.privacy == "public" and a.posting.daily_cap == 10 and a.posting.post_times
     assert list(a.posting.platforms) == ["youtube_shorts"]
 
 
@@ -91,17 +91,15 @@ def test_bad_input_is_refused_with_a_plain_message(db, profiles):
                 {"name": "x", "category": "y", "about": ""}, {"name": "!", "category": "!!", "about": "y"}):
         with pytest.raises(channels.ChannelError):
             channels.create(db, profiles, **bad)
-    with pytest.raises(channels.ChannelError, match="between 1 and 100"):
-        channels.update(db, profiles, "solved", youtube_daily_cap="101")
-    with pytest.raises(channels.ChannelError, match="no look called"):
-        channels.update(db, profiles, "solved", format="nonsense")
+    with pytest.raises(channels.ChannelError, match="between 1 and 10"):
+        channels.update(db, profiles, "solved", youtube_daily_cap="11")
 
 
 def test_edits_are_saved_and_the_live_set_follows(db, profiles):
-    channels.update(db, profiles, "solved", brand_handle="@pods", youtube_tags="@a @b", youtube_daily_cap="50")
+    channels.update(db, profiles, "solved", brand_handle="@pods", youtube_tags="@a @b", youtube_daily_cap="5")
     saved = channels.load(db)["solved"]
     assert saved.brand.handle == "@pods" and saved.posting.tags["youtube_shorts"] == "@a @b"
-    assert saved.posting.daily_cap == 50 and profiles["solved"].posting.daily_cap == 50
+    assert saved.posting.daily_cap == 5 and profiles["solved"].posting.daily_cap == 5
 
 
 def test_a_channel_with_clips_cannot_be_deleted_and_the_last_one_stays(db, profiles):
@@ -210,12 +208,12 @@ def test_add_channel_shows_a_plain_error_for_a_taken_category(web):
 def test_saving_a_channel_changes_it_and_a_bad_value_changes_nothing(web):
     client, sv = web
     base = {"name": "Podcasts", "category": "Podcasts", "about": "Talk shows",
-            "brand_handle": "@pods", "youtube_tags": "@x", "youtube_daily_cap": "40", "format": ""}
+            "brand_handle": "@pods", "youtube_tags": "@x", "youtube_daily_cap": "4", "format": ""}
     assert client.post("/channels/solved/save", data=base, follow_redirects=False).status_code == 303
-    assert sv.profiles["solved"].brand.handle == "@pods" and sv.profiles["solved"].posting.daily_cap == 40
-    r = client.post("/channels/solved/save", data={**base, "youtube_daily_cap": "500"})
-    assert r.status_code == 422 and "between 1 and 100" in r.text
-    assert sv.profiles["solved"].posting.daily_cap == 40
+    assert sv.profiles["solved"].brand.handle == "@pods" and sv.profiles["solved"].posting.daily_cap == 4
+    r = client.post("/channels/solved/save", data={**base, "youtube_daily_cap": "50"})
+    assert r.status_code == 422 and "between 1 and 10" in r.text
+    assert sv.profiles["solved"].posting.daily_cap == 4
 
 
 def test_requests_from_other_sites_are_refused(web):
@@ -343,7 +341,7 @@ def test_a_channel_saved_before_the_privacy_setting_existed_becomes_public_once(
 
 def test_who_can_watch_is_changed_on_the_channel_page_and_a_bad_value_is_refused(web):
     client, sv = web
-    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "10",
             "youtube_route": "api", "dry_run": "1", "privacy": "unlisted"}
     assert "Who can watch the videos" in client.get("/channels/solved?profile=solved").text
     assert client.post("/channels/solved/save", data=form, follow_redirects=False).status_code == 303
@@ -369,7 +367,7 @@ def test_the_upload_size_is_a_channel_setting(web):
     client, sv = web
     assert sv.profiles["solved"].posting.upload_size == "1080"
     assert "Upload size" in client.get("/channels/solved?profile=solved").text
-    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "100",
+    form = {"name": "Podcasts", "category": "Podcasts", "about": "Talks", "brand_handle": "@cavemancam", "youtube_daily_cap": "10",
             "youtube_route": "api", "dry_run": "1", "privacy": "public", "upload_size": "1440"}
     assert client.post("/channels/solved/save", data=form, follow_redirects=False).status_code == 303
     assert channels.load(sv.db)["solved"].posting.upload_size == "1440"

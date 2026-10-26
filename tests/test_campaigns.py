@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from test_runs import FakeEngine, FakeJev
+from test_runs import FakeEngine, FakeJev, _format_applied
 
 from villomillo import campaigns, channels, clipper, config, contentrewards, posting, routing, runs, store
 from villomillo.db import Database
@@ -368,7 +368,8 @@ def test_a_campaign_that_ran_out_of_budget_stops_its_planned_video(sv):
     assert run["state"] == "nothing" and "budget" in run["note"] and len(engine.submitted) == 1
 
 
-def test_a_campaigns_clips_carry_its_rules_tags_and_link_submission(sv):
+def test_a_campaigns_clips_carry_its_rules_tags_and_link_submission(sv, monkeypatch):
+    monkeypatch.setattr("villomillo.formats.formatter_for", lambda *a, **k: _format_applied)
     run_id, engine = run_to_posts(sv, None)
     runs.collect(sv, run_id, engine)
     with sv.db.conn() as c:
@@ -415,6 +416,7 @@ def test_the_worker_job_reads_the_site_fills_queues_and_starts_a_video(sv, monke
     ready_campaign(sv)
     site = FakeSite([listed(SOLVED, "Solved")], {SOLVED: detail(SOLVED, "Solved")})
     monkeypatch.setattr(contentrewards, "new_client", site.client)
+    campaigns.set_on(sv.db, True)
     lines = campaigns.work(sv, site.client())
     assert any("public list" in line for line in lines) and any("queued" in line for line in lines) and any("started" in line for line in lines)
 
@@ -483,8 +485,8 @@ def test_home_asks_for_what_only_you_can_do(web):
     assert "1 campaign worth joining" in client.get("/?profile=solved").text
     run_id = 1
     with sv.db.conn() as c:
-        c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at, campaign_id) "
-                  "VALUES ('solved', 1, 'v', 0, 30, 80, 'h', 'f', '{}', '{}', 'approved', 'r', ?, ?)", (store.iso(), SOLVED))
+        c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at, campaign_id, format_applied) "
+                  "VALUES ('solved', 1, 'v', 0, 30, 80, 'h', 'f', '{}', '{}', 'approved', 'r', ?, ?, 1)", (store.iso(), SOLVED))
         c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, created_at, url) "
                   "VALUES ('solved', 1, 'youtube_shorts', 'api', 'uploaded', 't', 'c', '[]', ?, ?, 'https://youtube.com/shorts/aB3dEfGhIjK')", (store.iso(), store.iso()))
     assert "Submit 1 link to" in client.get("/?profile=solved").text
@@ -500,8 +502,8 @@ def test_the_recheck_command_only_touches_the_campaigns_own_clips(sv, monkeypatc
     ready_campaign(sv)
     with sv.db.conn() as c:
         for n, camp in ((1, SOLVED), (2, None)):
-            c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at, campaign_id) "
-                      "VALUES ('solved', ?, 'v', 0, 30, 80, 'h', 'f.mp4', '{}', ?, 'review', 'r', ?, ?)",
+            c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at, campaign_id, format_applied) "
+                      "VALUES ('solved', ?, 'v', 0, 30, 80, 'h', 'f.mp4', '{}', ?, 'review', 'r', ?, ?, 1)",
                       (n, json.dumps({"caption_text": "words", "ad_read": 0.0}), store.iso(), camp))
     monkeypatch.setitem(rules_check.check.__kwdefaults__, "face", lambda path, window: 0.0)
     lines = clipper.recheck(sv.db, FakeEngine(), sv.jev, sv.profiles["solved"], SOLVED, campaigns.rules_for(campaigns.get(sv.db, SOLVED)))
@@ -566,3 +568,32 @@ def test_saving_a_campaigns_sources_looks_for_videos_straight_away(db, tmp_path)
     assert r.status_code == 303
     with db.conn() as c:
         assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='campaigns' AND status='queued'").fetchone()["n"] >= 1
+
+
+def test_campaigns_are_off_until_switched_on_and_do_nothing_while_off(sv, monkeypatch):
+    assert campaigns.is_on(sv.db) is False
+    ready_campaign(sv)
+    site = FakeSite([listed(SOLVED, "Solved")], {SOLVED: detail(SOLVED, "Solved")})
+    monkeypatch.setattr(contentrewards, "new_client", site.client)
+    assert campaigns.work(sv, site.client()) == []  # nothing read, nothing queued, nothing started
+    with sv.db.conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM campaign_queue").fetchone()[0] == 0
+        assert c.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 0
+    campaigns.set_on(sv.db, True)
+    assert campaigns.is_on(sv.db) is True and campaigns.work(sv, site.client())
+    campaigns.set_on(sv.db, False)
+    assert campaigns.is_on(sv.db) is False
+
+
+def test_the_campaigns_page_has_the_switch_and_it_works(sv):
+    from fastapi.testclient import TestClient
+
+    from villomillo.web.app import create_app
+
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    page = client.get("/campaigns").text
+    assert "Run Campaigns" in page and "Switch Campaigns on" in page and campaigns.is_on(sv.db) is False
+    client.post("/campaigns/switch", data={"on": "1"}, follow_redirects=False)
+    assert campaigns.is_on(sv.db) is True and "Switch Campaigns off" in client.get("/campaigns").text
+    client.post("/campaigns/switch", data={"on": "0"}, follow_redirects=False)
+    assert campaigns.is_on(sv.db) is False

@@ -401,9 +401,29 @@ def start_next(sv, client=None) -> list[str]:
     return lines
 
 
+SWITCH_KEY = "campaigns_switch"
+
+
+def is_on(db: Database) -> bool:
+    """Whether campaign work runs by itself. It is off until someone switches it on."""
+    with db.conn() as c:
+        row = c.execute("SELECT value FROM meta WHERE key=?", (SWITCH_KEY,)).fetchone()
+    return bool(json.loads(row["value"]).get("on", False)) if row else False
+
+
+def set_on(db: Database, on: bool) -> None:
+    with db.conn() as c:
+        c.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  (SWITCH_KEY, json.dumps({"on": bool(on)})))
+        c.execute("UPDATE schedules SET enabled=1 WHERE name='campaigns'")  # the switch decides; the schedule only ticks
+    store.event(db, "info", "campaigns", "Campaigns are " + ("on" if on else "off"))
+
+
 def work(sv, client=None) -> list[str]:
-    """One pass: read Content Rewards, keep the queues full, and start the next video."""
+    """One pass: read Content Rewards, keep the queues full, and start the next video. Does nothing while the switch is off."""
     db, rules = sv.db, sv.app.scoring
+    if not is_on(db):
+        return []
     seed_solved(db, rules)
     lines = []
     try:

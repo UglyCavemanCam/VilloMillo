@@ -137,6 +137,7 @@ def test_research_and_campaign_passes_write_to_their_feed(sv):
     research.work(sv, yt=sv.yt, feed=FakeFeed())
     feed = [x["message"] for x in activity.recent(sv.db, "research")]
     assert feed[0] == "Pass finished: nothing waiting." and any("Searched YouTube" in m for m in feed)
+    campaigns.set_on(sv.db, True)
     campaigns.work(sv, client=__import__("test_campaigns").FakeSite([], {}).client())
     lines = [x["message"] for x in activity.recent(sv.db, "campaign")]
     assert any("could not be read" in m or "campaigns on the public list" in m for m in lines)

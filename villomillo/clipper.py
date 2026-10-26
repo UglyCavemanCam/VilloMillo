@@ -118,6 +118,10 @@ class Engine:
             raise EngineUnavailable(f"engine has no media for clip {clip_id} (HTTP {r.status_code})")
         return r.content
 
+    def delete_clip(self, clip_id: int) -> bool:
+        """Remove one clip from the engine: its file and its rows. The video, its download and its transcript stay."""
+        return self._call("DELETE", f"/clips/{clip_id}").status_code == 200
+
 
 PREVIEW_MOMENTS = 10  # the most moments one preview returns: the engine's own limit per video
 
@@ -223,36 +227,39 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
         if seen:
             continue
         path = OUTBOX / profile.id / f"{clip['id']}.mp4"
-        look = "engine's own look"
-        if formatter is None:
+        clip_category = category or profile.category or None
+        template_id, failure, effects_used, music_used = None, None, [], None
+        if formatter is None:  # no template for this category: the engine's own render is kept for watching, and flagged
             path.write_bytes(engine.media(clip["id"]))
+            failure = f"no format is set for the {clip_category or 'this'} category yet"
         else:
             raw = path.with_name(f"{clip['id']}.engine.mp4")
             raw.write_bytes(engine.media(clip["id"]))
-            failure = None
             for attempt in (1, 2):  # a second try settles a text or network hiccup
                 try:
-                    look = f"recipe {formatter(clip, job, path)['recipe']}"
+                    made = formatter(clip, {**job, "campaign_id": campaign_id, "category": clip_category}, path)
+                    template_id, effects_used, music_used = made["template"], made.get("effects", []), made.get("music")
                     failure = None
                     break
-                except Exception as e:  # a failed look never loses the clip
+                except Exception as e:  # a failed format never loses the clip
                     failure = f"{type(e).__name__}: {e}" if not str(e) or isinstance(e, KeyError) else str(e)
             if failure is not None:
                 shutil.copyfile(raw, path)
-                look = f"look not applied: {failure[:160]}"
                 if note:
-                    note(f"Clip {clip['id']}: the look could not be applied ({failure[:120]}). It has the engine's own look, so it waits for you instead of posting.", "warn")
+                    note(f"Clip {clip['id']} needs a format: {failure[:120]}. It waits for you and cannot be posted until one is applied.", "warn")
+        applied = failure is None
         verdict = validate.check(path)
         text = engine.captions_text(clip["id"])
         if verdict["ok"]:
             answers = grade_clip(db, jev, profile, clip["id"], text)
             self_contained = float(answers["self_contained"]["noul"])
+            look = f"template {template_id}" if applied else f"not formatted: {failure[:160]}"
             grade = {"self_contained": round(self_contained, 3),
                      "hook": answers["hook"]["score"], "payoff": answers["payoff"]["score"],
                      "ad_read": campaign.ad_read_from(answers), "caption_text": text[:4000], "look": look,
-                     "look_failed": look.startswith("look not applied")}
+                     "effects": effects_used, "music": music_used}
             state, reason = "review", "passed checks; waiting for your decision" + (
-                f" ({look})" if look.startswith("look not applied") else "")
+                "" if applied else f"; needs a format: {failure[:160]}")
             if self_contained < SELF_CONTAINED_MIN:
                 state, reason = "rejected_auto", f"does not stand alone (self-contained {self_contained:.0%})"
             elif campaign_rules:
@@ -267,11 +274,11 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
         with db.conn() as c:
             c.execute(
                 "INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                "file_path, validation_json, grade_json, state, reason, created_at, category, campaign_id) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "file_path, validation_json, grade_json, state, reason, created_at, category, campaign_id, template_id, format_applied) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (profile.id, clip["id"], job["video_id"], clip["start_s"], clip["end_s"], clip["score"],
                  clip.get("hook"), str(path), json.dumps(verdict), json.dumps(grade), state, reason, store.iso(),
-                 category or profile.category or None, campaign_id),
+                 clip_category, campaign_id, template_id, int(applied)),
             )
         saved += 1
         checked += verdict["ok"]
@@ -353,9 +360,11 @@ def decide(db: Database, profile_id: str, clip_id: int, decision: str) -> None:
         raise ValueError("decision must be approve or reject")
     state = "approved" if decision == "approve" else "rejected"
     with db.conn() as c:
-        row = c.execute("SELECT state FROM clips_ready WHERE profile_id=? AND id=?", (profile_id, clip_id)).fetchone()
+        row = c.execute("SELECT state, format_applied FROM clips_ready WHERE profile_id=? AND id=?", (profile_id, clip_id)).fetchone()
         if row is None:
             raise LookupError("no such clip")
         if row["state"] != "review":
             raise ValueError(f"this clip is {row['state']}, not waiting for a decision")
+        if state == "approved" and not row["format_applied"]:
+            raise ValueError("this clip has no format yet: apply one first, then approve it")
         c.execute("UPDATE clips_ready SET state=?, decided_at=? WHERE id=?", (state, store.iso(), clip_id))

@@ -45,7 +45,7 @@ def moment(i=1, score=88, text=TEXT) -> dict:
     return {"id": i, "start": 100.0 * i, "end": 100.0 * i + 30, "score": score, "hook": f"hook {i}", "text": text}
 
 
-PODCAST = scoring.KindReading("podcast", "podcast or interview", "Podcasts", 0.9, "podcast_talk", False, "x")
+PODCAST = scoring.KindReading("podcast", "podcast or interview", "Podcasts", 0.9, False, "x")
 
 
 # ---- the formula -----------------------------------------------------------------------------------------------
@@ -144,27 +144,26 @@ def kind(db, **weights):
     return scoring.detect_kind(db, jev, RULES, title="A talk", channel="Chan", excerpts=[TEXT])
 
 
-def test_a_clear_podcast_is_a_podcast_with_its_look(db):
+def test_a_clear_podcast_is_a_podcast_in_the_podcast_category(db):
     k = kind(db, podcast=0.9, stream=0.05, talk=0.05)
-    assert (k.kind, k.category, k.look, k.unsure) == ("podcast", "Podcasts", "podcast_talk", False)
-    assert k.certainty == 0.9 and "90%" in k.explain and "podcast_talk" in k.explain
+    assert (k.kind, k.category, k.unsure) == ("podcast", "Podcasts", False)
+    assert k.certainty == 0.9 and "90%" in k.explain
 
 
-def test_two_plausible_kinds_make_it_unsure_and_the_plain_look_is_used(db):
+def test_two_plausible_kinds_make_it_unsure_and_it_goes_to_other_for_review(db):
     k = kind(db, podcast=0.7, talk=0.6)
-    assert k.kind == "podcast" and k.certainty == pytest.approx(0.5385, abs=1e-4)
-    assert k.unsure and k.look == "generic_safe" and "under the 75%" in k.explain
-    assert k.category == "Podcasts"  # the best guess still decides the category
+    assert k.kind == "other" and k.certainty == pytest.approx(0.5385, abs=1e-4)
+    assert k.unsure and k.category == "Other" and "under the 75%" in k.explain
 
 
 def test_a_stream_is_a_stream_clips_video(db):
     k = kind(db, stream=0.95)
-    assert (k.category, k.look) == ("Stream clips", "generic_safe") and not k.unsure
+    assert k.category == "Stream clips" and not k.unsure
 
 
-def test_a_video_matching_nothing_is_other_and_gets_the_plain_look(db):
+def test_a_video_matching_nothing_is_other(db):
     k = kind(db, podcast=0.2, stream=0.1, talk=0.1)
-    assert (k.kind, k.category, k.look) == ("other", "Other", "generic_safe") and "none of the known kinds" in k.explain
+    assert (k.kind, k.category) == ("other", "Other") and "none of the known kinds" in k.explain
 
 
 # ---- a whole video ----------------------------------------------------------------------------------------------

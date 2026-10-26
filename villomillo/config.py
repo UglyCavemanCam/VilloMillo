@@ -118,6 +118,13 @@ class Campaign(_Strict):
         return self
 
 
+SHORTS_PER_DAY = 10  # YouTube does not want more Shorts than this in a day, counted over every channel together
+# Eastern Time. Two busy stretches (about 12 to 3 PM and 6 to 10 PM, the ones the posting-time guides agree on) get the most
+# slots; the rest are spread over the morning and the early evening so no two posts are less than an hour apart.
+DEFAULT_POST_TIMES = ["08:00", "10:00", "12:00", "13:30", "15:00", "17:00", "18:30", "19:45", "20:45", "21:45"]
+POST_TIME_JITTER_MIN = 10  # a post goes out 0 to this many minutes after its slot, so the times never look machine-made
+
+
 class Posting(_Strict):
     """How approved clips go out. Every posting path starts as a dry run."""
     dry_run: bool = True  # write what would be posted to the outbox; send nothing
@@ -128,8 +135,20 @@ class Posting(_Strict):
     max_gap_minutes: int | None = Field(None, ge=0)  # the longest: each clip waits a random time between the two; None means exactly the shortest
     auto_post_min_score: int = Field(70, ge=0, le=100)  # a clip scoring under this waits for you instead of posting by itself
     daily_cap: int = Field(2, ge=1)  # per platform, per day (YouTube's own limit for a channel is 100)
+    post_times: list[str] = []  # Eastern Time clock times ("13:30") posts go out at, in order; empty means only the gap above decides
     topics: dict[str, list[str]] = {}  # platform -> words that send a clip there
     tags: dict[str, str] = {}  # platform -> the campaign's required @mentions, as written
+
+    @field_validator("post_times")
+    @classmethod
+    def _clock_times(cls, v: list[str]) -> list[str]:
+        times = set()
+        for t in v:
+            h, _, m = t.partition(":")
+            if not (h.isdigit() and m.isdigit() and 0 <= int(h) < 24 and 0 <= int(m) < 60):
+                raise ValueError(f"post time {t!r} is not a clock time like 13:30")
+            times.add(f"{int(h):02d}:{int(m):02d}")
+        return sorted(times)
 
     @model_validator(mode="after")
     def _gap_ordered(self):
@@ -151,9 +170,6 @@ class Profile(_Strict):
     niche: Niche
     posting: Posting | None = None
     brand: Brand = Brand()
-    format: str | None = None  # the recipe in config/villomillo/blueprints.yaml; None keeps the engine's own look
-    format_forbid: list[str] = []  # blueprints this channel must never use (for example outside footage)
-    format_params: dict[str, dict] = {}  # per-blueprint parameter overrides
 
     def digest(self) -> str:
         blob = json.dumps(self.model_dump(), sort_keys=True).encode()

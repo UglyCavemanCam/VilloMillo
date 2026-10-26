@@ -1,0 +1,66 @@
+# The tracks chosen from the YouTube Audio Library (see docs/MUSIC-SHORTLIST.md), and what each is for.
+#
+# Download each one from YouTube Studio's Audio Library into your Downloads folder, then press "Import from Downloads" on the
+# Music tab of the Formats page. The app matches each file by its name ("Title - Artist.mp3") and files it with the mood and
+# categories below. A track that is not in this list can still be added with "Add a track" on the same tab.
+#
+#   mood         one of the library's own moods: calm, inspirational, dramatic, dark, sad, bright, happy, funky, angry, romantic
+#   categories   Podcasts, Talks, Stream clips, Other, or Campaigns (clips made for a campaign, where the AI picks the mood)
+#   genre        as the library labels it; left blank where it was not recorded
+
+source: YouTube Audio Library
+licence: >-
+  YouTube Audio Library License: you can use this audio track in any of your videos, including videos that you monetize.
+  No attribution is required.
+attribution: none
+
+tracks:
+  # --- Podcasts: calm, sparse, sits under a voice
+  - {title: Mirage melody, artist: Patrick Patrikios, genre: Cinematic, mood: calm, categories: [Podcasts, Campaigns]}
+  - {title: Sunlit Souk, artist: Patrick Patrikios, genre: Cinematic, mood: calm, categories: [Podcasts]}
+  - {title: Yoga Style, artist: Chris Haugen, genre: Cinematic, mood: calm, categories: [Podcasts]}
+  - {title: Floating Lanterns, artist: The Mini Vandals, genre: Cinematic, mood: calm, categories: [Podcasts]}
+  - {title: Pulsar, artist: The Grey Room / Density & Time, genre: Ambient, mood: calm, categories: [Podcasts, Campaigns]}
+  - {title: Event Horizon, artist: The Grey Room / Density & Time, genre: Ambient, mood: calm, categories: [Podcasts]}
+  - {title: The Palace Gardens, artist: Asher Fulero, genre: Ambient, mood: calm, categories: [Podcasts]}
+  - {title: Moonlight Magic, artist: Asher Fulero, genre: Ambient, mood: calm, categories: [Podcasts]}
+  - {title: Colony, artist: TrackTribe, genre: Ambient, mood: calm, categories: [Podcasts]}
+  - {title: Eternal Garden, artist: Dan Henig, genre: Ambient, mood: calm, categories: [Podcasts, Campaigns]}
+
+  # --- Talks: warmer and more uplifting, still under a voice
+  - {title: Journey Home, artist: Chris Haugen, genre: Ambient, mood: inspirational, categories: [Talks, Campaigns]}
+  - {title: Temple of treasures, artist: Patrick Patrikios, genre: Cinematic, mood: inspirational, categories: [Talks, Campaigns]}
+  - {title: Snowy Peaks pt I, artist: Chris Haugen, genre: Cinematic, mood: inspirational, categories: [Talks]}
+  - {title: Wind Riders, artist: Asher Fulero, genre: Ambient, mood: inspirational, categories: [Talks]}
+  - {title: Lyric Melody for Solo Bass, artist: John Patitucci, genre: "", mood: inspirational, categories: [Talks]}
+  - {title: Walk Through the Park, artist: TrackTribe, genre: Jazz & Blues, mood: calm, categories: [Talks]}
+  - {title: Orquidario, artist: Quincas Moreira, genre: Jazz & Blues, mood: calm, categories: [Talks]}
+  - {title: Bossa Sonsa, artist: Quincas Moreira, genre: Jazz & Blues, mood: calm, categories: [Talks]}
+
+  # --- Stream clips: energetic electronic and beat music
+  - {title: 360 No Scope, artist: The Soundlings, genre: Dance & Electronic, mood: dramatic, categories: [Stream clips]}
+  - {title: Final Boss, artist: Evening Telecast, genre: Dance & Electronic, mood: angry, categories: [Stream clips]}
+  - {title: Glitcher, artist: Dyalla, genre: Dance & Electronic, mood: bright, categories: [Stream clips]}
+  - {title: Groove, artist: Dyalla, genre: Dance & Electronic, mood: funky, categories: [Stream clips, Campaigns]}
+  - {title: I Might Be Late, artist: Jeremy Black, genre: Dance & Electronic, mood: dramatic, categories: [Stream clips]}
+  - {title: Give It To Me Straight, artist: Jeremy Black, genre: Dance & Electronic, mood: inspirational, categories: [Stream clips, Campaigns]}
+  - {title: Freeze Frame, artist: Stayloose, genre: Dance & Electronic, mood: dramatic, categories: [Stream clips]}
+  - {title: Sewer, artist: Ramzoid, genre: Dance & Electronic, mood: angry, categories: [Stream clips]}
+  - {title: Ten, artist: Anno Domini Beats, genre: Hip-Hop & Rap, mood: dramatic, categories: [Stream clips]}
+  - {title: Comin Wit It, artist: Anno Domini Beats, genre: Hip-Hop & Rap, mood: funky, categories: [Stream clips]}
+
+  # --- Campaign clips: a spread of moods for the AI to choose from
+  - {title: Moon Vision, artist: Chris Haugen, genre: "", mood: dramatic, categories: [Campaigns]}
+  - {title: Risen, artist: Density & Time, genre: "", mood: dramatic, categories: [Campaigns]}
+  - {title: Body of Water, artist: TrackTribe, genre: "", mood: dramatic, categories: [Campaigns]}
+  - {title: Twin Lynches, artist: Density & Time, genre: "", mood: dark, categories: [Campaigns]}
+  - {title: Dune dancer, artist: Patrick Patrikios, genre: "", mood: dark, categories: [Campaigns]}
+  - {title: Curse Of Old, artist: Density & Time, genre: "", mood: sad, categories: [Campaigns]}
+  - {title: Heartbeat Of The Wind, artist: Asher Fulero, genre: Ambient, mood: sad, categories: [Campaigns]}
+  - {title: Natural Light, artist: Chris Haugen, genre: Ambient, mood: sad, categories: [Campaigns]}
+  - {title: A Single Step, artist: Density & Time, genre: "", mood: bright, categories: [Campaigns]}
+  - {title: Saffron serenade, artist: Patrick Patrikios, genre: "", mood: bright, categories: [Campaigns]}
+  - {title: Point - Counterpoint, artist: John Patitucci, genre: "", mood: bright, categories: [Campaigns]}
+  - {title: Shadowstep, artist: The Mini Vandals, genre: "", mood: funky, categories: [Campaigns]}
+  - {title: Valiant, artist: Density & Time, genre: "", mood: funky, categories: [Campaigns]}
+  - {title: Stayin' Lazy, artist: Godmode, genre: Ambient, mood: funky, categories: [Campaigns]}

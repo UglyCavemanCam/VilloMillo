@@ -40,7 +40,7 @@ def do_collect(sv: Services, payload: dict) -> None:
         return
     from . import formats
 
-    formatter = formats.formatter_for(sv.db, p, jev=sv.jev, breaker=sv.app.spend_breaker)
+    formatter = formats.formatter_for(sv.db, p, category=p.category, jev=sv.jev, breaker=sv.app.spend_breaker)
     outcome = clipper.collect(sv.db, clipper.Engine(), sv.jev, p, dict(job), formatter)
     store.event(sv.db, "info", "clip", f"{payload['video_id']}: {outcome}")
     if outcome == "waiting":
@@ -120,7 +120,7 @@ def do_relook(sv: Services, payload: dict) -> None:
     from . import activity, relook
 
     try:
-        line, level = relook.apply(sv, payload["clip_id"]), "info"
+        line, level = relook.apply(sv, payload["clip_id"], template_id=payload.get("template_id"), design=payload.get("design")), "info"
     except relook.RelookError as e:
         line, level = f"clip {payload['clip_id']}: {e}", "warn"
         with sv.db.conn() as c:

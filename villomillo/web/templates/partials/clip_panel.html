@@ -7,7 +7,7 @@
   <div style="display:flex;gap:18px;align-items:flex-start">
     <div><div class="muted" style="font-size:12px">Grade</div><div class="grade" style="font-size:44px;line-height:48px">{{ c.grade }}</div></div>
     <div style="min-width:0"><div style="font-weight:500;line-height:20px">{{ c.title }}</div>
-      <div class="muted" style="font-size:13px;margin-top:6px;line-height:19px">{{ d.facts.look }} · {{ d.facts.size }} · {{ c.duration }} long, from {{ d.facts.start }} to {{ d.facts.end }} in the episode{% if d.episode %}<br>{{ d.episode }}{% endif %}</div></div>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:19px">{{ d.facts.look }}{% if d.is_review and not d.look_failed %} (<a href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a>){% endif %} · {{ d.facts.size }} · {{ c.duration }} long, from {{ d.facts.start }} to {{ d.facts.end }} in the episode{% if d.episode %}<br>{{ d.episode }}{% endif %}</div></div>
   </div>
 
   <div><h3 style="margin-bottom:8px">Checks</h3>
@@ -24,9 +24,15 @@
     {% if rw.post_id and not rw.handed %}<button type="button" class="btn btn-sm" style="margin-top:8px" data-act="/api/clip-handin" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Queued. It is handed in within a minute.">Hand in now</button>{% endif %}
   </div>
 
+  {% if d.effects %}<div class="muted" style="font-size:13px;margin-top:8px;line-height:19px"><b>Effects:</b>
+    {% for e in d.effects %}{{ e.label }} at {{ e.when }}, because {{ e.reason }}.{% if not loop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+  {% if d.music %}<div class="muted" style="font-size:13px;margin-top:8px;line-height:19px"><b>Music:</b>
+    {{ d.music.mood }}, {{ d.music.title }} by {{ d.music.artist }}, because {{ d.music.reason }}.</div>{% endif %}
+  {% if d.is_review and d.effects and not d.look_failed %}<div style="margin-top:8px"><button type="button" class="btn btn-sm" data-act="/api/clips/remake-without-effects" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Remaking the clip without its effects. It takes a minute; reopen the clip after.">Remake without effects</button></div>{% endif %}
   {% if d.look_failed %}
-  <div class="notice warn">{{ icon('alert') }}<div><b>This clip is in the engine's own look, not the channel's.</b>{% if d.look_why %}<br><span class="muted">{{ d.look_why }}</span>{% endif %}<br>
-    <button type="button" class="btn btn-sm btn-primary" style="margin-top:8px" data-act="/api/clip-relook" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Applying the look again. It takes a minute; reopen the clip after.">Apply the look again</button></div></div>
+  <div class="notice warn">{{ icon('alert') }}<div><b>This clip has no format yet, so it cannot be scheduled or posted.</b>{% if d.look_why %}<br><span class="muted">{{ d.look_why }}</span>{% endif %}<br>
+    <button type="button" class="btn btn-sm btn-primary" style="margin-top:8px" data-act="/api/clip-relook" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Applying the format. It takes a minute; reopen the clip after.">Apply a format</button>
+    <a class="btn btn-sm" style="margin:8px 0 0 6px" href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a></div></div>
   {% endif %}
 
   <div><h3 style="margin-bottom:8px">Post</h3>

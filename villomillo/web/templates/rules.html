@@ -14,7 +14,7 @@
   <tr><td><b>Paste</b></td><td>viral {{ d.viral_min }} or more and estimated CPM at least ${{ '%.2f'|format(d.cpm_floor) }}, and you pressed Start</td><td>Not made; "Remove video" if none qualify</td></tr>
   <tr><td><b>Research</b></td><td>viral {{ d.viral_min }} or more and estimated CPM at least the rising bar (now ${{ '%.2f'|format(d.bar) }}, never above ${{ '%.2f'|format(d.bar_max) }})</td><td>Skipped, and logged with the reason</td></tr>
   <tr><td><b>Campaigns</b></td><td>it pays ${{ '%.2f'|format(d.cpm_floor) }} or more per 1,000 views, at least ${{ '{:,.0f}'.format(d.min_budget) }} of budget is left, the campaign's own rules are met, and viral {{ d.viral_min }} or more</td><td>Campaign skipped or dropped; budget checked before each video</td></tr>
-  <tr><td><b>All</b></td><td>the video's type is {{ d.certainty }}% certain or more (else the safe look), the channel fit is {{ d.fit_min }} of 5 or more, and the technical checks pass</td><td>No channel fits: held, and Home offers Add channel</td></tr>
+  <tr><td><b>All</b></td><td>the video's type is {{ d.certainty }}% certain or more (else it goes to Other, which waits for your review), the channel fit is {{ d.fit_min }} of 5 or more, and the technical checks pass</td><td>No channel fits: held, and Home offers Add channel</td></tr>
 </tbody></table></section>
 
 <section class="card stack" aria-labelledby="s-h"><h2 id="s-h">Safety</h2>
@@ -28,7 +28,7 @@
 
 <section class="card stack" aria-labelledby="p-h"><h2 id="p-h">Platform limits</h2>
   <dl class="kv" style="grid-template-columns:170px 1fr">
-    {% for name, cap in d.caps %}<dt>{{ name }} on YouTube</dt><dd>{{ cap }} posts a day (set by you; YouTube allows up to 100). When a channel reaches it, its clips wait for the next day, highest expected revenue first.</dd>{% endfor %}
+    {% for name, cap in d.caps %}<dt>{{ name }} on YouTube</dt><dd>{{ cap }} posts a day (set by you; all channels together never post more than 10 Shorts a day). When a channel reaches it, its clips wait for the next day, highest expected revenue first.</dd>{% endfor %}
     <dt>Before public posting</dt><dd>YouTube's audit must be passed; until then uploads are private or wait for you.</dd>
   </dl>
 </section>

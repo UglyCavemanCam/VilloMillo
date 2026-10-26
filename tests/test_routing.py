@@ -62,8 +62,8 @@ def profiles():
 def approved_clip(db, state="approved") -> int:
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, "
-                  "file_path, validation_json, grade_json, state, reason, created_at) "
-                  "VALUES ('pod', 1, ?, 0, 30, 80, 'a hook', 'f.mp4', '{}', ?, ?, 'r', ?)",
+                  "file_path, validation_json, grade_json, state, reason, created_at, format_applied) "
+                  "VALUES ('pod', 1, ?, 0, 30, 80, 'a hook', 'f.mp4', '{}', ?, ?, 'r', ?, 1)",
                   (VIDEO, json.dumps({"caption_text": "that boss fight was unreal"}), state, store.iso()))
         return c.execute("SELECT id FROM clips_ready").fetchone()["id"]
 

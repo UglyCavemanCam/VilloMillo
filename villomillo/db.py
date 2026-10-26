@@ -200,6 +200,38 @@ CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, level TEXT NOT NULL,
     component TEXT NOT NULL, message TEXT NOT NULL, data_json TEXT
 );
+
+-- Formats: a template is the building blocks a clip is made from (layers) and its settings. An assignment says which
+-- clip category uses which template. A category with none has no format, so its clips wait for review.
+CREATE TABLE IF NOT EXISTS templates (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, layers_json TEXT NOT NULL, settings_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS template_assignments (
+    category TEXT PRIMARY KEY, template_id TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS music_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, artist TEXT NOT NULL, genre TEXT NOT NULL DEFAULT '',
+    mood TEXT NOT NULL, duration_s REAL NOT NULL, sha TEXT NOT NULL UNIQUE, ext TEXT NOT NULL,
+    categories_json TEXT NOT NULL DEFAULT '[]', source TEXT NOT NULL, licence TEXT NOT NULL, attribution TEXT NOT NULL DEFAULT 'none',
+    original_name TEXT NOT NULL DEFAULT '', added_at TEXT NOT NULL, last_used_at TEXT
+);
+CREATE TABLE IF NOT EXISTS sound_effects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kind TEXT NOT NULL, sha TEXT NOT NULL UNIQUE, ext TEXT NOT NULL,
+    duration_s REAL NOT NULL, source TEXT NOT NULL, licence TEXT NOT NULL, original_name TEXT NOT NULL DEFAULT '', added_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS font_uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, family TEXT NOT NULL, sha TEXT NOT NULL UNIQUE, ext TEXT NOT NULL,
+    source TEXT NOT NULL, licence TEXT NOT NULL, added_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS format_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, feel TEXT NOT NULL, verdict TEXT NOT NULL,
+    design_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL, sha TEXT NOT NULL,
+    ext TEXT NOT NULL, created_at TEXT NOT NULL
+);
 """
 
 
@@ -214,9 +246,14 @@ class Database:
             if "remote_id" not in post_cols:
                 setup.execute("ALTER TABLE posts ADD COLUMN remote_id TEXT")
             clip_cols = {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}
-            for column in ("category", "campaign_id", "removed_from", "removed_at"):
+            for column in ("category", "campaign_id", "removed_from", "removed_at", "template_id"):
                 if column not in clip_cols:
                     setup.execute(f"ALTER TABLE clips_ready ADD COLUMN {column} TEXT")  # a database made before channels or campaigns
+            if "format_applied" not in clip_cols:
+                # 1 only when the clip was made in a format; a clip made without one can never be scheduled or posted
+                setup.execute("ALTER TABLE clips_ready ADD COLUMN format_applied INTEGER NOT NULL DEFAULT 0")
+            if "singing" not in {r[1] for r in setup.execute("PRAGMA table_info(music_tracks)")}:
+                setup.execute("ALTER TABLE music_tracks ADD COLUMN singing REAL")   # how sung the track sounds, 0 to 1 (None: not checked)
             if "skipped_reason" not in {r[1] for r in setup.execute("PRAGMA table_info(campaign_queue)")}:
                 setup.execute("ALTER TABLE campaign_queue ADD COLUMN skipped_reason TEXT")
             if "campaign_id" not in {r[1] for r in setup.execute("PRAGMA table_info(runs)")}:

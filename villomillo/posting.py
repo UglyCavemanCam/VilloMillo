@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from core.paths import discard
 
 from . import accounts, campaigns, research, rewards, store, timefmt
-from .config import ROOT, Posting, Profile
+from .config import POST_TIME_JITTER_MIN, ROOT, SHORTS_PER_DAY, Posting, Profile
 from .db import Database
 
 YT_TITLE_MAX = 100
@@ -73,67 +73,105 @@ def copy_problems(copy: dict, platform: str, tag: str) -> list[str]:
     return problems
 
 
-def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, now: datetime, rng: random.Random | None = None) -> datetime:
-    """The next time this platform can take a post: spaced from the last one, and under the daily cap.
-
-    A day is an Eastern Time calendar day, so "two a day" means two between midnight and midnight on the East Coast.
-    """
+def _held(db: Database, platform: str, movers: frozenset | set = frozenset()) -> list[tuple[str, datetime]]:
+    """(channel, time) for every post that holds a place on this platform: queued ones at their time, ones that already went out at
+    the moment they did. The queued posts of the channels in `movers` are left out because they are being re-timed."""
     with db.conn() as c:
-        times = [r["scheduled_at"] for r in c.execute(
-            "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status IN ('queued','uploaded','posted')",
-            (profile_id, platform))]
-    taken = Counter(timefmt.local_date(t) for t in times)
-    candidate = now
-    if times:
-        top = posting.max_gap_minutes if posting.max_gap_minutes is not None else posting.min_gap_minutes
-        wait = (rng or random).uniform(posting.min_gap_minutes, top)  # a different wait for every clip, so the gaps are never the same
-        candidate = max(now, store.parse_time(max(times)) + timedelta(minutes=wait))
-    while taken[timefmt.local_date(candidate)] >= posting.daily_cap:
-        candidate = timefmt.start_of_day_utc(timefmt.local_date(candidate) + timedelta(days=1))
-    return candidate
+        rows = c.execute("SELECT profile_id, status, COALESCE(posted_at, scheduled_at) AS t FROM posts "
+                         "WHERE platform=? AND status IN ('queued','uploaded','posted')", (platform,)).fetchall()
+    return [(r["profile_id"], store.parse_time(r["t"])) for r in rows if not (r["status"] == "queued" and r["profile_id"] in movers)]
+
+
+def _clock_on(day, hhmm: str) -> datetime:
+    """An Eastern Time clock time on an Eastern date, as a UTC moment (daylight saving handled)."""
+    h, m = hhmm.split(":")
+    return datetime(day.year, day.month, day.day, int(h), int(m), tzinfo=timefmt.ET).astimezone(timefmt.UTC)
+
+
+def _pick_slot(held: list[tuple[str, datetime]], posting: Posting, profile_id: str, now: datetime,
+               rng: random.Random | None = None) -> datetime:
+    """The next time this channel can post, given the posts that already hold a place (`held`, every channel).
+
+    However the channel is set up, a day never holds more than SHORTS_PER_DAY posts over all channels together."""
+    rng = rng or random
+    cap = min(posting.daily_cap, SHORTS_PER_DAY)
+    everyone = [t for _, t in held]
+    mine = [t for pid, t in held if pid == profile_id]
+    taken_all, taken_mine = Counter(timefmt.local_date(t) for t in everyone), Counter(timefmt.local_date(t) for t in mine)
+
+    def full(day) -> bool:
+        return taken_all[day] >= SHORTS_PER_DAY or taken_mine[day] >= cap
+
+    if not posting.post_times:  # no fixed times: wait a random while after this channel's last post
+        candidate = now
+        if mine:
+            top = posting.max_gap_minutes if posting.max_gap_minutes is not None else posting.min_gap_minutes
+            wait = rng.uniform(posting.min_gap_minutes, top)  # a different wait for every clip, so the gaps are never the same
+            candidate = max(now, max(mine) + timedelta(minutes=wait))
+        while full(timefmt.local_date(candidate)):
+            candidate = timefmt.start_of_day_utc(timefmt.local_date(candidate) + timedelta(days=1))
+        return candidate
+    floor = max(now, max(everyone) + timedelta(minutes=posting.min_gap_minutes)) if everyone else now
+    day = timefmt.local_date(floor)
+    while True:  # the first of the day's fixed times that is still ahead, on a day that is not full
+        if not full(day):
+            for hhmm in posting.post_times:
+                at = _clock_on(day, hhmm)
+                if at >= floor:
+                    return at + timedelta(minutes=rng.uniform(0, POST_TIME_JITTER_MIN))
+        day += timedelta(days=1)
+
+
+def next_slot(db: Database, posting: Posting, profile_id: str, platform: str, now: datetime, rng: random.Random | None = None) -> datetime:
+    """The next time this platform can take a post: at one of the channel's fixed times, or spaced from the last post, and under the
+    daily limit. Posts from every channel count together: YouTube takes at most SHORTS_PER_DAY Shorts a day.
+
+    A day is an Eastern Time calendar day, so "ten a day" means ten between midnight and midnight on the East Coast.
+    """
+    return _pick_slot(_held(db, platform), posting, profile_id, now, rng)
+
+
+def _respace(db: Database, movers: dict[str, Profile], now: datetime | None, rng: random.Random | None) -> int:
+    """Give the posts still waiting on these channels their time again, in their current order, starting now. Posts already sent, or
+    waiting to be posted by hand, are not touched, and they and the other channels' posts count toward the day's limit."""
+    now = now or store.now()
+    marks = ",".join("?" * len(movers))
+    with db.conn() as c:
+        waiting = [dict(r) for r in c.execute(
+            f"SELECT id, profile_id, platform FROM posts WHERE status='queued' AND profile_id IN ({marks}) ORDER BY scheduled_at, id", tuple(movers))]
+    held: dict[str, list[tuple[str, datetime]]] = {}
+    moved = 0
+    for row in waiting:
+        posting = movers[row["profile_id"]].posting
+        if posting is None:
+            continue
+        times = held.setdefault(row["platform"], _held(db, row["platform"], set(movers)))
+        when = _pick_slot(times, posting, row["profile_id"], now, rng)
+        with db.conn() as c:
+            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(when), row["id"]))
+        times.append((row["profile_id"], when))
+        moved += 1
+    return moved
 
 
 def respace_queued(db: Database, profile: Profile, *, now: datetime | None = None, rng: random.Random | None = None) -> int:
-    """Give every post still waiting its time again under the channel's current gap, in its current order, starting now.
-    Posts already sent, or waiting to be posted by hand, are not touched. Returns how many were moved."""
-    posting = profile.posting
-    if posting is None:
-        return 0
-    now = now or store.now()
-    with db.conn() as c:
-        waiting = [dict(r) for r in c.execute("SELECT id, platform FROM posts WHERE profile_id=? AND status='queued' ORDER BY scheduled_at, id", (profile.id,))]
-        last = {r["platform"]: store.parse_time(r["m"]) for r in c.execute(
-            "SELECT platform, MAX(COALESCE(posted_at, scheduled_at)) AS m FROM posts WHERE profile_id=? AND status IN ('uploaded','posted') GROUP BY platform",
-            (profile.id,))}
-    top = posting.max_gap_minutes if posting.max_gap_minutes is not None else posting.min_gap_minutes
-    for row in waiting:
-        platform = row["platform"]
-        wait = timedelta(minutes=(rng or random).uniform(posting.min_gap_minutes, top))
-        when = max(now, last[platform] + wait) if platform in last else now
-        with db.conn() as c:
-            taken = Counter(timefmt.local_date(r["scheduled_at"]) for r in c.execute(
-                "SELECT scheduled_at FROM posts WHERE profile_id=? AND platform=? AND status IN ('queued','uploaded','posted') AND id!=?",
-                (profile.id, platform, row["id"])))
-        while taken[timefmt.local_date(store.iso(when))] >= posting.daily_cap:
-            when = timefmt.start_of_day_utc(timefmt.local_date(store.iso(when)) + timedelta(days=1))
-        with db.conn() as c:
-            c.execute("UPDATE posts SET scheduled_at=? WHERE id=?", (store.iso(when), row["id"]))
-        last[platform] = when
-    return len(waiting)
+    """Give every post of this channel still waiting its time again under its current settings. Returns how many were moved."""
+    return _respace(db, {profile.id: profile}, now, rng) if profile.posting else 0
 
 
-GAP_RESPACED = "queue_respaced_gap_v1"
+SLOTS_RESPACED = "queue_respaced_slots_v1"
 
 
 def respace_once(db: Database, profiles: dict[str, Profile]) -> int:
-    """After the channels got their new 10 to 20 minute gap, space the posts already waiting the same way, once."""
+    """After the channels got their fixed daily times and the limit of ten a day, re-time the posts already waiting, once, all channels
+    together, so no day (today included) holds more than ten."""
     with db.conn(immediate=True) as c:
-        if c.execute("SELECT 1 FROM meta WHERE key=?", (GAP_RESPACED,)).fetchone():
+        if c.execute("SELECT 1 FROM meta WHERE key=?", (SLOTS_RESPACED,)).fetchone():
             return 0
-        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (GAP_RESPACED,))
-    moved = sum(respace_queued(db, p) for p in profiles.values())
+        c.execute("INSERT INTO meta (key, value) VALUES (?, '1')", (SLOTS_RESPACED,))
+    moved = _respace(db, {k: p for k, p in profiles.items() if p.posting}, None, None) if profiles else 0
     if moved:
-        store.event(db, "info", "post", f"{moved} waiting post(s) re-spaced to the channel's new gap")
+        store.event(db, "info", "post", f"{moved} waiting post(s) re-timed to the daily posting times (at most {SHORTS_PER_DAY} a day)")
     return moved
 
 
@@ -143,6 +181,15 @@ def posted_today(db: Database, profile_id: str, platform: str, *, now: datetime 
     with db.conn() as c:
         rows = c.execute("SELECT posted_at FROM posts WHERE profile_id=? AND platform=? AND status='uploaded' AND posted_at IS NOT NULL",
                          (profile_id, platform)).fetchall()
+    return sum(1 for r in rows if timefmt.local_date(r["posted_at"]) == today)
+
+
+def posted_today_everywhere(db: Database, platform: str, *, now: datetime | None = None) -> int:
+    """How many posts went out on this platform today from all channels together (an Eastern Time day)."""
+    today = timefmt.local_date(store.iso(now or store.now()))
+    with db.conn() as c:
+        rows = c.execute("SELECT posted_at FROM posts WHERE platform=? AND status IN ('uploaded','posted') AND posted_at IS NOT NULL",
+                         (platform,)).fetchall()
     return sum(1 for r in rows if timefmt.local_date(r["posted_at"]) == today)
 
 
@@ -171,6 +218,8 @@ def plan(db: Database, profile: Profile, clip_id: int, *, now: datetime | None =
             raise LookupError("no such clip")
         if clip["state"] != "approved":
             raise ValueError("only approved clips can be posted")
+        if not clip["format_applied"]:
+            raise ValueError("this clip has no format yet: apply one before it can be scheduled or posted")
         if platform and c.execute("SELECT 1 FROM posts WHERE clip_id=? AND platform=?", (clip_id, platform)).fetchone():
             return None
         if not platform and c.execute("SELECT 1 FROM posts WHERE clip_id=?", (clip_id,)).fetchone():
@@ -282,6 +331,8 @@ def send_now(db: Database, profile: Profile, post_id: int, adapters: dict) -> st
         raise ValueError(f"this post is already out ({post['url']})")
     if post["status"] == "blocked" or clip is None or clip["state"] != "approved":
         raise ValueError("this post is blocked or its clip is no longer approved")
+    if not clip["format_applied"]:
+        raise ValueError("this clip has no format yet: apply one before it can be posted")
     copy = {"title": post["title"], "caption": post["caption"], "tags": json.loads(post["tags_json"])}
     status, error, url, extra = _send(db, profile, post, copy, clip, adapters)
     with db.conn() as c:
@@ -321,7 +372,7 @@ def resend_waiting(db: Database, profile: Profile, platform: str, *, now: dateti
     with db.conn() as c:
         waiting = c.execute(
             "SELECT po.id FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id WHERE po.profile_id=? AND po.platform=? "
-            f"AND po.status IN ({','.join('?' * len(RESENDABLE))}) AND cl.state='approved' ORDER BY cl.engine_score DESC, po.id",
+            f"AND po.status IN ({','.join('?' * len(RESENDABLE))}) AND cl.state='approved' AND cl.format_applied=1 ORDER BY cl.engine_score DESC, po.id",
             (profile.id, platform, *RESENDABLE)).fetchall()
     for row in waiting:
         when = next_slot(db, profile.posting, profile.id, platform, now)
@@ -335,11 +386,14 @@ def repost(db: Database, profile: Profile, post_id: int, *, now: datetime | None
     its title and caption. The link and the numbers of the earlier video are cleared. Refuses with the reason when the channel
     cannot send for real. Returns the platform, so the caller can name it."""
     with db.conn() as c:
-        post = c.execute("SELECT platform, status FROM posts WHERE profile_id=? AND id=?", (profile.id, post_id)).fetchone()
+        post = c.execute("SELECT po.platform, po.status, cl.format_applied FROM posts po JOIN clips_ready cl ON cl.id=po.clip_id "
+                         "WHERE po.profile_id=? AND po.id=?", (profile.id, post_id)).fetchone()
     if post is None:
         raise LookupError("no such post")
     if post["status"] not in RESENT:
         raise ValueError("only a post that already went out can be posted again")
+    if not post["format_applied"]:
+        raise ValueError("this clip has no format yet: apply one before it can be posted again")
     if (why := why_not_sending(db, profile, post["platform"])):
         raise ValueError(why)
     with db.conn() as c:
@@ -390,13 +444,18 @@ def run_due(db: Database, profile: Profile, *, now: datetime | None = None, adap
         extra: dict = {}
         if clip is None or clip["state"] != "approved":
             status, error, url = "blocked", "the clip is no longer approved", None
+        elif not clip["format_applied"]:
+            status, error, url = "blocked", "the clip has no format yet", None
         elif route == "manual":
             status, error, url = "manual_ready", None, None
         elif posting.dry_run:
             status, error, url = "dry_run", None, None
             _write_outbox(profile, post, copy, clip["file_path"])
-        elif posted_today(db, profile.id, post["platform"], now=now) >= posting.daily_cap:
-            lines.append(f"post {post['id']} ({post['platform']}): waiting, today's limit of {posting.daily_cap} is reached")
+        elif posted_today(db, profile.id, post["platform"], now=now) >= min(posting.daily_cap, SHORTS_PER_DAY):
+            lines.append(f"post {post['id']} ({post['platform']}): waiting, today's limit of {min(posting.daily_cap, SHORTS_PER_DAY)} is reached")
+            continue
+        elif posted_today_everywhere(db, post["platform"], now=now) >= SHORTS_PER_DAY:
+            lines.append(f"post {post['id']} ({post['platform']}): waiting, {SHORTS_PER_DAY} went out today across all channels")
             continue
         else:
             status, error, url, extra = _send(db, profile, post, copy, clip, adapters)

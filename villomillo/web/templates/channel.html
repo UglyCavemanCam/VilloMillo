@@ -72,7 +72,7 @@
     {% endif %}
     <div class="form" style="margin-top:14px">
       <label>Channel handle<small>Shown as the faint watermark on every clip, for example @cavemancam.</small><input class="field" name="brand_handle" value="{{ d.form.brand_handle }}" maxlength="40"></label>
-      <label>YouTube posts per day<small>Most this channel posts in a day. YouTube allows up to 100.</small><input class="field" name="youtube_daily_cap" type="number" min="1" max="100" value="{{ d.form.youtube_daily_cap }}"></label>
+      <label>YouTube posts per day<small>Most this channel posts in a day. All channels together never post more than 10 Shorts a day.</small><input class="field" name="youtube_daily_cap" type="number" min="1" max="10" value="{{ d.form.youtube_daily_cap }}"></label>
     </div>
   </section>
 
@@ -94,11 +94,10 @@
     </div>
   </section>
 
-  <section class="card" aria-labelledby="s3"><h2 id="s3" style="margin-bottom:12px">3. Tags and look</h2>
+  <section class="card" aria-labelledby="s3"><h2 id="s3" style="margin-bottom:12px">3. Tags</h2>
     <div class="form">
       <label>Caption tags<small>@mentions or tags that must appear in every YouTube caption, written as you want them.</small><input class="field" name="youtube_tags" value="{{ d.form.youtube_tags }}" maxlength="200"></label>
-      <label>Look<small>The on-screen style clips are rendered in.</small>
-        <select class="field" name="format"><option value="">The engine's own look</option>{% for r in d.recipes %}<option value="{{ r }}" {{ 'selected' if r == d.form.format }}>{{ r }}</option>{% endfor %}</select></label>
+      <p class="muted" style="margin:0">The format comes from this channel's category. Make and assign formats on the Formats page.</p>
     </div>
   </section>
 

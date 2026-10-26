@@ -7,14 +7,17 @@ data each one shows and docs/DASHBOARD-REDESIGN.md for the design.
 
 from __future__ import annotations
 
+import json
 import pathlib
+import re
 import subprocess
+import tempfile
 import threading
 from datetime import date
 from html import escape as html_escape
 from urllib.parse import quote, urlsplit
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import Body, FastAPI, Form, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +29,7 @@ from .. import (
     accounts,
     activity,
     campaigns,
+    claude,
     channels,
     clipper,
     copywriter,
@@ -44,12 +48,20 @@ from .. import (
     tasks,
     timefmt,
 )
+from ..formats import assets as format_assets
+from ..formats import font_uploads as format_font_uploads
+from ..formats import placement as format_placement
+from ..formats import music as format_music
+from ..formats import designs as format_designs
+from ..formats import preview as format_preview
+from ..formats import templates as format_templates
 from ..services import Services
 from . import pages
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 HERE = pathlib.Path(__file__).parent
 THUMBS = pathlib.Path(clipper.OUTBOX).parent / "thumbs"
+PREVIEWS = pathlib.Path(clipper.OUTBOX).parent / "previews"
 
 
 def _only_local(request: Request, what: str) -> None:
@@ -219,7 +231,7 @@ def create_app(sv: Services) -> FastAPI:
         _only_local(request, "changes")
         c = in_profile(channel_id)
         form = {k: str(v) for k, v in (await request.form()).items()}
-        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "privacy", "upload_size", "min_gap_minutes", "max_gap_minutes", "auto_post_min_score", "format"}
+        allowed = {"name", "category", "about", "brand_handle", "youtube_tags", "youtube_daily_cap", "youtube_route", "dry_run", "privacy", "upload_size", "min_gap_minutes", "max_gap_minutes", "auto_post_min_score"}
         before = c.category
         try:
             updated = channels.update(sv.db, sv.profiles, channel_id, **{k: v for k, v in form.items() if k in allowed})
@@ -350,6 +362,13 @@ def create_app(sv: Services) -> FastAPI:
         return RedirectResponse("/research", status_code=303)
 
     # ---- campaigns -----------------------------------------------------------------------------------------------
+
+    @app.post("/campaigns/switch")
+    async def campaigns_switch(request: Request):
+        _only_local(request, "changes")
+        form = await request.form()
+        campaigns.set_on(sv.db, form.get("on") == "1")
+        return RedirectResponse("/campaigns", status_code=303)
 
     @app.get("/campaigns", response_class=HTMLResponse)
     def campaigns_list(profile: str | None = None, problem: str = "", rewards: str = "", n: int = 0):
@@ -814,9 +833,31 @@ def create_app(sv: Services) -> FastAPI:
         rewards.queue(sv.db, row["id"])
         return JSONResponse({"ok": True})
 
+    @app.post("/api/clips/remake-without-effects")
+    def clip_remake_plain(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
+        """Remake one clip that is waiting for review with the same look and no picture effects, for when an effect misfires."""
+        _only_local(request, "changes")
+        in_profile(profile)
+        with sv.db.conn() as c:
+            row = c.execute("SELECT id, template_id, category, grade_json FROM clips_ready WHERE id=? AND state='review' AND profile_id=?",
+                            (clip_id, profile)).fetchone()
+        if row is None:
+            raise HTTPException(404, "only a clip waiting for your review can be remade")
+        grade = json.loads(row["grade_json"] or "{}")
+        base = grade.get("look_design")
+        if base is None:
+            template = format_templates.get(sv.db, row["template_id"]) if row["template_id"] else format_templates.for_category(sv.db, row["category"])
+            if template is None:
+                raise HTTPException(422, "there is no format to base the remake on: add one on the Formats page")
+            base = template["settings"]
+        design = format_designs.normalize({**base, "effects": {**format_designs.normalize(base)["effects"], "intensity": "off"}})
+        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id, "design": design},
+                      dedupe_key=f"relook-plain:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
+        return JSONResponse({"ok": True})
+
     @app.post("/api/clip-relook")
     def clip_relook(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
-        """Apply the look again: a clip that came out in the engine's own look is cut again in the channel's look."""
+        """Apply a format: a clip with no format is cut again in its category's format, then waits for your review."""
         _only_local(request, "changes")
         in_profile(profile)
         with sv.db.conn() as c:
@@ -825,6 +866,259 @@ def create_app(sv: Services) -> FastAPI:
         if row is None:
             raise HTTPException(404, "no such clip")
         tasks.enqueue(sv.db, "relook", {"clip_id": clip_id}, dedupe_key=f"relook:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
+        return JSONResponse({"ok": True})
+
+    # ---- formats: templates, presets, assignments and the builder's preview ----------------------------------------
+
+    def refuse(message: str, status: int = 422) -> JSONResponse:
+        return JSONResponse({"error": message}, status_code=status)
+
+    @app.get("/formats", response_class=HTMLResponse)
+    def formats_page(profile: str | None = None, clip: int | None = None):
+        p = profile_or_404(profile)
+        return render("formats.html", p, "/formats", "formats", "Formats", d=pages.formats_page(sv, p, clip))
+
+    @app.post("/api/assets/logo")
+    async def assets_logo_upload(request: Request, name: str = ""):
+        """A logo, sent as the raw file (PNG, WebP or GIF, 2 MB at most). Stored once per picture, checked before it is kept."""
+        _only_local(request, "changes")
+        try:
+            row = format_assets.save_logo(sv.db, name, await request.body())
+        except format_assets.AssetError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "id": row["id"], "name": row["name"]})
+
+    @app.post("/api/music/import")
+    def music_import(request: Request):
+        """File every shortlisted track found in the Downloads folder."""
+        _only_local(request, "changes")
+        try:
+            result = format_music.import_downloads(sv.db)
+        except OSError as e:
+            return refuse(f"The Downloads folder could not be read: {e}")
+        return JSONResponse({"ok": True, **result})
+
+    @app.post("/api/music/upload")
+    async def music_upload(request: Request, filename: str = "", title: str = "", artist: str = "", mood: str = "", genre: str = "",
+                           categories: str = "", source: str = "", licence: str = ""):
+        """One track, sent as the raw file with its details in the address."""
+        _only_local(request, "changes")
+        body = await request.body()
+        suffix = pathlib.Path(filename).suffix.lower()
+        if suffix not in format_music.TYPES:
+            return refuse("Music must be an MP3 or WAV file.")
+        if len(body) > format_music.MAX_BYTES:
+            return refuse("A track must be 40 MB or smaller.")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / f"upload{suffix}"
+            path.write_bytes(body)
+            try:
+                track = format_music.add_track(sv.db, path, title=title, artist=artist, mood=mood, genre=genre,
+                                               categories=[c for c in categories.split(",") if c], source=source, licence=licence,
+                                               original_name=pathlib.Path(filename).name)
+            except format_music.MusicError as e:
+                return refuse(str(e))
+        return JSONResponse({"ok": True, "id": track["id"]})
+
+    @app.post("/api/music/update")
+    def music_update(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            format_music.update_track(sv.db, int(body.get("id", 0)), mood=str(body.get("mood", "")), categories=list(body.get("categories") or []))
+        except format_music.MusicError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/music/delete")
+    def music_delete(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        format_music.delete_track(sv.db, int(body.get("id", 0)))
+        return JSONResponse({"ok": True})
+
+    @app.get("/music/{track_id}/file")
+    def music_file(track_id: int):
+        track = format_music.get(sv.db, track_id)
+        path = format_music.file_path(track) if track else None
+        if path is None or not path.exists():
+            raise HTTPException(404, "no such track")
+        return FileResponse(path, media_type=format_music.MEDIA[f".{track['ext']}"], headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/assets/delete")
+    def assets_delete(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            format_assets.delete(sv.db, int(body.get("id", 0)))
+        except format_assets.AssetError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True})
+
+    @app.get("/assets/{asset_id}/file")
+    def assets_file(asset_id: int):
+        asset = format_assets.get(sv.db, asset_id)
+        path = format_assets.file_path(asset) if asset else None
+        if path is None or not path.exists():
+            raise HTTPException(404, "no such file")
+        return FileResponse(path, media_type=format_assets.MEDIA[asset["ext"]], headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/fonts/upload")
+    async def fonts_upload(request: Request, name: str = "", source: str = "", licence: str = "", filename: str = ""):
+        """One font, sent as the raw file (TTF or OTF, 3 MB at most) with where it came from and its licence."""
+        _only_local(request, "changes")
+        try:
+            row = format_font_uploads.save(sv.db, name, await request.body(), ext=pathlib.Path(filename).suffix, source=source,
+                                           licence=licence)
+        except format_font_uploads.FontUploadError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "id": row["id"], "label": row["label"]})
+
+    @app.post("/api/fonts/delete")
+    def fonts_delete(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            format_font_uploads.delete(sv.db, int(body.get("id", 0)))
+        except format_font_uploads.FontUploadError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/formats/save")
+    def formats_save(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            format_font_uploads.refresh(sv.db)
+            design = format_designs.normalize(body.get("design") or {})
+            format_assets.for_design(sv.db, design)
+            format_placement.check_design(sv.db, design)
+            template = format_templates.save_design(sv.db, name=str(body.get("name", "")), design=body.get("design") or {},
+                                                    template_id=body.get("id") or None)
+            wanted = {str(c).strip().lower() for c in body.get("categories") or [] if str(c).strip()}
+            for category, template_id in format_templates.assignments(sv.db).items():
+                if template_id == template["id"] and category not in wanted:
+                    format_templates.assign(sv.db, category, None)
+            for category in wanted:
+                format_templates.assign(sv.db, category, template["id"])
+        except (format_templates.TemplateError, format_designs.DesignError) as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "id": template["id"]})
+
+    @app.post("/api/formats/delete")
+    def formats_delete(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        lost = format_templates.delete(sv.db, str(body.get("id", "")))
+        return JSONResponse({"ok": True, "lost": lost})
+
+    @app.post("/api/formats/preset")
+    def formats_preset(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        preset = format_designs.preset(sv.db, str(body.get("preset_id", "")))
+        if preset is None:
+            return refuse("That preset is gone.", 404)
+        try:
+            template = format_templates.save_design(sv.db, name=preset["name"], design=preset["design"])
+            if body.get("action") == "use":
+                format_templates.assign(sv.db, str(body.get("category", "")), template["id"])
+        except format_templates.TemplateError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "id": template["id"]})
+
+    @app.post("/api/formats/preset-delete")
+    def formats_preset_delete(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            format_designs.delete_preset(sv.db, str(body.get("preset_id", "")))
+        except format_designs.DesignError as e:
+            return refuse(str(e), 404)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/formats/suggest-webcam")
+    def formats_suggest_webcam(request: Request, body: dict = Body(...)):
+        """A webcam box drawn around the streamer's face in a downloaded video. Nothing is saved."""
+        _only_local(request, "changes")
+        from core.paths import cached_source
+
+        from ..formats import DOWNLOADS
+        from ..formats import webcam as format_webcam
+
+        video_id = str(body.get("video_id", ""))
+        source = cached_source(DOWNLOADS, video_id) or DOWNLOADS / f"{video_id}.mp4"
+        if not source.exists():
+            return refuse("That video is not downloaded: pick another one above.")
+        box = format_webcam.suggest(source)
+        if box is None:
+            return refuse("No face was found in the top-left of that video. Set the box by hand.")
+        return JSONResponse({"ok": True, **box})
+
+    @app.post("/api/formats/preview")
+    def formats_preview(request: Request, body: dict = Body(...)):
+        _only_local(request, "changes")
+        try:
+            out = format_preview.make_preview(sv.db, profile_or_404(body.get("profile")), body.get("design") or {},
+                                              str(body.get("video_id", "")), PREVIEWS)
+        except (format_designs.DesignError, format_preview.PreviewError) as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "url": f"/formats/preview/{out.name}"})
+
+    @app.post("/api/formats/generate")
+    def formats_generate(request: Request, body: dict = Body(...)):
+        """Three AI-made formats from a few answers, each with a preview. Nothing is saved until one is picked."""
+        _only_local(request, "changes")
+        from ..formats import generate as format_generate
+        try:
+            result = format_generate.run(sv.db, claude._client(), body, profile_or_404(body.get("profile")), PREVIEWS)
+        except (format_generate.GenerateError, format_designs.DesignError) as e:
+            return refuse(str(e))
+        except Exception as e:   # an AI or render problem is said in plain words, never as a crash
+            return refuse(f"The AI could not make the formats right now ({type(e).__name__}). Try again.", 502)
+        return JSONResponse({"ok": True, **result})
+
+    @app.post("/api/formats/generate/feedback")
+    def formats_generate_feedback(request: Request, body: dict = Body(...)):
+        """A look the owner liked or did not: remembered, so the next generate for this kind of clip leans the right way."""
+        _only_local(request, "changes")
+        from ..formats import generate as format_generate
+        try:
+            answers = format_generate.check_answers(body)
+            format_generate.record_feedback(sv.db, answers, body.get("design") or {}, str(body.get("verdict", "")))
+        except (format_generate.GenerateError, format_designs.DesignError) as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/formats/generate/pick")
+    def formats_generate_pick(request: Request, body: dict = Body(...)):
+        """Save the option the owner picked, as a template, after checking it again."""
+        _only_local(request, "changes")
+        from ..formats import generate as format_generate
+        try:
+            template = format_generate.save(sv.db, body, str(body.get("name", "")), body.get("design") or {},
+                                            [str(c) for c in body.get("categories") or []])
+        except (format_generate.GenerateError, format_designs.DesignError, format_templates.TemplateError) as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "id": template["id"]})
+
+    @app.get("/formats/preview/{name}")
+    def formats_preview_file(name: str):
+        path = PREVIEWS / name
+        if not re.fullmatch(r"format-preview-[0-9a-f]{12}\.mp4", name) or not path.exists():
+            raise HTTPException(404, "no such preview")
+        return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/formats/apply-clip")
+    def formats_apply_clip(request: Request, body: dict = Body(...)):
+        """Edit look: re-make one clip in a chosen template, or in a design made for just this clip."""
+        _only_local(request, "changes")
+        profile, clip_id = str(body.get("profile", "")), int(body.get("clip_id", 0))
+        in_profile(profile)
+        with sv.db.conn() as c:
+            row = c.execute("SELECT id FROM clips_ready WHERE id=? AND state='review' AND profile_id=?", (clip_id, profile)).fetchone()
+        if row is None:
+            return refuse("Only a clip waiting for your review can be given a new look.", 404)
+        design = None
+        if body.get("design"):
+            try:
+                design = format_designs.normalize(body["design"])
+            except format_designs.DesignError as e:
+                return refuse(str(e))
+        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id, "design": design, "template_id": body.get("template_id") or None},
+                      dedupe_key=f"relook:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
         return JSONResponse({"ok": True})
 
     @app.post("/api/clip-repost")

@@ -1,8 +1,8 @@
-"""Blueprints and recipes: load them, check them, and turn a recipe into a plan for one clip.
+"""Format blocks and templates: load the blocks, check a template's layers, and turn a template into a plan for one clip.
 
-A blueprint is one small building block (a framing, a text layer, a motion, a brand mark). A recipe stacks them for
-one kind of video. The resolver drops blueprints a clip cannot support, applies the channel's filters, and refuses a
-plan that adds nothing beyond a crop and captions.
+A block is one small building block (a framing, a text layer, a motion, a brand mark). A template stacks them: one
+framing block plus any others. The resolver drops blocks a clip cannot support, applies the channel's filters, and
+refuses a plan that adds nothing beyond a crop and captions.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ LAYERS = ("framing", "text", "motion", "brand")
 
 
 class BlueprintError(ValueError):
-    """The blueprint file or a recipe is wrong. Raised when it is loaded, never half way through a render."""
+    """The block file or a template is wrong. Raised when it is loaded or saved, never half way through a render."""
 
 
 class OriginalityError(BlueprintError):
@@ -38,7 +38,7 @@ class Blueprint:
 
 @dataclass
 class Plan:
-    recipe: str
+    name: str
     blueprints: list[Blueprint]
     dropped: list[tuple[str, str]]
     overrides: dict = field(default_factory=dict)
@@ -63,55 +63,66 @@ class Plan:
         return self.param(self.framing().id, key, default)
 
 
-def load(path: pathlib.Path | None = None) -> tuple[dict[str, Blueprint], dict[str, dict]]:
-    """Read and validate the blueprint file. Returns (blueprints by id, recipes by id)."""
+def load(path: pathlib.Path | None = None) -> dict[str, Blueprint]:
+    """Read and validate the block file. Returns the blocks by id."""
     data = yaml.safe_load((path or PATH).read_text(encoding="utf-8")) or {}
     library: dict[str, Blueprint] = {}
     for bid, spec in (data.get("blueprints") or {}).items():
         if spec.get("layer") not in LAYERS:
-            raise BlueprintError(f"blueprint {bid!r} has an unknown layer {spec.get('layer')!r}")
+            raise BlueprintError(f"block {bid!r} has an unknown layer {spec.get('layer')!r}")
         library[bid] = Blueprint(bid, spec["layer"], tuple(spec.get("needs") or ()), tuple(spec.get("conflicts") or ()),
                                  bool(spec.get("added_value")), dict(spec.get("params") or {}))
     for bp in library.values():
         for other in bp.conflicts:
             if other not in library:
-                raise BlueprintError(f"blueprint {bp.id!r} conflicts with unknown {other!r}")
-    recipes = data.get("recipes") or {}
-    for name, recipe in recipes.items():
-        chosen = _recipe_ids(name, recipe, library)
-        for bid in chosen:
-            clash = set(library[bid].conflicts) & set(chosen)
-            if clash:
-                raise BlueprintError(f"recipe {name!r}: {bid!r} conflicts with {sorted(clash)[0]!r}")
-    return library, recipes
+                raise BlueprintError(f"block {bp.id!r} conflicts with unknown {other!r}")
+    return library
 
 
-def _recipe_ids(name: str, recipe: dict, library: dict[str, Blueprint]) -> list[str]:
-    framing = recipe.get("framing")
+def _as_list(value) -> list:
+    return list(value) if isinstance(value, list) else []
+
+
+def _ids(layers: dict) -> list[str]:
+    """Every block a template names, framing first."""
+    return [layers["framing"], *_as_list(layers.get("text")), *_as_list(layers.get("motion")), *_as_list(layers.get("brand"))]
+
+
+def layers_problem(layers, library: dict[str, Blueprint]) -> str | None:
+    """Why a template's layers cannot be used, in plain words, or None when they can."""
+    if not isinstance(layers, dict):
+        return "the template has no layers"
+    framing = layers.get("framing")
     if not isinstance(framing, str):
-        raise BlueprintError(f"recipe {name!r} needs exactly one framing blueprint")
-    chosen = [framing]
-    for layer in LAYERS[1:]:
-        chosen += list(recipe.get(layer) or [])
-    for bid in chosen:
+        return "a template needs exactly one framing"
+    for key in ("text", "motion", "brand"):
+        if layers.get(key) is not None and not isinstance(layers[key], list):
+            return f"{key} must be a list of blocks"
+    ids = _ids(layers)
+    for bid in ids:
         if bid not in library:
-            raise BlueprintError(f"recipe {name!r} uses unknown blueprint {bid!r}")
+            return f"there is no block called {bid}"
     for layer in LAYERS:
-        wanted = [framing] if layer == "framing" else list(recipe.get(layer) or [])
+        wanted = [framing] if layer == "framing" else _as_list(layers.get(layer))
         for bid in wanted:
             if library[bid].layer != layer:
-                raise BlueprintError(f"recipe {name!r}: {bid!r} is a {library[bid].layer} blueprint, not {layer}")
-    return chosen
+                return f"{bid} is a {library[bid].layer} block, not {layer}"
+    for bid in ids:
+        clash = set(library[bid].conflicts) & set(ids)
+        if clash:
+            return f"{bid} cannot be used with {sorted(clash)[0]}"
+    return None
 
 
-def resolve(recipe: str, available: set[str], *, forbid: set[str] | frozenset[str] = frozenset(),
+def resolve(name: str, layers: dict, available: set[str], *, forbid: set[str] | frozenset[str] = frozenset(),
             overrides: dict | None = None, path: pathlib.Path | None = None) -> Plan:
     """The plan for one clip. `available` names what the clip supplies: words, title, points, takeaway."""
-    library, recipes = load(path)
-    if recipe not in recipes:
-        raise BlueprintError(f"no recipe called {recipe!r}")
+    library = load(path)
+    problem = layers_problem(layers, library)
+    if problem:
+        raise BlueprintError(f"template {name!r}: {problem}")
     kept, dropped = [], []
-    for bid in _recipe_ids(recipe, recipes[recipe], library):
+    for bid in _ids(layers):
         bp = library[bid]
         missing = [n for n in bp.needs if n not in available]
         if bid in forbid:
@@ -121,9 +132,9 @@ def resolve(recipe: str, available: set[str], *, forbid: set[str] | frozenset[st
         else:
             kept.append(bp)
     if not any(b.layer == "framing" for b in kept):
-        raise BlueprintError(f"recipe {recipe!r} lost its framing ({dropped[0][1] if dropped else 'unknown'})")
+        raise BlueprintError(f"template {name!r} lost its framing ({dropped[0][1] if dropped else 'unknown'})")
     if not any(b.added_value for b in kept):
         raise OriginalityError(
-            f"recipe {recipe!r} would add nothing but a crop and captions "
+            f"template {name!r} would add nothing but a crop and captions "
             f"(dropped: {', '.join(f'{b}: {why}' for b, why in dropped) or 'nothing'})")
-    return Plan(recipe, kept, dropped, overrides or {})
+    return Plan(name, kept, dropped, overrides or {})

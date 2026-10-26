@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import shutil
+
 import pytest
 from fastapi.testclient import TestClient
-from test_runs import FakeEngine, FakeJev
+from test_runs import FakeEngine, FakeJev, _format_applied
 
 from sources import channel_feed
 from villomillo import (
@@ -81,7 +83,7 @@ def make_sv(tmp_path, monkeypatch, yt=None, jev=None, app=None):
     with database.conn() as c:  # the "every clip to one channel" switch is on by default; this test file is about category channels
         c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('catch_all', '{\"on\": false}')")
     monkeypatch.setattr(clipper, "OUTBOX", tmp_path / "outbox")
-    monkeypatch.setattr("villomillo.formats.formatter_for", lambda *a, **k: None)  # not about the look: the engine's own render is used
+    monkeypatch.setattr("villomillo.formats.formatter_for", lambda *a, **k: _format_applied)  # not about the look: a format is applied
     monkeypatch.setattr(clipper.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
     return Services(app or config.AppConfig(), channels.load(database), database, Quota(database, general_cap=9, search_cap=9), yt, jev or FakeJev())
 

@@ -33,7 +33,7 @@ def channel(**changes):
 def clip(db, n) -> int:
     with db.conn() as c:
         c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, "
-                  "grade_json, state, reason, created_at) VALUES ('solved', ?, 'vid00000001', 0, 30, 88, 'A hard truth', ?, '{}', ?, 'approved', 'r', ?)",
+                  "grade_json, state, reason, created_at, format_applied) VALUES ('solved', ?, 'vid00000001', 0, 30, 88, 'A hard truth', ?, '{}', ?, 'approved', 'r', ?, 1)",
                   (n, f"/tmp/{n}.mp4", json.dumps({"caption_text": "words"}), store.iso()))
         return c.execute("SELECT MAX(id) AS id FROM clips_ready").fetchone()["id"]
 
@@ -125,8 +125,8 @@ def test_insights_shows_the_real_numbers_that_were_collected(tmp_path):
     database = Database(tmp_path / "web.db")
     sv = Services(config.AppConfig(), channels.load(database), database, Quota(database, general_cap=9, search_cap=9))
     with database.conn() as c:
-        c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at) "
-                  "VALUES ('solved', 1, 'v', 0, 30, 80, 'h', 'f', '{}', '{}', 'approved', 'r', ?)", (store.iso(),))
+        c.execute("INSERT INTO clips_ready (profile_id, engine_clip_id, video_id, start_s, end_s, engine_score, hook, file_path, validation_json, grade_json, state, reason, created_at, format_applied) "
+                  "VALUES ('solved', 1, 'v', 0, 30, 80, 'h', 'f', '{}', '{}', 'approved', 'r', ?, 1)", (store.iso(),))
         c.execute("INSERT INTO posts (profile_id, clip_id, platform, route, status, title, caption, tags_json, scheduled_at, created_at, url) "
                   "VALUES ('solved', 1, 'youtube_shorts', 'api', 'uploaded', 'A title', 'c', '[]', ?, ?, 'https://youtube.com/shorts/aB3dEfGhIjK')", (store.iso(), store.iso()))
         c.execute("INSERT INTO post_stats (post_id, taken_at, views, likes) VALUES (1, ?, 12345, 99)", (store.iso(),))

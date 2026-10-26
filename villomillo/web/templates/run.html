@@ -38,7 +38,7 @@
 </section>
 <aside class="card stack" style="flex:2 1 320px;min-width:0">
   <h2 style="margin:0">What happens next</h2>
-  <div><b>Type: {{ d.plan.kind.label }}, {{ (d.plan.kind.certainty * 100)|round|int }}% sure</b><br><span class="muted">{{ d.plan.kind.explain }} Look: {{ d.look_label }}.</span></div>
+  <div><b>Type: {{ d.plan.kind.label }}, {{ (d.plan.kind.certainty * 100)|round|int }}% sure</b><br><span class="muted">{{ d.plan.kind.explain }}</span></div>
   <div><b>Category: {{ d.plan.category }}{% if d.plan.fit %}, fit {{ d.plan.fit }} of 5{% endif %}</b><br>
     <span class="muted">{% if d.plan.channel %}Goes to the {{ d.plan.channel.name }} channel. {{ d.plan.fit_why or '' }}{% else %}There is no channel for this category yet.{% endif %}</span></div>
   {% if not d.plan.channel %}<div class="notice warn">{{ icon('alert') }}<div>The clips will be held, and Home will offer <b>Add channel</b> for {{ d.plan.category }}. When you add it, the held clips post.</div></div>{% endif %}

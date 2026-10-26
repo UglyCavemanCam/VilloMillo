@@ -37,7 +37,7 @@
           <button type="button" class="tab" {% if c.privacy == key %}aria-selected="true" aria-pressed="true"{% else %}aria-pressed="false" data-act="/api/channel-privacy" data-fields='{{ {"profile": c.id, "privacy": key}|tojson }}' data-ok="New posts will be {{ key }}"{% if key == "public" %} data-confirm-title="Post clips publicly?" data-confirm="Anyone can watch the clips this channel posts from now on. Clips already on YouTube keep the setting they were posted with."{% endif %}{% endif %}>{{ label }}</button>
           {% endfor %}</span>
         {% if c.privacy == 'unlisted' %}<span class="muted" style="font-size:13px">Unlisted now (change it on the channel's page)</span>{% endif %}</dd>
-      <dt>Look</dt><dd>{{ c.look }}</dd>
+      <dt>Format</dt><dd>{{ c.format }}</dd>
       <dt>Caption tags</dt><dd>{{ c.tags }}</dd>
     </dl>
     <div class="stats-row"><span class="muted">Clips<b>{{ c.clips }}</b></span><span class="muted">Waiting<b>{{ c.waiting }}</b></span><span class="muted">Posted<b>{{ c.posted }}</b></span>{% if c.held %}<span class="muted">Held<b>{{ c.held }}</b></span>{% endif %}</div>

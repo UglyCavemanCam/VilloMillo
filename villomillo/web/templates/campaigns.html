@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon, empty %}
 {% block content %}
-<div class="page-head"><h1>Campaigns</h1><span class="sub">Content Rewards campaigns that pay per 1,000 views. VilloMillo reads the public list, vets each one, and clips for the ones you join.</span></div>
+<div class="page-head"><h1>Campaigns</h1><span class="sub">Content Rewards campaigns that pay per 1,000 views. VilloMillo reads the public list, vets each one, and clips for the ones you join.</span>
+  <span class="right"><span class="badge {{ 'good' if d.on else '' }}">{{ 'On' if d.on else 'Off' }}</span></span></div>
+
+<section class="card stack" aria-labelledby="camp-sw-h"><h2 id="camp-sw-h">Run Campaigns</h2>
+  <p class="muted" style="margin:0;line-height:1.5">While this is off, nothing is read from Content Rewards, no queue is filled, and no campaign video is started. Campaigns you joined stay joined. Switch it on when you are ready.</p>
+  <div class="cluster">
+    <form method="post" action="/campaigns/switch"><input type="hidden" name="on" value="{{ '0' if d.on else '1' }}">
+      <button class="btn {{ '' if d.on else 'btn-primary' }}" type="submit">{{ 'Switch Campaigns off' if d.on else 'Switch Campaigns on' }}</button></form>
+  </div>
+</section>
 
 {% if d.problem %}<div class="notice bad" role="alert">{{ icon('alert') }}<div>{{ d.problem }}</div></div>{% endif %}
 

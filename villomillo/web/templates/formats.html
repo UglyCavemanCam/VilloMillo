@@ -1,0 +1,636 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block content %}
+<style>
+[hidden]{display:none !important}
+.fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.fmt-card{display:flex;flex-direction:column;gap:8px}
+.fmt-card h3{margin:0;font-size:16px}
+.fmt-tabs{display:flex;gap:8px;margin:0 0 18px}
+.fmt-tabs .btn[aria-selected="true"]{background:var(--accent);color:var(--accent-ink,#0E1015)}
+.fmt-builder{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:18px;align-items:start}
+@media (max-width:900px){.fmt-builder{grid-template-columns:1fr}}
+.fmt-form{display:flex;flex-direction:column;gap:14px}
+.fmt-form fieldset{border:1px solid var(--border,#2A303C);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin:0}
+.fmt-form legend{padding:0 6px;font-weight:600}
+.fmt-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
+.fmt-row label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.fmt-row label.inline{flex-direction:row;align-items:center;gap:8px;font-size:14px}
+.fmt-row input[type=number]{width:96px}
+.fmt-preview{position:sticky;top:76px;display:flex;flex-direction:column;gap:10px}
+.fmt-preview video{width:100%;aspect-ratio:9/16;background:#000;border-radius:12px}
+.fmt-msg{padding:10px 14px;border-radius:8px;margin:0 0 14px;border:1px solid var(--border,#2A303C)}
+.fmt-msg.bad{border-color:#E0605A}.fmt-msg.good{border-color:#4FB67C}
+.fmt-styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.fmt-style{border:1px solid var(--border,#2A303C);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.fmt-stage{height:120px;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;background:linear-gradient(160deg,#3a4250,#1b1f28 75%);color:#fff;overflow:hidden}
+.fmt-stage b{font-weight:700;line-height:1.1}
+.fmt-style .info{padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px}
+</style>
+
+<div class="page-head"><h1>Formats</h1><span class="sub">Build a format once and use it for every clip of a kind. Podcast clips, stream clips and the rest each use the format you tick for them.</span></div>
+
+<div id="note" role="status"></div>
+<div class="fmt-tabs" role="tablist" aria-label="Formats">
+  <button class="btn btn-sm" role="tab" id="tab-btn-presets" data-tab="presets" type="button">Quick Presets</button>
+  <button class="btn btn-sm" role="tab" id="tab-btn-templates" data-tab="templates" type="button">My Templates</button>
+  <button class="btn btn-sm" role="tab" id="tab-btn-assets" data-tab="assets" type="button">Assets</button>
+  <button class="btn btn-sm" role="tab" id="tab-btn-music" data-tab="music" type="button">Music</button>
+</div>
+
+<section id="tab-presets" hidden aria-labelledby="tab-btn-presets" class="stack">
+  <div><h2 style="margin:0 0 4px">Ready-made formats</h2>
+    <p class="muted" style="margin:0">Use one as it is for a kind of clip, or copy it into My Templates and change it.</p></div>
+  <div class="fmt-grid" id="preset-list"></div>
+  <div><h2 style="margin:0 0 4px">Caption styles</h2>
+    <p class="muted" style="margin:0">Twelve looks for the words as they are said. These drawings are close, not exact: use Show preview in the builder to see the real thing on a real clip.</p></div>
+  <div class="fmt-styles" id="style-list"></div>
+</section>
+
+<section id="tab-assets" hidden aria-labelledby="tab-btn-assets" class="stack">
+  <div><h2 style="margin:0 0 4px">Your logo</h2>
+    <p class="muted" style="margin:0">Upload it once. A template can show it in a corner, and a call to action in the last seconds. Both are for pasted-link and Research clips only; campaign clips never show them.</p></div>
+  <div class="card stack" id="logo-list"></div>
+  <div class="cluster"><input type="file" id="logo-file" accept="image/png,image/webp,image/gif">
+    <button class="btn btn-primary" id="logo-upload" type="button">Upload logo</button></div>
+  <p class="muted" style="margin:0;font-size:13px">PNG, WebP or GIF, 2 MB at most, 4000 pixels at most on the longest side. An animated GIF shows its first frame.</p>
+  <div><h2 style="margin:12px 0 4px">Your fonts</h2>
+    <p class="muted" style="margin:0">Upload a TTF or OTF font for captions and headlines. Each needs where it came from and its licence.</p></div>
+  <div class="card stack" id="font-list"></div>
+  <div class="card stack">
+    <div class="fmt-row"><input type="file" id="font-file" accept=".ttf,.otf,font/ttf,font/otf">
+      <label>Name (optional)<input class="field" type="text" id="font-name"></label></div>
+    <label>Where it came from<input class="field" type="text" id="font-source"></label>
+    <label>Licence (copy the licence text that came with it)<textarea class="field" id="font-licence" rows="2"></textarea></label>
+    <div><button class="btn btn-primary" id="font-upload" type="button">Upload font</button></div>
+  </div>
+</section>
+
+<section id="tab-music" hidden aria-labelledby="tab-btn-music" class="stack">
+  <div><h2 style="margin:0 0 4px">Music library</h2>
+    <p class="muted" style="margin:0">Songs you download from the YouTube Audio Library. A template can put one quietly under the voice, only where the AI says it helps. With no tracks here, no clip gets music and nothing breaks.</p></div>
+  <div class="card stack">
+    <div class="cluster" style="justify-content:space-between"><div><b id="music-count"></b><div class="muted" style="font-size:13px" id="music-where"></div></div>
+      <button class="btn btn-primary" id="music-import" type="button">Import from Downloads</button></div>
+    <p class="muted" style="margin:0;font-size:13px">Download a track in YouTube Studio, then press Import. The app finds each shortlisted file by its name, files it with its mood and categories, and keeps its licence record.</p>
+  </div>
+  <div id="music-tracks" class="stack"></div>
+  <h3 style="margin:8px 0 0">Still to download</h3>
+  <div id="music-missing" class="card stack"></div>
+  <details class="card"><summary><b>Add a track that is not on the list</b></summary>
+    <div class="fmt-form stack" style="margin-top:10px">
+      <div class="fmt-row"><input type="file" id="mn_file" accept="audio/mpeg,audio/wav,.mp3,.wav">
+        <label>Title<input class="field" type="text" id="mn_title"></label><label>Artist<input class="field" type="text" id="mn_artist"></label></div>
+      <div class="fmt-row"><label>Mood<select class="field" id="mn_mood"></select></label><label>Genre (optional)<input class="field" type="text" id="mn_genre"></label></div>
+      <div class="chip-row" id="mn_cats"></div>
+      <div class="fmt-row"><label>Where it came from<input class="field" type="text" id="mn_source"></label></div>
+      <label>Licence (copy the licence text that came with it)<textarea class="field" id="mn_licence" rows="2"></textarea></label>
+      <div><button class="btn btn-primary" id="mn_add" type="button">Add track</button></div>
+    </div></details>
+</section>
+
+<div id="ai-modal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;overflow:auto;padding:16px">
+  <div class="card stack" style="max-width:820px;margin:24px auto" role="dialog" aria-labelledby="ai-h">
+    <div class="cluster" style="justify-content:space-between"><h2 id="ai-h" style="margin:0">New AI Generate</h2>
+      <button class="btn btn-sm" id="ai-close" type="button">Close</button></div>
+    <p class="muted" style="margin:0">Answer a few questions. The AI makes three formats, each with a preview. Nothing is saved until you pick one.</p>
+    <div id="ai-questions" class="stack">
+      <label>What kind of clips is this for?<select class="field" id="ai_kind">
+        <option value="podcast">Podcasts</option><option value="talk">Talks</option><option value="stream">Stream clips</option><option value="other">Other</option></select></label>
+      <label>How should it feel?<select class="field" id="ai_feel">
+        <option value="calm">Calm: quiet captions, subtle effects only</option><option value="balanced" selected>Balanced: clear captions, moderate effects</option>
+        <option value="high">High energy: bold captions, punchier effects</option></select></label>
+      <label class="inline"><input type="checkbox" id="ai_campaign"> This is for campaign clips (no logo, button, handle or progress bar)</label>
+      <label>Which logo should it use?<select class="field" id="ai_logo"></select></label>
+      <label>Anything else it should know? (optional)<input class="field" type="text" id="ai_note" maxlength="200" placeholder="for example: bold and yellow, like a sports channel"></label>
+      <div><button class="btn btn-primary" id="ai-go" type="button">Generate three formats</button>
+        <span class="muted" id="ai-status" style="margin-left:10px;font-size:13px"></span></div>
+    </div>
+    <div id="ai-results" class="stack"></div>
+  </div>
+</div>
+
+<section id="tab-templates" hidden aria-labelledby="tab-btn-templates" class="stack">
+  <div class="cluster" style="justify-content:space-between"><h2 style="margin:0">My Templates</h2>
+    <div class="cluster"><button class="btn" id="ai-generate" type="button">New AI Generate</button>
+    <button class="btn btn-primary" id="new-template" type="button">New template</button></div></div>
+  <div class="fmt-grid" id="template-list"></div>
+
+  <div id="builder" hidden class="card stack" aria-labelledby="builder-h">
+    <h2 id="builder-h" style="margin:0">Builder</h2>
+    <div id="clip-box" class="notice" hidden>{{ icon('info') }}<div></div></div>
+    <div class="fmt-builder">
+      <div class="fmt-form">
+        <div class="fmt-row"><label>Name<input class="field" id="f_name" maxlength="60" style="min-width:240px"></label>
+          <label>Layout<select class="field" id="f_layout"><option value="face_fill">Face fill: the speaker fills the screen</option><option value="fit_blur">Fit with blur: the whole picture over a blurred copy</option><option value="stacked_webcam">Stacked: webcam over the game (streams)</option><option value="split">Split: two people, one on top and one below</option></select></label>
+          <fieldset class="fmt-webcam" id="webcam-box" hidden style="margin:0"><legend>Webcam box (% of the picture)</legend>
+            <div style="grid-column:1/-1"><button class="btn btn-sm" id="webcam-suggest" type="button">Suggest from the video above</button> <span class="muted" style="font-size:13px">Finds the streamer's face and draws a box around it. Check it and adjust if needed.</span></div>
+            <label>Left<input class="field" type="number" id="w_x" min="0" max="100"></label><label>Top<input class="field" type="number" id="w_y" min="0" max="100"></label>
+            <label>Width<input class="field" type="number" id="w_w" min="5" max="100"></label><label>Height<input class="field" type="number" id="w_h" min="5" max="100"></label></fieldset>
+          <label>Keep the crop clear of the left edge (%)<input class="field" type="number" id="f_limit" min="0" max="60" title="For text the show puts on the left. If that would cut the speaker off, the clip is flagged instead."></label></div>
+
+        <fieldset><legend>Captions</legend>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_enabled"> Show captions</label>
+            <label>Style<select class="field" id="c_style"></select></label>
+            <label>Font<select class="field" id="c_font"></select></label>
+            <label>Size<input class="field" type="number" id="c_size" min="40" max="160" placeholder="style"></label>
+            <label>Capitals<select class="field" id="c_upper"><option value="">Style's own</option><option value="1">All capitals</option><option value="0">Normal</option></select></label>
+            <label>Position<select class="field" id="c_pos"><option value="lower">Lower</option><option value="middle">Middle</option><option value="upper">Upper</option></select></label></div>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_custom"> Use my own colours</label>
+            <label>Words<input type="color" id="c_text" value="#ffffff"></label><label>Spoken word<input type="color" id="c_high" value="#ffb000"></label></div>
+          <div class="fmt-row"><label>Who picks the style
+              <select class="field" id="s_mode"><option value="fixed">This template: the style above</option><option value="ai">The AI picks from the styles ticked below</option></select></label></div>
+          <div id="pool-box" hidden><div class="chip-row" id="s_pool"></div>
+            <p class="muted" style="margin:6px 0 0;font-size:13px">The AI picking is built in a later phase. Until then clips use the style chosen above.</p></div>
+        </fieldset>
+
+        <fieldset><legend>Headline</legend>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="h_enabled"> Show a headline</label>
+            <label>Font<select class="field" id="h_font"></select></label>
+            <label>Size<input class="field" type="number" id="h_size" min="24" max="90"></label>
+            <label>Alignment<select class="field" id="h_align"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label></div>
+          <div class="fmt-row"><label>Text colour<input type="color" id="h_color"></label>
+            <label>Word box colour<input type="color" id="h_bg"></label>
+            <label class="inline"><input type="checkbox" id="h_nobg"> No box</label>
+            <label>Corner radius<input class="field" type="number" id="h_radius" min="0" max="40"></label>
+            <label>Width %<input class="field" type="number" id="h_width" min="40" max="100"></label>
+            <label class="inline"><input type="checkbox" id="h_shadow"> Text shadow</label></div>
+        </fieldset>
+
+        <fieldset><legend>Also on the clip</legend>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="x_chips"> A label for each point the speaker makes</label>
+            <label class="inline"><input type="checkbox" id="x_take"> A takeaway at the end</label>
+            <label class="inline"><input type="checkbox" id="b_wm"> Your faint handle in the middle</label>
+            <label class="inline"><input type="checkbox" id="b_bar"> A thin progress bar</label></div>
+          <p class="muted" style="margin:0;font-size:13px">Clips made for a campaign never carry the handle or the progress bar, whatever is ticked here.</p>
+        </fieldset>
+
+        <fieldset><legend>Music</legend>
+          <p class="muted" style="margin:0;font-size:13px">Quiet music under the voice, from the Music tab. Never on a serious subject, never over music or a crowd already in the video. With no tracks, nothing happens.</p>
+          <div class="fmt-row"><label>Music<select class="field" id="m_mode"><option value="off">Off</option><option value="when_helps">Only when it helps</option><option value="always">Always, when there is a track</option></select></label>
+            <label>How far under the voice (dB)<input class="field" type="number" id="m_vol" min="-30" max="-16"></label></div>
+        </fieldset>
+
+        <fieldset><legend>Logo and call to action</legend>
+          <p class="muted" style="margin:0;font-size:13px">Pasted-link and Research clips only. Campaign clips never get these, whatever is ticked here.</p>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="l_on"> Show my logo in a corner</label>
+            <label>Logo <select class="field" id="l_asset"></select></label>
+            <label>Size (% of width)<input class="field" type="number" id="l_size" min="6" max="30"></label>
+            <label>Corner<select class="field" id="l_corner"><option value="left">Left (top)</option><option value="right">Right (top)</option></select></label>
+            <label>Shows from second<input class="field" type="number" id="l_from" min="0" max="30"></label></div>
+          <div class="fmt-row"><label class="inline"><input type="checkbox" id="k_on"> Show a call to action in the last seconds</label>
+            <label>Text<input class="field" type="text" id="k_text" maxlength="40"></label>
+            <label>Size<input class="field" type="number" id="k_size" min="24" max="60"></label>
+            <label>Shows for (seconds, at the end)<input class="field" type="number" id="k_secs" min="1" max="6"></label></div>
+        </fieldset>
+
+        <fieldset><legend>Effects</legend>
+          <p class="muted" style="margin:0;font-size:13px">Small picture moves that Claude proposes on the words that earn them. Most of a clip gets none. Each one shows its reason on the clip.</p>
+          <div class="fmt-row"><label>How many<select class="field" id="e_intensity"><option value="off">Off</option><option value="subtle">Subtle: about one every 8 seconds</option><option value="balanced">Balanced: about one every 5 seconds</option><option value="punchy">Punchy: about one every 3 seconds</option></select></label></div>
+          <div class="chip-row" id="e_kinds"></div>
+        </fieldset>
+
+        <fieldset><legend>Use this template for</legend><div class="chip-row" id="cat-list"></div>
+          <p class="muted" style="margin:0;font-size:13px">A kind of clip uses one template. Ticking a kind here moves it to this template.</p></fieldset>
+
+        <div class="cluster">
+          <button class="btn btn-primary" id="save" type="button">Save template</button>
+          <button class="btn" id="save-copy" type="button">Save as a new template</button>
+          <button class="btn btn-ghost" id="close" type="button">Close</button>
+          <button class="btn btn-stop" id="delete" type="button" hidden>Delete forever</button>
+        </div>
+        <div class="cluster" id="clip-actions" hidden><button class="btn btn-primary" id="apply-clip" type="button">Apply to this clip only</button>
+          <span class="muted" style="font-size:13px">The template is not changed.</span></div>
+      </div>
+
+      <div class="fmt-preview">
+        <label style="font-size:13px">Sample video<select class="field" id="v_video"></select></label>
+        <button class="btn" id="v_btn" type="button">Show preview</button>
+        <div class="muted" id="v_status" style="font-size:13px">A short clip made by the real renderer. The headline and labels are sample text.</div>
+        <video id="v_player" controls muted loop playsinline hidden></video>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script id="boot" type="application/json">{{ d.boot|tojson }}</script>
+<script>
+(function () {
+  var boot = JSON.parse(document.getElementById("boot").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var current = null, copy = function (x) { return JSON.parse(JSON.stringify(x)); };
+
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === "text") n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+  function say(text, kind) { var n = $("note"); n.textContent = ""; if (text) { n.appendChild(el("div", { "class": "fmt-msg " + (kind || ""), text: text })); window.scrollTo(0, 0); } }
+  function post(url, body) {
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); });
+  }
+  function options(select, items, blank) {
+    select.textContent = "";
+    if (blank) select.appendChild(el("option", { value: "", text: blank }));
+    items.forEach(function (i) { select.appendChild(el("option", { value: i.id, text: i.label })); });
+  }
+
+  function tab(name) {
+    ["presets", "templates", "assets", "music"].forEach(function (t) {
+      $("tab-" + t).hidden = t !== name; $("tab-btn-" + t).setAttribute("aria-selected", t === name ? "true" : "false");
+    });
+    try { history.replaceState(null, "", "#" + name); } catch (e) {}
+  }
+  document.querySelectorAll("[data-tab]").forEach(function (b) { b.addEventListener("click", function () { tab(b.dataset.tab); }); });
+
+  // ---- quick presets and the caption style drawings --------------------------------------------------------------
+  function renderPresets() {
+    var box = $("preset-list"); box.textContent = "";
+    if (!boot.presets.length) box.appendChild(el("p", { "class": "muted", text: "No quick presets left." }));
+    boot.presets.forEach(function (p) {
+      var sel = el("select", { "class": "field" }); boot.categories.forEach(function (c) { sel.appendChild(el("option", { value: c, text: c })); });
+      var use = el("button", { "class": "btn btn-primary btn-sm", type: "button", text: "Use for this kind" });
+      var cp = el("button", { "class": "btn btn-sm", type: "button", text: "Copy to My Templates" });
+      var del = el("button", { "class": "btn btn-sm btn-ghost", type: "button", text: "Delete forever" });
+      use.addEventListener("click", function () { post("/api/formats/preset", { preset_id: p.id, action: "use", category: sel.value }).then(done("Saved, and used for " + sel.value + "."))});
+      cp.addEventListener("click", function () { post("/api/formats/preset", { preset_id: p.id, action: "copy" }).then(done("Copied to My Templates."))});
+      del.addEventListener("click", function () {
+        if (confirm("Delete the " + p.name + " preset for good? It will not come back.")) post("/api/formats/preset-delete", { preset_id: p.id }).then(done("Deleted."));
+      });
+      box.appendChild(el("div", { "class": "card fmt-card" }, [el("h3", { text: p.name }), el("p", { "class": "muted", style: "margin:0", text: p.blurb }),
+        el("label", { style: "font-size:13px" }, [document.createTextNode("Kind of clip "), sel]), el("div", { "class": "cluster" }, [use, cp, del])]));
+    });
+  }
+  function done(message) {
+    return function (r) {
+      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
+      location.hash = "#templates"; location.reload();
+    };
+  }
+
+  var DRAW = {
+    spotlight: "font:800 22px Montserrat;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
+    pop: "font:900 24px Montserrat;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
+    block: "font:800 21px Montserrat;text-transform:uppercase",
+    dim: "font:600 20px Poppins", slam: "font:400 46px Anton;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
+    plate: "font:600 17px Inter;background:rgba(0,0,0,.72);padding:8px 14px;border-radius:4px", neon: "font:italic 800 30px 'Barlow Condensed';text-transform:uppercase;color:#5CF0FF;text-shadow:0 0 5px #5CF0FF,0 0 14px #FF2BD6",
+    type: "font:400 19px 'Special Elite'", marker: "font:400 22px 'Permanent Marker';transform:rotate(-2.5deg)",
+    build: "font:700 21px Poppins", underline: "font:700 21px Montserrat", burst: "font:400 30px Bangers;color:#FFE135;text-transform:uppercase;-webkit-text-stroke:5px #111;paint-order:stroke fill;transform:rotate(-3deg)"
+  };
+  function renderStyles() {
+    var box = $("style-list"); box.textContent = "";
+    boot.styles.forEach(function (s) {
+      var words = ["shut", "it", "down."].map(function (w, i) {
+        var n = el("span", { text: (s.upper ? w.toUpperCase() : w) + " ", style: i === 2 ? "color:" + s.accent : "" }); return n; });
+      var line = el("b", { style: (DRAW[s.id] || "") + ";color:" + (["neon", "burst"].indexOf(s.id) > -1 ? "" : "#fff") }, words);
+      var use = el("button", { "class": "btn btn-sm", type: "button", text: "Use in the builder" });
+      use.addEventListener("click", function () { openBuilder(null, s.id); });
+      box.appendChild(el("div", { "class": "fmt-style" }, [el("div", { "class": "fmt-stage" }, [line]),
+        el("div", { "class": "info" }, [el("strong", { text: s.label }), el("span", { "class": "muted", text: s.blurb }), use])]));
+    });
+  }
+
+  // ---- templates ---------------------------------------------------------------------------------------------------
+  function renderTemplates() {
+    var box = $("template-list"); box.textContent = "";
+    if (!boot.templates.length) box.appendChild(el("p", { "class": "muted", text: "No templates yet. Use a quick preset, or press New template." }));
+    boot.templates.forEach(function (t) {
+      var edit = el("button", { "class": "btn btn-sm btn-primary", type: "button", text: "Edit" });
+      edit.addEventListener("click", function () { openBuilder(t); });
+      var used = t.categories.length ? "Used for: " + t.categories.join(", ") : "Not used for any kind of clip yet";
+      var aiTag = t.design.made_by === "ai" ? el("span", { "class": "muted", style: "font-size:12px;border:1px solid currentColor;border-radius:6px;padding:0 6px", text: "AI made" }) : el("span");
+      box.appendChild(el("div", { "class": "card fmt-card" }, [el("h3", { text: t.name }), aiTag, el("p", { "class": "muted", style: "margin:0", text: used }),
+        el("div", { "class": "muted", style: "font-size:13px", text: boot.styles.filter(function (s) { return s.id === t.design.captions.style; })[0].label + " captions · " + (t.design.layout === "face_fill" ? "Face fill" : "Fit with blur") }),
+        el("div", { "class": "cluster" }, [edit])]));
+    });
+  }
+
+  $("f_layout").addEventListener("change", function () { $("webcam-box").hidden = $("f_layout").value !== "stacked_webcam"; });
+  function setChecked(id, v) { $(id).checked = !!v; }
+  function fill(d) {
+    $("f_layout").value = d.layout; $("f_limit").value = d.crop_limit || 0;
+    $("w_x").value = d.webcam.x; $("w_y").value = d.webcam.y; $("w_w").value = d.webcam.w; $("w_h").value = d.webcam.h;
+    $("webcam-box").hidden = d.layout !== "stacked_webcam";
+    var c = d.captions;
+    setChecked("c_enabled", c.enabled); $("c_style").value = c.style; $("c_font").value = c.font || ""; $("c_size").value = c.size || "";
+    $("c_upper").value = c.uppercase === null ? "" : (c.uppercase ? "1" : "0"); $("c_pos").value = c.position;
+    setChecked("c_custom", c.text_color || c.highlight_color); $("c_text").value = (c.text_color || "#FFFFFF").toLowerCase(); $("c_high").value = (c.highlight_color || "#FFB000").toLowerCase();
+    var h = d.headline;
+    setChecked("h_enabled", h.enabled); $("h_font").value = h.font; $("h_size").value = h.size; $("h_align").value = h.align;
+    $("h_color").value = h.color.toLowerCase(); $("h_bg").value = (h.background || "#FFB000").toLowerCase(); setChecked("h_nobg", !h.background);
+    $("h_radius").value = h.radius; $("h_width").value = h.width_pct; setChecked("h_shadow", h.shadow);
+    $("m_mode").value = d.music.mode; $("m_vol").value = d.music.volume;
+    $("e_intensity").value = d.effects.intensity;
+    document.querySelectorAll("#e_kinds input").forEach(function (i) { i.checked = d.effects.kinds.indexOf(i.value) > -1; });
+    setChecked("l_on", d.logo.enabled); $("l_asset").value = d.logo.asset_id || ""; $("l_size").value = d.logo.size;
+    $("l_corner").value = d.logo.corner; $("l_from").value = d.logo.from_s; $("k_secs").value = d.cta.seconds;
+    setChecked("k_on", d.cta.enabled); $("k_text").value = d.cta.text; $("k_size").value = d.cta.size;
+    setChecked("x_chips", d.chips); setChecked("x_take", d.takeaway); setChecked("b_wm", d.brand.watermark); setChecked("b_bar", d.brand.progress_bar);
+    $("s_mode").value = d.style_mode;
+    document.querySelectorAll("#s_pool input").forEach(function (i) { i.checked = d.style_pool.indexOf(i.value) > -1; });
+    $("pool-box").hidden = d.style_mode !== "ai";
+  }
+  function read() {
+    var num = function (id) { var v = $(id).value; return v === "" ? null : Number(v); };
+    var custom = $("c_custom").checked;
+    return {
+      layout: $("f_layout").value, crop_limit: num("f_limit") || 0,
+      webcam: { x: num("w_x"), y: num("w_y"), w: num("w_w"), h: num("w_h") },
+      captions: { enabled: $("c_enabled").checked, style: $("c_style").value, font: $("c_font").value || null, size: num("c_size"),
+                  uppercase: $("c_upper").value === "" ? null : $("c_upper").value === "1", position: $("c_pos").value,
+                  text_color: custom ? $("c_text").value : null, highlight_color: custom ? $("c_high").value : null },
+      headline: { enabled: $("h_enabled").checked, font: $("h_font").value, size: num("h_size"), align: $("h_align").value, color: $("h_color").value,
+                  background: $("h_nobg").checked ? "" : $("h_bg").value, radius: num("h_radius"), width_pct: num("h_width"), shadow: $("h_shadow").checked },
+      music: { mode: $("m_mode").value, volume: num("m_vol") },
+      effects: { intensity: $("e_intensity").value, kinds: Array.prototype.map.call(document.querySelectorAll("#e_kinds input:checked"), function (i) { return i.value; }) },
+      logo: { enabled: $("l_on").checked, asset_id: num("l_asset"), size: num("l_size"), corner: $("l_corner").value, from_s: num("l_from") },
+      cta: { enabled: $("k_on").checked, text: $("k_text").value, size: num("k_size"), seconds: num("k_secs") },
+      chips: $("x_chips").checked, takeaway: $("x_take").checked, brand: { watermark: $("b_wm").checked, progress_bar: $("b_bar").checked },
+      style_mode: $("s_mode").value,
+      style_pool: Array.prototype.map.call(document.querySelectorAll("#s_pool input:checked"), function (i) { return i.value; })
+    };
+  }
+  function chosenCategories() {
+    return Array.prototype.map.call(document.querySelectorAll("#cat-list input:checked"), function (i) { return i.value; });
+  }
+
+  function openBuilder(t, style) {
+    current = t ? { id: t.id } : { id: null };
+    var design = copy(t ? t.design : boot.defaults);
+    if (style) design.captions.style = style;
+    $("f_name").value = t ? t.name : "";
+    fill(design);
+    document.querySelectorAll("#cat-list input").forEach(function (i) { i.checked = !!t && t.categories.indexOf(i.value) > -1; });
+    $("delete").hidden = !t;
+    $("builder").hidden = false; tab("templates");
+    $("builder").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function buildControls() {
+    options($("c_style"), boot.styles);
+    options($("c_font"), boot.fonts, "Style's own");
+    options($("h_font"), boot.fonts);
+    options($("v_video"), boot.videos.map(function (v) { return { id: v.id, label: v.title }; }));
+    var pool = $("s_pool"); pool.textContent = "";
+    boot.styles.forEach(function (s) { pool.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" },
+      [el("input", { type: "checkbox", value: s.id }), document.createTextNode(s.label)])); });
+    var cats = $("cat-list"); cats.textContent = "";
+    boot.categories.forEach(function (c) { cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" },
+      [el("input", { type: "checkbox", value: c }), document.createTextNode(c)])); });
+    var kinds = $("e_kinds"); kinds.textContent = "";
+    boot.effect_kinds.forEach(function (k) { kinds.appendChild(el("label", { "class": "inline", title: k.blurb, style: "display:inline-flex;gap:6px;align-items:center" },
+      [el("input", { type: "checkbox", value: k.id }), document.createTextNode(k.label)])); });
+    options($("l_asset"), boot.logos.map(function (l) { return { id: l.id, label: l.name }; }), "Choose a logo");
+    $("s_mode").addEventListener("change", function () { $("pool-box").hidden = $("s_mode").value !== "ai"; });
+    renderLogos(); renderMusic(); renderFonts();
+  }
+
+  function renderFonts() {
+    var box = $("font-list"); box.textContent = "";
+    if (!boot.font_uploads.length) box.appendChild(el("p", { "class": "muted", text: "No uploaded fonts yet. The bundled fonts are always there." }));
+    boot.font_uploads.forEach(function (f) {
+      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
+      del.addEventListener("click", function () { if (confirm("Delete this font for good?")) post("/api/fonts/delete", { id: f.id }).then(doneFonts("Font deleted.")); });
+      box.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [
+        el("div", {}, [el("b", { text: f.label }), el("div", { "class": "muted", style: "font-size:12px", text: f.source + ". " + f.licence })]), del]));
+    });
+  }
+  function doneFonts(message) {
+    return function (r) {
+      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
+      location.hash = "#assets"; location.reload();
+    };
+  }
+  $("font-upload").addEventListener("click", function () {
+    var f = $("font-file").files[0];
+    if (!f) return say("Choose a TTF or OTF font first.", "bad");
+    var q = "filename=" + encodeURIComponent(f.name) + "&name=" + encodeURIComponent($("font-name").value)
+      + "&source=" + encodeURIComponent($("font-source").value) + "&licence=" + encodeURIComponent($("font-licence").value);
+    fetch("/api/fonts/upload?" + q, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); }).then(doneFonts("Font uploaded."));
+  });
+
+  function renderMusic() {
+    var m = boot.music, have = m.checklist.filter(function (c) { return c.have; }).length;
+    $("music-count").textContent = m.tracks.length + " track" + (m.tracks.length === 1 ? "" : "s") + " in the library. " + have + " of " + m.checklist.length + " on the shortlist.";
+    $("music-where").textContent = "Looking in " + m.downloads;
+    var box = $("music-tracks"); box.textContent = "";
+    m.tracks.forEach(function (t) {
+      var mood = el("select", { "class": "field" });
+      m.moods.forEach(function (x) { var o = el("option", { value: x, text: x }); if (x === t.mood) o.selected = true; mood.appendChild(o); });
+      var cats = el("div", { "class": "chip-row" });
+      m.categories.forEach(function (c) {
+        var cb = el("input", { type: "checkbox", value: c }); cb.checked = t.categories.indexOf(c) > -1;
+        cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [cb, document.createTextNode(c)]));
+      });
+      var save = el("button", { "class": "btn btn-sm", type: "button", text: "Save" });
+      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
+      save.addEventListener("click", function () {
+        post("/api/music/update", { id: t.id, mood: mood.value, categories: Array.prototype.map.call(cats.querySelectorAll("input:checked"), function (i) { return i.value; }) }).then(doneMusic("Saved."));
+      });
+      del.addEventListener("click", function () { if (confirm("Delete this track for good?")) post("/api/music/delete", { id: t.id }).then(doneMusic("Track deleted.")); });
+      var length = Math.floor(t.duration_s / 60) + ":" + ("0" + Math.round(t.duration_s % 60)).slice(-2);
+      box.appendChild(el("div", { "class": "card stack" }, [
+        el("div", { "class": "cluster", style: "justify-content:space-between" }, [
+          el("div", {}, [el("b", { text: t.title }), el("div", { "class": "muted", style: "font-size:13px", text: t.artist + " · " + length + (t.genre ? " · " + t.genre : "") })]),
+          el("audio", { controls: "", preload: "none", src: "/music/" + t.id + "/file", style: "height:34px;max-width:100%" })]),
+        el("div", { "class": "fmt-row" }, [mood, cats, save, del]),
+        t.singing !== null && t.singing >= 0.35 ? el("div", { style: "font-size:13px;color:#e0a000", text: "Warning: this track sounds sung. Under a voice it may compete with the speaker; the app will still use it when it is the only fit." }) : el("span"),
+        el("div", { "class": "muted", style: "font-size:12px", text: t.source + ". " + t.licence + " Added " + t.added_at.slice(0, 10) + "." })]));
+    });
+    var miss = $("music-missing"); miss.textContent = "";
+    var left = m.checklist.filter(function (c) { return !c.have; });
+    if (!left.length) miss.appendChild(el("p", { "class": "muted", text: "Every shortlisted track is in the library." }));
+    left.forEach(function (c) {
+      miss.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [
+        el("span", { text: c.title + " \u2014 " + c.artist }), el("span", { "class": "muted", style: "font-size:13px", text: c.mood + " \u00b7 " + c.categories.join(", ") })]));
+    });
+    options($("mn_mood"), m.moods.map(function (x) { return { id: x, label: x }; }));
+    var mc = $("mn_cats"); mc.textContent = "";
+    m.categories.forEach(function (c) { mc.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [el("input", { type: "checkbox", value: c }), document.createTextNode(c)])); });
+    $("mn_source").value = m.source; $("mn_licence").value = m.licence;
+  }
+  function doneMusic(message) {
+    return function (r) {
+      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
+      location.hash = "#music"; location.reload();
+    };
+  }
+  $("music-import").addEventListener("click", function () {
+    $("music-import").disabled = true;
+    post("/api/music/import", {}).then(function (r) {
+      $("music-import").disabled = false;
+      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+      var d = r.data, parts = [];
+      if (d.imported.length) parts.push("Added " + d.imported.length + ": " + d.imported.join(", ") + ".");
+      if (d.already.length) parts.push(d.already.length + " already in the library.");
+      if (d.problems.length) parts.push("Could not use: " + d.problems.join(" "));
+      if (!parts.length) parts.push("No new shortlisted tracks were found in your Downloads folder.");
+      try { sessionStorage.setItem("fmt-note", parts.join(" ")); } catch (e) {}
+      location.hash = "#music"; location.reload();
+    });
+  });
+  $("mn_add").addEventListener("click", function () {
+    var f = $("mn_file").files[0];
+    if (!f) return say("Choose an MP3 or WAV file first.", "bad");
+    var cats = Array.prototype.map.call($("mn_cats").querySelectorAll("input:checked"), function (i) { return i.value; }).join(",");
+    var q = "filename=" + encodeURIComponent(f.name) + "&title=" + encodeURIComponent($("mn_title").value) + "&artist=" + encodeURIComponent($("mn_artist").value)
+      + "&mood=" + encodeURIComponent($("mn_mood").value) + "&genre=" + encodeURIComponent($("mn_genre").value) + "&categories=" + encodeURIComponent(cats)
+      + "&source=" + encodeURIComponent($("mn_source").value) + "&licence=" + encodeURIComponent($("mn_licence").value);
+    fetch("/api/music/upload?" + q, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); }).then(doneMusic("Track added."));
+  });
+
+  function renderLogos() {
+    var box = $("logo-list"); box.textContent = "";
+    if (!boot.logos.length) box.appendChild(el("p", { "class": "muted", text: "No logo yet." }));
+    boot.logos.forEach(function (l) {
+      var img = el("img", { src: "/assets/" + l.id + "/file", alt: l.name, style: "height:56px;max-width:180px;object-fit:contain;border-radius:8px" });
+      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
+      del.addEventListener("click", function () { if (confirm("Delete this logo for good?")) post("/api/assets/delete", { id: l.id }).then(done("Logo deleted.")); });
+      box.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [img, el("span", { text: l.name }), del]));
+    });
+  }
+  $("logo-upload").addEventListener("click", function () {
+    var f = $("logo-file").files[0];
+    if (!f) return say("Choose a PNG, WebP or GIF first.", "bad");
+    fetch("/api/assets/logo?name=" + encodeURIComponent(f.name), { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (r) {
+        if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+        try { sessionStorage.setItem("fmt-note", "Logo uploaded."); } catch (e) {}
+        location.hash = "#assets"; location.reload();
+      });
+  });
+
+  function save(asNew) {
+    var body = { id: asNew ? null : current.id, name: $("f_name").value, design: read(), categories: chosenCategories() };
+    post("/api/formats/save", body).then(done("Saved."));
+  }
+  $("save").addEventListener("click", function () { save(false); });
+  $("save-copy").addEventListener("click", function () { save(true); });
+  $("close").addEventListener("click", function () { $("builder").hidden = true; });
+  $("new-template").addEventListener("click", function () { openBuilder(null); });
+  // ---- AI Generate: three formats from a few answers, each with a preview; nothing saved until one is picked --------
+  function aiAnswers() {
+    var logo = $("ai_logo").value;
+    return { kind: $("ai_kind").value, feel: $("ai_feel").value, campaign: $("ai_campaign").checked,
+             logo_id: $("ai_campaign").checked || !logo ? null : Number(logo), note: $("ai_note").value.trim() };
+  }
+  function openAi() {
+    options($("ai_logo"), boot.logos.map(function (l) { return { id: l.id, label: l.name }; }), "No logo");
+    $("ai-results").textContent = ""; $("ai-status").textContent = ""; $("ai-modal").hidden = false;
+  }
+  function renderAiOptions(data) {
+    var box = $("ai-results"); box.textContent = "";
+    if (data.dropped && data.dropped.length) box.appendChild(el("p", { "class": "muted", style: "font-size:13px", text: "Left out because they did not pass the checks: " + data.dropped.join("; ") }));
+    data.options.forEach(function (opt, i) {
+      var video = el("video", { src: opt.preview, controls: "", muted: "", loop: "", playsinline: "", style: "width:180px;max-width:100%;border-radius:10px;background:#000" });
+      var pick = el("button", { "class": "btn btn-primary btn-sm", type: "button", text: "Use this one" });
+      pick.addEventListener("click", function () { askName(opt, answersUsed); });
+      var more = el("button", { "class": "btn btn-sm", type: "button", text: "More like this" });
+      var less = el("button", { "class": "btn btn-sm", type: "button", text: "Not this" });
+      var note = el("span", { class: "muted", style: "font-size:13px" });
+      function feedback(verdict, button) {
+        post("/api/formats/generate/feedback", Object.assign({}, answersUsed, { design: opt.design, verdict: verdict }))
+          .then(function (r) {
+            if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+            more.disabled = less.disabled = true; note.textContent = verdict === "more" ? "Noted: more like this." : "Noted: not this.";
+          });
+      }
+      more.addEventListener("click", function () { feedback("more", more); });
+      less.addEventListener("click", function () { feedback("less", less); });
+      box.appendChild(el("div", { "class": "card cluster", style: "align-items:flex-start;gap:14px" }, [video,
+        el("div", { style: "min-width:0;flex:1 1 220px" }, [el("b", { text: "Option " + (i + 1) + ": " + opt.name }),
+          el("p", { "class": "muted", style: "margin:4px 0 8px", text: opt.summary }),
+          el("div", { "class": "cluster" }, [pick, more, less, note])])]));
+    });
+    box.appendChild(el("div", { id: "ai-pick" }));
+  }
+  var answersUsed = null;
+  function askName(opt, answers) {
+    var host = $("ai-pick"); host.textContent = "";
+    var name = el("input", { "class": "field", type: "text", value: opt.name, maxlength: "40" });
+    var cats = el("div", { "class": "chip-row" });
+    var want = { podcast: "Podcasts", talk: "Talks", stream: "Stream clips", other: "Other" }[answers.kind];
+    boot.categories.forEach(function (c) {
+      var cb = el("input", { type: "checkbox", value: c }); cb.checked = c === want;
+      cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [cb, document.createTextNode(c)]));
+    });
+    var save = el("button", { "class": "btn btn-primary", type: "button", text: "Save this format" });
+    save.addEventListener("click", function () {
+      var chosen = Array.prototype.map.call(cats.querySelectorAll("input:checked"), function (i) { return i.value; });
+      post("/api/formats/generate/pick", { name: name.value, design: opt.design, categories: chosen, answers: answers,
+        kind: answers.kind, feel: answers.feel, campaign: answers.campaign, logo_id: answers.logo_id, note: answers.note })
+        .then(function (r) {
+          if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+          try { sessionStorage.setItem("fmt-note", "Saved \"" + name.value + "\"."); } catch (e) {}
+          location.hash = "#templates"; location.reload();
+        });
+    });
+    host.appendChild(el("div", { "class": "card stack" }, [el("b", { text: "Name it and choose the kinds of clips that use it" }), name, cats, el("div", {}, [save])]));
+    host.scrollIntoView({ behavior: "smooth" });
+  }
+  $("ai-generate").addEventListener("click", openAi);
+  $("ai-close").addEventListener("click", function () { $("ai-modal").hidden = true; });
+  $("ai-go").addEventListener("click", function () {
+    var answers = aiAnswers(); answersUsed = answers;
+    var go = $("ai-go"), status = $("ai-status");
+    go.disabled = true; status.textContent = "Making three formats and their previews. This takes about a minute.";
+    $("ai-results").textContent = "";
+    post("/api/formats/generate", Object.assign({ profile: boot.profile }, answers)).then(function (r) {
+      go.disabled = false;
+      if (!r.ok) { status.textContent = ""; return say(r.data.error || "That did not work.", "bad"); }
+      status.textContent = r.data.options.length + " formats made. Cost: $" + r.data.cost.toFixed(2) + ".";
+      renderAiOptions(r.data);
+    });
+  });
+
+  $("delete").addEventListener("click", function () {
+    var t = boot.templates.filter(function (x) { return x.id === current.id; })[0];
+    var warn = t && t.categories.length ? " " + t.categories.join(", ") + " will have no format, so its clips wait for review." : "";
+    if (confirm("Delete this template for good?" + warn)) post("/api/formats/delete", { id: current.id }).then(done("Deleted."));
+  });
+  $("webcam-suggest").addEventListener("click", function () {
+    var status = $("webcam-suggest"); status.disabled = true;
+    post("/api/formats/suggest-webcam", { video_id: $("v_video").value }).then(function (r) {
+      status.disabled = false;
+      if (!r.ok) return say(r.data.error || "No webcam was found in that video.", "bad");
+      $("w_x").value = r.data.x; $("w_y").value = r.data.y; $("w_w").value = r.data.w; $("w_h").value = r.data.h;
+      say("Webcam box suggested. Check it against the preview.", "good");
+    });
+  });
+  $("v_btn").addEventListener("click", function () {
+    var status = $("v_status"); status.textContent = "Making the preview. This takes a few seconds."; $("v_btn").disabled = true;
+    post("/api/formats/preview", { design: read(), video_id: $("v_video").value, profile: boot.profile }).then(function (r) {
+      $("v_btn").disabled = false;
+      if (!r.ok) { status.textContent = r.data.error || "The preview could not be made."; return; }
+      status.textContent = "The real renderer made this. The headline and labels are sample text.";
+      var v = $("v_player"); v.src = r.data.url + "?t=" + Date.now(); v.hidden = false; v.play();
+    }).catch(function () { $("v_btn").disabled = false; status.textContent = "The preview could not be made."; });
+  });
+  $("apply-clip").addEventListener("click", function () {
+    post("/api/formats/apply-clip", { profile: boot.clip.profile, clip_id: boot.clip.id, design: read(), template_id: boot.clip.template_id }).then(function (r) {
+      say(r.ok ? "Applying this look to the clip. It takes a minute; reopen the clip afterwards." : (r.data.error || "That did not work."), r.ok ? "good" : "bad");
+    });
+  });
+
+  buildControls(); renderPresets(); renderStyles(); renderTemplates();
+  try { var n = sessionStorage.getItem("fmt-note"); if (n) { say(n, "good"); sessionStorage.removeItem("fmt-note"); } } catch (e) {}
+  tab((location.hash || "").replace("#", "") || (boot.templates.length ? "templates" : "presets"));
+  if (boot.clip) {
+    var own = boot.templates.filter(function (t) { return t.id === boot.clip.template_id; })[0];
+    openBuilder(own || null);
+    if (boot.clip.design) fill(copy(boot.clip.design));
+    $("clip-box").hidden = false; $("clip-box").querySelector("div").textContent = "You are editing the look of clip " + boot.clip.id + ". Apply to this clip only leaves the template alone; Save template changes it for every clip that uses it.";
+    $("clip-actions").hidden = false;
+  }
+})();
+</script>
+{% endblock %}

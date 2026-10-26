@@ -4,8 +4,9 @@ Steps, each one a short task for the worker so nothing blocks it while the engin
   analyse   the engine finds and scores the moments (a preview, no clips), then the plan is made: kind, category,
             channel, fit and a score for every moment;
   plan      you see the plan and press Start (or Remove video when nothing clears the floors);
-  make      the engine makes only the clips that cleared the floors, in the look the kind of video decides;
-  finish    each clip that passed its checks is approved, routed to its category's channel and planned for posting.
+  make      the engine makes only the clips that cleared the floors, each in its category's format when it has one;
+  finish    each clip that passed its checks and has a format is approved, routed to its category's channel and planned
+            for posting. A clip with no format waits for review and is never posted.
 The state of a run is kept in the `runs` table, so the dashboard can show it and a restart loses nothing.
 """
 
@@ -252,7 +253,7 @@ def make_plan(sv: Services, run_id: int, preview: dict) -> dict:
         fit, fit_why = scoring.channel_fit(sv.db, sv.jev, channel, excerpts, breaker=breaker)
     moments = [asdict(m) for m in result.moments]
     make = [m["id"] for m in moments if m["make"]]
-    return {"kind": asdict(kind), "category": kind.category, "look": kind.look,
+    return {"kind": asdict(kind), "category": kind.category,
             "channel": {"id": channel.id, "name": channel.display_name} if channel else None,
             "fit": fit, "fit_why": fit_why, "fit_ok": fit is None or fit >= scoring.FIT_MIN, "catch_all": target is not None,
             "owner": channel.id if channel else run["profile_id"],
@@ -321,7 +322,7 @@ def collect(sv: Services, run_id: int, engine: clipper.Engine | None = None) -> 
         job = c.execute("SELECT * FROM clip_jobs WHERE profile_id=? AND video_id=?", (owner.id, run["video_id"])).fetchone()
     if job is None:
         return fail(sv, run_id, "the clip job went missing")
-    formatter = formats.formatter_for(sv.db, owner, jev=sv.jev, breaker=sv.app.spend_breaker, recipe=plan["look"])
+    formatter = formats.formatter_for(sv.db, owner, jev=sv.jev, breaker=sv.app.spend_breaker, category=plan["category"])
     try:
         outcome = clipper.collect(sv.db, engine, sv.jev, owner, dict(job), formatter, category=plan["category"],
                                   campaign_id=run["campaign_id"], campaign_rules=campaigns.rules_for(campaign),
@@ -344,17 +345,17 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
     plan = run["plan"]
     with sv.db.conn() as c:
         ready = [dict(r) for r in c.execute(
-            "SELECT id, engine_score, grade_json FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
+            "SELECT id, engine_score, grade_json, format_applied FROM clips_ready WHERE profile_id=? AND video_id=? AND state='review' ORDER BY engine_score DESC, id",
             (run["profile_id"], run["video_id"]))]
     owner = sv.profiles.get(run["profile_id"])
     needed = owner.posting.auto_post_min_score if owner and owner.posting else 0  # the score a clip needs to post by itself
-    approved = held = low = unlooked = 0
+    approved = held = low = unformatted = 0
     for clip in ready:
         if not plan["fit_ok"]:
             continue  # stays in the review queue, with the reason on the plan
-        if json.loads(clip["grade_json"] or "{}").get("look_failed"):  # made in the engine's own look, not the channel's: never posted unseen
-            unlooked += 1
-            note(sv, run, f"Clip {clip['id']} was not given the channel's look, so it waits for you instead of posting.", "post", "warn")
+        if not clip["format_applied"]:  # no format yet: never planned, never posted; it waits for you with its reason
+            unformatted += 1
+            note(sv, run, f"Clip {clip['id']} has no format yet, so it waits for you. Add one on the Formats page, then schedule or post it.", "post", "warn")
             continue
         if (clip["engine_score"] or 0) < needed:  # waits for you: the checks passed, the score is not high enough to post unseen
             low += 1
@@ -386,8 +387,8 @@ def finish(sv: Services, run_id: int, outcome: str) -> None:
         parts.append(f"{waiting} waiting for your review: the video fits the channel only {plan['fit']} of 5.")
     if low:
         parts.append(parts_low)
-    if unlooked:
-        parts.append(f"{unlooked} did not get the channel's look, so they wait for you: open one and press Apply the look again.")
+    if unformatted:
+        parts.append(f"{unformatted} have no format yet, so they wait for you: add one, then schedule or post them.")
     note(sv, run, "Done. " + " ".join(parts[1:]) if len(parts) > 1 else "Done.", "post")
     _set(sv.db, run_id, state="finished", note=" ".join(parts))
     store.event(sv.db, "info", "run", f"run {run_id}: {' '.join(parts)}")
