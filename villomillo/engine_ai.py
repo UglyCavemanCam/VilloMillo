@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 
-from . import secrets, store
+from . import claude, secrets, store
 from .db import Database
 
 KEY = "engine_ai"
@@ -27,11 +27,18 @@ PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), 
 DEAREST = (10.00, 50.00)
 
 
+def _allowed(saved: dict, name: str, default: str) -> str:
+    """The saved model if the app may use it, else the default: a model above Sonnet 5.5 never reaches the engine."""
+    value = saved.get(name, default)
+    return value if value in claude.ALLOWED_MODELS else default
+
+
 def settings(db: Database) -> dict:
     with db.conn() as c:
         row = c.execute("SELECT value FROM meta WHERE key=?", (KEY,)).fetchone()
     saved = json.loads(row["value"]) if row else {}
-    return {"use_claude": bool(saved.get("use_claude", True)), "find": saved.get("find", FIND_MODEL), "judge": saved.get("judge", JUDGE_MODEL)}
+    return {"use_claude": bool(saved.get("use_claude", True)), "find": _allowed(saved, "find", FIND_MODEL),
+            "judge": _allowed(saved, "judge", JUDGE_MODEL)}
 
 
 def save(db: Database, *, use_claude: bool | None = None, find: str | None = None, judge: str | None = None) -> None:
@@ -39,9 +46,9 @@ def save(db: Database, *, use_claude: bool | None = None, find: str | None = Non
     if use_claude is not None:
         now["use_claude"] = bool(use_claude)
     if find:
-        now["find"] = find
+        now["find"] = claude.check_model(find)   # refused above Sonnet 5.5
     if judge:
-        now["judge"] = judge
+        now["judge"] = claude.check_model(judge)
     with db.conn() as c:
         c.execute("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (KEY, json.dumps(now)))
     store.event(db, "info", "engine", "Claude finds the moments" if now["use_claude"] else "The engine's own model finds the moments")

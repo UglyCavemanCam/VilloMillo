@@ -36,6 +36,7 @@ from .. import (
     engine_manager,
     links,
     posting,
+    relook,
     removal,
     research,
     rewards,
@@ -851,22 +852,60 @@ def create_app(sv: Services) -> FastAPI:
                 raise HTTPException(422, "there is no format to base the remake on: add one on the Formats page")
             base = template["settings"]
         design = format_designs.normalize({**base, "effects": {**format_designs.normalize(base)["effects"], "intensity": "off"}})
-        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id, "design": design},
-                      dedupe_key=f"relook-plain:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
+        if not relook.queue(sv.db, clip_id, design=design):
+            raise HTTPException(409, "this clip is already being made in a format: wait for it to finish")
         return JSONResponse({"ok": True})
 
-    @app.post("/api/clip-relook")
-    def clip_relook(request: Request, profile: str = Form(...), clip_id: int = Form(...)):
-        """Apply a format: a clip with no format is cut again in its category's format, then waits for your review."""
-        _only_local(request, "changes")
-        in_profile(profile)
+    def own_clip(clip_id: int, profile: str):
         with sv.db.conn() as c:
-            row = c.execute("SELECT id FROM clips_ready WHERE id=? AND state NOT IN ('removed','superseded') AND (profile_id=? OR id IN "
-                            "(SELECT clip_id FROM posts WHERE profile_id=?))", (clip_id, profile, profile)).fetchone()
+            row = c.execute("SELECT id, state, category, profile_id FROM clips_ready WHERE id=? AND state NOT IN ('removed','superseded') "
+                            "AND (profile_id=? OR id IN (SELECT clip_id FROM posts WHERE profile_id=?))", (clip_id, profile, profile)).fetchone()
         if row is None:
             raise HTTPException(404, "no such clip")
-        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id}, dedupe_key=f"relook:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
-        return JSONResponse({"ok": True})
+        return row
+
+    @app.post("/api/clip-relook")
+    def clip_relook(request: Request, profile: str = Form(...), clip_id: int = Form(...), template_id: str = Form(""), remember: str = Form("")):
+        """Apply a format: a clip with no format is cut again in a format (the one chosen, or its category's), then waits for your review.
+        With `remember`, the chosen format also becomes the one its category uses from now on."""
+        _only_local(request, "changes")
+        in_profile(profile)
+        row = own_clip(clip_id, profile)
+        if row["state"] != "review":
+            raise HTTPException(422, "only a clip waiting for your review can be given a format")
+        owner = sv.profiles.get(row["profile_id"])
+        category = row["category"] or (owner.category if owner else None)
+        if template_id:
+            if format_templates.get(sv.db, template_id) is None:
+                raise HTTPException(422, "that format is gone: pick another")
+            if remember and category:
+                format_templates.assign(sv.db, category, template_id)
+        elif format_templates.for_category(sv.db, category) is None:
+            raise HTTPException(422, f"{category or 'this'} has no format yet: pick one to apply")
+        queued = relook.queue(sv.db, clip_id, template_id=template_id or None)
+        return JSONResponse({"ok": True, "queued": queued})
+
+    @app.get("/clips/{clip_id}/format-status")
+    def clip_format_status(clip_id: int, profile: str):
+        """Where applying a format to this clip stands, for the clip panel's progress."""
+        profile_or_404(profile)
+        own_clip(clip_id, profile)
+        return JSONResponse(relook.state(sv.db, clip_id), headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/clips/apply-formats")
+    def clips_apply_formats(request: Request, profile: str = Form(...)):
+        """Give every waiting clip of this channel that has no format the format its category uses."""
+        _only_local(request, "changes")
+        in_profile(profile)
+        queued = relook.queue_waiting(sv, profile_id=profile, retry_failed=True)
+        if not queued:
+            raise HTTPException(422, "no waiting clip has a format to apply: a clip's category needs one on the Formats page")
+        return JSONResponse({"ok": True, "queued": queued})
+
+    @app.get("/api/clips/format-progress")
+    def clips_format_progress(profile: str):
+        profile_or_404(profile)
+        return JSONResponse({"pending": relook.in_progress(sv, profile)}, headers={"Cache-Control": "no-store"})
 
     # ---- formats: templates, presets, assignments and the builder's preview ----------------------------------------
 
@@ -998,7 +1037,8 @@ def create_app(sv: Services) -> FastAPI:
                 format_templates.assign(sv.db, category, template["id"])
         except (format_templates.TemplateError, format_designs.DesignError) as e:
             return refuse(str(e))
-        return JSONResponse({"ok": True, "id": template["id"]})
+        queued = sum(relook.queue_waiting(sv, category=c) for c in wanted)  # clips already waiting for this category get it too
+        return JSONResponse({"ok": True, "id": template["id"], "queued": queued})
 
     @app.post("/api/formats/delete")
     def formats_delete(request: Request, body: dict = Body(...)):
@@ -1014,11 +1054,13 @@ def create_app(sv: Services) -> FastAPI:
             return refuse("That preset is gone.", 404)
         try:
             template = format_templates.save_design(sv.db, name=preset["name"], design=preset["design"])
+            queued = 0
             if body.get("action") == "use":
                 format_templates.assign(sv.db, str(body.get("category", "")), template["id"])
+                queued = relook.queue_waiting(sv, category=str(body.get("category", "")))
         except format_templates.TemplateError as e:
             return refuse(str(e))
-        return JSONResponse({"ok": True, "id": template["id"]})
+        return JSONResponse({"ok": True, "id": template["id"], "queued": queued})
 
     @app.post("/api/formats/preset-delete")
     def formats_preset_delete(request: Request, body: dict = Body(...)):
@@ -1057,6 +1099,16 @@ def create_app(sv: Services) -> FastAPI:
             return refuse(str(e))
         return JSONResponse({"ok": True, "url": f"/formats/preview/{out.name}"})
 
+    @app.post("/api/formats/check")
+    def formats_check(request: Request, body: dict = Body(...)):
+        """What the builder's placement covers, in plain words, while things are dragged. Nothing is saved."""
+        _only_local(request, "changes")
+        try:
+            design = format_designs.normalize(body.get("design") or {})
+        except format_designs.DesignError as e:
+            return refuse(str(e))
+        return JSONResponse({"ok": True, "problems": format_placement.problems_for(sv.db, design)})
+
     @app.post("/api/formats/generate")
     def formats_generate(request: Request, body: dict = Body(...)):
         """Three AI-made formats from a few answers, each with a preview. Nothing is saved until one is picked."""
@@ -1092,7 +1144,8 @@ def create_app(sv: Services) -> FastAPI:
                                             [str(c) for c in body.get("categories") or []])
         except (format_generate.GenerateError, format_designs.DesignError, format_templates.TemplateError) as e:
             return refuse(str(e))
-        return JSONResponse({"ok": True, "id": template["id"]})
+        queued = sum(relook.queue_waiting(sv, category=str(c)) for c in body.get("categories") or [])
+        return JSONResponse({"ok": True, "id": template["id"], "queued": queued})
 
     @app.get("/formats/preview/{name}")
     def formats_preview_file(name: str):
@@ -1100,6 +1153,35 @@ def create_app(sv: Services) -> FastAPI:
         if not re.fullmatch(r"format-preview-[0-9a-f]{12}\.mp4", name) or not path.exists():
             raise HTTPException(404, "no such preview")
         return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/formats/stage")
+    def formats_stage(request: Request, body: dict = Body(...)):
+        """The builder's live stage for one sample video: a still frame framed the way the layout frames a clip, and the
+        spoken words of the sample. Only the layout, crop limit and webcam box of the design matter here."""
+        _only_local(request, "changes")
+        try:
+            result = format_preview.stage(sv.db, str(body.get("video_id", "")), PREVIEWS, body.get("design") or {})
+        except (format_designs.DesignError, format_preview.PreviewError) as e:
+            return refuse(str(e))
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.get("/formats/still/{name}")
+    def formats_still_file(name: str):
+        path = PREVIEWS / name
+        if not re.fullmatch(r"format-still-[0-9a-f]{12}\.jpg", name) or not path.exists():
+            raise HTTPException(404, "no such still")
+        return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/formats/font/{font_id}")
+    def formats_font_file(font_id: str):
+        """A font the caption and headline pickers offer, so the stage can draw it the same way."""
+        from ..formats import fonts as format_fonts
+        font = format_fonts.FONTS.get(font_id)
+        if font is None:
+            raise HTTPException(404, "no such font")
+        path = pathlib.Path(font.folder or format_fonts.FONTS_DIR) / font.file
+        media = "font/otf" if path.suffix.lower() == ".otf" else "font/ttf"
+        return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
     @app.post("/api/formats/apply-clip")
     def formats_apply_clip(request: Request, body: dict = Body(...)):
@@ -1117,8 +1199,8 @@ def create_app(sv: Services) -> FastAPI:
                 design = format_designs.normalize(body["design"])
             except format_designs.DesignError as e:
                 return refuse(str(e))
-        tasks.enqueue(sv.db, "relook", {"clip_id": clip_id, "design": design, "template_id": body.get("template_id") or None},
-                      dedupe_key=f"relook:{clip_id}:{int(store.now().timestamp() // 30)}", priority=10)
+        if not relook.queue(sv.db, clip_id, template_id=body.get("template_id") or None, design=design):
+            return refuse("This clip is already being made in a format: wait for it to finish, then try again.", 409)
         return JSONResponse({"ok": True})
 
     @app.post("/api/clip-repost")

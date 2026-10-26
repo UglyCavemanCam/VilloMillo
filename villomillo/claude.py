@@ -11,12 +11,27 @@ import re
 
 from . import secrets
 
-MODEL = "claude-opus-5-5"
-USD_PER_TOKEN_IN = 4.0 / 1_000_000
-USD_PER_TOKEN_OUT = 20.0 / 1_000_000
+MODEL = "claude-sonnet-5-5"
+# The most capable model the app will ever call. Haiku 5.5 is cheaper and also allowed; anything dearer is refused.
+ALLOWED_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5")
+USD_PER_TOKEN_IN = 2.0 / 1_000_000    # Sonnet 5.5 list price: $2 in, $10 out per million tokens
+USD_PER_TOKEN_OUT = 10.0 / 1_000_000
 
 class ClaudeError(RuntimeError):
     pass
+
+
+def check_model(model: str) -> str:
+    """The model name, if it is one the app may use; ClaudeError otherwise (Opus or any model above Sonnet 5.5)."""
+    if model not in ALLOWED_MODELS:
+        raise ClaudeError(f"{model} is not allowed here: the most capable model the app uses is claude-sonnet-5-5")
+    return model
+
+
+def _create(client, **kwargs):
+    """Every Claude call the app makes goes through here, so the model is checked before anything is sent."""
+    check_model(kwargs["model"])
+    return client.messages.create(**kwargs)
 
 
 def _client():
@@ -70,8 +85,8 @@ COPY_SYSTEM = (
 def copy_options(client, facts: dict) -> tuple[list[dict], float]:
     """Four title and caption options for one clip. Returns (options, cost_usd); the shapes are checked here,
     the rules (length, wording) are checked by the caller."""
-    msg = client.messages.create(
-        model=MODEL, max_tokens=3000, system=COPY_SYSTEM, output_config={"effort": "low"},
+    msg = _create(
+        client, model=MODEL, max_tokens=3000, system=COPY_SYSTEM, output_config={"effort": "low"},
         messages=[{"role": "user", "content": json.dumps(facts, ensure_ascii=False)[:9000]}],
     )
     data = _parse("".join(b.text for b in msg.content if getattr(b, "type", "") == "text"), msg.stop_reason)
@@ -120,8 +135,8 @@ OVERLAY_SYSTEM = (
 
 def clip_overlay_text(client, facts: dict) -> tuple[dict, float]:
     """Raw title, points and takeaway for one clip. Returns (data, cost_usd); the caller checks every rule."""
-    msg = client.messages.create(
-        model=MODEL, max_tokens=2000, system=OVERLAY_SYSTEM, output_config={"effort": "low"},
+    msg = _create(
+        client, model=MODEL, max_tokens=2000, system=OVERLAY_SYSTEM, output_config={"effort": "low"},
         messages=[{"role": "user", "content": json.dumps(facts, ensure_ascii=False)[:9000]}],
     )
     data = _parse("".join(b.text for b in msg.content if getattr(b, "type", "") == "text"), msg.stop_reason)
@@ -149,8 +164,8 @@ GENERATE_SYSTEM = (
 
 def generate_formats(client, facts: dict) -> tuple[dict, float]:
     """Three format designs for one brief. Returns (data, cost_usd); the caller checks every rule."""
-    msg = client.messages.create(
-        model=MODEL, max_tokens=3000, system=GENERATE_SYSTEM, output_config={"effort": "low"},
+    msg = _create(
+        client, model=MODEL, max_tokens=3000, system=GENERATE_SYSTEM, output_config={"effort": "low"},
         messages=[{"role": "user", "content": json.dumps(facts, ensure_ascii=False)[:12000]}],
     )
     data = _parse("".join(b.text for b in msg.content if getattr(b, "type", "") == "text"), msg.stop_reason)

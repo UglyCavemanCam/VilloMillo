@@ -32,28 +32,28 @@ def problems(design: dict, framing: str, logo_size: tuple[int, int] | None, tota
     boxes = []   # (name, (x0, y0, x1, y1), (t0, t1))
 
     if design["captions"]["enabled"]:
-        centre = designs.POSITIONS[design["captions"]["position"]]
+        centre = designs.place_of(design, "captions_y", designs.POSITIONS[design["captions"]["position"]])
         boxes.append(("the captions", (0, centre - CAPTION_HALF_HEIGHT, W, centre + CAPTION_HALF_HEIGHT), (0.0, total)))
     if design["headline"]["enabled"] and head_end > 0:
         width = int(W * design["headline"]["width_pct"] / 100)
         size = int(design["headline"]["size"])
         height = int(2 * (size * HEADLINE_LINE + HEADLINE_PAD))
-        top = designs.HEADLINE_TOP[framing]
+        top = designs.place_of(design, "headline_y", designs.HEADLINE_TOP[framing])
         boxes.append(("the headline", ((W - width) // 2, top, (W + width) // 2, top + height), (0.0, head_end)))
 
     logo = design["logo"]
     if logo["enabled"] and logo_size is not None:
         w, h = logo_size
         right = framing in ("stacked_webcam", "split") or logo["corner"] == "right"
-        x0 = W - w - MARGIN if right else MARGIN
-        y0 = designs.LOGO_Y[framing]
+        x0 = designs.place_of(design, "logo_x", W - w - MARGIN if right else MARGIN)
+        y0 = designs.place_of(design, "logo_y", designs.LOGO_Y[framing])
         boxes.append(("the logo", (x0, y0, x0 + w, y0 + h), (float(logo["from_s"]), total)))
 
     cta = design["cta"]
     if cta["enabled"]:
         seconds = float(cta["seconds"])
         cw = int(W * CTA_WIDTH)
-        cy = designs.CHIPS_Y[framing]
+        cy = designs.place_of(design, "cta_y", designs.CHIPS_Y[framing])
         boxes.append(("the call to action", ((W - cw) // 2, cy - CTA_HEIGHT // 2, (W + cw) // 2, cy + CTA_HEIGHT // 2),
                       (max(total - seconds, 0.0), total)))
 
@@ -81,6 +81,13 @@ def logo_size(logo_path, design: dict) -> tuple[int, int]:
 
 def check_design(db, design: dict, folder=None) -> None:
     """Refuse a design whose placement covers something, before it is saved. Raises designs.DesignError with the reason."""
+    found = problems_for(db, design, folder)
+    if found:
+        raise designs.DesignError(found[0].capitalize() + ".")
+
+
+def problems_for(db, design: dict, folder=None) -> list[str]:
+    """Every way the design's placement covers something, for the builder to show while things are dragged."""
     from . import assets
 
     size = None
@@ -94,6 +101,4 @@ def check_design(db, design: dict, folder=None) -> None:
             w = round(W * int(design["logo"]["size"]) / 100)
             h = round(img.height * w / img.width)
             size = (w, min(h, 260))
-    found = problems(design, design["layout"], size, total=30.0, head_end=SAVE_HEADLINE_END)
-    if found:
-        raise designs.DesignError(found[0].capitalize() + ".")
+    return problems(design, design["layout"], size, total=designs.DEMO_LENGTH, head_end=SAVE_HEADLINE_END)

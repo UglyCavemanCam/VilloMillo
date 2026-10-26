@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from test_research import FakeYT, make_sv
 
-from villomillo import clipper, engine_ai, engine_manager, health, runner, secrets, spend, tasks
+from villomillo import claude, clipper, engine_ai, engine_manager, health, runner, secrets, spend, tasks
 from villomillo.web.app import create_app
 
 
@@ -28,8 +28,35 @@ def test_claude_is_the_default_when_a_key_is_stored_and_the_engines_own_model_wh
     sv.stored["claude"] = True
     engine_ai.save(sv.db, use_claude=False)
     assert not engine_ai.active(sv.db) and engine_ai.env(sv.db) == {}
-    engine_ai.save(sv.db, use_claude=True, judge="claude-opus-5-5")
-    assert engine_ai.env(sv.db)["CLIPS_STUDIO_RERANK_BACKEND"] == "anthropic/claude-opus-5-5"
+    engine_ai.save(sv.db, use_claude=True)
+    with pytest.raises(claude.ClaudeError, match="not allowed"):   # nothing above Sonnet 5.5 can be chosen
+        engine_ai.save(sv.db, use_claude=True, judge="claude-opus-5-5")
+    assert engine_ai.env(sv.db)["CLIPS_STUDIO_RERANK_BACKEND"] == "anthropic/claude-sonnet-5-5"
+
+
+def test_the_app_never_sends_a_claude_call_to_a_model_above_sonnet():
+    sent = []
+
+    class Client:
+        class messages:
+            @staticmethod
+            def create(**kwargs):
+                sent.append(kwargs["model"])
+                raise AssertionError("should not be reached for a refused model")
+
+    assert claude.MODEL == "claude-sonnet-5-5" and claude.check_model("claude-haiku-5-5") == "claude-haiku-5-5"
+    with pytest.raises(claude.ClaudeError, match="not allowed"):
+        claude._create(Client(), model="claude-opus-5-5", max_tokens=10, system="s", messages=[])
+    with pytest.raises(claude.ClaudeError, match="not allowed"):
+        claude._create(Client(), model="claude-fable-5-1", max_tokens=10, system="s", messages=[])
+    assert sent == []   # refused before anything left the app
+
+
+def test_a_saved_model_above_sonnet_is_replaced_by_the_default(sv):
+    with sv.db.conn() as c:   # as if an older version had saved it
+        c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (engine_ai.KEY, '{"use_claude": true, "find": "claude-opus-5-5", "judge": "claude-fable-5-1"}'))
+    assert engine_ai.settings(sv.db)["find"] == "claude-haiku-5-5" and engine_ai.settings(sv.db)["judge"] == "claude-sonnet-5-5"
+    assert "opus" not in str(engine_ai.env(sv.db)) and "fable" not in str(engine_ai.env(sv.db))
 
 
 def test_what_a_call_costs_uses_the_list_prices_and_an_unknown_model_counts_as_the_dearest():

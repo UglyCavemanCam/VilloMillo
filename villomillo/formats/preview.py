@@ -9,12 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import subprocess
 
 from . import assets, blueprints, clip_words, designs, effects, music, placement, render
 from .render import ClipText, Job
 
-SAMPLE_LENGTH = 8.0
+SAMPLE_LENGTH = designs.DEMO_LENGTH   # long enough for every timed choice: a logo can start at 30 seconds and a call to action sits at the end
 KEEP_PREVIEWS = 12
+STILL_AT = 2.0         # the frame the builder's stage pauses on, seconds into the sample
 SAMPLE_TEXT = ClipText(["YOUR HEADLINE GOES HERE", "IN TWO SHORT LINES"], [("A first point", 4.0)], "A short takeaway",
                        [("punch_in", 4.5, "a sample: the speaker's strongest point")])
 
@@ -54,16 +56,64 @@ def sample_window(video_id: str, length: float = SAMPLE_LENGTH) -> tuple[float, 
     return best, best + length
 
 
-def make_preview(db, profile, design: dict, video_id: str, out_dir: pathlib.Path) -> pathlib.Path:
-    """Render the sample clip for a design. `designs.DesignError` says what to change when a choice cannot work."""
+def _source(video_id: str) -> pathlib.Path:
     from core.paths import cached_source
 
     from . import DOWNLOADS
 
-    design = designs.normalize(design)
     source = cached_source(DOWNLOADS, video_id) or DOWNLOADS / f"{video_id}.mp4"
     if not source.exists():
         raise PreviewError("that video is not downloaded any more: pick another")
+    return source
+
+
+def _plain_still(source: pathlib.Path, start: float, out: pathlib.Path) -> pathlib.Path:
+    """The middle of the frame cut to the 9:16 shape: what the stage shows when the chosen layout cannot frame this video."""
+    from core import binaries
+
+    cmd = [binaries.ffmpeg(), "-y", "-v", "error", "-ss", f"{start + STILL_AT:.3f}", "-i", str(source), "-frames:v", "1",
+           "-vf", "crop='min(iw,ih*9/16)':ih,scale=540:960", str(out)]
+    try:
+        subprocess.run(cmd, check=True, timeout=60, capture_output=True)
+    except (subprocess.SubprocessError, OSError):
+        raise PreviewError("the still frame could not be made from that video") from None
+    return out
+
+
+def stage(db, video_id: str, out_dir: pathlib.Path, design: dict | None = None) -> dict:
+    """What the builder's live stage needs for one sample video: a still frame framed the way the chosen layout frames a clip,
+    and the spoken words of the sample, with times counted from the still. The stage draws the text itself, so changing the
+    look is instant; only a change of layout, crop limit or webcam box needs a new frame. `warning` says why the layout
+    could not frame this video, in which case the frame is the plain middle of the picture."""
+    if video_id not in {v["id"] for v in sample_videos(db)}:
+        raise PreviewError("that video is not available for a preview: pick another")
+    design = designs.normalize(design)
+    source = _source(video_id)
+    start, end = sample_window(video_id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    key = json.dumps([video_id, round(start, 2), design["layout"], design["crop_limit"], design["webcam"]], sort_keys=True)
+    digest = hashlib.sha1(key.encode()).hexdigest()[:12]
+    out, warning = out_dir / f"format-still-{digest}.jpg", None
+    if not out.exists():
+        try:
+            plan = blueprints.resolve("stage", {"framing": design["layout"], "text": ["headline"]}, SAMPLE_TEXT.available(True),
+                                      overrides=designs.overrides_from(design))
+            render.framed_still(Job(source, start, start + STILL_AT + 2.0, [], SAMPLE_TEXT, plan, "", out, design=design), out, STILL_AT)
+        except (render.RenderError, blueprints.BlueprintError) as e:
+            out.unlink(missing_ok=True)
+            warning = str(e)
+            out = out_dir / f"format-still-{hashlib.sha1((key + 'plain').encode()).hexdigest()[:12]}.jpg"
+            if not out.exists():
+                _plain_still(source, start, out)
+    words = [{"t0": round(w["t0"] - start, 2), "t1": round(w["t1"] - start, 2), "text": w["text"]}
+             for w in clip_words(video_id, start, end)]
+    return {"still": f"/formats/still/{out.name}", "words": words, "length": round(end - start, 2), "at": STILL_AT, "warning": warning}
+
+
+def make_preview(db, profile, design: dict, video_id: str, out_dir: pathlib.Path) -> pathlib.Path:
+    """Render the sample clip for a design. `designs.DesignError` says what to change when a choice cannot work."""
+    design = designs.normalize(design)
+    source = _source(video_id)
     start, end = sample_window(video_id)
     words = clip_words(video_id, start, end)
     extra, logo = assets.for_design(db, design)

@@ -6,19 +6,39 @@
 .fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
 .fmt-card{display:flex;flex-direction:column;gap:8px}
 .fmt-card h3{margin:0;font-size:16px}
-.fmt-tabs{display:flex;gap:8px;margin:0 0 18px}
+.fmt-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
 .fmt-tabs .btn[aria-selected="true"]{background:var(--accent);color:var(--accent-ink,#0E1015)}
-.fmt-builder{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:18px;align-items:start}
-@media (max-width:900px){.fmt-builder{grid-template-columns:1fr}}
-.fmt-form{display:flex;flex-direction:column;gap:14px}
-.fmt-form fieldset{border:1px solid var(--border,#2A303C);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin:0}
+.fmt-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.6fr);gap:14px;align-items:end}
+.fmt-top label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.fmt-builder{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.fmt-builder{grid-template-columns:minmax(0,1fr)}.fmt-top{grid-template-columns:minmax(0,1fr)}}
+.fmt-stagecol{display:flex;flex-direction:column;gap:10px}
+.fmt-phone{position:relative;width:100%;max-width:300px;aspect-ratio:9/16;margin:0 auto;background:#000;border-radius:14px;overflow:hidden;container-type:inline-size}
+.fmt-phone>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#stage-items{position:absolute;inset:0}
+.st-item{position:absolute;cursor:pointer;white-space:nowrap;touch-action:none}
+.st-item[data-item="headline"],.st-item[data-item="logo"],.st-item[data-item="captions"],.st-item[data-item="chips"],.st-item[data-item="cta"]{cursor:move}
+.st-handle{display:none;position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:#FFB000;border:2px solid #0E1217;border-radius:4px;cursor:nwse-resize;touch-action:none}
+.st-item.on .st-handle{display:block}
+.st-guide{position:absolute;background:#FFB000;pointer-events:none}
+.st-item:hover{outline:1px dashed rgba(255,255,255,.7);outline-offset:2px}
+.st-item.on{outline:2px dashed #FFB000;outline-offset:3px}
+.st-tag{display:inline-block;margin-top:4px;font:500 10px/1 system-ui,sans-serif;color:#fff;background:rgba(0,0,0,.6);padding:3px 6px;border-radius:4px;white-space:nowrap}
+.fmt-check{border-top:1px solid var(--border,#2A303C);padding-top:10px}
+.fmt-check video{width:100%;aspect-ratio:9/16;background:#000;border-radius:12px;margin-top:8px}
+.fmt-inspector{min-width:0}
+.fmt-panes{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.fmt-more{font-size:13px}
+.fmt-more summary{cursor:pointer;color:var(--text-secondary,#9AA3B2);margin:4px 0}
+.fmt-actions{margin-top:4px}
+.fmt-form{display:flex;flex-direction:column;gap:14px;min-width:0}
+.fmt-form fieldset{border:1px solid var(--border,#2A303C);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin:0;min-width:0}
 .fmt-form legend{padding:0 6px;font-weight:600}
 .fmt-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
-.fmt-row label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.fmt-row label{display:flex;flex-direction:column;gap:4px;font-size:13px;min-width:0;max-width:100%}
+.fmt-form .field,.fmt-top .field{max-width:100%}
 .fmt-row label.inline{flex-direction:row;align-items:center;gap:8px;font-size:14px}
 .fmt-row input[type=number]{width:96px}
-.fmt-preview{position:sticky;top:76px;display:flex;flex-direction:column;gap:10px}
-.fmt-preview video{width:100%;aspect-ratio:9/16;background:#000;border-radius:12px}
 .fmt-msg{padding:10px 14px;border-radius:8px;margin:0 0 14px;border:1px solid var(--border,#2A303C)}
 .fmt-msg.bad{border-color:#E0605A}.fmt-msg.good{border-color:#4FB67C}
 .fmt-styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
@@ -118,99 +138,130 @@
   <div class="fmt-grid" id="template-list"></div>
 
   <div id="builder" hidden class="card stack" aria-labelledby="builder-h">
-    <h2 id="builder-h" style="margin:0">Builder</h2>
+    <div class="cluster" style="justify-content:space-between;align-items:baseline"><h2 id="builder-h" style="margin:0">Format builder</h2>
+      <span class="muted" style="font-size:13px">Click something on the picture to change it.</span></div>
     <div id="clip-box" class="notice" hidden>{{ icon('info') }}<div></div></div>
+    <div class="fmt-top">
+      <label>Name<input class="field" id="f_name" maxlength="60"></label>
+      <label>Start from<select class="field" id="f_preset"></select></label>
+      <div><span class="muted" style="font-size:13px">Use this format for</span><div class="chip-row" id="cat-list"></div></div>
+    </div>
+
     <div class="fmt-builder">
-      <div class="fmt-form">
-        <div class="fmt-row"><label>Name<input class="field" id="f_name" maxlength="60" style="min-width:240px"></label>
-          <label>Layout<select class="field" id="f_layout"><option value="face_fill">Face fill: the speaker fills the screen</option><option value="fit_blur">Fit with blur: the whole picture over a blurred copy</option><option value="stacked_webcam">Stacked: webcam over the game (streams)</option><option value="split">Split: two people, one on top and one below</option></select></label>
-          <fieldset class="fmt-webcam" id="webcam-box" hidden style="margin:0"><legend>Webcam box (% of the picture)</legend>
-            <div style="grid-column:1/-1"><button class="btn btn-sm" id="webcam-suggest" type="button">Suggest from the video above</button> <span class="muted" style="font-size:13px">Finds the streamer's face and draws a box around it. Check it and adjust if needed.</span></div>
-            <label>Left<input class="field" type="number" id="w_x" min="0" max="100"></label><label>Top<input class="field" type="number" id="w_y" min="0" max="100"></label>
-            <label>Width<input class="field" type="number" id="w_w" min="5" max="100"></label><label>Height<input class="field" type="number" id="w_h" min="5" max="100"></label></fieldset>
-          <label>Keep the crop clear of the left edge (%)<input class="field" type="number" id="f_limit" min="0" max="60" title="For text the show puts on the left. If that would cut the speaker off, the clip is flagged instead."></label></div>
+      <div class="fmt-stagecol">
+        <div class="fmt-phone" id="stage">
+          <img id="stage-still" alt="" hidden>
+          <div id="stage-items"></div>
+        </div>
+        <p class="muted" id="stage-note" style="margin:0;font-size:13px;text-align:center"></p>
+        <p id="place-note" class="muted" style="margin:0;font-size:13px;text-align:center">Drag things on the picture to move them. Drag the amber corner to resize the headline or the logo.</p>
+        <div style="text-align:center"><button class="btn btn-sm" id="place-reset" type="button">Put everything back</button></div>
+        <label style="font-size:13px">Sample video<select class="field" id="v_video"></select></label>
+        <div class="fmt-check">
+          <button class="btn" id="v_btn" type="button">Check with real render</button>
+          <p class="muted" id="v_status" style="margin:6px 0 0;font-size:13px">A real clip made by the real renderer, so effects show too. It takes a few seconds.</p>
+          <video id="v_player" controls muted loop playsinline hidden></video>
+        </div>
+      </div>
 
-        <fieldset><legend>Captions</legend>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_enabled"> Show captions</label>
-            <label>Style<select class="field" id="c_style"></select></label>
-            <label>Font<select class="field" id="c_font"></select></label>
-            <label>Size<input class="field" type="number" id="c_size" min="40" max="160" placeholder="style"></label>
-            <label>Capitals<select class="field" id="c_upper"><option value="">Style's own</option><option value="1">All capitals</option><option value="0">Normal</option></select></label>
-            <label>Position<select class="field" id="c_pos"><option value="lower">Lower</option><option value="middle">Middle</option><option value="upper">Upper</option></select></label></div>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_custom"> Use my own colours</label>
-            <label>Words<input type="color" id="c_text" value="#ffffff"></label><label>Spoken word<input type="color" id="c_high" value="#ffb000"></label></div>
-          <div class="fmt-row"><label>Who picks the style
-              <select class="field" id="s_mode"><option value="fixed">This template: the style above</option><option value="ai">The AI picks from the styles ticked below</option></select></label></div>
-          <div id="pool-box" hidden><div class="chip-row" id="s_pool"></div>
-            <p class="muted" style="margin:6px 0 0;font-size:13px">The AI picking is built in a later phase. Until then clips use the style chosen above.</p></div>
-        </fieldset>
+      <div class="fmt-inspector">
+        <div class="fmt-panes" role="group" aria-label="What to change">
+          <button class="btn btn-sm" type="button" data-pane="captions">Captions</button>
+          <button class="btn btn-sm" type="button" data-pane="headline">Headline</button>
+          <button class="btn btn-sm" type="button" data-pane="labels">Labels and handle</button>
+          <button class="btn btn-sm" type="button" data-pane="logo">Logo and button</button>
+          <button class="btn btn-sm" type="button" data-pane="layout">Layout</button>
+          <button class="btn btn-sm" type="button" data-pane="music">Music</button>
+          <button class="btn btn-sm" type="button" data-pane="effects">Effects</button>
+        </div>
 
-        <fieldset><legend>Headline</legend>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="h_enabled"> Show a headline</label>
-            <label>Font<select class="field" id="h_font"></select></label>
-            <label>Size<input class="field" type="number" id="h_size" min="24" max="90"></label>
-            <label>Alignment<select class="field" id="h_align"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label></div>
-          <div class="fmt-row"><label>Text colour<input type="color" id="h_color"></label>
-            <label>Word box colour<input type="color" id="h_bg"></label>
-            <label class="inline"><input type="checkbox" id="h_nobg"> No box</label>
-            <label>Corner radius<input class="field" type="number" id="h_radius" min="0" max="40"></label>
-            <label>Width %<input class="field" type="number" id="h_width" min="40" max="100"></label>
-            <label class="inline"><input type="checkbox" id="h_shadow"> Text shadow</label></div>
-        </fieldset>
+        <div class="fmt-form">
+          <fieldset data-pane="captions"><legend>Captions</legend>
+            <label class="inline"><input type="checkbox" id="c_enabled"> Show captions</label>
+            <label>Look<select class="field" id="c_style"></select></label>
+            <label>Position<select class="field" id="c_pos"><option value="lower">Lower</option><option value="middle">Middle</option><option value="upper">Upper</option></select></label>
+            <details class="fmt-more"><summary>More options: font, size, capitals and colours</summary>
+              <div class="fmt-row"><label>Font<select class="field" id="c_font"></select></label>
+                <label>Size<input class="field" type="number" id="c_size" min="40" max="160" placeholder="look's own"></label>
+                <label>Capitals<select class="field" id="c_upper"><option value="">Look's own</option><option value="1">All capitals</option><option value="0">Normal</option></select></label></div>
+              <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_custom"> Use my own colours</label>
+                <label>Words<input type="color" id="c_text" value="#ffffff"></label><label>Spoken word<input type="color" id="c_high" value="#ffb000"></label></div>
+              <div class="fmt-row"><label>Who picks the look<select class="field" id="s_mode"><option value="fixed">This format: the look above</option><option value="ai">The AI picks from the looks ticked below</option></select></label></div>
+              <div id="pool-box" hidden><div class="chip-row" id="s_pool"></div>
+                <p class="muted" style="margin:6px 0 0;font-size:13px">The AI picking is built in a later phase. Until then clips use the look chosen above.</p></div>
+            </details>
+          </fieldset>
 
-        <fieldset><legend>Also on the clip</legend>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="x_chips"> A label for each point the speaker makes</label>
+          <fieldset data-pane="headline" hidden><legend>Headline</legend>
+            <label class="inline"><input type="checkbox" id="h_enabled"> Show a headline</label>
+            <div class="fmt-row"><label>Text colour<input type="color" id="h_color"></label>
+              <label>Box colour<input type="color" id="h_bg"></label>
+              <label class="inline"><input type="checkbox" id="h_nobg"> No box</label>
+              <label>Alignment<select class="field" id="h_align"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label></div>
+            <details class="fmt-more"><summary>More options: font, size, corners, width and shadow</summary>
+              <div class="fmt-row"><label>Font<select class="field" id="h_font"></select></label>
+                <label>Size<input class="field" type="number" id="h_size" min="24" max="90"></label>
+                <label>Corner radius<input class="field" type="number" id="h_radius" min="0" max="40"></label>
+                <label>Width %<input class="field" type="number" id="h_width" min="40" max="100"></label>
+                <label class="inline"><input type="checkbox" id="h_shadow"> Text shadow</label></div>
+            </details>
+          </fieldset>
+
+          <fieldset data-pane="labels" hidden><legend>Labels and handle</legend>
+            <label class="inline"><input type="checkbox" id="x_chips"> A label for each point the speaker makes</label>
             <label class="inline"><input type="checkbox" id="x_take"> A takeaway at the end</label>
             <label class="inline"><input type="checkbox" id="b_wm"> Your faint handle in the middle</label>
-            <label class="inline"><input type="checkbox" id="b_bar"> A thin progress bar</label></div>
-          <p class="muted" style="margin:0;font-size:13px">Clips made for a campaign never carry the handle or the progress bar, whatever is ticked here.</p>
-        </fieldset>
+            <label class="inline"><input type="checkbox" id="b_bar"> A thin progress bar</label>
+            <p class="muted" style="margin:0;font-size:13px">Clips made for a campaign never carry the handle or the progress bar, whatever is ticked here.</p>
+          </fieldset>
 
-        <fieldset><legend>Music</legend>
-          <p class="muted" style="margin:0;font-size:13px">Quiet music under the voice, from the Music tab. Never on a serious subject, never over music or a crowd already in the video. With no tracks, nothing happens.</p>
-          <div class="fmt-row"><label>Music<select class="field" id="m_mode"><option value="off">Off</option><option value="when_helps">Only when it helps</option><option value="always">Always, when there is a track</option></select></label>
-            <label>How far under the voice (dB)<input class="field" type="number" id="m_vol" min="-30" max="-16"></label></div>
-        </fieldset>
+          <fieldset data-pane="logo" hidden><legend>Logo and button</legend>
+            <p class="muted" style="margin:0;font-size:13px">Pasted-link and Research clips only. Campaign clips never get these, whatever is ticked here.</p>
+            <label class="inline"><input type="checkbox" id="l_on"> Show my logo in a corner</label>
+            <div class="fmt-row"><label>Logo<select class="field" id="l_asset"></select></label>
+              <label>Corner<select class="field" id="l_corner"><option value="left">Left (top)</option><option value="right">Right (top)</option></select></label>
+              <label>Size (% of width)<input class="field" type="number" id="l_size" min="6" max="30"></label>
+              <label>Shows from second<input class="field" type="number" id="l_from" min="0" max="30"></label></div>
+            <label class="inline"><input type="checkbox" id="k_on"> Show a button in the last seconds</label>
+            <div class="fmt-row"><label>Text<input class="field" type="text" id="k_text" maxlength="40"></label>
+              <label>Size<input class="field" type="number" id="k_size" min="24" max="60"></label>
+              <label>Shows for (seconds, at the end)<input class="field" type="number" id="k_secs" min="1" max="6"></label></div>
+          </fieldset>
 
-        <fieldset><legend>Logo and call to action</legend>
-          <p class="muted" style="margin:0;font-size:13px">Pasted-link and Research clips only. Campaign clips never get these, whatever is ticked here.</p>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="l_on"> Show my logo in a corner</label>
-            <label>Logo <select class="field" id="l_asset"></select></label>
-            <label>Size (% of width)<input class="field" type="number" id="l_size" min="6" max="30"></label>
-            <label>Corner<select class="field" id="l_corner"><option value="left">Left (top)</option><option value="right">Right (top)</option></select></label>
-            <label>Shows from second<input class="field" type="number" id="l_from" min="0" max="30"></label></div>
-          <div class="fmt-row"><label class="inline"><input type="checkbox" id="k_on"> Show a call to action in the last seconds</label>
-            <label>Text<input class="field" type="text" id="k_text" maxlength="40"></label>
-            <label>Size<input class="field" type="number" id="k_size" min="24" max="60"></label>
-            <label>Shows for (seconds, at the end)<input class="field" type="number" id="k_secs" min="1" max="6"></label></div>
-        </fieldset>
+          <fieldset data-pane="layout" hidden><legend>Layout</legend>
+            <div class="fmt-row"><label>Picture<select class="field" id="f_layout"><option value="face_fill">Face fill: the speaker fills the screen</option><option value="fit_blur">Fit with blur: the whole picture over a blurred copy</option><option value="stacked_webcam">Stacked: webcam over the game (streams)</option><option value="split">Split: two people, one on top and one below</option></select></label></div>
+            <details class="fmt-more"><summary>More options: keep the crop off the left edge</summary>
+              <div class="fmt-row"><label>Keep the crop clear of the left edge (%)<input class="field" type="number" id="f_limit" min="0" max="60" title="For text the show puts on the left. If that would cut the speaker off, the clip is flagged instead."></label></div></details>
+            <fieldset class="fmt-webcam" id="webcam-box" hidden style="margin:0"><legend>Webcam box (% of the picture)</legend>
+              <div style="grid-column:1/-1"><button class="btn btn-sm" id="webcam-suggest" type="button">Suggest from the video above</button> <span class="muted" style="font-size:13px">Finds the streamer's face and draws a box around it. Check it and adjust if needed.</span></div>
+              <label>Left<input class="field" type="number" id="w_x" min="0" max="100"></label><label>Top<input class="field" type="number" id="w_y" min="0" max="100"></label>
+              <label>Width<input class="field" type="number" id="w_w" min="5" max="100"></label><label>Height<input class="field" type="number" id="w_h" min="5" max="100"></label></fieldset>
+          </fieldset>
 
-        <fieldset><legend>Effects</legend>
-          <p class="muted" style="margin:0;font-size:13px">Small picture moves that Claude proposes on the words that earn them. Most of a clip gets none. Each one shows its reason on the clip.</p>
-          <div class="fmt-row"><label>How many<select class="field" id="e_intensity"><option value="off">Off</option><option value="subtle">Subtle: about one every 8 seconds</option><option value="balanced">Balanced: about one every 5 seconds</option><option value="punchy">Punchy: about one every 3 seconds</option></select></label></div>
-          <div class="chip-row" id="e_kinds"></div>
-        </fieldset>
+          <fieldset data-pane="music" hidden><legend>Music</legend>
+            <p class="muted" style="margin:0;font-size:13px">Quiet music under the voice, from the Music tab. Never on a serious subject, never over music or a crowd already in the video. With no tracks, nothing happens.</p>
+            <div class="fmt-row"><label>Music<select class="field" id="m_mode"><option value="off">Off</option><option value="when_helps">Only when it helps</option><option value="always">Always, when there is a track</option></select></label></div>
+            <details class="fmt-more"><summary>More options: how loud the music is</summary>
+              <div class="fmt-row"><label>How far under the voice (dB)<input class="field" type="number" id="m_vol" min="-30" max="-16"></label></div></details>
+          </fieldset>
 
-        <fieldset><legend>Use this template for</legend><div class="chip-row" id="cat-list"></div>
-          <p class="muted" style="margin:0;font-size:13px">A kind of clip uses one template. Ticking a kind here moves it to this template.</p></fieldset>
-
-        <div class="cluster">
-          <button class="btn btn-primary" id="save" type="button">Save template</button>
-          <button class="btn" id="save-copy" type="button">Save as a new template</button>
-          <button class="btn btn-ghost" id="close" type="button">Close</button>
-          <button class="btn btn-stop" id="delete" type="button" hidden>Delete forever</button>
+          <fieldset data-pane="effects" hidden><legend>Effects</legend>
+            <p class="muted" style="margin:0;font-size:13px">Small picture moves that Claude proposes on the words that earn them. Most of a clip gets none. Each one shows its reason on the clip.</p>
+            <div class="fmt-row"><label>How many<select class="field" id="e_intensity"><option value="off">Off</option><option value="subtle">Subtle: about one every 8 seconds</option><option value="balanced">Balanced: about one every 5 seconds</option><option value="punchy">Punchy: about one every 3 seconds</option></select></label></div>
+            <div class="chip-row" id="e_kinds"></div>
+          </fieldset>
         </div>
-        <div class="cluster" id="clip-actions" hidden><button class="btn btn-primary" id="apply-clip" type="button">Apply to this clip only</button>
-          <span class="muted" style="font-size:13px">The template is not changed.</span></div>
-      </div>
-
-      <div class="fmt-preview">
-        <label style="font-size:13px">Sample video<select class="field" id="v_video"></select></label>
-        <button class="btn" id="v_btn" type="button">Show preview</button>
-        <div class="muted" id="v_status" style="font-size:13px">A short clip made by the real renderer. The headline and labels are sample text.</div>
-        <video id="v_player" controls muted loop playsinline hidden></video>
       </div>
     </div>
+
+    <div class="cluster fmt-actions">
+      <button class="btn btn-primary" id="save" type="button">Save template</button>
+      <button class="btn" id="save-copy" type="button">Save as a new template</button>
+      <button class="btn btn-ghost" id="close" type="button">Close</button>
+      <button class="btn btn-stop" id="delete" type="button" hidden>Delete forever</button>
+    </div>
+    <div class="cluster" id="clip-actions" hidden><button class="btn btn-primary" id="apply-clip" type="button">Apply to this clip only</button>
+      <span class="muted" style="font-size:13px">The template is not changed.</span></div>
   </div>
 </section>
 
@@ -267,6 +318,8 @@
   function done(message) {
     return function (r) {
       if (!r.ok) return say(r.data.error || "That did not work.", "bad");
+      var n = r.data.queued || 0;  // clips already waiting for this kind get the format too
+      if (n) message += " " + n + " waiting clip" + (n === 1 ? " is" : "s are") + " being given it now: watch them on the Clips page.";
       try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
       location.hash = "#templates"; location.reload();
     };
@@ -312,6 +365,7 @@
   $("f_layout").addEventListener("change", function () { $("webcam-box").hidden = $("f_layout").value !== "stacked_webcam"; });
   function setChecked(id, v) { $(id).checked = !!v; }
   function fill(d) {
+    place = placeFrom(d.place);
     $("f_layout").value = d.layout; $("f_limit").value = d.crop_limit || 0;
     $("w_x").value = d.webcam.x; $("w_y").value = d.webcam.y; $("w_w").value = d.webcam.w; $("w_h").value = d.webcam.h;
     $("webcam-box").hidden = d.layout !== "stacked_webcam";
@@ -333,6 +387,7 @@
     $("s_mode").value = d.style_mode;
     document.querySelectorAll("#s_pool input").forEach(function (i) { i.checked = d.style_pool.indexOf(i.value) > -1; });
     $("pool-box").hidden = d.style_mode !== "ai";
+    renderStage();
   }
   function read() {
     var num = function (id) { var v = $(id).value; return v === "" ? null : Number(v); };
@@ -350,6 +405,7 @@
       logo: { enabled: $("l_on").checked, asset_id: num("l_asset"), size: num("l_size"), corner: $("l_corner").value, from_s: num("l_from") },
       cta: { enabled: $("k_on").checked, text: $("k_text").value, size: num("k_size"), seconds: num("k_secs") },
       chips: $("x_chips").checked, takeaway: $("x_take").checked, brand: { watermark: $("b_wm").checked, progress_bar: $("b_bar").checked },
+      place: placeFrom(place),
       style_mode: $("s_mode").value,
       style_pool: Array.prototype.map.call(document.querySelectorAll("#s_pool input:checked"), function (i) { return i.value; })
     };
@@ -367,12 +423,13 @@
     document.querySelectorAll("#cat-list input").forEach(function (i) { i.checked = !!t && t.categories.indexOf(i.value) > -1; });
     $("delete").hidden = !t;
     $("builder").hidden = false; tab("templates");
+    selectPane("captions"); loadStage(); checkPlace(true);
     $("builder").scrollIntoView({ behavior: "smooth" });
   }
 
   function buildControls() {
     options($("c_style"), boot.styles);
-    options($("c_font"), boot.fonts, "Style's own");
+    options($("c_font"), boot.fonts, "Look's own");
     options($("h_font"), boot.fonts);
     options($("v_video"), boot.videos.map(function (v) { return { id: v.id, label: v.title }; }));
     var pool = $("s_pool"); pool.textContent = "";
@@ -570,7 +627,8 @@
         kind: answers.kind, feel: answers.feel, campaign: answers.campaign, logo_id: answers.logo_id, note: answers.note })
         .then(function (r) {
           if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-          try { sessionStorage.setItem("fmt-note", "Saved \"" + name.value + "\"."); } catch (e) {}
+          var n = r.data.queued || 0;
+          try { sessionStorage.setItem("fmt-note", "Saved \"" + name.value + "\"." + (n ? " " + n + " waiting clip" + (n === 1 ? " is" : "s are") + " being given it now: watch them on the Clips page." : "")); } catch (e) {}
           location.hash = "#templates"; location.reload();
         });
     });
@@ -603,7 +661,7 @@
       status.disabled = false;
       if (!r.ok) return say(r.data.error || "No webcam was found in that video.", "bad");
       $("w_x").value = r.data.x; $("w_y").value = r.data.y; $("w_w").value = r.data.w; $("w_h").value = r.data.h;
-      say("Webcam box suggested. Check it against the preview.", "good");
+      loadStage(); say("Webcam box suggested. Check it against the preview.", "good");
     });
   });
   $("v_btn").addEventListener("click", function () {
@@ -619,6 +677,219 @@
     post("/api/formats/apply-clip", { profile: boot.clip.profile, clip_id: boot.clip.id, design: read(), template_id: boot.clip.template_id }).then(function (r) {
       say(r.ok ? "Applying this look to the clip. It takes a minute; reopen the clip afterwards." : (r.data.error || "That did not work."), r.ok ? "good" : "bad");
     });
+  });
+
+  // ---- the live stage: a paused frame with the format drawn over it; the words are the sample's real words -------------
+  // Drawn in the browser so every change shows at once. "Check with real render" makes the exact clip; this is close.
+  var PANE_OF = { captions: "captions", headline: "headline", chips: "labels", watermark: "labels", bar: "labels", logo: "logo", cta: "logo" };
+  var geo = boot.geometry, currentPane = "captions", stageData = null, stageReq = 0;
+  var fontFaces = boot.fonts.map(function (f) { return "@font-face{font-family:'f-" + f.id + "';src:url('/formats/font/" + f.id + "')}"; }).join("");
+  var faceStyle = document.createElement("style"); faceStyle.textContent = fontFaces; document.head.appendChild(faceStyle);
+  function px(n) { return (n / geo.width * 100) + "cqw"; }   // a size in the 1080-wide picture, as a share of the stage's width
+  function pct(y) { return (y / geo.height * 100) + "%"; }
+  function selectPane(name) {
+    currentPane = name;
+    document.querySelectorAll("fieldset[data-pane]").forEach(function (f) { f.hidden = f.dataset.pane !== name; });
+    document.querySelectorAll(".fmt-panes button").forEach(function (b) {
+      var on = b.dataset.pane === name; b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("btn-primary", on);
+    });
+    markStage();
+  }
+  function markStage() {
+    document.querySelectorAll("#stage-items [data-item]").forEach(function (n) {
+      var on = PANE_OF[n.dataset.item] === currentPane;
+      n.classList.toggle("on", on); n.style.zIndex = on ? 5 : "";   // the item being edited is on top, so it can be grabbed
+    });
+  }
+  // Where each movable item was dragged to, in the 1080x1920 picture; null keeps the layout's own spot (see designs.place_of).
+  var PLACE_KEYS = ["headline_y", "captions_y", "labels_y", "cta_y", "logo_x", "logo_y"];
+  var MOVE_KEY = { headline: "headline_y", captions: "captions_y", chips: "labels_y", cta: "cta_y", logo: "logo_y" };
+  var GUIDE_Y = [384, 960, 1536], GUIDE_X = [540], SNAP = 14;   // the safe-zone edges and the middle, in picture units
+  var place = placeFrom(null), guides = [], dragging = null, checkedAt = 0, checkReq = 0, checkTimer = null;
+  function placeFrom(p) {
+    var out = {};
+    PLACE_KEYS.forEach(function (k) { out[k] = p && p[k] != null ? p[k] : null; });
+    return out;
+  }
+  function clamp(v, lo, hi) { return Math.round(Math.max(lo, Math.min(hi, v))); }
+  // Where every item sits now: where it was dragged, or the layout's own spot.
+  function spot(d) {
+    var L = d.layout, logoW = geo.width * (d.logo.size || 14) / 100, right = L === "stacked_webcam" || L === "split" || d.logo.corner === "right";
+    return {
+      headline_y: place.headline_y != null ? place.headline_y : geo.headline_top[L],
+      captions_y: place.captions_y != null ? place.captions_y : geo.positions[d.captions.position],
+      labels_y: place.labels_y != null ? place.labels_y : geo.chips_y[L],
+      cta_y: place.cta_y != null ? place.cta_y : geo.chips_y[L],
+      logo_x: place.logo_x != null ? place.logo_x : (right ? geo.width - logoW - 60 : 60),
+      logo_y: place.logo_y != null ? place.logo_y : geo.logo_y[L]
+    };
+  }
+  function grip(name) { return el("div", { "class": "st-handle", "data-resize": name }); }
+  function renderStage() {
+    var d = read(), box = $("stage-items"), L = d.layout, at = spot(d);
+    box.textContent = "";
+    if (d.headline.enabled) {
+      var hs = d.headline.size || 44, hw = d.headline.width_pct || 84, boxed = !!d.headline.background;
+      var lines = boot.sample.headline.slice(0, 2).map(function (t) {
+        return el("div", { style: "font-family:'f-" + d.headline.font + "';font-size:" + px(hs) + ";line-height:1.2;padding:" + px(hs * 0.22) + " " + px(hs * 0.45)
+          + ";margin:0 0 " + px(hs * 0.18) + ";border-radius:" + px(d.headline.radius) + ";background:" + (boxed ? d.headline.background : "transparent")
+          + ";color:" + d.headline.color + ";text-align:" + d.headline.align + ";text-shadow:" + (d.headline.shadow || !boxed ? "0 " + px(3) + " " + px(3) + " rgba(0,0,0,.7)" : "none"),
+          text: t.toUpperCase() });
+      });
+      box.appendChild(el("div", { "class": "st-item", "data-item": "headline", style: "left:" + ((100 - hw) / 2) + "%;width:" + hw + "%;top:" + pct(at.headline_y) },
+        lines.concat([grip("headline")])));
+    }
+    var c = d.captions;
+    if (c.enabled && stageData && stageData.words.length) {
+      var st = boot.styles.filter(function (s) { return s.id === c.style; })[0], words = stageData.words;
+      var size = c.size || st.size, upper = c.uppercase === null ? st.upper : c.uppercase;
+      var base = c.text_color || st.base, hi = c.highlight_color || st.accent;
+      var when = stageData.at, i = words.findIndex(function (w) { return w.t0 <= when && when < w.t1; });
+      if (i < 0) i = Math.max(words.findIndex(function (w) { return w.t0 >= when; }), 0);
+      var from = Math.floor(i / st.group) * st.group;
+      var group = words.slice(from, from + st.group).map(function (w, k) {
+        var spoken = from + k === i, css = "color:" + (spoken ? hi : base) + ";";
+        if (spoken && st.kind === "block") css = "background:" + hi + ";color:#111;border-radius:" + px(6) + ";padding:0 " + px(8) + ";";
+        return el("span", { style: css, text: (upper ? w.text.toUpperCase() : w.text) + " " });
+      });
+      var plate = st.kind === "plate";
+      box.appendChild(el("div", { "class": "st-item", "data-item": "captions", style: "left:0;right:0;text-align:center;transform:translateY(-50%);top:"
+        + pct(at.captions_y) + ";font-family:'f-" + (c.font || st.font) + "';font-size:" + px(size) + ";line-height:1.1;"
+        + (plate ? "background:rgba(0,0,0,.72);padding:" + px(14) + ";border-radius:" + px(4) + ";"
+                 : "-webkit-text-stroke:" + px(st.bord * 0.5) + " #0c0e12;paint-order:stroke fill;") }, group));
+    }
+    if (d.chips) {
+      box.appendChild(el("div", { "class": "st-item", "data-item": "chips", style: "left:50%;transform:translate(-50%,-50%);top:" + pct(at.labels_y)
+        + ";font-family:'f-montserrat-black';font-size:" + px(30) + ";background:#FFB000;color:#0E1217;padding:" + px(12) + " " + px(28)
+        + ";border-radius:999px;text-transform:uppercase;white-space:nowrap", text: boot.sample.points[0] || "A point" }));
+    }
+    if (d.brand.watermark) {
+      box.appendChild(el("div", { "class": "st-item", "data-item": "watermark", style: "left:50%;transform:translate(-50%,-50%);top:50%;font-family:'f-montserrat-bold';font-size:" + px(26)
+        + ";color:rgba(255,255,255,.6);text-shadow:0 0 " + px(4) + " #000", text: "@yourhandle" }));
+    }
+    if (d.brand.progress_bar) {
+      box.appendChild(el("div", { "class": "st-item", "data-item": "bar", style: "left:0;bottom:0;width:40%;height:" + px(8) + ";background:#FFB000" }));
+    }
+    var lg = d.logo;
+    if (lg.enabled) {
+      var logoKids = [lg.asset_id ? el("img", { src: "/assets/" + lg.asset_id + "/file", alt: "", style: "display:block;width:100%" })
+        : el("div", { style: "border:" + px(3) + " dashed #fff;color:#fff;font-size:" + px(30) + ";padding:" + px(16) + ";text-align:center", text: "logo" })];
+      if (lg.from_s > 0) logoKids.push(el("div", { "class": "st-tag", text: "from " + lg.from_s + " s" }));
+      logoKids.push(grip("logo"));
+      box.appendChild(el("div", { "class": "st-item", "data-item": "logo", style: "left:" + ((at.logo_x / geo.width) * 100) + "%;top:" + pct(at.logo_y) + ";width:" + lg.size + "%" }, logoKids));
+    }
+    if (d.cta.enabled) {
+      box.appendChild(el("div", { "class": "st-item", "data-item": "cta", style: "left:10%;width:80%;top:" + pct(at.cta_y) + ";transform:translateY(-50%)" }, [
+        el("div", { style: "font-family:'f-montserrat-black';font-size:" + px(d.cta.size) + ";background:#FFB000;color:#0E1217;padding:" + px(12) + " " + px(30)
+          + ";border-radius:999px;text-align:center;text-transform:uppercase", text: d.cta.text }),
+        el("div", { "class": "st-tag", style: "display:block;text-align:center", text: "last " + d.cta.seconds + " s" })]));
+    }
+    guides.forEach(function (g) {
+      box.appendChild(el("div", { "class": "st-guide", style: g.axis === "y" ? "left:0;right:0;top:" + pct(g.v) + ";height:1px"
+        : "top:0;bottom:0;left:" + ((g.v / geo.width) * 100) + "%;width:1px" }));
+    });
+    markStage();
+  }
+  // Snap a centre to a guide when it is close to one, and remember the guide so the stage can draw it.
+  function snapCentre(centre, list, axis) {
+    var best = null;
+    list.forEach(function (v) { if (Math.abs(centre - v) <= SNAP && (best === null || Math.abs(centre - v) < Math.abs(centre - best))) best = v; });
+    if (best === null) return centre;
+    guides.push({ axis: axis, v: best });
+    return best;
+  }
+  function moveItem(g, dx, dy) {
+    var at = g.at, name = g.item;
+    if (name === "logo") {
+      place.logo_x = clamp(snapCentre(at.logo_x + dx + g.w / 2, GUIDE_X, "x") - g.w / 2, 0, geo.width - g.w);
+      place.logo_y = clamp(snapCentre(at.logo_y + dy + g.h / 2, GUIDE_Y, "y") - g.h / 2, 0, geo.height - g.h);
+    } else if (name === "headline") {
+      place.headline_y = clamp(snapCentre(at.headline_y + dy + g.h / 2, GUIDE_Y, "y") - g.h / 2, 0, geo.height - g.h);
+    } else {
+      place[MOVE_KEY[name]] = clamp(snapCentre(at[MOVE_KEY[name]] + dy, GUIDE_Y, "y"), 0, geo.height);
+    }
+  }
+  // Dragging a corner grip sets the headline's width or the logo's size, the same numbers the inspector shows.
+  function resize(g, e) {
+    var x = (e.clientX - g.stage.left) * g.scale;
+    if (g.item === "headline") $("h_width").value = clamp(Math.abs(x - geo.width / 2) * 2 / geo.width * 100, 40, 100);
+    else $("l_size").value = clamp((x - g.at.logo_x) / geo.width * 100, 6, 30);
+  }
+  // The live check: what the placement covers, in plain words. Throttled while dragging, and it always runs at the end.
+  function checkPlace(force) {
+    clearTimeout(checkTimer);
+    if (!force && Date.now() - checkedAt < 300) { checkTimer = setTimeout(function () { checkPlace(true); }, 300); return; }
+    checkedAt = Date.now();
+    var req = ++checkReq, note = $("place-note");
+    post("/api/formats/check", { design: read() }).then(function (r) {
+      if (req !== checkReq) return;
+      if (!r.ok) { note.style.color = "#E0605A"; note.textContent = r.data.error || "That placement cannot be checked."; return; }
+      note.style.color = r.data.problems.length ? "#E0605A" : "";
+      note.textContent = r.data.problems.length ? r.data.problems[0] : "Nothing covers anything else.";
+    });
+  }
+  $("stage-items").addEventListener("pointerdown", function (e) {
+    var handle = e.target.closest("[data-resize]"), item = e.target.closest("[data-item]");
+    if (!item || (!handle && !MOVE_KEY[item.dataset.item])) return;
+    var stage = $("stage").getBoundingClientRect(), scale = geo.width / stage.width, at = spot(read());
+    if (handle && item.dataset.item === "logo") place.logo_x = at.logo_x;   // pinned, so the size grows from the left edge
+    dragging = { item: item.dataset.item, grip: !!handle, x: e.clientX, y: e.clientY, at: at, stage: stage, scale: scale,
+                 w: item.offsetWidth * scale, h: item.offsetHeight * scale, moved: false };
+    e.preventDefault();
+  });
+  document.addEventListener("pointermove", function (e) {
+    var g = dragging;
+    if (!g) return;
+    var dx = (e.clientX - g.x) * g.scale, dy = (e.clientY - g.y) * g.scale;
+    if (!g.moved && Math.abs(dx) + Math.abs(dy) < 4) return;   // a small wobble is a click, not a drag
+    g.moved = true;
+    guides = [];
+    if (g.grip) resize(g, e); else moveItem(g, dx, dy);
+    renderStage();
+    selectPane(PANE_OF[g.item]);
+    checkPlace(false);
+  });
+  document.addEventListener("pointerup", function () {
+    var g = dragging;
+    dragging = null; guides = [];
+    if (g && g.moved) { renderStage(); checkPlace(true); }
+  });
+  function onEdit() { renderStage(); checkPlace(false); }
+  function loadStage() {
+    var id = $("v_video").value, req = ++stageReq, note = $("stage-note");
+    note.style.color = "";
+    if (!id) { stageData = null; $("stage-still").hidden = true; note.textContent = "Download a video to see the format on a real frame."; return renderStage(); }
+    note.textContent = "Making the frame…";
+    var d = read();   // only the layout, the crop limit and the webcam box change the frame; the text is drawn here
+    post("/api/formats/stage", { video_id: id, design: { layout: d.layout, crop_limit: d.crop_limit, webcam: d.webcam } })
+      .then(function (r) {
+        if (req !== stageReq) return;
+        if (!r.ok) { note.style.color = "#E0605A"; note.textContent = r.data.error || "The frame could not be made."; return renderStage(); }
+        stageData = r.data; $("stage-still").src = r.data.still; $("stage-still").hidden = false;
+        note.textContent = "A paused frame from the sample, framed by the chosen layout, with its real words. Close to the real render, not exact."
+          + (r.data.warning ? " This layout could not frame this video (" + r.data.warning + "), so the plain middle is shown." : "");
+        note.style.color = r.data.warning ? "#E0A000" : "";
+        renderStage();
+      })
+      .catch(function () { if (req === stageReq) { note.style.color = "#E0605A"; note.textContent = "The frame could not be made."; } });
+  }
+  var stageTimer = null;
+  function reloadStageSoon() { clearTimeout(stageTimer); stageTimer = setTimeout(loadStage, 450); }
+  ["f_layout", "f_limit", "w_x", "w_y", "w_w", "w_h"].forEach(function (id) { $(id).addEventListener("change", reloadStageSoon); });
+  document.querySelectorAll(".fmt-panes button").forEach(function (b) { b.addEventListener("click", function () { selectPane(b.dataset.pane); }); });
+  $("stage-items").addEventListener("click", function (e) { var item = e.target.closest("[data-item]"); if (item) selectPane(PANE_OF[item.dataset.item]); });
+  $("v_video").addEventListener("change", loadStage);
+  $("builder").addEventListener("input", onEdit);
+  $("builder").addEventListener("change", onEdit);
+  // A new position for captions or the logo's corner moves them back to the layout's own spot first.
+  $("c_pos").addEventListener("change", function () { place.captions_y = null; });
+  $("l_corner").addEventListener("change", function () { place.logo_x = null; });
+  $("place-reset").addEventListener("click", function () { place = placeFrom(null); renderStage(); checkPlace(true); });
+  options($("f_preset"), boot.presets.map(function (p) { return { id: p.id, label: p.name }; }), "Keep the settings below");
+  $("f_preset").addEventListener("change", function () {
+    var p = boot.presets.filter(function (x) { return x.id === $("f_preset").value; })[0];
+    $("f_preset").value = "";
+    if (p) { fill(copy(p.design)); loadStage(); say("The " + p.name + " settings are in the builder. Save to keep them.", "good"); }
   });
 
   buildControls(); renderPresets(); renderStyles(); renderTemplates();

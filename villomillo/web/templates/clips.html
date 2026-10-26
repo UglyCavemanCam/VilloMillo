@@ -26,6 +26,18 @@
   <span class="muted spacer" style="font-size:13px">Showing {{ d.cards|length }} of {{ d.total }}</span>
 </form>
 {% endif %}
+{% if d.tab in ('review', 'all') %}
+  {% if d.formatting %}
+  <div class="notice format-progress" style="margin-bottom:16px" data-format-queue="/api/clips/format-progress?profile={{ shell.current.id }}" role="status" aria-live="polite">{{ icon('refresh', 'spin') }}
+    <div style="flex:1;min-width:0"><b>Giving <span data-format-left>{{ d.formatting }}</span> clip{{ '' if d.formatting == 1 else 's' }} a format…</b>
+      <div class="bar thin indeterminate" style="margin:10px 0 8px"><i></i></div>
+      <span class="muted">Each one takes about a minute. This page refreshes by itself when they are done.</span></div></div>
+  {% elif d.fixable %}
+  <div class="notice warn" style="margin-bottom:16px">{{ icon('alert') }}
+    <div style="flex:1;min-width:0"><b>{{ d.fixable }} clip{{ '' if d.fixable == 1 else 's' }} waiting for you {{ 'has' if d.fixable == 1 else 'have' }} no format yet</b>, and the format for {{ 'its' if d.fixable == 1 else 'their' }} category is ready to use.<br>
+      <button type="button" class="btn btn-sm btn-primary" style="margin-top:8px" data-act="/api/clips/apply-formats" data-fields='{{ {"profile": shell.current.id}|tojson }}' data-ok="Started. Each clip takes about a minute.">Apply {{ 'it' if d.fixable == 1 else 'formats to all ' ~ d.fixable }}</button></div></div>
+  {% endif %}
+{% endif %}
 {% if d.cards %}
 <div class="select-bar" id="select-bar" hidden><span id="select-count">0 selected</span>
   <button type="button" class="btn btn-sm" id="select-all">Select all</button>

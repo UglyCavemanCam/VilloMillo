@@ -527,9 +527,147 @@ def test_the_panel_offers_apply_the_look_again_only_for_a_clip_in_the_wrong_look
     with db.conn() as c:
         clip_id = c.execute("SELECT id FROM clips_ready ORDER BY id").fetchone()["id"]
     panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
-    assert "Apply a format" in panel and "it failed" in panel
+    assert "no formats yet" in panel and "it failed" in panel and "Edit look" in panel   # nothing to apply yet: it says so
+    from villomillo.formats import templates
+    talk = templates.save(db, name="Talk", layers={"framing": "face_fill", "text": ["captions", "headline"]})
+    templates.assign(db, "Podcasts", talk["id"])
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "Apply this format" in panel and "Talk (used for Podcasts)" in panel
     assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).status_code == 200
     with db.conn() as c:
         assert c.execute("SELECT COUNT(*) AS n FROM tasks WHERE kind='relook'").fetchone()["n"] == 1
     assert "relook" in runner.HANDLERS
     assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": 9999}).status_code == 404
+
+
+def _unformatted_clip(env, monkeypatch):
+    def broken(clip, job, out):
+        raise RuntimeError("it failed")
+
+    sv, db, run_id = _made(env, lambda: broken, monkeypatch)
+    with db.conn() as c:
+        clip_id = c.execute("SELECT id FROM clips_ready ORDER BY id").fetchone()["id"]
+    return sv, db, clip_id
+
+
+def test_the_panel_shows_a_format_being_made_and_how_it_went(env, monkeypatch):
+    from villomillo import formats, relook
+    from villomillo.formats import templates
+
+    sv, db, clip_id = _unformatted_clip(env, monkeypatch)
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    talk = templates.save(db, name="Talk", layers={"framing": "face_fill", "text": ["captions", "headline"]})
+    templates.assign(db, "Podcasts", talk["id"])
+    assert relook.state(db, clip_id)["state"] == "idle"
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).json()["queued"] is True
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).json()["queued"] is False  # not asked twice
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "data-format-watch" in panel and "Waiting for its turn" in panel and "Apply this format" not in panel
+    assert client.get(f"/clips/{clip_id}/format-status?profile=solved").json()["state"] == "waiting"
+
+    def title_fails(clip, job, out):
+        raise formats.FormatError("no trustworthy on-screen text: title line is too long or has a hashtag: 'X'")
+
+    monkeypatch.setattr(formats, "make_formatter", lambda *a, **k: title_fails)
+    assert runner.run_one(sv, "formats", kinds=relook.KINDS) is True
+    status = client.get(f"/clips/{clip_id}/format-status?profile=solved").json()
+    assert status["state"] == "failed" and "too long" in status["note"]
+    panel = client.get(f"/clips/{clip_id}/panel?profile=solved").text
+    assert "The format could not be applied" in panel and "too long" in panel and "never applied without its title" in panel and "Try again" in panel
+    with db.conn() as c:
+        assert "needs a format" in c.execute("SELECT reason FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["reason"]
+
+    def good(clip, job, out):
+        out.write_bytes(b"new look")
+        return {"template": talk["id"]}
+
+    monkeypatch.setattr(formats, "make_formatter", lambda *a, **k: good)
+    monkeypatch.setattr(relook.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).json()["queued"] is True  # a try right after a failure runs
+    assert runner.run_one(sv, "formats", kinds=relook.KINDS) is True
+    assert client.get(f"/clips/{clip_id}/format-status?profile=solved").json()["state"] == "formatted"
+    with db.conn() as c:
+        row = c.execute("SELECT reason, format_note FROM clips_ready WHERE id=?", (clip_id,)).fetchone()
+    assert row["reason"] == "passed checks; waiting for your decision" and row["format_note"] is None
+
+
+def test_a_failed_try_is_tried_once_more_and_a_format_is_never_applied_without_its_title(env, monkeypatch):
+    from villomillo import formats, relook
+    from villomillo.formats import templates
+
+    sv, db, clip_id = _unformatted_clip(env, monkeypatch)
+    talk = templates.save(db, name="Talk", layers={"framing": "face_fill", "text": ["captions", "headline"]})
+    templates.assign(db, "Podcasts", talk["id"])
+    tries = []
+
+    def flaky(clip, job, out):
+        tries.append(1)
+        if len(tries) == 1:
+            raise RuntimeError("a hiccup")
+        out.write_bytes(b"new look")
+        return {"template": talk["id"]}
+
+    monkeypatch.setattr(formats, "make_formatter", lambda *a, **k: flaky)
+    monkeypatch.setattr(relook.validate, "check", lambda path, **k: {"ok": True, "problems": [], "warnings": [], "facts": {"duration_s": 30}})
+    assert "was applied" in relook.apply(sv, clip_id) and len(tries) == 2
+    with db.conn() as c:
+        c.execute("UPDATE clips_ready SET format_applied=0")
+
+    def always(clip, job, out):
+        tries.append(1)
+        raise formats.FormatError("no trustworthy on-screen text: the title may misstate the speaker (77%)")
+
+    tries.clear()
+    monkeypatch.setattr(formats, "make_formatter", lambda *a, **k: always)
+    with pytest.raises(relook.RelookError, match="misstate the speaker"):
+        relook.apply(sv, clip_id)
+    assert len(tries) == relook.TRIES
+    with db.conn() as c:
+        assert c.execute("SELECT format_applied FROM clips_ready WHERE id=?", (clip_id,)).fetchone()["format_applied"] == 0
+
+
+def test_saving_a_format_for_a_category_applies_it_to_the_clips_already_waiting(env, monkeypatch):
+    from villomillo import relook
+    from villomillo.formats import templates
+
+    sv, db, clip_id = _unformatted_clip(env, monkeypatch)
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    with db.conn() as c:
+        n = c.execute("SELECT COUNT(*) AS n FROM clips_ready WHERE state='review' AND format_applied=0").fetchone()["n"]
+    assert n >= 1
+    assert relook.fixable(sv, "solved") == 0 and relook.queue_waiting(sv, category="Podcasts") == 0   # no format for the category yet
+    refused = client.post("/api/clips/apply-formats", data={"profile": "solved"})
+    assert refused.status_code == 422
+    talk = templates.save(db, name="Talk", layers={"framing": "face_fill", "text": ["captions", "headline"]})
+    templates.assign(db, "Podcasts", talk["id"])
+    assert relook.fixable(sv, "solved") == n
+    assert ("Apply it" if n == 1 else f"Apply formats to all {n}") in client.get("/clips?profile=solved&tab=review").text
+    assert relook.queue_waiting(sv, category="Talks") == 0        # another category is left alone
+    assert relook.queue_waiting(sv, category="podcasts") == n     # and a category matches however it is written
+    assert relook.queue_waiting(sv, category="podcasts") == 0     # a clip already on its way is not queued twice
+    assert relook.in_progress(sv, "solved") == n and relook.fixable(sv, "solved") == 0
+    page = client.get("/clips?profile=solved&tab=review").text
+    assert "data-format-queue" in page and client.get("/api/clips/format-progress?profile=solved").json() == {"pending": n}
+    with db.conn() as c:
+        c.execute("UPDATE tasks SET status='done'")
+    relook.fail(db, clip_id, "no good")
+    assert relook.queue_waiting(sv, category="podcasts") == n - 1     # a saved format does not keep retrying a clip that failed
+    with db.conn() as c:
+        c.execute("UPDATE tasks SET status='done'")
+    assert client.post("/api/clips/apply-formats", data={"profile": "solved"}).json()["queued"] == n   # but pressing the button does
+
+
+def test_the_panel_can_apply_another_format_and_remember_it_for_the_category(env, monkeypatch):
+    from villomillo.formats import templates
+
+    sv, db, clip_id = _unformatted_clip(env, monkeypatch)
+    client = TestClient(create_app(sv), base_url="http://127.0.0.1:8780")
+    refused = client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id})
+    assert refused.status_code == 422 and "no format yet" in refused.json()["detail"]
+    talk = templates.save(db, name="Talk", layers={"framing": "face_fill", "text": ["captions", "headline"]})
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id, "template_id": "gone"}).status_code == 422
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id, "template_id": talk["id"], "remember": "1"}).status_code == 200
+    assert templates.for_category(db, "Podcasts")["id"] == talk["id"]
+    with db.conn() as c:
+        c.execute("UPDATE clips_ready SET state='rejected_auto'")
+    assert client.post("/api/clip-relook", data={"profile": "solved", "clip_id": clip_id}).status_code == 422   # only a clip waiting for review

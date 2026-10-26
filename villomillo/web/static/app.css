@@ -365,6 +365,13 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 10px; }
 /* ---- loading, errors, shortcuts ---------------------------------------------------------------------------------- */
 .skel { border-radius: var(--r); background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: skel 1.2s linear infinite; }
 @keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* a format being made: a bar that slides back and forth (the length is unknown) and a turning arrow */
+.bar.indeterminate { position: relative; }
+.bar.indeterminate > i { position: absolute; width: 38%; animation: slide 1.3s ease-in-out infinite alternate; }
+@keyframes slide { from { left: 0; } to { left: 62%; } }
+.icon.spin { animation: turn 1.1s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+.format-progress .bar { max-width: 100%; }
 .error-page { margin-top: 8vh; }
 .error-page .icon { color: var(--warn); }
 .shortcuts { width: min(460px, calc(100% - 32px)); }
@@ -373,7 +380,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .shortcuts dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .shortcuts dt { color: var(--label); white-space: nowrap; } .shortcuts dd { margin: 0; text-align: right; }
 .shortcuts .actions { display: flex; justify-content: flex-end; }
-@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .drawer { transition: none; } * { scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: reduce) { .skel, .icon.spin { animation: none; } .bar.indeterminate > i { animation: none; width: 100%; opacity: .5; } .drawer { transition: none; } * { scroll-behavior: auto !important; } }
 .shortcuts .kbd { position: static; display: inline-block; top: auto; right: auto; min-width: 22px; text-align: center; color: var(--text); background: var(--surface-2); }
 
 /* ---- channels: forms and the setup checklist ---- */

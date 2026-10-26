@@ -435,11 +435,12 @@ def cmd_run(args) -> None:
 
     sv = _services()
     stop = threading.Event()
-    from . import rewards
+    from . import relook, rewards
 
-    worker = threading.Thread(target=runner.loop, args=(sv, stop), kwargs={"skip": rewards.KINDS}, name="worker", daemon=True)
+    worker = threading.Thread(target=runner.loop, args=(sv, stop), kwargs={"skip": rewards.KINDS + relook.KINDS}, name="worker", daemon=True)
     worker.start()
     threading.Thread(target=runner.lane, args=(sv, stop, rewards.KINDS), kwargs={"name": "rewards"}, name="rewards", daemon=True).start()
+    threading.Thread(target=runner.lane, args=(sv, stop, relook.KINDS), kwargs={"name": "formats"}, name="formats", daemon=True).start()  # applying a format never waits behind a clip job
     try:  # Claude finds the moments when you want it and have a key: the engine needs its own copy of the key
         engine_ai.sync_key()
     except Exception as e:  # never stops the app starting

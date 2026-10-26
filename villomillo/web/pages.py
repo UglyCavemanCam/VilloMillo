@@ -24,6 +24,7 @@ from .. import (
     engine_manager,
     health,
     posting,
+    relook,
     removal,
     research,
     rewards,
@@ -245,6 +246,14 @@ def _grade(r: dict) -> dict:
     return json.loads(r["grade_json"] or "{}")
 
 
+def _file_version(r: dict) -> int:
+    """When the clip's file last changed, so a clip made again in a new format is fetched again, not shown from the browser's memory."""
+    try:
+        return int(pathlib.Path(r["file_path"]).stat().st_mtime)
+    except (OSError, TypeError):
+        return 0
+
+
 def _clip_card(p: Profile, r: dict, post: dict | None) -> dict:
     grade, val = _grade(r), json.loads(r["validation_json"] or "{}")
     rules = grade.get("campaign")
@@ -256,7 +265,7 @@ def _clip_card(p: Profile, r: dict, post: dict | None) -> dict:
         "id": r["id"], "engine_id": r["engine_clip_id"], "grade": r["engine_score"], "state": CLIP_STATE.get(r["state"], badge(r["state"])),
         "key": r["state"], "title": (title or r["hook"] or f"Clip {r['engine_clip_id']}").strip(" “”\"")[:90],
         "duration": mmss(val.get("facts", {}).get("duration_s") or (r["end_s"] - r["start_s"])),
-        "thumb": f"/clips/{r['id']}/thumb?profile={p.id}", "look": "Formatted" if r["format_applied"] else "No format yet",
+        "thumb": f"/clips/{r['id']}/thumb?profile={p.id}&v={_file_version(r)}", "look": "Formatted" if r["format_applied"] else "No format yet",
         "rules": badge("Rules failed" if failed else ("Rules passed" if rules else "Checked"), "bad" if failed else "good"),
         "panel": f"/clips/{r['id']}/panel?profile={p.id}",
         "score": r["engine_score"] or 0, "seconds": val.get("facts", {}).get("duration_s") or (r["end_s"] - r["start_s"]),
@@ -300,6 +309,7 @@ def clips_page(sv: Services, p: Profile, tab: str, *, sort: str = "best", min_sc
     shown.sort(key=lambda c: (CLIP_SORTS[sort][1](c), -c["id"]))  # ties: the newer clip first
     filters = {"sort": sort, "min_score": min_score, "video": video, "post": post}
     return {"tab": tab, "tabs": tabs, "cards": shown, "total": len(in_tab), "filters": filters, "filtered": (min_score, video, post) != (0, "", "any"),
+            "formatting": relook.in_progress(sv, p.id), "fixable": relook.fixable(sv, p.id),
             "sorts": [(k, v[0]) for k, v in CLIP_SORTS.items()], "min_scores": CLIP_MIN_SCORES, "videos": videos, "post_filters": CLIP_POST_FILTERS,
             "studio": studio_data, "live": bool(studio_data and studio_data["job"] and
                                                 studio_data["job"]["status"] in ("submitted", "running", "queued"))}
@@ -322,6 +332,26 @@ def _clip_rewards(sv: Services, clip: dict, post: dict | None) -> dict:
     text, kind, _ = rewards.STATUS.get(st["status"], (st["status"], "", False))
     return {"kind": "state", "badge": kind, "text": text, "detail": st["detail"], "handed": handed, "post_id": post["id"], "status": st["status"],
             "trial": st["status"] == "dry_run"}
+
+
+def _look_why(grade: dict) -> str:
+    """Why the clip was made without a format. "No format is set for X" is left out: it was true then, and the panel says what is true now."""
+    why = (grade.get("look") or "").replace("not formatted:", "").strip()
+    return "" if why.startswith("no format is set") else why
+
+
+def _format_view(sv: Services, r: dict, grade: dict) -> dict:
+    """What the clip panel needs to apply a format: where it stands (waiting, working, failed...), the format its category uses,
+    and the formats to pick from."""
+    from ..formats import templates
+
+    owner = sv.profiles.get(r["profile_id"])
+    category = r["category"] or (owner.category if owner else None)
+    assigned = templates.for_category(sv.db, category)
+    where = relook.state(sv.db, r["id"])
+    return {**where, "category": category or "", "assigned": assigned,
+            "templates": [{"id": t["id"], "name": t["name"]} for t in templates.list_templates(sv.db)],
+            "text_failed": "on-screen text" in where["note"]}
 
 
 def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
@@ -358,13 +388,14 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             if rule_facts else "", "post": ({**post, "state": post_state(post["status"], post["route"]),
                                               "platform_name": post["platform"].replace("_", " ").title(),
                                               "when": timefmt.full(post["scheduled_at"])} if post else None),
-            "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}", "is_review": r["state"] == "review",
+            "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}&v={_file_version(r)}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
             "look_failed": not r["format_applied"],
             "effects": [{**e, "when": mmss(e["start"])} for e in grade.get("effects") or []],
             "music": grade.get("music"),
-            "look_why": (grade.get("look") or "").replace("not formatted:", "").strip(),
+            "look_why": _look_why(grade),
+            "format": _format_view(sv, r, grade),
             "rewards": _clip_rewards(sv, r, post),
             "can_repost": r["state"] == "approved" and bool(post) and post["status"] in posting.RESENT,
             "handed_in": one(sv.db, "SELECT COUNT(*) AS n FROM campaign_submissions WHERE post_id=?", post["id"])["n"] if post else 0,
@@ -1014,7 +1045,11 @@ def formats_page(sv: Services, p: Profile, clip_id: int | None = None) -> dict:
             "boot": {"templates": items, "categories": categories, "clip": clip, "defaults": designs.normalize({}),
                      "presets": [{"id": x["id"], "name": x["name"], "blurb": x["blurb"], "design": x["design"]} for x in designs.presets(sv.db)],
                      "styles": [{"id": s.id, "label": s.label, "blurb": s.blurb, "font": s.font, "size": s.size, "upper": s.upper,
-                                 "base": s.base, "accent": s.accent} for s in STYLES.values()],
+                                 "base": s.base, "accent": s.accent, "group": s.group, "kind": s.kind, "bord": s.bord} for s in STYLES.values()],
+                     "geometry": {"width": 1080, "height": 1920, "positions": designs.POSITIONS, "headline_top": designs.HEADLINE_TOP,
+                                  "logo_y": designs.LOGO_Y, "chips_y": designs.CHIPS_Y},
+                     "sample": {"headline": preview.SAMPLE_TEXT.title_lines, "points": [p[0] for p in preview.SAMPLE_TEXT.points],
+                                "takeaway": preview.SAMPLE_TEXT.takeaway, "length": preview.SAMPLE_LENGTH},
                      "fonts": [{"id": f.id, "label": f.label} for f in fonts.FONTS.values()],
                      "videos": preview.sample_videos(sv.db), "profile": p.id,
                      "logos": [{"id": a["id"], "name": a["name"]} for a in format_assets.logos(sv.db)],

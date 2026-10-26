@@ -123,8 +123,7 @@ def do_relook(sv: Services, payload: dict) -> None:
         line, level = relook.apply(sv, payload["clip_id"], template_id=payload.get("template_id"), design=payload.get("design")), "info"
     except relook.RelookError as e:
         line, level = f"clip {payload['clip_id']}: {e}", "warn"
-        with sv.db.conn() as c:
-            c.execute("UPDATE clips_ready SET reason=? WHERE id=?", (str(e)[:240], payload["clip_id"]))
+        relook.fail(sv.db, payload["clip_id"], str(e))  # the clip panel shows this
     activity.log(sv.db, "campaign", line, level=level)
 
 

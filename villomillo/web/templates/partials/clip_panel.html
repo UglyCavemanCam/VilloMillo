@@ -29,10 +29,39 @@
   {% if d.music %}<div class="muted" style="font-size:13px;margin-top:8px;line-height:19px"><b>Music:</b>
     {{ d.music.mood }}, {{ d.music.title }} by {{ d.music.artist }}, because {{ d.music.reason }}.</div>{% endif %}
   {% if d.is_review and d.effects and not d.look_failed %}<div style="margin-top:8px"><button type="button" class="btn btn-sm" data-act="/api/clips/remake-without-effects" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Remaking the clip without its effects. It takes a minute; reopen the clip after.">Remake without effects</button></div>{% endif %}
-  {% if d.look_failed %}
-  <div class="notice warn">{{ icon('alert') }}<div><b>This clip has no format yet, so it cannot be scheduled or posted.</b>{% if d.look_why %}<br><span class="muted">{{ d.look_why }}</span>{% endif %}<br>
-    <button type="button" class="btn btn-sm btn-primary" style="margin-top:8px" data-act="/api/clip-relook" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Applying the format. It takes a minute; reopen the clip after.">Apply a format</button>
-    <a class="btn btn-sm" style="margin:8px 0 0 6px" href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a></div></div>
+  {% set f = d.format %}
+  {% if f.state in ('waiting', 'working') %}
+  {# A format is being made: this block asks the dashboard how it is going every couple of seconds (app.js, watchFormat) and swaps in the result #}
+  <div class="notice format-progress" data-format-watch="/clips/{{ d.row.id }}/format-status?profile={{ p.id }}" data-format-state="{{ f.state }}" data-format-elapsed="{{ f.elapsed }}" role="status" aria-live="polite">{{ icon('refresh', 'spin') }}
+    <div style="flex:1;min-width:0"><b data-format-label>{{ 'Making the clip in its new format…' if f.state == 'working' else 'Waiting for its turn…' }}</b>
+      <div class="bar thin indeterminate" style="margin:10px 0 8px"><i></i></div>
+      <span class="muted" data-format-detail>{% if f.note %}The last try did not work ({{ f.note }}); trying again. {% endif %}This takes about a minute. <span data-format-clock>0:00</span> so far. You can close this: it keeps going.</span></div></div>
+  {% elif d.look_failed and d.is_review %}
+  <div class="notice {{ 'bad' if f.state == 'failed' else 'warn' }}">{{ icon('alert') }}
+    <div style="flex:1;min-width:0">
+      {% if f.state == 'failed' %}<b>The format could not be applied.</b><br>{{ f.note }}
+      {% if f.text_failed %}<br><span class="muted">The words for the screen did not pass their checks, so the clip was left as it was: a format is never applied without its title. Trying again usually writes a different title.</span>{% endif %}
+      {% else %}<b>This clip has no format yet, so it cannot be scheduled or posted.</b>{% if d.look_why %}<br><span class="muted">{{ d.look_why }}</span>{% endif %}
+      {% if f.assigned %}<br><span class="muted">{{ f.category }} uses the <b>{{ f.assigned.name }}</b> format. This clip was made before that was set.</span>{% endif %}{% endif %}
+      {% if f.templates %}
+      <form data-act="/api/clip-relook" data-fields='{{ {"clip_id": d.row.id, "profile": p.id}|tojson }}' data-after="panel" data-ok="Started. Watch the progress below."
+            style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <label class="muted" style="font-size:12px">Format to apply
+          <select class="field" name="template_id" style="display:block;width:100%;margin-top:4px">
+            {% if not f.assigned %}<option value="">Choose a format…</option>{% endif %}
+            {% for t in f.templates %}<option value="{{ t.id }}" {{ 'selected' if f.assigned and f.assigned.id == t.id }}>{{ t.name }}{{ ' (used for ' ~ f.category ~ ')' if f.assigned and f.assigned.id == t.id }}</option>{% endfor %}
+          </select></label>
+        {% if f.category %}<label style="font-size:13px;display:flex;gap:8px;align-items:center"><input type="checkbox" name="remember" value="1" {{ 'checked' if not f.assigned }}> Use it for every {{ f.category }} clip from now on</label>{% endif %}
+        <div class="cluster"><button type="submit" class="btn btn-sm btn-primary">{{ 'Try again' if f.state == 'failed' else 'Apply this format' }}</button>
+          <a class="btn btn-sm" href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a></div>
+      </form>
+      {% else %}
+      <p style="margin:10px 0 8px">There are no formats yet. Make one on the Formats page, then come back and apply it, or design a look for just this clip.</p>
+      <div class="cluster"><a class="btn btn-sm btn-primary" href="/formats?profile={{ p.id }}">Open the Formats page</a>
+        <a class="btn btn-sm" href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a></div>
+      {% endif %}</div></div>
+  {% elif d.look_failed %}
+  <p class="muted" style="font-size:13px;line-height:19px;margin:0">This clip has no format, and only a clip waiting for your review can be given one.</p>
   {% endif %}
 
   <div><h3 style="margin-bottom:8px">Post</h3>

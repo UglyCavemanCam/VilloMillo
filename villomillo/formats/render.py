@@ -279,6 +279,20 @@ def _framing(job: Job, framing: str, sw: int, sh: int, label: str = "base") -> s
             f"crop={W}:{H}:(iw-{W})/2:(ih-{H})/2,unsharp=5:5:0.5[{label}]")
 
 
+def framed_still(job: Job, out: pathlib.Path, at: float) -> pathlib.Path:
+    """One picture from the clip, framed exactly as render() frames it but with no text or marks, `at` seconds in and at half
+    size. The builder's stage draws its text over this. Raises RenderError when the layout cannot frame this video."""
+    sw, sh = _source_size(job.source)
+    graph = _framing(job, job.plan.framing().id, sw, sh) + f";[base]select='gte(t,{at:.3f})',scale={W // 2}:{H // 2}[still]"
+    cmd = [binaries.ffmpeg(), "-y", "-v", "error", "-ss", f"{job.start:.3f}", "-t", f"{at + 1.0:.3f}", "-i", str(job.source),
+           "-filter_complex", graph, "-map", "[still]", "-frames:v", "1", str(out)]
+    try:
+        subprocess.run(cmd, check=True, timeout=120, capture_output=True)
+    except (subprocess.SubprocessError, OSError) as e:
+        raise RenderError("a still frame could not be made from that video") from e
+    return out
+
+
 def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path) -> list[dict]:
     """Every image to lay over the video: its file, where it goes and when it shows (None = the whole clip)."""
     plan, text, items = job.plan, job.text, []
@@ -293,8 +307,10 @@ def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path)
         words = sum(len(line.split()) for line in text.title_lines)
         base, per, low, high = (plan.param("headline", k) for k in ("base_s", "per_word_s", "min_s", "max_s"))
         head_end = min(high, max(low, base + per * words))
-        add("headline", overlays.headline_image(text.title_lines, d["headline"]), "0", str(designs.HEADLINE_TOP[framing]), (0.0, head_end))
-    row = designs.CHIPS_Y[framing]
+        add("headline", overlays.headline_image(text.title_lines, d["headline"]), "0",
+            str(designs.place_of(d, "headline_y", designs.HEADLINE_TOP[framing])), (0.0, head_end))
+    row = designs.place_of(d, "labels_y", designs.CHIPS_Y[framing])
+    cta_row = designs.place_of(d, "cta_y", designs.CHIPS_Y[framing])
     cta = d["cta"]["text"] if plan.has("cta_end") and total > 6.0 else None
     cta_start = total - float(d["cta"]["seconds"]) if cta else None
     take_end = cta_start - 0.3 if cta else total   # the call to action has the last seconds; the takeaway lands just before it
@@ -310,14 +326,16 @@ def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path)
     if take_start is not None:
         add("takeaway", overlays.pill_image(text.takeaway.upper(), 46, AMBER, INK, pad=34), "(W-w)/2", f"{row}-h/2", (take_start, take_end))
     if cta:
-        add("cta", overlays.pill_image(cta.upper(), int(d["cta"]["size"]), AMBER, INK, pad=34), "(W-w)/2", f"{row}-h/2", (cta_start, total))
+        add("cta", overlays.pill_image(cta.upper(), int(d["cta"]["size"]), AMBER, INK, pad=34), "(W-w)/2", f"{cta_row}-h/2", (cta_start, total))
     if plan.has("logo_corner") and job.logo is not None:
         image = overlays.logo_image(job.logo, round(W * int(d["logo"]["size"]) / 100))
         margin = int(plan.param("logo_corner", "margin"))
         right = framing in ("stacked_webcam", "split") or d["logo"]["corner"] == "right"   # the top band is taken: the logo goes right
         x = f"W-w-{margin}" if right else str(margin)
+        if d.get("place", {}).get("logo_x") is not None:   # dragged: its left edge, as the owner placed it
+            x = str(d["place"]["logo_x"])
         from_s = float(d["logo"]["from_s"])
-        add("logo", image, x, str(designs.LOGO_Y[framing]), (from_s, total) if from_s > 0 else None)
+        add("logo", image, x, str(designs.place_of(d, "logo_y", designs.LOGO_Y[framing])), (from_s, total) if from_s > 0 else None)
     if plan.has("watermark_center") and job.handle:
         add("watermark", overlays.watermark_image(job.handle, int(plan.param("watermark_center", "alpha")),
                                                   int(plan.param("watermark_center", "size"))), "(W-w)/2", "(H-h)/2", None)
@@ -373,7 +391,7 @@ def render(job: Job, *, preview: bool = False) -> pathlib.Path:
         if job.plan.has("captions") and job.words:
             rel = [{**w, "o0": w["t0"] - job.start, "o1": w["t1"] - job.start} for w in job.words]
             (work / "captions.ass").write_text(captions.build_ass(
-                rel, c["style"], y=designs.POSITIONS[c["position"]], font=c["font"], size=c["size"], upper=c["uppercase"],
+                rel, c["style"], y=designs.place_of(d, "captions_y", designs.POSITIONS[c["position"]]), font=c["font"], size=c["size"], upper=c["uppercase"],
                 base=c["text_color"], accent=c["highlight_color"], keys=key_words(job.text)), encoding="utf-8")
             parts.append(f"[{chain}]subtitles=captions.ass:fontsdir={fonts.fonts_dir_option()}[subs]")
             chain = "subs"

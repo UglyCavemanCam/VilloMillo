@@ -45,9 +45,40 @@
       stopMedia();
       drawer.innerHTML = html;
       var focusTarget = $("[data-close]", drawer); if (focusTarget) focusTarget.focus();
+      watchFormat();
     }).catch(function (e) { closePanel(); toast(e.message, "bad"); });
   }
+
+  /* ---- a format being applied to the open clip: show it working, then show how it went ---- */
+  var formatTimer = null;
+  function watchFormat() {
+    clearInterval(formatTimer); formatTimer = null;
+    var box = $("[data-format-watch]", drawer);
+    if (!box) return;
+    var panel = currentPanel, url = box.dataset.formatWatch, state = box.dataset.formatState;
+    var since = Date.now() - (parseInt(box.dataset.formatElapsed, 10) || 0) * 1000, clock = $("[data-format-clock]", box), label = $("[data-format-label]", box);
+    var asking = false, ticks = 0;
+    formatTimer = setInterval(function () {
+      if (currentPanel !== panel || !drawer.contains(box)) { clearInterval(formatTimer); formatTimer = null; return; }
+      var s = Math.floor((Date.now() - since) / 1000);
+      if (clock) clock.textContent = Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+      if (asking || ++ticks % 2) return;  /* ask every other second */
+      asking = true;
+      fetch(url, { headers: { "X-Requested-With": "panel" } }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.state === "working" || d.state === "waiting") {
+          if (d.state !== state && label) { state = d.state; label.textContent = state === "working" ? "Making the clip in its new format…" : "Waiting for its turn…"; }
+          return;
+        }
+        clearInterval(formatTimer); formatTimer = null;
+        return openPanel(panel).then(function () {
+          if (d.state === "formatted") toast("The format was applied. The new version is playing above.", "good");
+          else if (d.state === "failed") toast("The format could not be applied. The reason is in the clip panel.", "bad");
+        });
+      }).catch(function () { /* the next tick asks again */ }).then(function () { asking = false; });
+    }, 1000);
+  }
   function closePanel() {
+    clearInterval(formatTimer); formatTimer = null;
     stopMedia();
     drawer.classList.remove("open"); backdrop.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true"); currentPanel = null;
@@ -124,7 +155,9 @@
     if (!f) return;
     ev.preventDefault();
     var extra = {};
-    $$("input[name]", f).forEach(function (i) { extra[i.name] = i.value; });
+    $$("input[name], select[name]", f).forEach(function (i) {
+      if (i.type === "checkbox" || i.type === "radio") { if (i.checked) extra[i.name] = i.value; } else extra[i.name] = i.value;
+    });
     send(f, extra);
   });
   document.addEventListener("keydown", function (ev) {
@@ -147,6 +180,17 @@
     }, 4000);
     window.addEventListener("pagehide", function () { clearInterval(timer); });
   });
+
+  /* ---- clips being given a format: count them down, then show how it went ---- */
+  var formatQueue = $("[data-format-queue]");
+  if (formatQueue) {
+    var left = $("[data-format-left]", formatQueue), queueTimer = setInterval(function () {
+      fetch(formatQueue.dataset.formatQueue).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.pending) { clearInterval(queueTimer); location.reload(); } else if (left) left.textContent = d.pending;
+      }).catch(function () { /* the next tick asks again */ });
+    }, 3000);
+    window.addEventListener("pagehide", function () { clearInterval(queueTimer); });
+  }
 
   /* ---- clip filters: a changed choice applies at once ---- */
   $$("select[data-autosubmit]").forEach(function (sel) { sel.addEventListener("change", function () { sel.form.submit(); }); });

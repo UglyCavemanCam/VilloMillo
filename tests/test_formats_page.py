@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 
 import pytest
 from fastapi.testclient import TestClient
@@ -255,3 +257,144 @@ def test_remake_without_effects_queues_the_clip_with_its_look_and_no_effects(sv,
     design = json.loads(task["payload_json"])["design"]
     assert design["effects"]["intensity"] == "off" and design["captions"]["style"] == "burst"
     assert client.post("/api/clips/remake-without-effects", data={"profile": "solved", "clip_id": 999}).status_code == 404
+
+
+def test_the_stage_refuses_a_video_that_is_not_offered_and_serves_only_real_stills(client):
+    r = client.post("/api/formats/stage", json={"video_id": "nothing-here"})
+    assert r.status_code == 422 and "not available" in r.json()["error"]
+    assert client.get("/formats/still/format-still-zzzz.jpg").status_code == 404
+    assert client.get("/formats/still/../x.jpg").status_code == 404
+
+
+def test_only_the_fonts_the_formats_offer_are_served_to_the_stage(client):
+    ok = client.get("/formats/font/montserrat-black")
+    assert ok.status_code == 200 and ok.headers["content-type"] == "font/ttf"
+    assert client.get("/formats/font/not-a-font").status_code == 404
+
+
+@pytest.fixture
+def stage_video(tmp_path, monkeypatch):
+    """A 40-second sample video the stage can use, with a few spoken words in the stretch it picks."""
+    from villomillo.formats import preview
+    from villomillo.web import app as web_app
+
+    source = tmp_path / "sample.mp4"
+    subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=25",
+                    "-t", "40", "-pix_fmt", "yuv420p", str(source)], check=True)
+    words = [{"t0": 31.0 + i, "t1": 31.5 + i, "text": f"word{i}"} for i in range(5)]
+    monkeypatch.setattr(preview, "sample_videos", lambda db: [{"id": "sample", "title": "Sample"}])
+    monkeypatch.setattr(preview, "_source", lambda video_id: source)
+    monkeypatch.setattr(preview, "clip_words", lambda video_id, start, end: [w for w in words if start <= w["t0"] < end])
+    monkeypatch.setattr(web_app, "PREVIEWS", tmp_path / "previews")
+    return words
+
+
+needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
+
+
+@needs_ffmpeg
+def test_the_stage_makes_a_still_cropped_to_the_picture_with_the_sample_words(client, stage_video):
+    from villomillo.formats import preview
+
+    r = client.post("/api/formats/stage", json={"video_id": "sample"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["length"] == preview.SAMPLE_LENGTH == designs.DEMO_LENGTH and body["at"] == preview.STILL_AT and body["warning"] is None
+    assert [w["text"] for w in body["words"]] == [w["text"] for w in stage_video]
+    assert body["words"][0]["t0"] == 0.0   # times count from the still's sample start
+    still = client.get(body["still"])
+    assert still.status_code == 200 and still.headers["content-type"] == "image/jpeg"
+
+
+@needs_ffmpeg
+def test_the_stage_frame_follows_the_layout_and_the_webcam_box(client, stage_video):
+    import io
+
+    from PIL import Image
+
+    def frame(**design):
+        r = client.post("/api/formats/stage", json={"video_id": "sample", "design": design})
+        assert r.status_code == 200
+        body = r.json()
+        return body["still"], Image.open(io.BytesIO(client.get(body["still"]).content)), body["warning"]
+
+    fill_name, fill_img, fill_warning = frame(layout="face_fill")
+    blur_name, blur_img, _ = frame(layout="fit_blur")
+    cam_name, cam_img, _ = frame(layout="stacked_webcam")
+    moved_name, _, _ = frame(layout="stacked_webcam", webcam={"x": 40, "y": 30, "w": 30, "h": 30})
+    assert fill_img.size == blur_img.size == cam_img.size == (540, 960) and fill_warning is None
+    assert len({fill_name, blur_name, cam_name, moved_name}) == 4   # each layout, and each webcam box, is its own frame
+    # fit with blur keeps the whole 16:9 picture in the middle with the blurred copy above it: the top rows are not the picture
+    assert blur_img.getpixel((270, 20)) != fill_img.getpixel((270, 20))
+
+
+@needs_ffmpeg
+def test_a_layout_that_cannot_frame_the_video_says_why_and_shows_the_plain_middle(client, stage_video):
+    r = client.post("/api/formats/stage", json={"video_id": "sample", "design": {"layout": "split"}})
+    body = r.json()
+    assert r.status_code == 200 and "two people" in body["warning"]
+    assert client.get(body["still"]).status_code == 200
+
+
+def test_the_save_check_assumes_a_clip_as_long_as_the_demo(client):
+    import io
+
+    from PIL import Image
+
+    png = io.BytesIO()
+    Image.new("RGB", (200, 200), (255, 0, 0)).save(png, "PNG")
+    up = client.post("/api/assets/logo", params={"name": "logo.png"}, content=png.getvalue(), headers={"Content-Type": "application/octet-stream"})
+    assert up.status_code == 200
+    # a logo that starts at second 30 and a button in the last 3 seconds share the same corner: they only meet in a clip longer than 30 s
+    design = {"logo": {"enabled": True, "asset_id": up.json()["id"], "size": 14, "from_s": 30},
+              "cta": {"enabled": True, "text": "Follow", "seconds": 3}, "place": {"logo_y": 190, "cta_y": 230}}
+    found = client.post("/api/formats/check", json={"design": design}).json()["problems"]
+    assert found and "logo" in found[0].lower()
+
+
+def test_a_dragged_position_is_kept_and_a_bad_one_is_refused_in_plain_words():
+    d = designs.normalize({"place": {"headline_y": 500, "logo_x": 40}})
+    assert d["place"]["headline_y"] == 500 and d["place"]["logo_x"] == 40 and d["place"]["captions_y"] is None
+    assert designs.place_of(d, "headline_y", 430) == 500 and designs.place_of(d, "captions_y", 1345) == 1345
+    with pytest.raises(designs.DesignError, match="The headline's height must be a whole number from 0 to 1920"):
+        designs.normalize({"place": {"headline_y": 2500}})
+
+
+def test_a_logo_dragged_onto_the_captions_is_reported_and_the_default_spot_is_clear():
+    from villomillo.formats import placement
+    clear = designs.normalize({"logo": {"enabled": True, "asset_id": 1, "size": 14}})
+    assert placement.problems(clear, "face_fill", (151, 60), 30.0, 7.0) == []
+    covered = designs.normalize({"logo": {"enabled": True, "asset_id": 1, "size": 14}, "place": {"logo_y": 1300}})
+    found = placement.problems(covered, "face_fill", (151, 60), 30.0, 7.0)
+    assert found and "would cover the captions" in found[0]
+
+
+def test_the_live_check_says_what_a_drag_covers_and_saves_nothing(sv, client):
+    body = {"design": {"place": {"headline_y": 1300}}}   # the headline now sits on the captions
+    r = client.post("/api/formats/check", json=body)
+    assert r.status_code == 200 and r.json()["problems"] and "headline" in r.json()["problems"][0].lower()
+    assert client.get("/formats").status_code == 200 and templates.list_templates(sv.db) == []
+    clear = client.post("/api/formats/check", json={"design": {}})
+    assert clear.status_code == 200 and clear.json()["problems"] == []
+    bad = client.post("/api/formats/check", json={"design": {"place": {"cta_y": -5}}})
+    assert bad.status_code == 422 and "The button's height" in bad.json()["error"]
+
+
+def test_a_dragged_position_is_saved_with_the_template_and_comes_back_in_the_builder(sv, client):
+    r = client.post("/api/formats/save", json={"id": None, "name": "Dragged", "design": {"place": {"headline_y": 500, "logo_x": 40}}, "categories": []})
+    assert r.status_code == 200
+    saved = templates.list_templates(sv.db)[0]["settings"]
+    assert saved["place"]["headline_y"] == 500 and saved["place"]["logo_x"] == 40 and saved["place"]["cta_y"] is None
+    assert boot(client)["templates"][0]["design"]["place"]["headline_y"] == 500
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_builders_script_is_valid_javascript(client, tmp_path):
+    page = client.get("/formats").text
+    script = page.split('<script id="boot" type="application/json">')[1].split("<script>", 1)[1].split("</script>")[0]
+    for name in ("renderStage", "loadStage", "selectPane", "checkPlace", "fill", "read"):
+        assert script.count(f"function {name}(") == 1   # a mis-spliced edit once repeated a block of the script
+    path = tmp_path / "formats.js"
+    path.write_text(script, encoding="utf-8")
+    done = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr

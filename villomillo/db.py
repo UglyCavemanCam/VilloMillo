@@ -246,7 +246,7 @@ class Database:
             if "remote_id" not in post_cols:
                 setup.execute("ALTER TABLE posts ADD COLUMN remote_id TEXT")
             clip_cols = {r[1] for r in setup.execute("PRAGMA table_info(clips_ready)")}
-            for column in ("category", "campaign_id", "removed_from", "removed_at", "template_id"):
+            for column in ("category", "campaign_id", "removed_from", "removed_at", "template_id", "format_note"):   # format_note: why the last Apply a format failed
                 if column not in clip_cols:
                     setup.execute(f"ALTER TABLE clips_ready ADD COLUMN {column} TEXT")  # a database made before channels or campaigns
             if "format_applied" not in clip_cols:

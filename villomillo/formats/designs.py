@@ -24,6 +24,13 @@ HEADLINE_TOP = {"face_fill": 430, "fit_blur": 470, "stacked_webcam": 790, "split
 LOGO_Y = {"face_fill": 190, "fit_blur": 190, "stacked_webcam": 1010, "split": 1010}   # the logo's top edge: clear of the headline, captions and platform bars
 CHIPS_Y = {"face_fill": 1175, "fit_blur": 395, "stacked_webcam": 1040, "split": 1040}
 DELETED_KEY = "deleted_presets"
+DEMO_LENGTH = 35.0   # seconds: the builder's sample clip, and the clip length the save-time placement check assumes.
+                     # Longer than the latest second a logo can start (30), so every timed choice shows in the sample.
+# Where the owner dragged an item on the stage, in the 1080x1920 picture. None means the layout's own spot above.
+# y values are the same edge or centre the constants above give (see place_of); logo_x is the logo's left edge.
+PLACE_LIMITS = {"headline_y": (0, 1920, "The headline's height"), "captions_y": (0, 1920, "The captions' height"),
+                "labels_y": (0, 1920, "The labels' height"), "cta_y": (0, 1920, "The button's height"),
+                "logo_x": (0, 1080, "The logo's left edge"), "logo_y": (0, 1920, "The logo's height")}
 
 
 class DesignError(ValueError):
@@ -48,7 +55,14 @@ DEFAULT: dict = {
     "style_mode": "fixed",
     "made_by": "you",   # "ai" for a template the AI Generate button made, so the list can say so
     "style_pool": list(STYLES),
+    "place": {key: None for key in PLACE_LIMITS},   # dragged positions; None keeps the layout's spot
 }
+
+
+def place_of(design: dict, key: str, default: int) -> int:
+    """Where an item sits: where the owner dragged it, or the layout's own spot when it was never moved."""
+    value = (design.get("place") or {}).get(key)
+    return default if value is None else value
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -175,6 +189,8 @@ def normalize(design: dict | None) -> dict:
     d["style_pool"] = pool
     if not (h["enabled"] or d["chips"] or d["takeaway"]):
         raise DesignError("A format needs the headline, the point labels or the takeaway: captions on their own are not enough.")
+    given = d.get("place") or {}
+    d["place"] = {key: _whole(given.get(key), lo, hi, what, none_ok=True) for key, (lo, hi, what) in PLACE_LIMITS.items()}
     if h["enabled"] and c["enabled"] and c["position"] == "upper":
         raise DesignError("The headline and the captions would overlap at the top. Move the captions lower.")
     return d
