@@ -17,15 +17,28 @@ import pathlib
 from .. import claude, secrets, spend, store
 from ..config import ROOT, Profile, SpendBreaker
 from ..db import Database
-from . import assets, blueprints, designs, effects, font_uploads, music, placement, render, sounds, templates, text
+from . import (
+    assets,
+    blueprints,
+    designs,
+    effects,
+    elements,
+    font_uploads,
+    music,
+    placement,
+    render,
+    sounds,
+    templates,
+    text,
+)
 from .blueprints import BlueprintError, OriginalityError, Plan
 from .render import ClipText, Job
 
 DOWNLOADS = ROOT / "data" / "downloads"
 TRANSCRIPTS = ROOT / "data" / "transcripts"
-CAMPAIGN_FORBIDS = {"watermark_center", "progress_bar_bottom", "logo_corner", "cta_end"}   # brand marks a campaign clip never carries
+CAMPAIGN_FORBIDS = {elements.BLOCK[kind] for kind in elements.BRAND}   # brand marks a campaign clip never carries: the handle, progress bar, logo and button
 
-__all__ = ["BlueprintError", "ClipText", "FormatError", "OriginalityError", "Plan", "blueprints", "clip_words", "designs",
+__all__ = ["BlueprintError", "ClipText", "FormatError", "OriginalityError", "Plan", "blueprints", "clip_words", "designs", "elements",
            "format_clip", "formatter_for", "make_formatter", "render", "templates", "text"]
 
 
@@ -49,7 +62,7 @@ def format_clip(db: Database, profile: Profile, template: dict, *, claude_client
                 source: pathlib.Path | None = None, words: list[dict] | None = None, campaign: bool = False,
                 category: str | None = None) -> dict:
     """Render one clip in a template. Returns {"template", "dropped", "text"}; raises FormatError if it cannot.
-    A campaign clip never gets the watermark or the progress bar, whatever the template says."""
+    A campaign clip never gets the handle, the progress bar, the logo or the button, whatever the template says."""
     from core.paths import cached_source
 
     source = source or cached_source(DOWNLOADS, video_id) or DOWNLOADS / f"{video_id}.mp4"  # the download may be .mp4, .mkv or .webm
@@ -62,6 +75,11 @@ def format_clip(db: Database, profile: Profile, template: dict, *, claude_client
         raise FormatError(pause.title.lower())
     font_uploads.refresh(db)
     settings = designs.normalize(template["settings"])
+    forbid = set(settings.get("forbid", []))
+    if campaign:   # a campaign clip carries no brand marks, and no element the format marks to stay off campaign clips
+        kept, gone = elements.for_campaign(settings["elements"])
+        settings = designs.normalize({**settings, "elements": kept})
+        forbid |= gone | CAMPAIGN_FORBIDS
     moods: list[str] = []   # the moods the library can offer this clip; the AI decides nothing about music when there are none
     if settings["music"]["mode"] != "off":
         heard = music.source_has_music(source, start_s, end_s)
@@ -89,7 +107,6 @@ def format_clip(db: Database, profile: Profile, template: dict, *, claude_client
         extra, logo = assets.for_design(db, settings)
     except designs.DesignError as e:
         raise FormatError(str(e)) from None
-    forbid = set(settings.get("forbid", [])) | (CAMPAIGN_FORBIDS if campaign else set())
     try:
         plan = blueprints.resolve(template["name"], template["layers"], clip_text.available(bool(words)) | extra, forbid=forbid,
                                   overrides=designs.overrides_from(settings))

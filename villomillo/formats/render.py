@@ -21,7 +21,7 @@ import numpy as np
 
 from core import binaries
 
-from . import captions, designs, effects, fonts, overlays
+from . import captions, designs, effects, elements, fonts, overlays
 from .blueprints import Plan
 
 W, H = 1080, 1920
@@ -294,56 +294,102 @@ def framed_still(job: Job, out: pathlib.Path, at: float) -> pathlib.Path:
 
 
 def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path) -> list[dict]:
-    """Every image to lay over the video: its file, where it goes and when it shows (None = the whole clip)."""
+    """Every image to lay over the video, in drawing order: its file, where it goes and when it shows (None = the whole clip).
+    One picture per element (a label element makes one per point), kept to what the clip supplies (the plan) and to the
+    elements that are switched on. The captions and the progress bar are burned in afterwards, on top of these."""
     plan, text, items = job.plan, job.text, []
+    els = elements.active(d["elements"])
 
     def add(name: str, image, x: str, y: str, window: tuple[float, float] | None) -> None:
         path = work / f"{name}.png"
         image.save(path)
         items.append({"file": path.name, "x": x, "y": y, "window": window})
 
+    def centred(e: dict, default_y: int | None) -> tuple[str, str]:   # an element's centre; no default means the middle of the frame
+        x = "(W-w)/2" if e["x"] is None else f"{e['x']}-w/2"
+        if e["y"] is None and default_y is None:
+            return x, "(H-h)/2"
+        return x, f"{default_y if e['y'] is None else e['y']}-h/2"
+
+    def drawn(e: dict) -> bool:   # on, and kept by the plan (which drops what the clip cannot supply)
+        block = elements.BLOCK.get(e["type"])
+        return block is None or plan.has(block)
+
+    # facts the elements share: when the headline goes, when the button comes and so when the takeaway lands
+    head_natural = (0.0, headline_end(text, plan)) if text.title_lines else None
     head_end = 0.0
-    if plan.has("headline") and text.title_lines:
-        words = sum(len(line.split()) for line in text.title_lines)
-        base, per, low, high = (plan.param("headline", k) for k in ("base_s", "per_word_s", "min_s", "max_s"))
-        head_end = min(high, max(low, base + per * words))
-        add("headline", overlays.headline_image(text.title_lines, d["headline"]), "0",
-            str(designs.place_of(d, "headline_y", designs.HEADLINE_TOP[framing])), (0.0, head_end))
-    row = designs.place_of(d, "labels_y", designs.CHIPS_Y[framing])
-    cta_row = designs.place_of(d, "cta_y", designs.CHIPS_Y[framing])
-    cta = d["cta"]["text"] if plan.has("cta_end") and total > 6.0 else None
-    cta_start = total - float(d["cta"]["seconds"]) if cta else None
-    take_end = cta_start - 0.3 if cta else total   # the call to action has the last seconds; the takeaway lands just before it
-    take_start = take_end - 2.6 if plan.has("takeaway") and text.takeaway and take_end > 3.0 else None
-    if plan.has("point_chips"):
-        for i, (label, at) in enumerate(text.points):
-            end = text.points[i + 1][1] - 0.3 if i + 1 < len(text.points) else total
-            if take_start is not None:
-                end = min(end, take_start - 0.1)
-            start = max(at, head_end)
-            if end - start >= 0.6:
-                add(f"chip{i}", overlays.pill_image(f"{i + 1}  ·  {label.upper()}", 40, AMBER, INK), "(W-w)/2", f"{row}-h/2", (start, end))
-    if take_start is not None:
-        add("takeaway", overlays.pill_image(text.takeaway.upper(), 46, AMBER, INK, pad=34), "(W-w)/2", f"{row}-h/2", (take_start, take_end))
-    if cta:
-        add("cta", overlays.pill_image(cta.upper(), int(d["cta"]["size"]), AMBER, INK, pad=34), "(W-w)/2", f"{cta_row}-h/2", (cta_start, total))
-    if plan.has("logo_corner") and job.logo is not None:
-        image = overlays.logo_image(job.logo, round(W * int(d["logo"]["size"]) / 100))
-        margin = int(plan.param("logo_corner", "margin"))
-        right = framing in ("stacked_webcam", "split") or d["logo"]["corner"] == "right"   # the top band is taken: the logo goes right
-        x = f"W-w-{margin}" if right else str(margin)
-        if d.get("place", {}).get("logo_x") is not None:   # dragged: its left edge, as the owner placed it
-            x = str(d["place"]["logo_x"])
-        from_s = float(d["logo"]["from_s"])
-        add("logo", image, x, str(designs.place_of(d, "logo_y", designs.LOGO_Y[framing])), (from_s, total) if from_s > 0 else None)
-    if plan.has("watermark_center") and job.handle:
-        add("watermark", overlays.watermark_image(job.handle, int(plan.param("watermark_center", "alpha")),
-                                                  int(plan.param("watermark_center", "size"))), "(W-w)/2", "(H-h)/2", None)
+    for e in els:
+        if e["type"] == "headline" and drawn(e) and head_natural:
+            win = elements.window(e["timing"], total, head_natural)
+            head_end = max(head_end, win[1] if win else total)
+    buttons = [e for e in els if e["type"] == "button" and drawn(e) and total > 6.0]
+    cta_start = min((elements.window(e["timing"], total) or (0.0, total))[0] for e in buttons) if buttons else None
+    take_end = cta_start - 0.3 if buttons else total   # the call to action has the last seconds; the takeaway lands just before it
+    take_start = take_end - 2.6 if text.takeaway and take_end > 3.0 and any(e["type"] == "takeaway" and drawn(e) for e in els) else None
+
+    for e in els:
+        kind = e["type"]
+        if not drawn(e):
+            continue
+        x, y = centred(e, designs.CHIPS_Y[framing] if kind in ("label", "takeaway", "button") else None)
+        if kind == "headline" and head_natural:
+            add(e["id"], overlays.headline_image(text.title_lines, {**e["style"], "background": e["style"]["box"]}), "0",
+                str(designs.HEADLINE_TOP[framing] if e["y"] is None else e["y"]), elements.window(e["timing"], total, head_natural))
+        elif kind == "label":
+            for i, (label, at) in enumerate(text.points):
+                end = text.points[i + 1][1] - 0.3 if i + 1 < len(text.points) else total
+                if take_start is not None:
+                    end = min(end, take_start - 0.1)
+                start = max(at, head_end)
+                if end - start >= 0.6:
+                    words = f"{i + 1}  ·  {label}" if e["options"]["numbered"] else label
+                    add(f"{e['id']}-{i}", overlays.box_image(_line(words, e), e["style"]), x, y, (start, end))
+        elif kind == "takeaway" and take_start is not None:
+            add(e["id"], overlays.box_image(_line(text.takeaway, e), e["style"]), x, y, elements.window(e["timing"], total, (take_start, take_end)))
+        elif kind == "button" and e in buttons:
+            add(e["id"], overlays.box_image(_line(e["text"]["default"], e), e["style"]), x, y, elements.window(e["timing"], total))
+        elif kind == "text":
+            add(e["id"], overlays.box_image(_line(e["text"]["default"], e), e["style"]), x, y, elements.window(e["timing"], total))
+        elif kind == "shape":
+            add(e["id"], overlays.shape_image(e["w"], e["h"], e["style"]), x, y, elements.window(e["timing"], total))
+        elif kind == "logo" and job.logo is not None:
+            image = overlays.logo_image(job.logo, round(W * int(e["style"]["size"]) / 100), opacity=e["style"]["opacity"])
+            margin = e["options"]["margin"] if e["options"]["margin"] is not None else int(plan.param("logo_corner", "margin"))
+            right = framing in ("stacked_webcam", "split") or e["options"]["corner"] == "right"   # the top band is taken: the logo goes right
+            lx = f"W-w-{margin}" if right else str(margin)
+            if e["x"] is not None:   # dragged: its left edge, as the owner placed it
+                lx = str(e["x"])
+            add(e["id"], image, lx, str(designs.LOGO_Y[framing] if e["y"] is None else e["y"]), elements.window(e["timing"], total))
+        elif kind == "handle" and job.handle:
+            image = overlays.handle_image(job.handle, e["style"], int(plan.param("watermark_center", "alpha")), int(plan.param("watermark_center", "size")))
+            add(e["id"], image, x, y, elements.window(e["timing"], total))
     return items
 
 
-def render(job: Job, *, preview: bool = False) -> pathlib.Path:
-    """Make the clip. `preview` trades quality for speed (a few seconds of video for the builder's preview)."""
+def _line(words: str, e: dict) -> str:
+    """The words an element shows, in capitals when its style says so."""
+    return words.upper() if e["style"]["uppercase"] else words
+
+
+def _bars(job: Job, d: dict, total: float) -> str:
+    """The drawbox filters for the progress bars, each ending in a comma (or nothing when there are none)."""
+    out = ""
+    for e in elements.active(d["elements"]):
+        if e["type"] != "progress_bar" or not job.plan.has("progress_bar_bottom"):
+            continue
+        s = e["style"]
+        bar = int(s["height"] if s["height"] is not None else job.plan.param("progress_bar_bottom", "height"))
+        y = H - bar if e["y"] is None else e["y"]
+        win = elements.window(e["timing"], total)
+        on = f":enable='between(t,{win[0]:.2f},{win[1]:.2f})'" if win else ""
+        out += (f"drawbox=x=0:y={y}:w={W}:h={bar}:color=0x{s['track_color'][1:]}@{s['track_opacity'] / 100:.2f}:t=fill{on},"
+                f"drawbox=x=0:y={y}:w='{W}*min(1,t/{total:.3f})':h={bar}:color=0x{s['color'][1:]}:t=fill{on},")
+    return out
+
+
+def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Path:
+    """Make the clip. `preview` trades quality for speed (a few seconds of video for the builder's preview); `scale` below 1 makes
+    a smaller draft (the picture is made full size and shrunk at the end, so the saving is in the encode)."""
     ffmpeg = binaries.ffmpeg()
     if not (pathlib.Path(ffmpeg).exists() or shutil.which(ffmpeg)):
         raise RenderError("ffmpeg was not found: install FFmpeg or put it on PATH")
@@ -387,21 +433,19 @@ def render(job: Job, *, preview: bool = False) -> pathlib.Path:
             parts.append(f"[{chain}][o{n}]overlay=x={item['x']}:y={item['y']}[s{n}]")
             chain = f"s{n}"
 
-        c = d["captions"]
-        if job.plan.has("captions") and job.words:
+        cap = next((e for e in elements.active(d["elements"]) if e["type"] == "captions"), None)
+        if cap and job.plan.has("captions") and job.words:
+            st, op = cap["style"], cap["options"]
             rel = [{**w, "o0": w["t0"] - job.start, "o1": w["t1"] - job.start} for w in job.words]
             (work / "captions.ass").write_text(captions.build_ass(
-                rel, c["style"], y=designs.place_of(d, "captions_y", designs.POSITIONS[c["position"]]), font=c["font"], size=c["size"], upper=c["uppercase"],
-                base=c["text_color"], accent=c["highlight_color"], keys=key_words(job.text)), encoding="utf-8")
+                rel, op["style"], y=designs.POSITIONS[op["position"]] if cap["y"] is None else cap["y"], font=st["font"], size=st["size"],
+                upper=st["uppercase"], base=st["text_color"], accent=st["highlight_color"], keys=key_words(job.text)), encoding="utf-8")
             parts.append(f"[{chain}]subtitles=captions.ass:fontsdir={fonts.fonts_dir_option()}[subs]")
             chain = "subs"
 
-        tail = ""
-        if job.plan.has("progress_bar_bottom"):
-            bar = int(job.plan.param("progress_bar_bottom", "height"))
-            tail = (f"drawbox=x=0:y={H - bar}:w={W}:h={bar}:color=0xF4EBDD@0.27:t=fill,"
-                    f"drawbox=x=0:y={H - bar}:w='{W}*min(1,t/{total:.3f})':h={bar}:color=0xFFB000:t=fill,")
-        parts.append(f"[{chain}]{tail}scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[out]")
+        tail = _bars(job, d, total)
+        shrink = f"scale={int(W * scale) // 2 * 2}:{int(H * scale) // 2 * 2}:flags=bilinear," if scale < 1.0 else ""
+        parts.append(f"[{chain}]{tail}{shrink}scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[out]")
 
         audio = ["-map", "0:a:0?", "-af", LOUDNESS]
         hits = [h for h in job.sounds if pathlib.Path(h["path"]).exists()]

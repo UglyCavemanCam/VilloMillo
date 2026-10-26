@@ -133,8 +133,10 @@ def contrast(a: str, b: str) -> float:
 
 def checked(partial: dict, answers: dict, db, folder=None, path: pathlib.Path | None = None) -> dict:
     """One design, made safe for these answers and this kind's playbook. Raises designs.DesignError with the reason."""
+    partial = {k: v for k, v in partial.items() if k != "elements"} if isinstance(partial, dict) else partial   # the AI works in the old sections; the elements are worked out from them again at the end
     _unknown_settings(partial, designs.DEFAULT)
     d = designs.normalize(partial)
+    d.pop("elements")
     kind, feel = answers["kind"], answers["feel"]
     book, rules = playbook(kind, path), playbooks(path)
     styles = allowed_styles(kind, feel, path)

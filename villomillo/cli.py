@@ -460,6 +460,32 @@ def cmd_run(args) -> None:
         worker.join(timeout=10)
 
 
+def cmd_formats_bench(args) -> None:
+    """Time the real renderer on this computer, so the format builder's live preview can be sized to it."""
+    from .formats import designs, preview
+
+    sv = _services(with_apis=False)
+    p = _pick(sv, args.profile)
+    samples = preview.best_samples(sv.db)
+    if not samples:
+        sys.exit("There is no downloaded video with a word-timed transcript yet: make a clip first, then run this again.")
+    print("Sample videos the builder opens on (most speech first):")
+    for n, v in enumerate(samples, start=1):
+        print(f"  {n}. {v['title']}  [{v['id']}]  {v['words']} words in the stretch {v['start']:.0f}s to {v['end']:.0f}s")
+    try:
+        result = preview.bench(sv.db, p, args.video_id or samples[0]["id"], args.seconds)
+    except (preview.PreviewError, designs.DesignError) as e:
+        sys.exit(f"Could not measure: {e}")
+    print(f"\nRendering {result['length']:g} seconds of {result['video']}, starting at {result['start']:g}s:")
+    for row in result["rows"]:
+        print(f"  {row['way']:<26} {row['seconds']:>6.2f} s   ({row['seconds'] / result['length']:.2f}x the clip's length)")
+    draft, full = result["rows"][0]["seconds"], result["rows"][1]["seconds"]
+    print(f"\nThe live preview is cut in pieces of {preview.SEGMENT_SECONDS:g} seconds at {int(preview.DRAFT_SCALE * 100)}% size. "
+          f"A piece takes about {draft:.1f} s here, so an edit shows in about that long after you stop typing"
+          f"{'' if draft <= 3 else ' (slow: the draft needs a smaller size or shorter pieces)'}.")
+    print(f"Paste these numbers into docs/FORMAT-BUILDER-PLAN.md, under \"Measured\" (full-size preview piece: {full:.1f} s).")
+
+
 def cmd_doctor(args) -> None:
     """Check that everything VilloMillo needs is working, and say what to do about anything that is not."""
     from . import health
@@ -551,6 +577,11 @@ def main(argv: list[str] | None = None) -> None:
     research = sub.add_parser("research", help="run one Research pass now (it must be switched on), or switch it on or off")
     research.add_argument("switch", nargs="?", choices=["on", "off"])
     research.set_defaults(fn=cmd_research)
+    bench = sub.add_parser("formats-bench", help="time the format renderer on this computer and show the sample videos the builder opens on")
+    bench.add_argument("--video-id", help="measure on this downloaded video (default: the sample with the most speech)")
+    bench.add_argument("--seconds", type=float, default=5.0, help="length of the piece to render (default 5)")
+    bench.add_argument("--profile")
+    bench.set_defaults(fn=cmd_formats_bench)
     sub.add_parser("doctor", help="check the engine, worker, keys, YouTube sign-ins and posting settings").set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="open the dashboard only").set_defaults(fn=cmd_serve)
     sub.add_parser("run", help="work in the background and serve the dashboard").set_defaults(fn=cmd_run)

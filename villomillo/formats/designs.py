@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 
 from ..db import Database
 from . import effects as effect_rules
-from . import fonts
+from . import elements, fonts
 from .captions import STYLES
+from .checks import DesignError, contrast
+from .checks import hex_colour as _hex
+from .checks import whole as _whole
 
 MUSIC_MODES = ("off", "when_helps", "always")
 LAYOUTS = {"face_fill": "Face fill", "fit_blur": "Fit with blur", "stacked_webcam": "Stacked: webcam over the game",
@@ -31,10 +33,6 @@ DEMO_LENGTH = 35.0   # seconds: the builder's sample clip, and the clip length t
 PLACE_LIMITS = {"headline_y": (0, 1920, "The headline's height"), "captions_y": (0, 1920, "The captions' height"),
                 "labels_y": (0, 1920, "The labels' height"), "cta_y": (0, 1920, "The button's height"),
                 "logo_x": (0, 1080, "The logo's left edge"), "logo_y": (0, 1920, "The logo's height")}
-
-
-class DesignError(ValueError):
-    """The message says what to change, in plain words."""
 
 
 DEFAULT: dict = {
@@ -75,44 +73,25 @@ def _merge(base: dict, over: dict) -> dict:
     return out
 
 
-def _hex(value, what: str, *, blank_ok: bool = False, none_ok: bool = False) -> str | None:
-    if value is None and none_ok:
-        return None
-    if value == "" and blank_ok:
-        return ""
-    if isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value.strip()):
-        return value.strip().upper()
-    raise DesignError(f"{what} must be a colour like #FFB000.")
-
-
-def _whole(value, lo: int, hi: int, what: str, *, none_ok: bool = False) -> int | None:
-    if value is None and none_ok:
-        return None
-    try:
-        n = int(float(value))
-    except (TypeError, ValueError):
-        raise DesignError(f"{what} must be a whole number from {lo} to {hi}.") from None
-    if not lo <= n <= hi:
-        raise DesignError(f"{what} must be a whole number from {lo} to {hi}.")
-    return n
-
-
-def _luminance(hex_rgb: str) -> float:
-    channels = []
-    for i in (1, 3, 5):
-        c = int(hex_rgb[i:i + 2], 16) / 255
-        channels.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
-
-
-def contrast(a: str, b: str) -> float:
-    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
-    return (hi + 0.05) / (lo + 0.05)
-
-
 def normalize(design: dict | None) -> dict:
-    """The design with every missing choice filled in, or a DesignError that says what to change."""
-    d = _merge(DEFAULT, design or {})
+    """The design with every missing choice filled in, or a DesignError that says what to change.
+
+    A design carries its look as a list of `elements` (see elements.py). One that arrives without the list, in the old shape of
+    switches, is converted to it; one that arrives with the list has the old sections worked out from it, so the placement
+    checks and the old page keep reading them. Either way the result has both, and the elements are the truth."""
+    raw = dict(design or {})
+    given = raw.pop("elements", None)
+    if given is not None:
+        els = elements.check(given)
+        raw = {k: v for k, v in raw.items() if k not in elements.LEGACY_KEYS}
+        raw.update(elements.legacy_from(els))
+    d = _legacy_normalize(raw)
+    d["elements"] = els if given is not None else elements.from_legacy(d)
+    return d
+
+
+def _legacy_normalize(design: dict) -> dict:
+    d = _merge(DEFAULT, design)
     if d["layout"] not in LAYOUTS:
         raise DesignError("Pick a layout: Face fill or Fit with blur.")
 

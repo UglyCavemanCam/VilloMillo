@@ -4,7 +4,7 @@ How to use this file: each phase is a list of tasks with `[ ]` boxes. When a tas
 Each phase ends with "You will see" (what to try in the dashboard) and "Done when" (how we know it works). We stop after every phase so you can
 say "yes, next" or "change this". Nothing here is built until you say go.
 
-Status: **planned, nothing built yet.**
+Status: **Phases 0 and 1 are built and waiting for your OK. Phases 2 to 7 are not started.**
 
 ---
 
@@ -23,10 +23,12 @@ Status: **planned, nothing built yet.**
 | 9 | A new format is built on **fixed sample videos** I pick from what is already downloaded, with a way to switch to other samples. |
 | 10 | **Edit look** opens the builder with the **actual short** as the preview (its own video, words, headline, labels and takeaway). Saving goes to **that clip only**, with two extra buttons: **Save as a new format** and **Update "XXX" format**. |
 | 11 | **A clip already posted to YouTube cannot have its look edited.** No Edit look link, and the server refuses it too. |
-| 12 | Existing formats (Podcast, Stream and your saved ones) **convert automatically** and keep looking exactly the same. |
+| 12 | Existing formats (Podcast, Stream and your saved ones) **convert automatically** and keep looking exactly the same. (Where an old format showed point labels, the converted format has a label element; a new format starts without one.) |
 | 13 | **Campaign clips** never get a handle, progress bar, logo or button, whatever the format says. |
 | 14 | The old **"Check with real render"** box is removed once the live preview works. |
 | 15 | **No undo and redo.** |
+| 16 | The **point label is an optional element**: a format only has labels if you add one, and you can add more than one (for example a numbered tag in a second style). Every label is **fully customizable**, exactly like the headline and captions. |
+| 17 | **Editing the look of a clip with a waiting post keeps the post's place in the queue** and it sends the new file. |
 
 ---
 
@@ -46,15 +48,28 @@ Status: **planned, nothing built yet.**
 
 Goal: know how fast a render is on your PC, and have good samples ready, before the design depends on it.
 
-- [ ] Add a small command, `python -m villomillo formats-bench`, that renders one 5 s segment of a downloaded video at half size and at full size and prints the time of each.
-- [ ] Choose the **sample videos**: the downloaded videos with a word-timed transcript and the most speech in a 35 s stretch. The first becomes the default sample.
-- [ ] Decide the **segment length** (about 5 s) and the **draft size** (about half) from the measurements.
-- [ ] Find out why a stage and a real render could differ, and list the measurements the tests will compare (Phase 7).
+- [x] Add a small command, `python -m villomillo formats-bench`, that renders one 5 s segment of a downloaded video at half size and at full size and prints the time of each. (It also lists the sample videos it would open on and says what the timings mean.)
+- [x] Choose the **sample videos**: the downloaded videos with a word-timed transcript and the most speech in a 35 s stretch. The first becomes the default sample. (`preview.sample_videos` now returns them most-speech-first, so the builder's sample dropdown already opens on the best one; `preview.best_samples` gives the top three with the stretch each is shown on.)
+- [x] Decide the **segment length** (about 5 s) and the **draft size** (about half) from the measurements.
+- [x] Find out why a stage and a real render could differ, and list the measurements the tests will compare (Phase 7).
 
 You will see: a short note with the timings and the three samples chosen.
 Done when: the timings are in this file under "Measured".
 
-Measured: _(filled in during Phase 0)_
+Measured (on the cloud machine I work on, 4 cores, a 1080p test video; **run `python -m villomillo formats-bench` on your PC and paste your numbers here, they are what counts**):
+
+| Way of rendering 5 seconds | Seconds |
+|---|---|
+| Draft: shrunk to half size at the very end | 6.1 to 6.7 |
+| Preview: full size, fast encoder | 8.1 |
+| Final quality: full size, slow encoder (what clips use) | 10.8 to 10.9 |
+
+What that tells us:
+- **Almost all of it is ffmpeg** (6.6 of 8.3 s in the preview way). Following the face takes 1.5 s, and the text pictures are cheap.
+- Shrinking only at the end saves about a quarter. A real draft has to **shrink the video first and draw the text pictures smaller** (Phase 3), and **follow the face once for the whole sample** and reuse it for every piece (the face does not depend on the look).
+- So the plan stays: pieces of **5 seconds** (`preview.SEGMENT_SECONDS`) at **half size** (`preview.DRAFT_SCALE`), with the piece under the playhead first. If your PC is slower than this one, the same command will tell us, and the piece length is one number to change.
+
+Why a stage and a real render can differ (these are what Phase 7 compares): the page draws text with the browser's fonts and its own copy of the headline wrapping and shrinking rules; the real render uses the bundled fonts, shrinks pills to fit 1000 px, fades each picture in and out for a quarter of a second, and burns the captions with a subtitle engine whose line breaks and animation the page can only imitate. Positions (the numbers every element carries) are the same on both sides, so the test compares where each element lands.
 
 ---
 
@@ -62,20 +77,20 @@ Measured: _(filled in during Phase 0)_
 
 Goal: a format is a list of elements. Nothing on screen changes yet.
 
-- [ ] Define the element model in a new `villomillo/formats/elements.py`. Every element has:
+- [x] Define the element model in a new `villomillo/formats/elements.py`. Every element has:
   - `id`, `type`, `name`, `visible`, `locked`, and its order in the list (front to back);
-  - **position and size** (in the 1080 by 1920 picture), `anchor`, and the safe-zone rule (never under the Shorts buttons);
+  - **position and size** (in the 1080 by 1920 picture; the safe-zone check for dragged elements comes with dragging in Phase 6, the existing placement checks still run);
   - **style**: font, size, weight, text color, outline (color and width), shadow, box color, corner radius, padding, opacity, alignment, uppercase;
   - **timing**: `whole_clip`, `first_seconds N`, `last_seconds N`, or `range from to`; labels, captions, headline and takeaway use `spoken` (they follow the speech);
   - **text**: default text (shown before play), and its source (`ai_headline`, `ai_takeaway`, `ai_point`, `spoken_words`, `fixed`, `handle`);
   - `rules`: for example `never_on_campaign`.
-- [ ] Element types: `headline`, `captions`, `label` (one per point the speaker makes), `takeaway`, `handle`, `text` (free), `logo`, `shape`, `button`, `progress_bar`, `effect` (zoom, shake, blur and the others already in `effects.py`), `music`. No emoji type.
-- [ ] Write `from_legacy(design)`: converts today's switches into an element list. The Podcast and Stream presets must come out looking identical.
-- [ ] Teach `designs.normalize` to accept an element list, check each element in plain words (as it does now), and keep accepting the old shape by converting it.
-- [ ] Teach `render.py` to draw from the element list. The existing painters (headline, chips, takeaway, handle, logo, button, bar) become the painters for their element types, each reading its style.
-- [ ] Keep the campaign rule in one place: elements marked `never_on_campaign` are dropped for campaign clips.
-- [ ] Migration: old saved templates are converted when loaded and saved back in the new shape the next time they are saved. Nothing is lost.
-- [ ] Tests: the converted Podcast and Stream formats render identical frames to the old code on the same sample (pixel check on a few frames); each style option changes the output; bad values are refused with a plain message; campaign clips drop the brand elements.
+- [x] Element types: `headline`, `captions`, `label` (optional; shows one tag per point the speaker makes; add none, one or several; every style option as the headline), `takeaway`, `handle`, `text` (free), `logo`, `shape`, `button`, `progress_bar`, `effect` (zoom, shake, blur and the others already in `effects.py`), `music`. No emoji type. **In Phase 1 effects and music stay format-wide settings** (as today); they appear as fixed entries in the Layers list in Phase 2 and become elements you add in a later phase.
+- [x] Write `from_legacy(design)`: converts today's switches into an element list. The Podcast and Stream presets must come out looking identical.
+- [x] Teach `designs.normalize` to accept an element list, check each element in plain words (as it does now), and keep accepting the old shape by converting it. (The old sections are worked out from the elements, so the placement checks, AI Generate and the page that exists today keep working untouched.)
+- [x] Teach `render.py` to draw from the element list. The existing painters (headline, chips, takeaway, handle, logo, button, bar) become the painters for their element types, each reading its style.
+- [x] Keep the campaign rule in one place: elements marked `never_on_campaign` are dropped for campaign clips.
+- [x] Migration: old saved templates are converted when loaded and saved back in the new shape the next time they are saved. Nothing is lost. (An element that was switched off but had been set up is kept hidden.)
+- [x] Tests (`tests/test_elements.py`, `tests/test_formats_bench.py`): every picture the converted Podcast, Stream and four other formats draw is **pixel for pixel the same as the old code's**, at the same position and the same times (a frozen copy of the old code is in the test); the progress bar filter is the same text as before; each style option changes the output; bad values are refused in plain words; campaign clips are made without the brand elements; a real render shows free text, a box and a second progress bar.
 
 You will see: nothing different in the dashboard. Your clips look the same.
 Done when: the old and new versions of Podcast and Stream make identical clips in the tests, and all existing format tests still pass.
@@ -195,6 +210,4 @@ Done when: you have used the builder on a real clip and a new format from start 
 
 ## Questions still open
 
-1. **More than one label element.** A format has one **label** style that applies to every point the speaker makes. Do you also want to add a second label element, for example a numbered tag "1", "2", "3" in a different style?
-2. **Edit look on an approved clip with a waiting post.** The post keeps its place in the queue and sends the new file. Is that what you want, or should such a post be taken out of the queue until you approve the new look?
-3. **Start now?** Say "go" and I begin with Phase 0, and we stop after each phase.
+None. Phases 0 and 1 are being built; we stop after Phase 1 for your go on Phase 2.
