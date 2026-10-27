@@ -11,7 +11,11 @@ repository as the clipping engine. VilloMillo's own code is in [`villomillo/`](v
    (length, picture, loudness, campaign rules). A spend breaker pauses everything when AI spending since your last approval
    reaches $25 (Claude) or $5 (Jev).
 2. **Look.** Renders clips in a format recipe (framing, captions, hook title, progress bar) from
-   [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml). See [docs/FORMAT-BLUEPRINTS.md](docs/FORMAT-BLUEPRINTS.md).
+   [`config/villomillo/blueprints.yaml`](config/villomillo/blueprints.yaml). A format's look is a list of elements (headline, captions, point
+   labels, takeaway, handle, free text, logo, boxes, button, progress bar), each with its own place, style and timing, which you build on the
+   Formats page: a live preview made by the real renderer, Add and Layers on the left, the selected element's settings on the right, right-click
+   and drag on the picture, and Edit look on a real clip. See [docs/FORMAT-BLUEPRINTS.md](docs/FORMAT-BLUEPRINTS.md) (the format builder, section 4.4)
+   and [docs/FORMAT-BUILDER-PLAN.md](docs/FORMAT-BUILDER-PLAN.md).
 3. **Review.** You approve or reject each clip in the dashboard. With a channel's default `autopilot: review`, nothing is posted without your approval.
 4. **Post.** Plans each approved clip for the right channel and platform, writes title and caption options, and sends it
    through the platform's API or leaves it for you to post by hand. Platforms stay manual until their audit is recorded.

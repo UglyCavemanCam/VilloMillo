@@ -75,7 +75,9 @@ def delete(db, font_id: int, folder: pathlib.Path | None = None) -> None:
     key = f"upload-{row['sha'][:10]}"
     for t in templates.list_templates(db):
         s = t["settings"]
-        if key in (s["captions"].get("font"), s["headline"].get("font")):
+        used = {s.get("captions", {}).get("font"), s.get("headline", {}).get("font")}   # a format saved before elements
+        used |= {e.get("style", {}).get("font") for e in s.get("elements") or []}       # every kind of element can have its own font now
+        if key in used:
             raise FontUploadError(f"The template {t['name']!r} uses this font. Change that template first.")
     with db.conn() as c:
         c.execute("DELETE FROM font_uploads WHERE id=?", (font_id,))

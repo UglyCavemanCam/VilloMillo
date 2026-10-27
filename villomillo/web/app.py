@@ -54,6 +54,7 @@ from ..formats import font_uploads as format_font_uploads
 from ..formats import placement as format_placement
 from ..formats import music as format_music
 from ..formats import designs as format_designs
+from ..formats import live as format_live
 from ..formats import preview as format_preview
 from ..formats import templates as format_templates
 from ..services import Services
@@ -1147,10 +1148,36 @@ def create_app(sv: Services) -> FastAPI:
         queued = sum(relook.queue_waiting(sv, category=str(c)) for c in body.get("categories") or [])
         return JSONResponse({"ok": True, "id": template["id"], "queued": queued})
 
+    live_preview = format_live.LivePreview(PREVIEWS)   # the pieces of the builder's live preview are made one at a time, in the background
+
+    @app.post("/api/formats/preview/start")
+    def formats_preview_start(request: Request, body: dict = Body(...)):
+        """A new live preview round for the design as it is now: the piece under the playhead is made first, then the ones beside it,
+        then the rest, and anything an earlier round still had waiting is dropped. Returns which pieces are ready already."""
+        _only_local(request, "changes")
+        try:
+            real, owner = None, profile_or_404(body.get("profile"))
+            if body.get("clip_id"):
+                real, row = builder_clip(owner.id, body["clip_id"])
+                owner = sv.profiles.get(row["profile_id"], owner)
+            prepared = format_preview.prepare(sv.db, owner, body.get("design") or {}, str(body.get("video_id", "")),
+                                              draft=bool(body.get("draft")), clip=real)
+            playhead = float(body.get("playhead") or 0)
+        except (format_designs.DesignError, format_preview.PreviewError) as e:
+            return refuse(str(e))
+        except (TypeError, ValueError):
+            return refuse("The playhead must be a number of seconds.")
+        return JSONResponse({"ok": True, **live_preview.submit(prepared, playhead)}, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/formats/preview/status")
+    def formats_preview_status(round: int):
+        """Which pieces of a live preview round are ready. `superseded` means a newer round replaced it."""
+        return JSONResponse({"ok": True, **live_preview.status(round)}, headers={"Cache-Control": "no-store"})
+
     @app.get("/formats/preview/{name}")
     def formats_preview_file(name: str):
         path = PREVIEWS / name
-        if not re.fullmatch(r"format-preview-[0-9a-f]{12}\.mp4", name) or not path.exists():
+        if not re.fullmatch(r"format-(preview|seg)-[0-9a-f]{12}\.mp4", name) or not path.exists():
             raise HTTPException(404, "no such preview")
         return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
 
@@ -1160,7 +1187,8 @@ def create_app(sv: Services) -> FastAPI:
         spoken words of the sample. Only the layout, crop limit and webcam box of the design matter here."""
         _only_local(request, "changes")
         try:
-            result = format_preview.stage(sv.db, str(body.get("video_id", "")), PREVIEWS, body.get("design") or {})
+            real = builder_clip(profile_or_404(body.get("profile")).id, body["clip_id"])[0] if body.get("clip_id") else None
+            result = format_preview.stage(sv.db, str(body.get("video_id", "")), PREVIEWS, body.get("design") or {}, clip=real)
         except (format_designs.DesignError, format_preview.PreviewError) as e:
             return refuse(str(e))
         return JSONResponse(result, headers={"Cache-Control": "no-store"})
@@ -1183,16 +1211,27 @@ def create_app(sv: Services) -> FastAPI:
         media = "font/otf" if path.suffix.lower() == ".otf" else "font/ttf"
         return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
+    def builder_clip(profile: str, clip_id):
+        """The clip the builder was opened on (Edit look), as the preview needs it, with its row and the channel that owns it."""
+        with sv.db.conn() as c:
+            row = c.execute("SELECT * FROM clips_ready WHERE id=? AND (profile_id=? OR id IN (SELECT clip_id FROM posts WHERE profile_id=?))",
+                            (int(clip_id), profile, profile)).fetchone()
+        if row is None:
+            raise format_preview.PreviewError("There is no such clip.")
+        return format_preview.RealClip.from_row(row), row
+
     @app.post("/api/formats/apply-clip")
     def formats_apply_clip(request: Request, body: dict = Body(...)):
-        """Edit look: re-make one clip in a chosen template, or in a design made for just this clip."""
+        """Edit look: re-make one clip in a chosen template, or in a design made for just this clip. A clip that has gone out is refused."""
         _only_local(request, "changes")
         profile, clip_id = str(body.get("profile", "")), int(body.get("clip_id", 0))
         in_profile(profile)
         with sv.db.conn() as c:
-            row = c.execute("SELECT id FROM clips_ready WHERE id=? AND state='review' AND profile_id=?", (clip_id, profile)).fetchone()
+            row = c.execute("SELECT * FROM clips_ready WHERE id=? AND profile_id=?", (clip_id, profile)).fetchone()
         if row is None:
-            return refuse("Only a clip waiting for your review can be given a new look.", 404)
+            return refuse("There is no such clip.", 404)
+        if (problem := relook.edit_problem(sv.db, row)):
+            return refuse(problem, 409)
         design = None
         if body.get("design"):
             try:

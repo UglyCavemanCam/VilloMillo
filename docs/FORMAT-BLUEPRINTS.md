@@ -103,6 +103,31 @@ generic_safe:                       # anything the detector is unsure about
 6. After rendering, run the automated checks again (length, safe zones, text over the face, contrast, campaign rules).
    Any failure falls back to the next simpler recipe, never to publishing the failed clip.
 
+### 4.4 A format's look is a list of elements (the format builder)
+
+The blueprints above decide what a clip *can* carry (a headline, point labels, a takeaway, a handle, a logo, a button, a progress bar, captions).
+A format's **look**, how those things appear, is a list of **elements** kept with the template (`villomillo/formats/elements.py`). The
+builder on the Formats page edits that list; the renderer reads it. The plan, its decisions and its history are in
+[FORMAT-BUILDER-PLAN.md](FORMAT-BUILDER-PLAN.md).
+
+- **An element** is one thing drawn on the 1080 by 1920 picture. Kinds: `headline`, `captions`, `label` (one tag for each point the speaker makes),
+  `takeaway`, `handle`, `text` (free words), `logo`, `shape` (a box), `button` and `progress_bar`. A format has as many as it likes, of any kind,
+  except one set of captions. Each has an `id`, a `name`, `visible`, `locked`, a place (`x`, `y`, and `w`, `h` for a box; empty means the layout's
+  own spot), a `style` (font, size, colours, box, corner radius, padding, outline, shadow, opacity, capitals), its `text` (the example text shown
+  before play, and where the real words come from), `options`, its `timing` and its `rules`.
+- **Order** is the order of the list: the first element is at the back. The captions and the progress bar are burned in after every picture.
+- **Timing** is `spoken` (follows the speech: labels, captions, and optionally the headline and takeaway), `whole` (the whole clip), `first` N
+  seconds, `last` N seconds, or a `range`. A label shows from its point until 0.3 s before the next point.
+- **Rules.** `never_on_campaign` removes an element from campaign clips. The handle, logo, button and progress bar always carry it: a campaign clip
+  never shows them, whatever the format says (`elements.for_campaign`).
+- **Old formats** are converted when they are read (`elements.from_legacy`) and keep looking exactly the same; they are saved in the new shape the
+  next time they are saved. Music, effects, the layout and the webcam box stay format-wide settings next to the list.
+- **A made clip keeps its text** (headline, point labels with their times, takeaway, the effects the AI proposed) and the design it was made with,
+  so Edit look can open the builder on the real clip. A clip whose post has gone out can no longer be edited.
+- **Refusals in plain words.** A format is refused when text is too small to read on a phone (under 28 pixels), when an element that was moved sits
+  behind the app's buttons or title, or when two elements share the same time and place. The layout's own spots, boxes behind text and the faint
+  handle are never judged. Making a clip never uses these checks.
+
 ## 5. Automatic video-type detection
 
 Detect per **clip window**, not per video: a stream VOD mixes gameplay and talking; a podcast cuts to graphics.

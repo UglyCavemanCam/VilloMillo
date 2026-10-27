@@ -228,7 +228,7 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
             continue
         path = OUTBOX / profile.id / f"{clip['id']}.mp4"
         clip_category = category or profile.category or None
-        template_id, failure, effects_used, music_used = None, None, [], None
+        template_id, failure, effects_used, music_used, kept_look = None, None, [], None, {}
         if formatter is None:  # no template for this category: the engine's own render is kept for watching, and flagged
             path.write_bytes(engine.media(clip["id"]))
             failure = f"no format is set for the {clip_category or 'this'} category yet"
@@ -239,6 +239,7 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
                 try:
                     made = formatter(clip, {**job, "campaign_id": campaign_id, "category": clip_category}, path)
                     template_id, effects_used, music_used = made["template"], made.get("effects", []), made.get("music")
+                    kept_look = look_record(made)
                     failure = None
                     break
                 except Exception as e:  # a failed format never loses the clip
@@ -257,7 +258,7 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
             grade = {"self_contained": round(self_contained, 3),
                      "hook": answers["hook"]["score"], "payoff": answers["payoff"]["score"],
                      "ad_read": campaign.ad_read_from(answers), "caption_text": text[:4000], "look": look,
-                     "effects": effects_used, "music": music_used}
+                     "effects": effects_used, "music": music_used, **kept_look}
             state, reason = "review", "passed checks; waiting for your decision" + (
                 "" if applied else f"; needs a format: {failure[:160]}")
             if self_contained < SELF_CONTAINED_MIN:
@@ -287,6 +288,17 @@ def collect(db: Database, engine: Engine, jev: Jev, profile: Profile, job: dict,
     with db.conn() as c:
         c.execute("UPDATE clip_jobs SET status='done', updated_at=? WHERE id=?", (store.iso(), job["id"]))
     return f"{saved} clips made, {checked} passed the checks"
+
+
+def look_record(made: dict) -> dict:
+    """What a made clip keeps of how it was made, so Edit look can open the builder on the real clip: the text on it (headline, point
+    labels with their times, takeaway, the effects the AI proposed) and the design it was made with."""
+    kept = {}
+    if made.get("text") is not None and hasattr(made["text"], "saved"):
+        kept["look_text"] = made["text"].saved()
+    if made.get("design") is not None:
+        kept["look_design"] = made["design"]
+    return kept
 
 
 def refresh_files(db: Database, engine: Engine, profile: Profile, video_id: str) -> list[str]:

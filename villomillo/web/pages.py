@@ -116,7 +116,7 @@ def channel_name(p: Profile) -> str:
 
 
 def asset_version() -> str:
-    stamp = max((f.stat().st_mtime for f in (STATIC / "app.css", STATIC / "app.js") if f.exists()), default=0)
+    stamp = max((f.stat().st_mtime for f in (STATIC / "app.css", STATIC / "app.js", STATIC / "formats-builder.js", STATIC / "formats-builder.css", STATIC / "formats-actions.js") if f.exists()), default=0)
     return str(int(stamp))
 
 
@@ -391,7 +391,7 @@ def clip_panel(sv: Services, p: Profile, clip_id: int) -> dict | None:
             "episode": video["title"] if video else "", "file_url": f"/clips/{r['id']}/file?profile={p.id}&v={_file_version(r)}", "is_review": r["state"] == "review",
             "facts": {"look": card["look"], "size": "1080 by 1920", "start": mmss(r["start_s"]), "end": mmss(r["end_s"])},
             "decided": r["state"] != "review", "reason": r["reason"], "impact": removal.impact(sv.db, p.id, [r["id"]]),
-            "look_failed": not r["format_applied"],
+            "look_failed": not r["format_applied"], "can_edit_look": relook.edit_problem(sv.db, r) is None,
             "effects": [{**e, "when": mmss(e["start"])} for e in grade.get("effects") or []],
             "music": grade.get("music"),
             "look_why": _look_why(grade),
@@ -1012,12 +1012,25 @@ def search(sv: Services, p: Profile, text: str) -> list[dict]:
     return out
 
 
+def recipe_defaults() -> dict:
+    """What the renderer uses where an element leaves a choice to the recipe (config/villomillo/blueprints.yaml): the progress bar's thickness,
+    the handle's size and opacity, the logo's distance from the edge. The builder's stage draws with the same numbers."""
+    from ..formats import blueprints
+
+    library = blueprints.load()
+
+    def of(blueprint: str, key: str, fallback: int) -> int:
+        return int(library[blueprint].params.get(key, fallback)) if blueprint in library else fallback
+    return {"bar_height": of("progress_bar_bottom", "height", 14), "handle_size": of("watermark_center", "size", 30),
+            "handle_alpha": of("watermark_center", "alpha", 38), "logo_margin": of("logo_corner", "margin", 60)}
+
+
 def formats_page(sv: Services, p: Profile, clip_id: int | None = None) -> dict:
     """What the Formats page shows: templates and where they are used, the quick presets, the caption styles and fonts, and
     (when opened from a clip) the clip whose look is being edited."""
     from .. import scoring
     from ..formats import assets as format_assets
-    from ..formats import designs, fonts, preview
+    from ..formats import designs, elements, fonts, preview
     from ..formats import effects as format_effects
     from ..formats import font_uploads as format_font_uploads
     from ..formats import music as format_music
@@ -1030,24 +1043,32 @@ def formats_page(sv: Services, p: Profile, clip_id: int | None = None) -> dict:
             categories.append(name)
     format_font_uploads.refresh(sv.db)
     assigned = format_templates.assignments(sv.db)
-    items = [{"id": t["id"], "name": t["name"], "design": t["settings"],
+    items = [{"id": t["id"], "name": t["name"], "design": designs.normalize(t["settings"]),   # old templates arrive with their elements
               "categories": [c for c in categories if assigned.get(c.lower()) == t["id"]]} for t in format_templates.list_templates(sv.db)]
-    clip = None
+    clip, clip_problem = None, ""
     if clip_id:
-        row = one(sv.db, "SELECT id, profile_id, state, category, template_id, grade_json FROM clips_ready WHERE id=?", clip_id)
-        if row:
+        row = one(sv.db, "SELECT * FROM clips_ready WHERE id=? AND (profile_id=? OR id IN (SELECT clip_id FROM posts WHERE profile_id=?))", clip_id, p.id, p.id)
+        clip_problem = relook.edit_problem(sv.db, row) or "" if row else "There is no such clip."
+        if row and not clip_problem:
             grade = json.loads(row["grade_json"] or "{}")
-            own = next((t for t in items if t["id"] == row["template_id"]), None) or next(
-                (t for t in items if (row["category"] or "").lower() in [c.lower() for c in t["categories"]]), None)
+            source = next((t for t in items if t["id"] == row["template_id"]), None)   # the format the clip was made in, when it still exists
+            own = source or next((t for t in items if (row["category"] or "").lower() in [c.lower() for c in t["categories"]]), None)
+            kept = grade.get("look_text")
             clip = {"id": row["id"], "profile": row["profile_id"], "state": row["state"], "template_id": own["id"] if own else None,
-                    "design": grade.get("look_design") or (own["design"] if own else None)}
-    return {"templates": items, "categories": categories, "clip": clip,
-            "boot": {"templates": items, "categories": categories, "clip": clip, "defaults": designs.normalize({}),
-                     "presets": [{"id": x["id"], "name": x["name"], "blurb": x["blurb"], "design": x["design"]} for x in designs.presets(sv.db)],
+                    "source_template": {"id": source["id"], "name": source["name"]} if source else None,
+                    "design": designs.normalize(grade["look_design"]) if grade.get("look_design") else (own["design"] if own else None),
+                    "video_id": row["video_id"], "start_s": row["start_s"], "end_s": row["end_s"], "length": round(row["end_s"] - row["start_s"], 2),
+                    "text": {"title_lines": kept["title_lines"], "points": [p[0] for p in kept["points"]], "takeaway": kept["takeaway"]} if kept else None,
+                    "campaign": bool(row["campaign_id"]), "waiting_post": bool(one(sv.db, "SELECT 1 AS x FROM posts WHERE clip_id=?", row["id"]))}
+    return {"templates": items, "categories": categories, "clip": clip, "clip_problem": clip_problem,
+            "boot": {"templates": items, "categories": categories, "clip": clip, "clip_problem": clip_problem, "defaults": designs.normalize({}),
+                     "presets": [{"id": x["id"], "name": x["name"], "blurb": x["blurb"], "design": designs.normalize(x["design"])} for x in designs.presets(sv.db)],
+                     "element_types": [{"id": k, "label": v} for k, v in elements.TYPES.items()],
+                     "element_defaults": {k: elements.default_element(k) for k in elements.TYPES},
                      "styles": [{"id": s.id, "label": s.label, "blurb": s.blurb, "font": s.font, "size": s.size, "upper": s.upper,
                                  "base": s.base, "accent": s.accent, "group": s.group, "kind": s.kind, "bord": s.bord} for s in STYLES.values()],
                      "geometry": {"width": 1080, "height": 1920, "positions": designs.POSITIONS, "headline_top": designs.HEADLINE_TOP,
-                                  "logo_y": designs.LOGO_Y, "chips_y": designs.CHIPS_Y},
+                                  "logo_y": designs.LOGO_Y, "chips_y": designs.CHIPS_Y, "defaults": recipe_defaults()},
                      "sample": {"headline": preview.SAMPLE_TEXT.title_lines, "points": [p[0] for p in preview.SAMPLE_TEXT.points],
                                 "takeaway": preview.SAMPLE_TEXT.takeaway, "length": preview.SAMPLE_LENGTH},
                      "fonts": [{"id": f.id, "label": f.label} for f in fonts.FONTS.values()],

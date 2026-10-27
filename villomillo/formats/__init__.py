@@ -75,6 +75,7 @@ def format_clip(db: Database, profile: Profile, template: dict, *, claude_client
         raise FormatError(pause.title.lower())
     font_uploads.refresh(db)
     settings = designs.normalize(template["settings"])
+    whole_design = settings   # the format as it is, before the campaign rule: this is what Edit look opens
     forbid = set(settings.get("forbid", []))
     if campaign:   # a campaign clip carries no brand marks, and no element the format marks to stay off campaign clips
         kept, gone = elements.for_campaign(settings["elements"])
@@ -131,7 +132,7 @@ def format_clip(db: Database, profile: Profile, template: dict, *, claude_client
         music.mark_used(db, track["id"])
         used = {"mood": chosen[0], "reason": chosen[1], "track_id": track["id"], "title": track["title"], "artist": track["artist"]}
     return {"template": template["id"], "dropped": plan.dropped, "text": clip_text, "effects": fx, "music": used,
-            "sounds": [h["name"] for h in hit_sounds]}
+            "sounds": [h["name"] for h in hit_sounds], "design": whole_design, "campaign": campaign}
 
 
 def formatter_for(db: Database, profile: Profile, *, category: str | None, jev=None, breaker: SpendBreaker | None = None):

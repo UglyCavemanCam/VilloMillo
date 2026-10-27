@@ -10,10 +10,12 @@ designs.py). Every word on screen is the speaker's own; the layers only arrange 
 
 from __future__ import annotations
 
+import hashlib
 import pathlib
 import shutil
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass, field
 
 import cv2
@@ -40,6 +42,10 @@ class RenderError(RuntimeError):
     pass
 
 
+class RenderCancelled(RenderError):
+    """The render was stopped because something newer replaced it."""
+
+
 class FaceProblem(RenderError):
     """The crop would leave the speaker out of the picture."""
 
@@ -53,6 +59,17 @@ class ClipText:
     proposed_effects: list = field(default_factory=list)   # (kind, seconds into the clip, reason), as Claude proposed them
     serious: bool = False                                  # the subject is loss, injury or similar: no shake, flash or music
     music: tuple[str, str] | None = None                   # (mood, reason) Claude asked for, when the library offered moods
+
+    def saved(self) -> dict:
+        """The text as it is kept with a made clip (in its record), so the builder can show it again."""
+        return {"title_lines": list(self.title_lines), "points": [[label, at] for label, at in self.points], "takeaway": self.takeaway,
+                "proposed_effects": [list(e) for e in self.proposed_effects], "serious": self.serious}
+
+    @classmethod
+    def restore(cls, kept: dict) -> "ClipText":
+        return cls(title_lines=[str(x) for x in kept.get("title_lines") or []], points=[(str(p[0]), float(p[1])) for p in kept.get("points") or []],
+                   takeaway=str(kept.get("takeaway") or ""), proposed_effects=[tuple(e) for e in kept.get("proposed_effects") or []],
+                   serious=bool(kept.get("serious")))
 
     def available(self, has_words: bool) -> set[str]:
         have = {"words"} if has_words else set()
@@ -80,6 +97,8 @@ class Job:
     effects: list = field(default_factory=list)   # the effects this clip gets, from effects.plan()
     sounds: list = field(default_factory=list)    # {path, start, volume} sound effects laid under the picture effects
     music: dict | None = None                     # {path, volume}: the track to put under the voice, when the clip gets music
+    segment: tuple[float, float] | None = None    # only this part of the clip, in seconds into it: the builder's live preview is made in
+                                                  # pieces. The picture and every timing are still those of the whole clip.
 
 
 # --- following the speaker --------------------------------------------------------------------------------------
@@ -140,6 +159,22 @@ class Face:
         if self.x is None:
             return np.full(len(times), self.default[0])
         return np.interp(times, self.t, self.x)
+
+
+_FACES: dict = {}
+_FACES_LOCK = threading.Lock()
+
+
+def face_track(source: pathlib.Path, start: float, end: float) -> Face:
+    """The face track of a stretch of a video, followed once and kept: every piece of a preview of that stretch uses the same
+    track, so the crop does not jump where two pieces meet, and an edit to the look never has to follow the face again."""
+    key = (str(source), round(start, 3), round(end, 3), source.stat().st_mtime_ns)
+    with _FACES_LOCK:
+        if key not in _FACES:
+            while len(_FACES) >= 4:
+                _FACES.pop(next(iter(_FACES)))
+            _FACES[key] = Face(source, start, end)
+        return _FACES[key]
 
 
 def speaker_centres(source: pathlib.Path, start: float, end: float, sw: int) -> tuple[float, float]:
@@ -264,7 +299,7 @@ def _framing(job: Job, framing: str, sw: int, sh: int, label: str = "base") -> s
     else:                   # already narrower: the full width, as tall as the frame shape allows
         crop_w, crop_h = sw // 2 * 2, int(sw * 16 / 9) // 2 * 2
     limit = float(job.plan.framing_param("keep_right_of", 0.0)) * sw
-    face = Face(job.source, job.start, job.end)
+    face = face_track(job.source, job.start, job.end)
     check_window(face, crop_w, limit, job.start)
     total = job.end - job.start
     grid = np.arange(0.0, total + 1.0, 1.0)
@@ -300,10 +335,10 @@ def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path)
     plan, text, items = job.plan, job.text, []
     els = elements.active(d["elements"])
 
-    def add(name: str, image, x: str, y: str, window: tuple[float, float] | None) -> None:
+    def add(name: str, image, x: str, y: str, window: tuple[float, float] | None, element: str | None = None) -> None:
         path = work / f"{name}.png"
         image.save(path)
-        items.append({"file": path.name, "x": x, "y": y, "window": window})
+        items.append({"file": path.name, "x": x, "y": y, "window": window, "element": element or name})
 
     def centred(e: dict, default_y: int | None) -> tuple[str, str]:   # an element's centre; no default means the middle of the frame
         x = "(W-w)/2" if e["x"] is None else f"{e['x']}-w/2"
@@ -343,7 +378,7 @@ def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path)
                 start = max(at, head_end)
                 if end - start >= 0.6:
                     words = f"{i + 1}  ·  {label}" if e["options"]["numbered"] else label
-                    add(f"{e['id']}-{i}", overlays.box_image(_line(words, e), e["style"]), x, y, (start, end))
+                    add(f"{e['id']}-{i}", overlays.box_image(_line(words, e), e["style"]), x, y, (start, end), element=e["id"])
         elif kind == "takeaway" and take_start is not None:
             add(e["id"], overlays.box_image(_line(text.takeaway, e), e["style"]), x, y, elements.window(e["timing"], total, (take_start, take_end)))
         elif kind == "button" and e in buttons:
@@ -364,6 +399,29 @@ def _overlays(job: Job, d: dict, total: float, framing: str, work: pathlib.Path)
             image = overlays.handle_image(job.handle, e["style"], int(plan.param("watermark_center", "alpha")), int(plan.param("watermark_center", "size")))
             add(e["id"], image, x, y, elements.window(e["timing"], total))
     return items
+
+
+def overlay_prints(job: Job) -> tuple[list[tuple], str, dict[str, list]]:
+    """What the renderer would lay over the picture, without rendering: one (fingerprint of the picture, x, y, window) per picture,
+    the progress bar filters, and when each element is on screen ({element id: [window, ...]}, a window being (from, to) in seconds
+    into the clip, or None for the whole clip). The builder fingerprints each piece of its preview from the first two, so a piece is
+    made again only when a picture that shows in it changed, and draws its timeline from the last."""
+    d = designs.normalize(job.design)
+    total = job.end - job.start
+    with tempfile.TemporaryDirectory(prefix="vm-prints-") as folder:
+        work = pathlib.Path(folder)
+        items = _overlays(job, d, total, job.plan.framing().id, work)
+        prints = [(hashlib.sha1((work / i["file"]).read_bytes()).hexdigest()[:12], i["x"], i["y"], i["window"]) for i in items]
+    windows: dict[str, list] = {}
+    for i in items:
+        windows.setdefault(i["element"], []).append(None if i["window"] is None else (round(i["window"][0], 2), round(i["window"][1], 2)))
+    for e in elements.active(d["elements"]):   # the captions and the progress bars are burned in after the pictures
+        if e["type"] == "captions" and job.plan.has("captions") and job.words:
+            windows[e["id"]] = [None]
+        elif e["type"] == "progress_bar" and job.plan.has("progress_bar_bottom"):
+            w = elements.window(e["timing"], total)
+            windows[e["id"]] = [None if w is None else (round(w[0], 2), round(w[1], 2))]
+    return prints, _bars(job, d, total), windows
 
 
 def _line(words: str, e: dict) -> str:
@@ -387,14 +445,35 @@ def _bars(job: Job, d: dict, total: float) -> str:
     return out
 
 
-def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Path:
+def _run(cmd: list[str], cwd: str, cancel: threading.Event | None) -> subprocess.CompletedProcess:
+    """Run ffmpeg; with `cancel` it is stopped as soon as the event is set."""
+    if cancel is None:
+        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    while True:
+        try:
+            out, err = proc.communicate(timeout=0.2)
+            return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+        except subprocess.TimeoutExpired:
+            if cancel.is_set():
+                proc.kill()
+                proc.communicate()
+                raise RenderCancelled("a newer preview replaced this one") from None
+
+
+def render(job: Job, *, preview: bool = False, scale: float = 1.0, cancel: threading.Event | None = None) -> pathlib.Path:
     """Make the clip. `preview` trades quality for speed (a few seconds of video for the builder's preview); `scale` below 1 makes
-    a smaller draft (the picture is made full size and shrunk at the end, so the saving is in the encode)."""
+    a smaller draft (the picture is made full size and shrunk at the end, so the saving is in the encode). `cancel` stops it early.
+    With `job.segment` only that part of the clip is made, with the filters keeping the whole clip's clock."""
     ffmpeg = binaries.ffmpeg()
     if not (pathlib.Path(ffmpeg).exists() or shutil.which(ffmpeg)):
         raise RenderError("ffmpeg was not found: install FFmpeg or put it on PATH")
     d = designs.normalize(job.design)
     total = job.end - job.start
+    seg_a, seg_b = job.segment or (0.0, total)
+    seg = seg_b - seg_a
+    late = seg_a > 0   # the piece does not start at the clip's start: its pictures are given the clip's clock so every timing still lands
+    lag = f",setpts=PTS+{seg_a:.3f}/TB" if late else ""
     sw, sh = _source_size(job.source)
     framing = job.plan.framing().id
     job.out.parent.mkdir(parents=True, exist_ok=True)
@@ -411,10 +490,16 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
             parts = [_framing(job, framing, sw, sh, label="base0"),
                      f"[base0]crop=w=1040:h=1848:x='20+{shake}':y='36+{effects.shake_offset(job.effects, 8)}',"
                      f"scale={W}:{H}[base]"]
-        inputs = ["-ss", f"{job.start:.3f}", "-t", f"{total:.3f}", "-i", str(job.source)]
+        if late:
+            parts[0] = parts[0].replace("[0:v]", "[g0]", 1)
+            parts.insert(0, f"[0:v]setpts=PTS+{seg_a:.3f}/TB[g0]")
+        inputs = ["-ss", f"{job.start + seg_a:.3f}", "-t", f"{seg:.3f}", "-i", str(job.source)]
         chain = "base"
         fps = _fps(job.source)
         for k, (first, last) in enumerate(effects.freeze_frames(job.effects, fps)):
+            first, last = first - round(seg_a * fps), last - round(seg_a * fps)   # frame numbers count from the start of the piece
+            if first < 0 or last > seg * fps + 1:
+                continue
             parts.append(f"[{chain}]split=2[fz{k}a][fz{k}b];[fz{k}a][fz{k}b]freezeframes=first={first}:last={last}:replace={first}[fz{k}]")
             chain = f"fz{k}"
         colour = effects.colour_filters(job.effects)
@@ -423,12 +508,12 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
             chain = "fx"
         items = _overlays(job, d, total, framing, work)
         for n, item in enumerate(items, start=1):
-            inputs += ["-loop", "1", "-framerate", "30", "-t", f"{total:.3f}", "-i", item["file"]]
+            inputs += ["-loop", "1", "-framerate", "30", "-t", f"{seg:.3f}", "-i", item["file"]]
             if item["window"] is None:
-                parts.append(f"[{n}:v]format=rgba[o{n}]")
+                parts.append(f"[{n}:v]format=rgba{lag}[o{n}]")
             else:
                 a, b = item["window"]
-                parts.append(f"[{n}:v]format=rgba,fade=t=in:st={a:.2f}:d=0.25:alpha=1,"
+                parts.append(f"[{n}:v]format=rgba{lag},fade=t=in:st={a:.2f}:d=0.25:alpha=1,"
                              f"fade=t=out:st={max(a, b - 0.25):.2f}:d=0.25:alpha=1[o{n}]")
             parts.append(f"[{chain}][o{n}]overlay=x={item['x']}:y={item['y']}[s{n}]")
             chain = f"s{n}"
@@ -445,7 +530,8 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
 
         tail = _bars(job, d, total)
         shrink = f"scale={int(W * scale) // 2 * 2}:{int(H * scale) // 2 * 2}:flags=bilinear," if scale < 1.0 else ""
-        parts.append(f"[{chain}]{tail}{shrink}scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[out]")
+        reset = ",setpts=PTS-STARTPTS" if late else ""
+        parts.append(f"[{chain}]{tail}{shrink}scale=out_color_matrix=bt709:out_range=tv,format=yuv420p{reset}[out]")
 
         audio = ["-map", "0:a:0?", "-af", LOUDNESS]
         hits = [h for h in job.sounds if pathlib.Path(h["path"]).exists()]
@@ -459,10 +545,11 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
                 if not music_file.exists():
                     raise RenderError(f"the music file is missing ({music_file.name}): add the track again on the Music tab")
                 m = len(items) + 1
-                inputs += ["-stream_loop", "-1", "-t", f"{total:.3f}", "-i", str(music_file)]
+                length = float(job.music.get("duration_s") or 0)
+                inputs += ["-stream_loop", "-1", *(["-ss", f"{seg_a % length:.3f}"] if late and length > 0 else []), "-t", f"{seg:.3f}", "-i", str(music_file)]
                 parts += ["[0:a]aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11,asplit=2[va][vk]",
                           f"[{m}:a]aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11,volume={int(job.music['volume'])}dB,"
-                          f"afade=t=in:st=0:d=1,afade=t=out:st={max(total - 1.5, 0):.2f}:d=1.5[mus]",
+                          f"{'' if late else 'afade=t=in:st=0:d=1,'}afade=t=out:st={max(total - 1.5 - seg_a, 0):.2f}:d=1.5[mus]",
                           "[mus][vk]sidechaincompress=threshold=0.02:ratio=10:attack=20:release=400[duck]"]
                 branches += ["[va]", "[duck]"]
             else:
@@ -471,7 +558,7 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
             for k, hit in enumerate(hits):
                 n = len(items) + 1 + (1 if job.music else 0) + k
                 inputs += ["-i", str(hit["path"])]
-                ms = int(round(max(hit["start"], 0.0) * 1000))
+                ms = int(round(max(hit["start"] - seg_a, 0.0) * 1000))
                 parts.append(f"[{n}:a]aresample=48000,volume={hit['volume']}dB,adelay={ms}|{ms}[x{k}]")
                 branches.append(f"[x{k}]")
             parts.append(f"{''.join(branches)}amix=inputs={len(branches)}:duration=first:normalize=0,{LOUDNESS}[aout]")
@@ -479,7 +566,7 @@ def render(job: Job, *, preview: bool = False, scale: float = 1.0) -> pathlib.Pa
         cmd = [ffmpeg, "-y", "-v", "error", *inputs, "-filter_complex", ";".join(parts), "-map", "[out]", *audio,
                *(PREVIEW_ARGS if preview else FINAL_ARGS), *COLOUR_TAGS,
                "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-shortest", str(job.out.resolve())]
-        done = subprocess.run(cmd, cwd=str(work), capture_output=True, text=True)
+        done = _run(cmd, str(work), cancel)
         if done.returncode:
             raise RenderError(f"ffmpeg failed: {done.stderr[-500:]}")
     finally:

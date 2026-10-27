@@ -1,53 +1,7 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon %}
 {% block content %}
-<style>
-[hidden]{display:none !important}
-.fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-.fmt-card{display:flex;flex-direction:column;gap:8px}
-.fmt-card h3{margin:0;font-size:16px}
-.fmt-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
-.fmt-tabs .btn[aria-selected="true"]{background:var(--accent);color:var(--accent-ink,#0E1015)}
-.fmt-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.6fr);gap:14px;align-items:end}
-.fmt-top label{display:flex;flex-direction:column;gap:4px;font-size:13px}
-.fmt-builder{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:18px;align-items:start}
-@media (max-width:900px){.fmt-builder{grid-template-columns:minmax(0,1fr)}.fmt-top{grid-template-columns:minmax(0,1fr)}}
-.fmt-stagecol{display:flex;flex-direction:column;gap:10px}
-.fmt-phone{position:relative;width:100%;max-width:300px;aspect-ratio:9/16;margin:0 auto;background:#000;border-radius:14px;overflow:hidden;container-type:inline-size}
-.fmt-phone>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#stage-items{position:absolute;inset:0}
-.st-item{position:absolute;cursor:pointer;white-space:nowrap;touch-action:none}
-.st-item[data-item="headline"],.st-item[data-item="logo"],.st-item[data-item="captions"],.st-item[data-item="chips"],.st-item[data-item="cta"]{cursor:move}
-.st-handle{display:none;position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:#FFB000;border:2px solid #0E1217;border-radius:4px;cursor:nwse-resize;touch-action:none}
-.st-item.on .st-handle{display:block}
-.st-guide{position:absolute;background:#FFB000;pointer-events:none}
-.st-item:hover{outline:1px dashed rgba(255,255,255,.7);outline-offset:2px}
-.st-item.on{outline:2px dashed #FFB000;outline-offset:3px}
-.st-tag{display:inline-block;margin-top:4px;font:500 10px/1 system-ui,sans-serif;color:#fff;background:rgba(0,0,0,.6);padding:3px 6px;border-radius:4px;white-space:nowrap}
-.fmt-check{border-top:1px solid var(--border,#2A303C);padding-top:10px}
-.fmt-check video{width:100%;aspect-ratio:9/16;background:#000;border-radius:12px;margin-top:8px}
-.fmt-inspector{min-width:0}
-.fmt-panes{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
-.fmt-more{font-size:13px}
-.fmt-more summary{cursor:pointer;color:var(--text-secondary,#9AA3B2);margin:4px 0}
-.fmt-actions{margin-top:4px}
-.fmt-form{display:flex;flex-direction:column;gap:14px;min-width:0}
-.fmt-form fieldset{border:1px solid var(--border,#2A303C);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin:0;min-width:0}
-.fmt-form legend{padding:0 6px;font-weight:600}
-.fmt-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
-.fmt-row label{display:flex;flex-direction:column;gap:4px;font-size:13px;min-width:0;max-width:100%}
-.fmt-form .field,.fmt-top .field{max-width:100%}
-.fmt-row label.inline{flex-direction:row;align-items:center;gap:8px;font-size:14px}
-.fmt-row input[type=number]{width:96px}
-.fmt-msg{padding:10px 14px;border-radius:8px;margin:0 0 14px;border:1px solid var(--border,#2A303C)}
-.fmt-msg.bad{border-color:#E0605A}.fmt-msg.good{border-color:#4FB67C}
-.fmt-styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
-.fmt-style{border:1px solid var(--border,#2A303C);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
-.fmt-stage{height:120px;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;background:linear-gradient(160deg,#3a4250,#1b1f28 75%);color:#fff;overflow:hidden}
-.fmt-stage b{font-weight:700;line-height:1.1}
-.fmt-style .info{padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
-.chip-row{display:flex;flex-wrap:wrap;gap:6px}
-</style>
+<link rel="stylesheet" href="/static/formats-builder.css?v={{ shell.asset_v }}">
 
 <div class="page-head"><h1>Formats</h1><span class="sub">Build a format once and use it for every clip of a kind. Podcast clips, stream clips and the rest each use the format you tick for them.</span></div>
 
@@ -139,118 +93,87 @@
 
   <div id="builder" hidden class="card stack" aria-labelledby="builder-h">
     <div class="cluster" style="justify-content:space-between;align-items:baseline"><h2 id="builder-h" style="margin:0">Format builder</h2>
-      <span class="muted" style="font-size:13px">Click something on the picture to change it.</span></div>
+      <span class="muted" style="font-size:13px">Add elements on the left, click one on the picture, and change it on the right.</span></div>
     <div id="clip-box" class="notice" hidden>{{ icon('info') }}<div></div></div>
-    <div class="fmt-top">
-      <label>Name<input class="field" id="f_name" maxlength="60"></label>
-      <label>Start from<select class="field" id="f_preset"></select></label>
-      <div><span class="muted" style="font-size:13px">Use this format for</span><div class="chip-row" id="cat-list"></div></div>
-    </div>
 
     <div class="fmt-builder">
+      <aside class="fmt-left" aria-label="Elements and layers">
+        <details class="fmt-add" id="add-menu"><summary class="btn btn-primary btn-sm">Add element</summary>
+          <div class="fmt-add-list" id="add-list" role="menu"></div></details>
+        <h3 style="margin:4px 0 0;font-size:15px">Layers</h3>
+        <p class="muted" style="margin:0;font-size:12px">Top of the list is the front of the picture. Drag a row to reorder it.</p>
+        <ul class="fmt-layers" id="layers"></ul>
+        <p class="muted" id="layers-empty" hidden style="margin:0;font-size:13px">No elements yet.</p>
+      </aside>
+
       <div class="fmt-stagecol">
-        <div class="fmt-phone" id="stage">
+        <div class="fmt-phone" id="stage" tabindex="0" aria-label="The picture: right-click an element for its menu, press Delete to remove the selected one, arrow keys to move it">
           <img id="stage-still" alt="" hidden>
+          <video class="pv" id="pv-a" playsinline preload="auto" hidden></video>
+          <video class="pv" id="pv-b" playsinline preload="auto" hidden></video>
           <div id="stage-items"></div>
+          <div class="pv-badge" id="pv-badge" role="status" hidden>Updating…</div>
+          <div class="pv-mode" id="pv-mode" aria-live="polite"></div>
         </div>
+        <div class="fmt-transport">
+          <button class="btn btn-primary btn-sm" id="pv-play" type="button">▶ Play</button>
+          <button class="btn btn-sm" id="pv-mute" type="button" aria-pressed="false">Sound on</button>
+          <span class="muted" id="pv-time" style="font-size:13px;margin-left:auto">0:00 / 0:35</span>
+        </div>
+        <div class="fmt-timeline">
+          <input type="range" id="pv-seek" min="0" max="3500" value="0" step="1" aria-label="Timeline: drag to any moment of the sample">
+          <div class="pv-ready" id="pv-ready" aria-hidden="true"></div>
+          <div class="pv-bars" id="pv-bars" aria-hidden="true"></div>
+        </div>
+        <p class="muted" id="pv-status" style="margin:0;font-size:13px;text-align:center" role="status"></p>
         <p class="muted" id="stage-note" style="margin:0;font-size:13px;text-align:center"></p>
-        <p id="place-note" class="muted" style="margin:0;font-size:13px;text-align:center">Drag things on the picture to move them. Drag the amber corner to resize the headline or the logo.</p>
-        <div style="text-align:center"><button class="btn btn-sm" id="place-reset" type="button">Put everything back</button></div>
+        <p id="place-note" class="muted" style="margin:0;font-size:13px;text-align:center">Drag things on the picture to move them. Drag the amber corner to resize.</p>
+        <div style="text-align:center"><button class="btn btn-sm" id="place-reset" type="button">Put everything back in its own spot</button></div>
         <label style="font-size:13px">Sample video<select class="field" id="v_video"></select></label>
-        <div class="fmt-check">
-          <button class="btn" id="v_btn" type="button">Check with real render</button>
-          <p class="muted" id="v_status" style="margin:6px 0 0;font-size:13px">A real clip made by the real renderer, so effects show too. It takes a few seconds.</p>
-          <video id="v_player" controls muted loop playsinline hidden></video>
-        </div>
+        <label class="inline" style="font-size:13px;display:flex;gap:6px;align-items:center" title="Makes the preview at half size. Only worth it on a slow computer: on a fast one it saves nothing.">
+          <input type="checkbox" id="pv-draft"> Draft size (faster on a slow computer)</label>
       </div>
 
-      <div class="fmt-inspector">
-        <div class="fmt-panes" role="group" aria-label="What to change">
-          <button class="btn btn-sm" type="button" data-pane="captions">Captions</button>
-          <button class="btn btn-sm" type="button" data-pane="headline">Headline</button>
-          <button class="btn btn-sm" type="button" data-pane="labels">Labels and handle</button>
-          <button class="btn btn-sm" type="button" data-pane="logo">Logo and button</button>
-          <button class="btn btn-sm" type="button" data-pane="layout">Layout</button>
-          <button class="btn btn-sm" type="button" data-pane="music">Music</button>
-          <button class="btn btn-sm" type="button" data-pane="effects">Effects</button>
-        </div>
+      <section class="fmt-right" aria-label="Settings for the selected element">
+        <div class="fmt-settings" id="el-settings"></div>
+      </section>
+    </div>
 
-        <div class="fmt-form">
-          <fieldset data-pane="captions"><legend>Captions</legend>
-            <label class="inline"><input type="checkbox" id="c_enabled"> Show captions</label>
-            <label>Look<select class="field" id="c_style"></select></label>
-            <label>Position<select class="field" id="c_pos"><option value="lower">Lower</option><option value="middle">Middle</option><option value="upper">Upper</option></select></label>
-            <details class="fmt-more"><summary>More options: font, size, capitals and colours</summary>
-              <div class="fmt-row"><label>Font<select class="field" id="c_font"></select></label>
-                <label>Size<input class="field" type="number" id="c_size" min="40" max="160" placeholder="look's own"></label>
-                <label>Capitals<select class="field" id="c_upper"><option value="">Look's own</option><option value="1">All capitals</option><option value="0">Normal</option></select></label></div>
-              <div class="fmt-row"><label class="inline"><input type="checkbox" id="c_custom"> Use my own colours</label>
-                <label>Words<input type="color" id="c_text" value="#ffffff"></label><label>Spoken word<input type="color" id="c_high" value="#ffb000"></label></div>
-              <div class="fmt-row"><label>Who picks the look<select class="field" id="s_mode"><option value="fixed">This format: the look above</option><option value="ai">The AI picks from the looks ticked below</option></select></label></div>
-              <div id="pool-box" hidden><div class="chip-row" id="s_pool"></div>
-                <p class="muted" style="margin:6px 0 0;font-size:13px">The AI picking is built in a later phase. Until then clips use the look chosen above.</p></div>
-            </details>
-          </fieldset>
+    <div class="fmt-below">
+      <div class="fmt-top">
+        <label>Name<input class="field" id="f_name" maxlength="60"></label>
+        <label>Start from<select class="field" id="f_preset"></select></label>
+        <div><span class="muted" style="font-size:13px">Use this format for</span><div class="chip-row" id="cat-list"></div></div>
+      </div>
+      <div class="fmt-form">
+        <fieldset id="pane-layout"><legend>Layout</legend>
+          <div class="fmt-row"><label>Picture<select class="field" id="f_layout"><option value="face_fill">Face fill: the speaker fills the screen</option><option value="fit_blur">Fit with blur: the whole picture over a blurred copy</option><option value="stacked_webcam">Stacked: webcam over the game (streams)</option><option value="split">Split: two people, one on top and one below</option></select></label></div>
+          <details class="fmt-more"><summary>More options: keep the crop off the left edge</summary>
+            <div class="fmt-row"><label>Keep the crop clear of the left edge (%)<input class="field" type="number" id="f_limit" min="0" max="60" title="For text the show puts on the left. If that would cut the speaker off, the clip is flagged instead."></label></div></details>
+          <fieldset class="fmt-webcam" id="webcam-box" hidden style="margin:0"><legend>Webcam box (% of the picture)</legend>
+            <div style="grid-column:1/-1"><button class="btn btn-sm" id="webcam-suggest" type="button">Suggest from the video above</button> <span class="muted" style="font-size:13px">Finds the streamer's face and draws a box around it. Check it and adjust if needed.</span></div>
+            <label>Left<input class="field" type="number" id="w_x" min="0" max="100"></label><label>Top<input class="field" type="number" id="w_y" min="0" max="100"></label>
+            <label>Width<input class="field" type="number" id="w_w" min="5" max="100"></label><label>Height<input class="field" type="number" id="w_h" min="5" max="100"></label></fieldset>
+        </fieldset>
 
-          <fieldset data-pane="headline" hidden><legend>Headline</legend>
-            <label class="inline"><input type="checkbox" id="h_enabled"> Show a headline</label>
-            <div class="fmt-row"><label>Text colour<input type="color" id="h_color"></label>
-              <label>Box colour<input type="color" id="h_bg"></label>
-              <label class="inline"><input type="checkbox" id="h_nobg"> No box</label>
-              <label>Alignment<select class="field" id="h_align"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label></div>
-            <details class="fmt-more"><summary>More options: font, size, corners, width and shadow</summary>
-              <div class="fmt-row"><label>Font<select class="field" id="h_font"></select></label>
-                <label>Size<input class="field" type="number" id="h_size" min="24" max="90"></label>
-                <label>Corner radius<input class="field" type="number" id="h_radius" min="0" max="40"></label>
-                <label>Width %<input class="field" type="number" id="h_width" min="40" max="100"></label>
-                <label class="inline"><input type="checkbox" id="h_shadow"> Text shadow</label></div>
-            </details>
-          </fieldset>
+        <fieldset id="pane-music"><legend>Music</legend>
+          <p class="muted" style="margin:0;font-size:13px">Quiet music under the voice, from the Music tab. Never on a serious subject, never over music or a crowd already in the video. With no tracks, nothing happens.</p>
+          <div class="fmt-row"><label>Music<select class="field" id="m_mode"><option value="off">Off</option><option value="when_helps">Only when it helps</option><option value="always">Always, when there is a track</option></select></label></div>
+          <details class="fmt-more"><summary>More options: how loud the music is</summary>
+            <div class="fmt-row"><label>How far under the voice (dB)<input class="field" type="number" id="m_vol" min="-30" max="-16"></label></div></details>
+        </fieldset>
 
-          <fieldset data-pane="labels" hidden><legend>Labels and handle</legend>
-            <label class="inline"><input type="checkbox" id="x_chips"> A label for each point the speaker makes</label>
-            <label class="inline"><input type="checkbox" id="x_take"> A takeaway at the end</label>
-            <label class="inline"><input type="checkbox" id="b_wm"> Your faint handle in the middle</label>
-            <label class="inline"><input type="checkbox" id="b_bar"> A thin progress bar</label>
-            <p class="muted" style="margin:0;font-size:13px">Clips made for a campaign never carry the handle or the progress bar, whatever is ticked here.</p>
-          </fieldset>
+        <fieldset id="pane-effects"><legend>Effects</legend>
+          <p class="muted" style="margin:0;font-size:13px">Small picture moves that Claude proposes on the words that earn them. Most of a clip gets none. Each one shows its reason on the clip.</p>
+          <div class="fmt-row"><label>How many<select class="field" id="e_intensity"><option value="off">Off</option><option value="subtle">Subtle: about one every 8 seconds</option><option value="balanced">Balanced: about one every 5 seconds</option><option value="punchy">Punchy: about one every 3 seconds</option></select></label></div>
+          <div class="chip-row" id="e_kinds"></div>
+        </fieldset>
 
-          <fieldset data-pane="logo" hidden><legend>Logo and button</legend>
-            <p class="muted" style="margin:0;font-size:13px">Pasted-link and Research clips only. Campaign clips never get these, whatever is ticked here.</p>
-            <label class="inline"><input type="checkbox" id="l_on"> Show my logo in a corner</label>
-            <div class="fmt-row"><label>Logo<select class="field" id="l_asset"></select></label>
-              <label>Corner<select class="field" id="l_corner"><option value="left">Left (top)</option><option value="right">Right (top)</option></select></label>
-              <label>Size (% of width)<input class="field" type="number" id="l_size" min="6" max="30"></label>
-              <label>Shows from second<input class="field" type="number" id="l_from" min="0" max="30"></label></div>
-            <label class="inline"><input type="checkbox" id="k_on"> Show a button in the last seconds</label>
-            <div class="fmt-row"><label>Text<input class="field" type="text" id="k_text" maxlength="40"></label>
-              <label>Size<input class="field" type="number" id="k_size" min="24" max="60"></label>
-              <label>Shows for (seconds, at the end)<input class="field" type="number" id="k_secs" min="1" max="6"></label></div>
-          </fieldset>
-
-          <fieldset data-pane="layout" hidden><legend>Layout</legend>
-            <div class="fmt-row"><label>Picture<select class="field" id="f_layout"><option value="face_fill">Face fill: the speaker fills the screen</option><option value="fit_blur">Fit with blur: the whole picture over a blurred copy</option><option value="stacked_webcam">Stacked: webcam over the game (streams)</option><option value="split">Split: two people, one on top and one below</option></select></label></div>
-            <details class="fmt-more"><summary>More options: keep the crop off the left edge</summary>
-              <div class="fmt-row"><label>Keep the crop clear of the left edge (%)<input class="field" type="number" id="f_limit" min="0" max="60" title="For text the show puts on the left. If that would cut the speaker off, the clip is flagged instead."></label></div></details>
-            <fieldset class="fmt-webcam" id="webcam-box" hidden style="margin:0"><legend>Webcam box (% of the picture)</legend>
-              <div style="grid-column:1/-1"><button class="btn btn-sm" id="webcam-suggest" type="button">Suggest from the video above</button> <span class="muted" style="font-size:13px">Finds the streamer's face and draws a box around it. Check it and adjust if needed.</span></div>
-              <label>Left<input class="field" type="number" id="w_x" min="0" max="100"></label><label>Top<input class="field" type="number" id="w_y" min="0" max="100"></label>
-              <label>Width<input class="field" type="number" id="w_w" min="5" max="100"></label><label>Height<input class="field" type="number" id="w_h" min="5" max="100"></label></fieldset>
-          </fieldset>
-
-          <fieldset data-pane="music" hidden><legend>Music</legend>
-            <p class="muted" style="margin:0;font-size:13px">Quiet music under the voice, from the Music tab. Never on a serious subject, never over music or a crowd already in the video. With no tracks, nothing happens.</p>
-            <div class="fmt-row"><label>Music<select class="field" id="m_mode"><option value="off">Off</option><option value="when_helps">Only when it helps</option><option value="always">Always, when there is a track</option></select></label></div>
-            <details class="fmt-more"><summary>More options: how loud the music is</summary>
-              <div class="fmt-row"><label>How far under the voice (dB)<input class="field" type="number" id="m_vol" min="-30" max="-16"></label></div></details>
-          </fieldset>
-
-          <fieldset data-pane="effects" hidden><legend>Effects</legend>
-            <p class="muted" style="margin:0;font-size:13px">Small picture moves that Claude proposes on the words that earn them. Most of a clip gets none. Each one shows its reason on the clip.</p>
-            <div class="fmt-row"><label>How many<select class="field" id="e_intensity"><option value="off">Off</option><option value="subtle">Subtle: about one every 8 seconds</option><option value="balanced">Balanced: about one every 5 seconds</option><option value="punchy">Punchy: about one every 3 seconds</option></select></label></div>
-            <div class="chip-row" id="e_kinds"></div>
-          </fieldset>
-        </div>
+        <details class="fmt-more" id="pane-captions"><summary>Caption looks: who picks the look</summary>
+          <div class="fmt-row"><label>Who picks the look<select class="field" id="s_mode"><option value="fixed">This format: the look of the captions element</option><option value="ai">The AI picks from the looks ticked below</option></select></label></div>
+          <div id="pool-box" hidden><div class="chip-row" id="s_pool"></div>
+            <p class="muted" style="margin:6px 0 0;font-size:13px">The AI picking is built in a later phase. Until then clips use the look chosen on the captions element.</p></div>
+        </details>
       </div>
     </div>
 
@@ -260,648 +183,18 @@
       <button class="btn btn-ghost" id="close" type="button">Close</button>
       <button class="btn btn-stop" id="delete" type="button" hidden>Delete forever</button>
     </div>
-    <div class="cluster" id="clip-actions" hidden><button class="btn btn-primary" id="apply-clip" type="button">Apply to this clip only</button>
-      <span class="muted" style="font-size:13px">The template is not changed.</span></div>
+    <div class="stack" id="clip-actions" hidden>
+      <div class="cluster"><button class="btn btn-primary" id="apply-clip" type="button">Apply to this clip only</button>
+        <button class="btn" id="clip-new" type="button">Save as a new format</button>
+        <button class="btn" id="clip-update" type="button" hidden>Update format</button>
+        <a class="btn btn-ghost" href="/clips?profile={{ shell.current.id }}">Back to Clips</a></div>
+      <p class="muted" style="margin:0;font-size:13px">Apply to this clip only makes this clip again with this look and leaves every format alone. Save as a new format keeps the look for later clips and leaves this clip alone. Update changes the format this clip came from, for clips made from now on; clips already made keep their look.
+        <span id="clip-notes"></span></p>
+    </div>
   </div>
 </section>
 
 <script id="boot" type="application/json">{{ d.boot|tojson }}</script>
-<script>
-(function () {
-  var boot = JSON.parse(document.getElementById("boot").textContent);
-  var $ = function (id) { return document.getElementById(id); };
-  var current = null, copy = function (x) { return JSON.parse(JSON.stringify(x)); };
-
-  function el(tag, attrs, kids) {
-    var n = document.createElement(tag);
-    Object.keys(attrs || {}).forEach(function (k) { if (k === "text") n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
-    (kids || []).forEach(function (c) { n.appendChild(c); });
-    return n;
-  }
-  function say(text, kind) { var n = $("note"); n.textContent = ""; if (text) { n.appendChild(el("div", { "class": "fmt-msg " + (kind || ""), text: text })); window.scrollTo(0, 0); } }
-  function post(url, body) {
-    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); });
-  }
-  function options(select, items, blank) {
-    select.textContent = "";
-    if (blank) select.appendChild(el("option", { value: "", text: blank }));
-    items.forEach(function (i) { select.appendChild(el("option", { value: i.id, text: i.label })); });
-  }
-
-  function tab(name) {
-    ["presets", "templates", "assets", "music"].forEach(function (t) {
-      $("tab-" + t).hidden = t !== name; $("tab-btn-" + t).setAttribute("aria-selected", t === name ? "true" : "false");
-    });
-    try { history.replaceState(null, "", "#" + name); } catch (e) {}
-  }
-  document.querySelectorAll("[data-tab]").forEach(function (b) { b.addEventListener("click", function () { tab(b.dataset.tab); }); });
-
-  // ---- quick presets and the caption style drawings --------------------------------------------------------------
-  function renderPresets() {
-    var box = $("preset-list"); box.textContent = "";
-    if (!boot.presets.length) box.appendChild(el("p", { "class": "muted", text: "No quick presets left." }));
-    boot.presets.forEach(function (p) {
-      var sel = el("select", { "class": "field" }); boot.categories.forEach(function (c) { sel.appendChild(el("option", { value: c, text: c })); });
-      var use = el("button", { "class": "btn btn-primary btn-sm", type: "button", text: "Use for this kind" });
-      var cp = el("button", { "class": "btn btn-sm", type: "button", text: "Copy to My Templates" });
-      var del = el("button", { "class": "btn btn-sm btn-ghost", type: "button", text: "Delete forever" });
-      use.addEventListener("click", function () { post("/api/formats/preset", { preset_id: p.id, action: "use", category: sel.value }).then(done("Saved, and used for " + sel.value + "."))});
-      cp.addEventListener("click", function () { post("/api/formats/preset", { preset_id: p.id, action: "copy" }).then(done("Copied to My Templates."))});
-      del.addEventListener("click", function () {
-        if (confirm("Delete the " + p.name + " preset for good? It will not come back.")) post("/api/formats/preset-delete", { preset_id: p.id }).then(done("Deleted."));
-      });
-      box.appendChild(el("div", { "class": "card fmt-card" }, [el("h3", { text: p.name }), el("p", { "class": "muted", style: "margin:0", text: p.blurb }),
-        el("label", { style: "font-size:13px" }, [document.createTextNode("Kind of clip "), sel]), el("div", { "class": "cluster" }, [use, cp, del])]));
-    });
-  }
-  function done(message) {
-    return function (r) {
-      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-      var n = r.data.queued || 0;  // clips already waiting for this kind get the format too
-      if (n) message += " " + n + " waiting clip" + (n === 1 ? " is" : "s are") + " being given it now: watch them on the Clips page.";
-      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
-      location.hash = "#templates"; location.reload();
-    };
-  }
-
-  var DRAW = {
-    spotlight: "font:800 22px Montserrat;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
-    pop: "font:900 24px Montserrat;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
-    block: "font:800 21px Montserrat;text-transform:uppercase",
-    dim: "font:600 20px Poppins", slam: "font:400 46px Anton;text-transform:uppercase;-webkit-text-stroke:5px #0c0e12;paint-order:stroke fill",
-    plate: "font:600 17px Inter;background:rgba(0,0,0,.72);padding:8px 14px;border-radius:4px", neon: "font:italic 800 30px 'Barlow Condensed';text-transform:uppercase;color:#5CF0FF;text-shadow:0 0 5px #5CF0FF,0 0 14px #FF2BD6",
-    type: "font:400 19px 'Special Elite'", marker: "font:400 22px 'Permanent Marker';transform:rotate(-2.5deg)",
-    build: "font:700 21px Poppins", underline: "font:700 21px Montserrat", burst: "font:400 30px Bangers;color:#FFE135;text-transform:uppercase;-webkit-text-stroke:5px #111;paint-order:stroke fill;transform:rotate(-3deg)"
-  };
-  function renderStyles() {
-    var box = $("style-list"); box.textContent = "";
-    boot.styles.forEach(function (s) {
-      var words = ["shut", "it", "down."].map(function (w, i) {
-        var n = el("span", { text: (s.upper ? w.toUpperCase() : w) + " ", style: i === 2 ? "color:" + s.accent : "" }); return n; });
-      var line = el("b", { style: (DRAW[s.id] || "") + ";color:" + (["neon", "burst"].indexOf(s.id) > -1 ? "" : "#fff") }, words);
-      var use = el("button", { "class": "btn btn-sm", type: "button", text: "Use in the builder" });
-      use.addEventListener("click", function () { openBuilder(null, s.id); });
-      box.appendChild(el("div", { "class": "fmt-style" }, [el("div", { "class": "fmt-stage" }, [line]),
-        el("div", { "class": "info" }, [el("strong", { text: s.label }), el("span", { "class": "muted", text: s.blurb }), use])]));
-    });
-  }
-
-  // ---- templates ---------------------------------------------------------------------------------------------------
-  function renderTemplates() {
-    var box = $("template-list"); box.textContent = "";
-    if (!boot.templates.length) box.appendChild(el("p", { "class": "muted", text: "No templates yet. Use a quick preset, or press New template." }));
-    boot.templates.forEach(function (t) {
-      var edit = el("button", { "class": "btn btn-sm btn-primary", type: "button", text: "Edit" });
-      edit.addEventListener("click", function () { openBuilder(t); });
-      var used = t.categories.length ? "Used for: " + t.categories.join(", ") : "Not used for any kind of clip yet";
-      var aiTag = t.design.made_by === "ai" ? el("span", { "class": "muted", style: "font-size:12px;border:1px solid currentColor;border-radius:6px;padding:0 6px", text: "AI made" }) : el("span");
-      box.appendChild(el("div", { "class": "card fmt-card" }, [el("h3", { text: t.name }), aiTag, el("p", { "class": "muted", style: "margin:0", text: used }),
-        el("div", { "class": "muted", style: "font-size:13px", text: boot.styles.filter(function (s) { return s.id === t.design.captions.style; })[0].label + " captions · " + (t.design.layout === "face_fill" ? "Face fill" : "Fit with blur") }),
-        el("div", { "class": "cluster" }, [edit])]));
-    });
-  }
-
-  $("f_layout").addEventListener("change", function () { $("webcam-box").hidden = $("f_layout").value !== "stacked_webcam"; });
-  function setChecked(id, v) { $(id).checked = !!v; }
-  function fill(d) {
-    place = placeFrom(d.place);
-    $("f_layout").value = d.layout; $("f_limit").value = d.crop_limit || 0;
-    $("w_x").value = d.webcam.x; $("w_y").value = d.webcam.y; $("w_w").value = d.webcam.w; $("w_h").value = d.webcam.h;
-    $("webcam-box").hidden = d.layout !== "stacked_webcam";
-    var c = d.captions;
-    setChecked("c_enabled", c.enabled); $("c_style").value = c.style; $("c_font").value = c.font || ""; $("c_size").value = c.size || "";
-    $("c_upper").value = c.uppercase === null ? "" : (c.uppercase ? "1" : "0"); $("c_pos").value = c.position;
-    setChecked("c_custom", c.text_color || c.highlight_color); $("c_text").value = (c.text_color || "#FFFFFF").toLowerCase(); $("c_high").value = (c.highlight_color || "#FFB000").toLowerCase();
-    var h = d.headline;
-    setChecked("h_enabled", h.enabled); $("h_font").value = h.font; $("h_size").value = h.size; $("h_align").value = h.align;
-    $("h_color").value = h.color.toLowerCase(); $("h_bg").value = (h.background || "#FFB000").toLowerCase(); setChecked("h_nobg", !h.background);
-    $("h_radius").value = h.radius; $("h_width").value = h.width_pct; setChecked("h_shadow", h.shadow);
-    $("m_mode").value = d.music.mode; $("m_vol").value = d.music.volume;
-    $("e_intensity").value = d.effects.intensity;
-    document.querySelectorAll("#e_kinds input").forEach(function (i) { i.checked = d.effects.kinds.indexOf(i.value) > -1; });
-    setChecked("l_on", d.logo.enabled); $("l_asset").value = d.logo.asset_id || ""; $("l_size").value = d.logo.size;
-    $("l_corner").value = d.logo.corner; $("l_from").value = d.logo.from_s; $("k_secs").value = d.cta.seconds;
-    setChecked("k_on", d.cta.enabled); $("k_text").value = d.cta.text; $("k_size").value = d.cta.size;
-    setChecked("x_chips", d.chips); setChecked("x_take", d.takeaway); setChecked("b_wm", d.brand.watermark); setChecked("b_bar", d.brand.progress_bar);
-    $("s_mode").value = d.style_mode;
-    document.querySelectorAll("#s_pool input").forEach(function (i) { i.checked = d.style_pool.indexOf(i.value) > -1; });
-    $("pool-box").hidden = d.style_mode !== "ai";
-    renderStage();
-  }
-  function read() {
-    var num = function (id) { var v = $(id).value; return v === "" ? null : Number(v); };
-    var custom = $("c_custom").checked;
-    return {
-      layout: $("f_layout").value, crop_limit: num("f_limit") || 0,
-      webcam: { x: num("w_x"), y: num("w_y"), w: num("w_w"), h: num("w_h") },
-      captions: { enabled: $("c_enabled").checked, style: $("c_style").value, font: $("c_font").value || null, size: num("c_size"),
-                  uppercase: $("c_upper").value === "" ? null : $("c_upper").value === "1", position: $("c_pos").value,
-                  text_color: custom ? $("c_text").value : null, highlight_color: custom ? $("c_high").value : null },
-      headline: { enabled: $("h_enabled").checked, font: $("h_font").value, size: num("h_size"), align: $("h_align").value, color: $("h_color").value,
-                  background: $("h_nobg").checked ? "" : $("h_bg").value, radius: num("h_radius"), width_pct: num("h_width"), shadow: $("h_shadow").checked },
-      music: { mode: $("m_mode").value, volume: num("m_vol") },
-      effects: { intensity: $("e_intensity").value, kinds: Array.prototype.map.call(document.querySelectorAll("#e_kinds input:checked"), function (i) { return i.value; }) },
-      logo: { enabled: $("l_on").checked, asset_id: num("l_asset"), size: num("l_size"), corner: $("l_corner").value, from_s: num("l_from") },
-      cta: { enabled: $("k_on").checked, text: $("k_text").value, size: num("k_size"), seconds: num("k_secs") },
-      chips: $("x_chips").checked, takeaway: $("x_take").checked, brand: { watermark: $("b_wm").checked, progress_bar: $("b_bar").checked },
-      place: placeFrom(place),
-      style_mode: $("s_mode").value,
-      style_pool: Array.prototype.map.call(document.querySelectorAll("#s_pool input:checked"), function (i) { return i.value; })
-    };
-  }
-  function chosenCategories() {
-    return Array.prototype.map.call(document.querySelectorAll("#cat-list input:checked"), function (i) { return i.value; });
-  }
-
-  function openBuilder(t, style) {
-    current = t ? { id: t.id } : { id: null };
-    var design = copy(t ? t.design : boot.defaults);
-    if (style) design.captions.style = style;
-    $("f_name").value = t ? t.name : "";
-    fill(design);
-    document.querySelectorAll("#cat-list input").forEach(function (i) { i.checked = !!t && t.categories.indexOf(i.value) > -1; });
-    $("delete").hidden = !t;
-    $("builder").hidden = false; tab("templates");
-    selectPane("captions"); loadStage(); checkPlace(true);
-    $("builder").scrollIntoView({ behavior: "smooth" });
-  }
-
-  function buildControls() {
-    options($("c_style"), boot.styles);
-    options($("c_font"), boot.fonts, "Look's own");
-    options($("h_font"), boot.fonts);
-    options($("v_video"), boot.videos.map(function (v) { return { id: v.id, label: v.title }; }));
-    var pool = $("s_pool"); pool.textContent = "";
-    boot.styles.forEach(function (s) { pool.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" },
-      [el("input", { type: "checkbox", value: s.id }), document.createTextNode(s.label)])); });
-    var cats = $("cat-list"); cats.textContent = "";
-    boot.categories.forEach(function (c) { cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" },
-      [el("input", { type: "checkbox", value: c }), document.createTextNode(c)])); });
-    var kinds = $("e_kinds"); kinds.textContent = "";
-    boot.effect_kinds.forEach(function (k) { kinds.appendChild(el("label", { "class": "inline", title: k.blurb, style: "display:inline-flex;gap:6px;align-items:center" },
-      [el("input", { type: "checkbox", value: k.id }), document.createTextNode(k.label)])); });
-    options($("l_asset"), boot.logos.map(function (l) { return { id: l.id, label: l.name }; }), "Choose a logo");
-    $("s_mode").addEventListener("change", function () { $("pool-box").hidden = $("s_mode").value !== "ai"; });
-    renderLogos(); renderMusic(); renderFonts();
-  }
-
-  function renderFonts() {
-    var box = $("font-list"); box.textContent = "";
-    if (!boot.font_uploads.length) box.appendChild(el("p", { "class": "muted", text: "No uploaded fonts yet. The bundled fonts are always there." }));
-    boot.font_uploads.forEach(function (f) {
-      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
-      del.addEventListener("click", function () { if (confirm("Delete this font for good?")) post("/api/fonts/delete", { id: f.id }).then(doneFonts("Font deleted.")); });
-      box.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [
-        el("div", {}, [el("b", { text: f.label }), el("div", { "class": "muted", style: "font-size:12px", text: f.source + ". " + f.licence })]), del]));
-    });
-  }
-  function doneFonts(message) {
-    return function (r) {
-      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
-      location.hash = "#assets"; location.reload();
-    };
-  }
-  $("font-upload").addEventListener("click", function () {
-    var f = $("font-file").files[0];
-    if (!f) return say("Choose a TTF or OTF font first.", "bad");
-    var q = "filename=" + encodeURIComponent(f.name) + "&name=" + encodeURIComponent($("font-name").value)
-      + "&source=" + encodeURIComponent($("font-source").value) + "&licence=" + encodeURIComponent($("font-licence").value);
-    fetch("/api/fonts/upload?" + q, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); }).then(doneFonts("Font uploaded."));
-  });
-
-  function renderMusic() {
-    var m = boot.music, have = m.checklist.filter(function (c) { return c.have; }).length;
-    $("music-count").textContent = m.tracks.length + " track" + (m.tracks.length === 1 ? "" : "s") + " in the library. " + have + " of " + m.checklist.length + " on the shortlist.";
-    $("music-where").textContent = "Looking in " + m.downloads;
-    var box = $("music-tracks"); box.textContent = "";
-    m.tracks.forEach(function (t) {
-      var mood = el("select", { "class": "field" });
-      m.moods.forEach(function (x) { var o = el("option", { value: x, text: x }); if (x === t.mood) o.selected = true; mood.appendChild(o); });
-      var cats = el("div", { "class": "chip-row" });
-      m.categories.forEach(function (c) {
-        var cb = el("input", { type: "checkbox", value: c }); cb.checked = t.categories.indexOf(c) > -1;
-        cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [cb, document.createTextNode(c)]));
-      });
-      var save = el("button", { "class": "btn btn-sm", type: "button", text: "Save" });
-      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
-      save.addEventListener("click", function () {
-        post("/api/music/update", { id: t.id, mood: mood.value, categories: Array.prototype.map.call(cats.querySelectorAll("input:checked"), function (i) { return i.value; }) }).then(doneMusic("Saved."));
-      });
-      del.addEventListener("click", function () { if (confirm("Delete this track for good?")) post("/api/music/delete", { id: t.id }).then(doneMusic("Track deleted.")); });
-      var length = Math.floor(t.duration_s / 60) + ":" + ("0" + Math.round(t.duration_s % 60)).slice(-2);
-      box.appendChild(el("div", { "class": "card stack" }, [
-        el("div", { "class": "cluster", style: "justify-content:space-between" }, [
-          el("div", {}, [el("b", { text: t.title }), el("div", { "class": "muted", style: "font-size:13px", text: t.artist + " · " + length + (t.genre ? " · " + t.genre : "") })]),
-          el("audio", { controls: "", preload: "none", src: "/music/" + t.id + "/file", style: "height:34px;max-width:100%" })]),
-        el("div", { "class": "fmt-row" }, [mood, cats, save, del]),
-        t.singing !== null && t.singing >= 0.35 ? el("div", { style: "font-size:13px;color:#e0a000", text: "Warning: this track sounds sung. Under a voice it may compete with the speaker; the app will still use it when it is the only fit." }) : el("span"),
-        el("div", { "class": "muted", style: "font-size:12px", text: t.source + ". " + t.licence + " Added " + t.added_at.slice(0, 10) + "." })]));
-    });
-    var miss = $("music-missing"); miss.textContent = "";
-    var left = m.checklist.filter(function (c) { return !c.have; });
-    if (!left.length) miss.appendChild(el("p", { "class": "muted", text: "Every shortlisted track is in the library." }));
-    left.forEach(function (c) {
-      miss.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [
-        el("span", { text: c.title + " \u2014 " + c.artist }), el("span", { "class": "muted", style: "font-size:13px", text: c.mood + " \u00b7 " + c.categories.join(", ") })]));
-    });
-    options($("mn_mood"), m.moods.map(function (x) { return { id: x, label: x }; }));
-    var mc = $("mn_cats"); mc.textContent = "";
-    m.categories.forEach(function (c) { mc.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [el("input", { type: "checkbox", value: c }), document.createTextNode(c)])); });
-    $("mn_source").value = m.source; $("mn_licence").value = m.licence;
-  }
-  function doneMusic(message) {
-    return function (r) {
-      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-      try { sessionStorage.setItem("fmt-note", message); } catch (e) {}
-      location.hash = "#music"; location.reload();
-    };
-  }
-  $("music-import").addEventListener("click", function () {
-    $("music-import").disabled = true;
-    post("/api/music/import", {}).then(function (r) {
-      $("music-import").disabled = false;
-      if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-      var d = r.data, parts = [];
-      if (d.imported.length) parts.push("Added " + d.imported.length + ": " + d.imported.join(", ") + ".");
-      if (d.already.length) parts.push(d.already.length + " already in the library.");
-      if (d.problems.length) parts.push("Could not use: " + d.problems.join(" "));
-      if (!parts.length) parts.push("No new shortlisted tracks were found in your Downloads folder.");
-      try { sessionStorage.setItem("fmt-note", parts.join(" ")); } catch (e) {}
-      location.hash = "#music"; location.reload();
-    });
-  });
-  $("mn_add").addEventListener("click", function () {
-    var f = $("mn_file").files[0];
-    if (!f) return say("Choose an MP3 or WAV file first.", "bad");
-    var cats = Array.prototype.map.call($("mn_cats").querySelectorAll("input:checked"), function (i) { return i.value; }).join(",");
-    var q = "filename=" + encodeURIComponent(f.name) + "&title=" + encodeURIComponent($("mn_title").value) + "&artist=" + encodeURIComponent($("mn_artist").value)
-      + "&mood=" + encodeURIComponent($("mn_mood").value) + "&genre=" + encodeURIComponent($("mn_genre").value) + "&categories=" + encodeURIComponent(cats)
-      + "&source=" + encodeURIComponent($("mn_source").value) + "&licence=" + encodeURIComponent($("mn_licence").value);
-    fetch("/api/music/upload?" + q, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); }).then(doneMusic("Track added."));
-  });
-
-  function renderLogos() {
-    var box = $("logo-list"); box.textContent = "";
-    if (!boot.logos.length) box.appendChild(el("p", { "class": "muted", text: "No logo yet." }));
-    boot.logos.forEach(function (l) {
-      var img = el("img", { src: "/assets/" + l.id + "/file", alt: l.name, style: "height:56px;max-width:180px;object-fit:contain;border-radius:8px" });
-      var del = el("button", { "class": "btn btn-sm", type: "button", text: "Delete" });
-      del.addEventListener("click", function () { if (confirm("Delete this logo for good?")) post("/api/assets/delete", { id: l.id }).then(done("Logo deleted.")); });
-      box.appendChild(el("div", { "class": "cluster", style: "justify-content:space-between" }, [img, el("span", { text: l.name }), del]));
-    });
-  }
-  $("logo-upload").addEventListener("click", function () {
-    var f = $("logo-file").files[0];
-    if (!f) return say("Choose a PNG, WebP or GIF first.", "bad");
-    fetch("/api/assets/logo?name=" + encodeURIComponent(f.name), { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
-      .then(function (r) {
-        if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-        try { sessionStorage.setItem("fmt-note", "Logo uploaded."); } catch (e) {}
-        location.hash = "#assets"; location.reload();
-      });
-  });
-
-  function save(asNew) {
-    var body = { id: asNew ? null : current.id, name: $("f_name").value, design: read(), categories: chosenCategories() };
-    post("/api/formats/save", body).then(done("Saved."));
-  }
-  $("save").addEventListener("click", function () { save(false); });
-  $("save-copy").addEventListener("click", function () { save(true); });
-  $("close").addEventListener("click", function () { $("builder").hidden = true; });
-  $("new-template").addEventListener("click", function () { openBuilder(null); });
-  // ---- AI Generate: three formats from a few answers, each with a preview; nothing saved until one is picked --------
-  function aiAnswers() {
-    var logo = $("ai_logo").value;
-    return { kind: $("ai_kind").value, feel: $("ai_feel").value, campaign: $("ai_campaign").checked,
-             logo_id: $("ai_campaign").checked || !logo ? null : Number(logo), note: $("ai_note").value.trim() };
-  }
-  function openAi() {
-    options($("ai_logo"), boot.logos.map(function (l) { return { id: l.id, label: l.name }; }), "No logo");
-    $("ai-results").textContent = ""; $("ai-status").textContent = ""; $("ai-modal").hidden = false;
-  }
-  function renderAiOptions(data) {
-    var box = $("ai-results"); box.textContent = "";
-    if (data.dropped && data.dropped.length) box.appendChild(el("p", { "class": "muted", style: "font-size:13px", text: "Left out because they did not pass the checks: " + data.dropped.join("; ") }));
-    data.options.forEach(function (opt, i) {
-      var video = el("video", { src: opt.preview, controls: "", muted: "", loop: "", playsinline: "", style: "width:180px;max-width:100%;border-radius:10px;background:#000" });
-      var pick = el("button", { "class": "btn btn-primary btn-sm", type: "button", text: "Use this one" });
-      pick.addEventListener("click", function () { askName(opt, answersUsed); });
-      var more = el("button", { "class": "btn btn-sm", type: "button", text: "More like this" });
-      var less = el("button", { "class": "btn btn-sm", type: "button", text: "Not this" });
-      var note = el("span", { class: "muted", style: "font-size:13px" });
-      function feedback(verdict, button) {
-        post("/api/formats/generate/feedback", Object.assign({}, answersUsed, { design: opt.design, verdict: verdict }))
-          .then(function (r) {
-            if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-            more.disabled = less.disabled = true; note.textContent = verdict === "more" ? "Noted: more like this." : "Noted: not this.";
-          });
-      }
-      more.addEventListener("click", function () { feedback("more", more); });
-      less.addEventListener("click", function () { feedback("less", less); });
-      box.appendChild(el("div", { "class": "card cluster", style: "align-items:flex-start;gap:14px" }, [video,
-        el("div", { style: "min-width:0;flex:1 1 220px" }, [el("b", { text: "Option " + (i + 1) + ": " + opt.name }),
-          el("p", { "class": "muted", style: "margin:4px 0 8px", text: opt.summary }),
-          el("div", { "class": "cluster" }, [pick, more, less, note])])]));
-    });
-    box.appendChild(el("div", { id: "ai-pick" }));
-  }
-  var answersUsed = null;
-  function askName(opt, answers) {
-    var host = $("ai-pick"); host.textContent = "";
-    var name = el("input", { "class": "field", type: "text", value: opt.name, maxlength: "40" });
-    var cats = el("div", { "class": "chip-row" });
-    var want = { podcast: "Podcasts", talk: "Talks", stream: "Stream clips", other: "Other" }[answers.kind];
-    boot.categories.forEach(function (c) {
-      var cb = el("input", { type: "checkbox", value: c }); cb.checked = c === want;
-      cats.appendChild(el("label", { "class": "inline", style: "display:inline-flex;gap:6px;align-items:center" }, [cb, document.createTextNode(c)]));
-    });
-    var save = el("button", { "class": "btn btn-primary", type: "button", text: "Save this format" });
-    save.addEventListener("click", function () {
-      var chosen = Array.prototype.map.call(cats.querySelectorAll("input:checked"), function (i) { return i.value; });
-      post("/api/formats/generate/pick", { name: name.value, design: opt.design, categories: chosen, answers: answers,
-        kind: answers.kind, feel: answers.feel, campaign: answers.campaign, logo_id: answers.logo_id, note: answers.note })
-        .then(function (r) {
-          if (!r.ok) return say(r.data.error || "That did not work.", "bad");
-          var n = r.data.queued || 0;
-          try { sessionStorage.setItem("fmt-note", "Saved \"" + name.value + "\"." + (n ? " " + n + " waiting clip" + (n === 1 ? " is" : "s are") + " being given it now: watch them on the Clips page." : "")); } catch (e) {}
-          location.hash = "#templates"; location.reload();
-        });
-    });
-    host.appendChild(el("div", { "class": "card stack" }, [el("b", { text: "Name it and choose the kinds of clips that use it" }), name, cats, el("div", {}, [save])]));
-    host.scrollIntoView({ behavior: "smooth" });
-  }
-  $("ai-generate").addEventListener("click", openAi);
-  $("ai-close").addEventListener("click", function () { $("ai-modal").hidden = true; });
-  $("ai-go").addEventListener("click", function () {
-    var answers = aiAnswers(); answersUsed = answers;
-    var go = $("ai-go"), status = $("ai-status");
-    go.disabled = true; status.textContent = "Making three formats and their previews. This takes about a minute.";
-    $("ai-results").textContent = "";
-    post("/api/formats/generate", Object.assign({ profile: boot.profile }, answers)).then(function (r) {
-      go.disabled = false;
-      if (!r.ok) { status.textContent = ""; return say(r.data.error || "That did not work.", "bad"); }
-      status.textContent = r.data.options.length + " formats made. Cost: $" + r.data.cost.toFixed(2) + ".";
-      renderAiOptions(r.data);
-    });
-  });
-
-  $("delete").addEventListener("click", function () {
-    var t = boot.templates.filter(function (x) { return x.id === current.id; })[0];
-    var warn = t && t.categories.length ? " " + t.categories.join(", ") + " will have no format, so its clips wait for review." : "";
-    if (confirm("Delete this template for good?" + warn)) post("/api/formats/delete", { id: current.id }).then(done("Deleted."));
-  });
-  $("webcam-suggest").addEventListener("click", function () {
-    var status = $("webcam-suggest"); status.disabled = true;
-    post("/api/formats/suggest-webcam", { video_id: $("v_video").value }).then(function (r) {
-      status.disabled = false;
-      if (!r.ok) return say(r.data.error || "No webcam was found in that video.", "bad");
-      $("w_x").value = r.data.x; $("w_y").value = r.data.y; $("w_w").value = r.data.w; $("w_h").value = r.data.h;
-      loadStage(); say("Webcam box suggested. Check it against the preview.", "good");
-    });
-  });
-  $("v_btn").addEventListener("click", function () {
-    var status = $("v_status"); status.textContent = "Making the preview. This takes a few seconds."; $("v_btn").disabled = true;
-    post("/api/formats/preview", { design: read(), video_id: $("v_video").value, profile: boot.profile }).then(function (r) {
-      $("v_btn").disabled = false;
-      if (!r.ok) { status.textContent = r.data.error || "The preview could not be made."; return; }
-      status.textContent = "The real renderer made this. The headline and labels are sample text.";
-      var v = $("v_player"); v.src = r.data.url + "?t=" + Date.now(); v.hidden = false; v.play();
-    }).catch(function () { $("v_btn").disabled = false; status.textContent = "The preview could not be made."; });
-  });
-  $("apply-clip").addEventListener("click", function () {
-    post("/api/formats/apply-clip", { profile: boot.clip.profile, clip_id: boot.clip.id, design: read(), template_id: boot.clip.template_id }).then(function (r) {
-      say(r.ok ? "Applying this look to the clip. It takes a minute; reopen the clip afterwards." : (r.data.error || "That did not work."), r.ok ? "good" : "bad");
-    });
-  });
-
-  // ---- the live stage: a paused frame with the format drawn over it; the words are the sample's real words -------------
-  // Drawn in the browser so every change shows at once. "Check with real render" makes the exact clip; this is close.
-  var PANE_OF = { captions: "captions", headline: "headline", chips: "labels", watermark: "labels", bar: "labels", logo: "logo", cta: "logo" };
-  var geo = boot.geometry, currentPane = "captions", stageData = null, stageReq = 0;
-  var fontFaces = boot.fonts.map(function (f) { return "@font-face{font-family:'f-" + f.id + "';src:url('/formats/font/" + f.id + "')}"; }).join("");
-  var faceStyle = document.createElement("style"); faceStyle.textContent = fontFaces; document.head.appendChild(faceStyle);
-  function px(n) { return (n / geo.width * 100) + "cqw"; }   // a size in the 1080-wide picture, as a share of the stage's width
-  function pct(y) { return (y / geo.height * 100) + "%"; }
-  function selectPane(name) {
-    currentPane = name;
-    document.querySelectorAll("fieldset[data-pane]").forEach(function (f) { f.hidden = f.dataset.pane !== name; });
-    document.querySelectorAll(".fmt-panes button").forEach(function (b) {
-      var on = b.dataset.pane === name; b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("btn-primary", on);
-    });
-    markStage();
-  }
-  function markStage() {
-    document.querySelectorAll("#stage-items [data-item]").forEach(function (n) {
-      var on = PANE_OF[n.dataset.item] === currentPane;
-      n.classList.toggle("on", on); n.style.zIndex = on ? 5 : "";   // the item being edited is on top, so it can be grabbed
-    });
-  }
-  // Where each movable item was dragged to, in the 1080x1920 picture; null keeps the layout's own spot (see designs.place_of).
-  var PLACE_KEYS = ["headline_y", "captions_y", "labels_y", "cta_y", "logo_x", "logo_y"];
-  var MOVE_KEY = { headline: "headline_y", captions: "captions_y", chips: "labels_y", cta: "cta_y", logo: "logo_y" };
-  var GUIDE_Y = [384, 960, 1536], GUIDE_X = [540], SNAP = 14;   // the safe-zone edges and the middle, in picture units
-  var place = placeFrom(null), guides = [], dragging = null, checkedAt = 0, checkReq = 0, checkTimer = null;
-  function placeFrom(p) {
-    var out = {};
-    PLACE_KEYS.forEach(function (k) { out[k] = p && p[k] != null ? p[k] : null; });
-    return out;
-  }
-  function clamp(v, lo, hi) { return Math.round(Math.max(lo, Math.min(hi, v))); }
-  // Where every item sits now: where it was dragged, or the layout's own spot.
-  function spot(d) {
-    var L = d.layout, logoW = geo.width * (d.logo.size || 14) / 100, right = L === "stacked_webcam" || L === "split" || d.logo.corner === "right";
-    return {
-      headline_y: place.headline_y != null ? place.headline_y : geo.headline_top[L],
-      captions_y: place.captions_y != null ? place.captions_y : geo.positions[d.captions.position],
-      labels_y: place.labels_y != null ? place.labels_y : geo.chips_y[L],
-      cta_y: place.cta_y != null ? place.cta_y : geo.chips_y[L],
-      logo_x: place.logo_x != null ? place.logo_x : (right ? geo.width - logoW - 60 : 60),
-      logo_y: place.logo_y != null ? place.logo_y : geo.logo_y[L]
-    };
-  }
-  function grip(name) { return el("div", { "class": "st-handle", "data-resize": name }); }
-  function renderStage() {
-    var d = read(), box = $("stage-items"), L = d.layout, at = spot(d);
-    box.textContent = "";
-    if (d.headline.enabled) {
-      var hs = d.headline.size || 44, hw = d.headline.width_pct || 84, boxed = !!d.headline.background;
-      var lines = boot.sample.headline.slice(0, 2).map(function (t) {
-        return el("div", { style: "font-family:'f-" + d.headline.font + "';font-size:" + px(hs) + ";line-height:1.2;padding:" + px(hs * 0.22) + " " + px(hs * 0.45)
-          + ";margin:0 0 " + px(hs * 0.18) + ";border-radius:" + px(d.headline.radius) + ";background:" + (boxed ? d.headline.background : "transparent")
-          + ";color:" + d.headline.color + ";text-align:" + d.headline.align + ";text-shadow:" + (d.headline.shadow || !boxed ? "0 " + px(3) + " " + px(3) + " rgba(0,0,0,.7)" : "none"),
-          text: t.toUpperCase() });
-      });
-      box.appendChild(el("div", { "class": "st-item", "data-item": "headline", style: "left:" + ((100 - hw) / 2) + "%;width:" + hw + "%;top:" + pct(at.headline_y) },
-        lines.concat([grip("headline")])));
-    }
-    var c = d.captions;
-    if (c.enabled && stageData && stageData.words.length) {
-      var st = boot.styles.filter(function (s) { return s.id === c.style; })[0], words = stageData.words;
-      var size = c.size || st.size, upper = c.uppercase === null ? st.upper : c.uppercase;
-      var base = c.text_color || st.base, hi = c.highlight_color || st.accent;
-      var when = stageData.at, i = words.findIndex(function (w) { return w.t0 <= when && when < w.t1; });
-      if (i < 0) i = Math.max(words.findIndex(function (w) { return w.t0 >= when; }), 0);
-      var from = Math.floor(i / st.group) * st.group;
-      var group = words.slice(from, from + st.group).map(function (w, k) {
-        var spoken = from + k === i, css = "color:" + (spoken ? hi : base) + ";";
-        if (spoken && st.kind === "block") css = "background:" + hi + ";color:#111;border-radius:" + px(6) + ";padding:0 " + px(8) + ";";
-        return el("span", { style: css, text: (upper ? w.text.toUpperCase() : w.text) + " " });
-      });
-      var plate = st.kind === "plate";
-      box.appendChild(el("div", { "class": "st-item", "data-item": "captions", style: "left:0;right:0;text-align:center;transform:translateY(-50%);top:"
-        + pct(at.captions_y) + ";font-family:'f-" + (c.font || st.font) + "';font-size:" + px(size) + ";line-height:1.1;"
-        + (plate ? "background:rgba(0,0,0,.72);padding:" + px(14) + ";border-radius:" + px(4) + ";"
-                 : "-webkit-text-stroke:" + px(st.bord * 0.5) + " #0c0e12;paint-order:stroke fill;") }, group));
-    }
-    if (d.chips) {
-      box.appendChild(el("div", { "class": "st-item", "data-item": "chips", style: "left:50%;transform:translate(-50%,-50%);top:" + pct(at.labels_y)
-        + ";font-family:'f-montserrat-black';font-size:" + px(30) + ";background:#FFB000;color:#0E1217;padding:" + px(12) + " " + px(28)
-        + ";border-radius:999px;text-transform:uppercase;white-space:nowrap", text: boot.sample.points[0] || "A point" }));
-    }
-    if (d.brand.watermark) {
-      box.appendChild(el("div", { "class": "st-item", "data-item": "watermark", style: "left:50%;transform:translate(-50%,-50%);top:50%;font-family:'f-montserrat-bold';font-size:" + px(26)
-        + ";color:rgba(255,255,255,.6);text-shadow:0 0 " + px(4) + " #000", text: "@yourhandle" }));
-    }
-    if (d.brand.progress_bar) {
-      box.appendChild(el("div", { "class": "st-item", "data-item": "bar", style: "left:0;bottom:0;width:40%;height:" + px(8) + ";background:#FFB000" }));
-    }
-    var lg = d.logo;
-    if (lg.enabled) {
-      var logoKids = [lg.asset_id ? el("img", { src: "/assets/" + lg.asset_id + "/file", alt: "", style: "display:block;width:100%" })
-        : el("div", { style: "border:" + px(3) + " dashed #fff;color:#fff;font-size:" + px(30) + ";padding:" + px(16) + ";text-align:center", text: "logo" })];
-      if (lg.from_s > 0) logoKids.push(el("div", { "class": "st-tag", text: "from " + lg.from_s + " s" }));
-      logoKids.push(grip("logo"));
-      box.appendChild(el("div", { "class": "st-item", "data-item": "logo", style: "left:" + ((at.logo_x / geo.width) * 100) + "%;top:" + pct(at.logo_y) + ";width:" + lg.size + "%" }, logoKids));
-    }
-    if (d.cta.enabled) {
-      box.appendChild(el("div", { "class": "st-item", "data-item": "cta", style: "left:10%;width:80%;top:" + pct(at.cta_y) + ";transform:translateY(-50%)" }, [
-        el("div", { style: "font-family:'f-montserrat-black';font-size:" + px(d.cta.size) + ";background:#FFB000;color:#0E1217;padding:" + px(12) + " " + px(30)
-          + ";border-radius:999px;text-align:center;text-transform:uppercase", text: d.cta.text }),
-        el("div", { "class": "st-tag", style: "display:block;text-align:center", text: "last " + d.cta.seconds + " s" })]));
-    }
-    guides.forEach(function (g) {
-      box.appendChild(el("div", { "class": "st-guide", style: g.axis === "y" ? "left:0;right:0;top:" + pct(g.v) + ";height:1px"
-        : "top:0;bottom:0;left:" + ((g.v / geo.width) * 100) + "%;width:1px" }));
-    });
-    markStage();
-  }
-  // Snap a centre to a guide when it is close to one, and remember the guide so the stage can draw it.
-  function snapCentre(centre, list, axis) {
-    var best = null;
-    list.forEach(function (v) { if (Math.abs(centre - v) <= SNAP && (best === null || Math.abs(centre - v) < Math.abs(centre - best))) best = v; });
-    if (best === null) return centre;
-    guides.push({ axis: axis, v: best });
-    return best;
-  }
-  function moveItem(g, dx, dy) {
-    var at = g.at, name = g.item;
-    if (name === "logo") {
-      place.logo_x = clamp(snapCentre(at.logo_x + dx + g.w / 2, GUIDE_X, "x") - g.w / 2, 0, geo.width - g.w);
-      place.logo_y = clamp(snapCentre(at.logo_y + dy + g.h / 2, GUIDE_Y, "y") - g.h / 2, 0, geo.height - g.h);
-    } else if (name === "headline") {
-      place.headline_y = clamp(snapCentre(at.headline_y + dy + g.h / 2, GUIDE_Y, "y") - g.h / 2, 0, geo.height - g.h);
-    } else {
-      place[MOVE_KEY[name]] = clamp(snapCentre(at[MOVE_KEY[name]] + dy, GUIDE_Y, "y"), 0, geo.height);
-    }
-  }
-  // Dragging a corner grip sets the headline's width or the logo's size, the same numbers the inspector shows.
-  function resize(g, e) {
-    var x = (e.clientX - g.stage.left) * g.scale;
-    if (g.item === "headline") $("h_width").value = clamp(Math.abs(x - geo.width / 2) * 2 / geo.width * 100, 40, 100);
-    else $("l_size").value = clamp((x - g.at.logo_x) / geo.width * 100, 6, 30);
-  }
-  // The live check: what the placement covers, in plain words. Throttled while dragging, and it always runs at the end.
-  function checkPlace(force) {
-    clearTimeout(checkTimer);
-    if (!force && Date.now() - checkedAt < 300) { checkTimer = setTimeout(function () { checkPlace(true); }, 300); return; }
-    checkedAt = Date.now();
-    var req = ++checkReq, note = $("place-note");
-    post("/api/formats/check", { design: read() }).then(function (r) {
-      if (req !== checkReq) return;
-      if (!r.ok) { note.style.color = "#E0605A"; note.textContent = r.data.error || "That placement cannot be checked."; return; }
-      note.style.color = r.data.problems.length ? "#E0605A" : "";
-      note.textContent = r.data.problems.length ? r.data.problems[0] : "Nothing covers anything else.";
-    });
-  }
-  $("stage-items").addEventListener("pointerdown", function (e) {
-    var handle = e.target.closest("[data-resize]"), item = e.target.closest("[data-item]");
-    if (!item || (!handle && !MOVE_KEY[item.dataset.item])) return;
-    var stage = $("stage").getBoundingClientRect(), scale = geo.width / stage.width, at = spot(read());
-    if (handle && item.dataset.item === "logo") place.logo_x = at.logo_x;   // pinned, so the size grows from the left edge
-    dragging = { item: item.dataset.item, grip: !!handle, x: e.clientX, y: e.clientY, at: at, stage: stage, scale: scale,
-                 w: item.offsetWidth * scale, h: item.offsetHeight * scale, moved: false };
-    e.preventDefault();
-  });
-  document.addEventListener("pointermove", function (e) {
-    var g = dragging;
-    if (!g) return;
-    var dx = (e.clientX - g.x) * g.scale, dy = (e.clientY - g.y) * g.scale;
-    if (!g.moved && Math.abs(dx) + Math.abs(dy) < 4) return;   // a small wobble is a click, not a drag
-    g.moved = true;
-    guides = [];
-    if (g.grip) resize(g, e); else moveItem(g, dx, dy);
-    renderStage();
-    selectPane(PANE_OF[g.item]);
-    checkPlace(false);
-  });
-  document.addEventListener("pointerup", function () {
-    var g = dragging;
-    dragging = null; guides = [];
-    if (g && g.moved) { renderStage(); checkPlace(true); }
-  });
-  function onEdit() { renderStage(); checkPlace(false); }
-  function loadStage() {
-    var id = $("v_video").value, req = ++stageReq, note = $("stage-note");
-    note.style.color = "";
-    if (!id) { stageData = null; $("stage-still").hidden = true; note.textContent = "Download a video to see the format on a real frame."; return renderStage(); }
-    note.textContent = "Making the frame…";
-    var d = read();   // only the layout, the crop limit and the webcam box change the frame; the text is drawn here
-    post("/api/formats/stage", { video_id: id, design: { layout: d.layout, crop_limit: d.crop_limit, webcam: d.webcam } })
-      .then(function (r) {
-        if (req !== stageReq) return;
-        if (!r.ok) { note.style.color = "#E0605A"; note.textContent = r.data.error || "The frame could not be made."; return renderStage(); }
-        stageData = r.data; $("stage-still").src = r.data.still; $("stage-still").hidden = false;
-        note.textContent = "A paused frame from the sample, framed by the chosen layout, with its real words. Close to the real render, not exact."
-          + (r.data.warning ? " This layout could not frame this video (" + r.data.warning + "), so the plain middle is shown." : "");
-        note.style.color = r.data.warning ? "#E0A000" : "";
-        renderStage();
-      })
-      .catch(function () { if (req === stageReq) { note.style.color = "#E0605A"; note.textContent = "The frame could not be made."; } });
-  }
-  var stageTimer = null;
-  function reloadStageSoon() { clearTimeout(stageTimer); stageTimer = setTimeout(loadStage, 450); }
-  ["f_layout", "f_limit", "w_x", "w_y", "w_w", "w_h"].forEach(function (id) { $(id).addEventListener("change", reloadStageSoon); });
-  document.querySelectorAll(".fmt-panes button").forEach(function (b) { b.addEventListener("click", function () { selectPane(b.dataset.pane); }); });
-  $("stage-items").addEventListener("click", function (e) { var item = e.target.closest("[data-item]"); if (item) selectPane(PANE_OF[item.dataset.item]); });
-  $("v_video").addEventListener("change", loadStage);
-  $("builder").addEventListener("input", onEdit);
-  $("builder").addEventListener("change", onEdit);
-  // A new position for captions or the logo's corner moves them back to the layout's own spot first.
-  $("c_pos").addEventListener("change", function () { place.captions_y = null; });
-  $("l_corner").addEventListener("change", function () { place.logo_x = null; });
-  $("place-reset").addEventListener("click", function () { place = placeFrom(null); renderStage(); checkPlace(true); });
-  options($("f_preset"), boot.presets.map(function (p) { return { id: p.id, label: p.name }; }), "Keep the settings below");
-  $("f_preset").addEventListener("change", function () {
-    var p = boot.presets.filter(function (x) { return x.id === $("f_preset").value; })[0];
-    $("f_preset").value = "";
-    if (p) { fill(copy(p.design)); loadStage(); say("The " + p.name + " settings are in the builder. Save to keep them.", "good"); }
-  });
-
-  buildControls(); renderPresets(); renderStyles(); renderTemplates();
-  try { var n = sessionStorage.getItem("fmt-note"); if (n) { say(n, "good"); sessionStorage.removeItem("fmt-note"); } } catch (e) {}
-  tab((location.hash || "").replace("#", "") || (boot.templates.length ? "templates" : "presets"));
-  if (boot.clip) {
-    var own = boot.templates.filter(function (t) { return t.id === boot.clip.template_id; })[0];
-    openBuilder(own || null);
-    if (boot.clip.design) fill(copy(boot.clip.design));
-    $("clip-box").hidden = false; $("clip-box").querySelector("div").textContent = "You are editing the look of clip " + boot.clip.id + ". Apply to this clip only leaves the template alone; Save template changes it for every clip that uses it.";
-    $("clip-actions").hidden = false;
-  }
-})();
-</script>
+<script src="/static/formats-actions.js?v={{ shell.asset_v }}"></script>
+<script src="/static/formats-builder.js?v={{ shell.asset_v }}"></script>
 {% endblock %}

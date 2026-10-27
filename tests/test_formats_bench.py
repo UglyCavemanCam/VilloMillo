@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 
 import pytest
 from test_research import make_sv
@@ -67,7 +68,7 @@ def test_the_live_preview_is_made_of_short_pieces_at_a_smaller_size():
 
 
 def test_the_bench_command_is_registered():
-    parser_help = subprocess.run(["python", "-m", "villomillo", "formats-bench", "--help"], capture_output=True, text=True, timeout=120)
+    parser_help = subprocess.run([sys.executable, "-m", "villomillo", "formats-bench", "--help"], capture_output=True, text=True, timeout=120)
     assert parser_help.returncode == 0 and "--seconds" in parser_help.stdout
     assert callable(cli.cmd_formats_bench)
 
@@ -93,3 +94,29 @@ def test_the_bench_says_what_to_do_when_there_is_no_video_to_measure_on(tmp_path
     sv = make_sv(tmp_path, monkeypatch)
     with pytest.raises(preview.PreviewError, match="make a clip first"):
         preview.bench(sv.db, next(iter(sv.profiles.values())))
+
+
+def test_finding_the_busiest_stretch_is_fast_on_a_long_video_and_gives_the_same_answer(monkeypatch):
+    """The Formats page asks for the busiest stretch of every downloaded video each time it opens. A three-hour podcast has about
+    thirty thousand words, so counting the words in a window for every word must not be done by scanning them all each time."""
+    import random
+    import time
+
+    rng = random.Random(7)
+    long = [{"t0": i * 0.35 + rng.random() * 0.1} for i in range(60000)]
+    monkeypatch.setattr(preview, "clip_words", lambda video_id, start, end: long)
+    began = time.time()
+    start, words = preview._compute_densest("long", 35.0)
+    assert time.time() - began < 3.0 and words >= 90 and start >= 30
+
+    few = [{"t0": rng.random() * 200} for _ in range(400)]
+    monkeypatch.setattr(preview, "clip_words", lambda video_id, start, end: few)
+    starts = sorted(w["t0"] for w in few)
+    best, best_n = starts[0], 0
+    for t in starts:   # the plain way, for a short video
+        if t < 30 and starts[-1] > 60:
+            continue
+        n = sum(1 for s in starts if t <= s < t + 35.0)
+        if n > best_n:
+            best, best_n = t, n
+    assert preview._compute_densest("short", 35.0) == (best, best_n)

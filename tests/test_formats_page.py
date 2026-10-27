@@ -13,6 +13,7 @@ from test_research import make_sv
 from villomillo import relook, store
 from villomillo.formats import designs, templates
 from villomillo.web.app import create_app
+from villomillo.web.pages import STATIC
 
 
 @pytest.fixture
@@ -119,9 +120,9 @@ def test_edit_look_queues_a_look_for_one_clip_and_refuses_bad_designs_or_clips_n
         task = c.execute("SELECT payload_json FROM tasks WHERE kind='relook'").fetchone()
     assert json.loads(task["payload_json"])["design"]["captions"]["style"] == "burst"
     with sv.db.conn() as c:
-        c.execute("UPDATE clips_ready SET state='approved'")
+        c.execute("UPDATE clips_ready SET state='rejected'")
     gone = client.post("/api/formats/apply-clip", json={"profile": "solved", "clip_id": clip_id, "design": {}})
-    assert gone.status_code == 404 and "waiting for your review" in gone.json()["error"]
+    assert gone.status_code == 409 and "was rejected" in gone.json()["error"]
 
 
 def test_the_formats_page_opened_from_a_clip_knows_the_clip(sv, client):
@@ -389,10 +390,9 @@ def test_a_dragged_position_is_saved_with_the_template_and_comes_back_in_the_bui
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
-def test_the_builders_script_is_valid_javascript(client, tmp_path):
-    page = client.get("/formats").text
-    script = page.split('<script id="boot" type="application/json">')[1].split("<script>", 1)[1].split("</script>")[0]
-    for name in ("renderStage", "loadStage", "selectPane", "checkPlace", "fill", "read"):
+def test_the_builders_script_is_valid_javascript(tmp_path):
+    script = (STATIC / "formats-builder.js").read_text(encoding="utf-8")
+    for name in ("renderStage", "loadStage", "renderSettings", "renderLayers", "addElement", "checkPlace", "fill", "read"):
         assert script.count(f"function {name}(") == 1   # a mis-spliced edit once repeated a block of the script
     path = tmp_path / "formats.js"
     path.write_text(script, encoding="utf-8")

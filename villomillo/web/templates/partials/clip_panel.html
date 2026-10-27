@@ -7,7 +7,7 @@
   <div style="display:flex;gap:18px;align-items:flex-start">
     <div><div class="muted" style="font-size:12px">Grade</div><div class="grade" style="font-size:44px;line-height:48px">{{ c.grade }}</div></div>
     <div style="min-width:0"><div style="font-weight:500;line-height:20px">{{ c.title }}</div>
-      <div class="muted" style="font-size:13px;margin-top:6px;line-height:19px">{{ d.facts.look }}{% if d.is_review and not d.look_failed %} (<a href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a>){% endif %} · {{ d.facts.size }} · {{ c.duration }} long, from {{ d.facts.start }} to {{ d.facts.end }} in the episode{% if d.episode %}<br>{{ d.episode }}{% endif %}</div></div>
+      <div class="muted" style="font-size:13px;margin-top:6px;line-height:19px">{{ d.facts.look }}{% if d.can_edit_look and not d.look_failed %} (<a href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a>){% endif %} · {{ d.facts.size }} · {{ c.duration }} long, from {{ d.facts.start }} to {{ d.facts.end }} in the episode{% if d.episode %}<br>{{ d.episode }}{% endif %}</div></div>
   </div>
 
   <div><h3 style="margin-bottom:8px">Checks</h3>
@@ -61,7 +61,7 @@
         <a class="btn btn-sm" href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">Edit look</a></div>
       {% endif %}</div></div>
   {% elif d.look_failed %}
-  <p class="muted" style="font-size:13px;line-height:19px;margin:0">This clip has no format, and only a clip waiting for your review can be given one.</p>
+  <p class="muted" style="font-size:13px;line-height:19px;margin:0">This clip has no format, and only a clip waiting for your review can be given one.{% if d.can_edit_look %} You can still <a href="/formats?clip={{ d.row.id }}&profile={{ p.id }}">design its look</a>.{% endif %}</p>
   {% endif %}
 
   <div><h3 style="margin-bottom:8px">Post</h3>

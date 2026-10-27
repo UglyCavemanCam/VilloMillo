@@ -1,7 +1,8 @@
 """Applying a format to a clip that has none: the clip is cut again from the downloaded video in its category's format, checked,
-and put in place of the file it has now. Only a clip waiting for your review can be given a format.
+and put in place of the file it has now. A format can be given to a clip waiting for your review; Edit look can also change the look of an
+approved clip whose post has not gone out yet (the post keeps its place in the queue and sends the new file).
 
-A clip that already went to YouTube stays there as it was: use Post again to send the new version.
+A clip that already went out stays there as it was: its look can no longer be changed, and Post again sends the same file.
 
 The work runs in the background (the "relook" task), so this module also says where a clip's format stands: waiting for its turn,
 being made, done, or failed with the reason (state). The clip panel shows that live.
@@ -16,16 +17,35 @@ from datetime import datetime
 
 from core.paths import discard, replace_with_retry
 
-from . import formats, store, tasks, validate
+from . import clipper, formats, store, tasks, validate
 from .services import Services
 
 KINDS = ("relook",)   # handled by their own worker, so applying a format never waits behind a long clip job
 TRIES = 2             # a second try settles a text or network hiccup (making a clip does the same)
 WAITING = "passed checks; waiting for your decision"
+POSTED = ("uploaded", "posted")    # a post in one of these states has gone out
+EDITABLE = ("review", "approved")  # the clips whose look Edit look can change, while no post of theirs has gone out
+STATE_WORDS = {"rejected": "rejected", "rejected_auto": "stopped by the automatic checks", "failed_validation": "failed its file checks"}
 
 
 class RelookError(RuntimeError):
     """The message is safe to show."""
+
+
+def edit_problem(db, clip) -> str | None:
+    """Why this clip's look cannot be changed now, in plain words, or None when it can: not once a post of it has gone out (the
+    video that is out would not change), and not for a clip that is gone, rejected, or has lost its file."""
+    if clip is None or clip["state"] in ("removed", "superseded"):
+        return "This clip is gone."
+    with db.conn() as c:
+        out = c.execute("SELECT 1 FROM posts WHERE clip_id=? AND status IN (?, ?) LIMIT 1", (clip["id"], *POSTED)).fetchone()
+    if out:
+        return "This clip has already been posted, so its look can no longer be changed: the video that went out would not change. Make a new clip from the same part of the video to try another look."
+    if clip["state"] not in EDITABLE:
+        return f"This clip was {STATE_WORDS.get(clip['state'], clip['state'])}, so its look cannot be changed."
+    if not clip["file_path"]:
+        return "This clip's file was deleted, so its look cannot be changed."
+    return None
 
 
 def apply(sv: Services, clip_id: int, *, template_id: str | None = None, design: dict | None = None) -> str:
@@ -33,10 +53,8 @@ def apply(sv: Services, clip_id: int, *, template_id: str | None = None, design:
     template. Returns a short line; raises RelookError with the reason when it cannot."""
     with sv.db.conn() as c:
         clip = c.execute("SELECT * FROM clips_ready WHERE id=?", (clip_id,)).fetchone()
-    if clip is None or clip["state"] in ("removed", "superseded"):
-        raise RelookError("this clip is gone")
-    if clip["state"] != "review":
-        raise RelookError(f"this clip is {clip['state']}, so it cannot be given a format now")
+    if (problem := edit_problem(sv.db, clip)):
+        raise RelookError(problem)
     owner = sv.profiles.get(clip["profile_id"])
     if owner is None:
         raise RelookError("its channel no longer exists")
@@ -74,10 +92,13 @@ def apply(sv: Services, clip_id: int, *, template_id: str | None = None, design:
     finally:
         discard(tmp)
     grade = json.loads(clip["grade_json"] or "{}")
-    grade.update(look=f"template {template['id']}" if template["id"] else "edited look", look_design=design,
+    grade.update(look=f"template {template['id']}" if template["id"] else "edited look", look_design=design or result.get("design"),
                  effects=result.get("effects", []), music=result.get("music"))
+    grade.update({k: v for k, v in clipper.look_record(result).items() if k == "look_text"})
+    # a clip still waiting for review says so; an approved clip keeps its own state, reason and post (its place in the queue)
     with sv.db.conn() as c:
-        c.execute("UPDATE clips_ready SET grade_json=?, validation_json=?, template_id=?, format_applied=1, format_note=NULL, reason=? WHERE id=?",
+        c.execute("UPDATE clips_ready SET grade_json=?, validation_json=?, template_id=?, format_applied=1, format_note=NULL, "
+                  "reason=CASE WHEN state='review' THEN ? ELSE reason END WHERE id=?",
                   (json.dumps(grade), json.dumps(verdict), template["id"], WAITING, clip_id))
     store.event(sv.db, "info", "clips", f"clip {clip_id} given the {template['name']} format")
     return f"clip {clip_id}: the {template['name']} format was applied"
